@@ -55,13 +55,13 @@ impl Counters {
 
     /// Next cmd_id in 1..=255 (0 is never returned).
     pub fn next_cmd_id(&mut self) -> u8 {
-        self.cmd_id = if self.cmd_id >= 255 { 1 } else { self.cmd_id + 1 };
+        self.cmd_id = if self.cmd_id == u8::MAX { 1 } else { self.cmd_id + 1 };
         self.cmd_id
     }
 
     /// Next seq in 1..=65535 (0 is never returned).
     pub fn next_seq(&mut self) -> u16 {
-        self.seq = if self.seq >= 65_535 { 1 } else { self.seq + 1 };
+        self.seq = if self.seq == u16::MAX { 1 } else { self.seq + 1 };
         self.seq
     }
 }

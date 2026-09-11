@@ -1,0 +1,251 @@
+//! `/api/items`, `/api/cells`, `/api/stations`, `/api/defaults` — baseline CRUD + PLC import (M3-A adds
+//! push/diff/Excel).
+
+use axum::Router;
+use axum::extract::{Path, Query, State};
+use axum::routing::{get, post};
+use gr_proto::{CellInfo, StationPara, StockItem};
+use serde::Deserialize;
+use serde_json::{Value as Json, json};
+
+use super::{CellEntry, Defaults, ItemEntry, StationEntry};
+use crate::error::{ApiError, ApiResult};
+use crate::state::AppState;
+
+// ---- items (frontend shape: snake_case Item)
+fn item_view(e: &ItemEntry) -> Json {
+    json!({ "code": e.code, "name": e.name, "count": e.item.count, "inner_diameter": e.item.inner_diameter, "outer_diameter": e.item.outer_diameter,
+        "lower_bead_height": e.item.lower_bid_height, "upper_bead_height": e.item.upper_bid_height, "height": e.item.height, "deflection_factor": e.item.deflection_factor,
+        "note": e.note, "updated_at": e.updated_at })
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
+struct ItemBody {
+    code: u32,
+    name: String,
+    count: u8,
+    inner_diameter: f32,
+    outer_diameter: f32,
+    lower_bead_height: f32,
+    upper_bead_height: f32,
+    height: f32,
+    deflection_factor: f32,
+    note: String,
+}
+impl Default for ItemBody {
+    fn default() -> Self {
+        Self { code: 0, name: String::new(), count: 1, inner_diameter: 0.0, outer_diameter: 0.0, lower_bead_height: 0.0, upper_bead_height: 0.0, height: 0.0, deflection_factor: 0.0, note: String::new() }
+    }
+}
+impl ItemBody {
+    fn stock(&self) -> StockItem {
+        StockItem { code: self.code, count: self.count, inner_diameter: self.inner_diameter, outer_diameter: self.outer_diameter, lower_bid_height: self.lower_bead_height, upper_bid_height: self.upper_bead_height, height: self.height, deflection_factor: self.deflection_factor }
+    }
+}
+
+async fn items(State(st): State<AppState>) -> ApiResult<Vec<Json>> {
+    Ok(axum::Json(st.registry.items()?.iter().map(item_view).collect()))
+}
+async fn item_create(State(st): State<AppState>, axum::Json(b): axum::Json<ItemBody>) -> ApiResult<Json> {
+    if b.code == 0 {
+        return Err(ApiError::BadRequest("code must be > 0".into()));
+    }
+    Ok(axum::Json(item_view(&st.registry.upsert_item(b.code, &b.name, &b.stock(), &b.note)?)))
+}
+async fn item_update(State(st): State<AppState>, Path(code): Path<u32>, axum::Json(mut b): axum::Json<ItemBody>) -> ApiResult<Json> {
+    b.code = code;
+    Ok(axum::Json(item_view(&st.registry.upsert_item(code, &b.name, &b.stock(), &b.note)?)))
+}
+async fn item_delete(State(st): State<AppState>, Path(code): Path<u32>) -> ApiResult<Json> {
+    Ok(axum::Json(json!({ "deleted": st.registry.delete_item(code)? })))
+}
+
+// ---- cells (frontend shape: snake_case Cell)
+pub fn cell_view(e: &CellEntry) -> Json {
+    json!({ "id": e.id, "use": e.cell.use_, "blend_use": e.cell.blend_use, "section": e.cell.section, "row": e.cell.row, "col": e.cell.col,
+        "length": e.cell.length, "width": e.cell.width, "position": e.cell.position, "source": e.source, "dirty": e.dirty, "updated_at": e.updated_at, "plc_seen_at": e.plc_seen_at })
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
+pub struct CellBody {
+    pub id: u16,
+    #[serde(rename = "use")]
+    pub use_: bool,
+    pub blend_use: bool,
+    pub section: u16,
+    pub row: u16,
+    pub col: u16,
+    pub length: f32,
+    pub width: f32,
+    pub position: [f32; 3],
+}
+impl Default for CellBody {
+    fn default() -> Self {
+        Self { id: 0, use_: true, blend_use: false, section: 0, row: 0, col: 0, length: 0.0, width: 0.0, position: [0.0; 3] }
+    }
+}
+impl CellBody {
+    pub fn info(&self) -> CellInfo {
+        CellInfo { use_: self.use_, blend_use: self.blend_use, id: self.id, section: self.section, row: self.row, col: self.col, length: self.length, width: self.width, position: self.position }
+    }
+}
+
+async fn cells(State(st): State<AppState>) -> ApiResult<Vec<Json>> {
+    Ok(axum::Json(st.registry.cells()?.iter().map(cell_view).collect()))
+}
+async fn cell_create(State(st): State<AppState>, axum::Json(b): axum::Json<CellBody>) -> ApiResult<Json> {
+    if !(gr_proto::CELL_ID_MIN..=gr_proto::CELL_ID_MAX).contains(&b.id) {
+        return Err(ApiError::BadRequest("cell id must be 1..1000".into()));
+    }
+    Ok(axum::Json(cell_view(&st.registry.upsert_cell(&b.info(), "local", true, None)?)))
+}
+async fn cell_update(State(st): State<AppState>, Path(id): Path<u16>, axum::Json(mut b): axum::Json<CellBody>) -> ApiResult<Json> {
+    b.id = id;
+    Ok(axum::Json(cell_view(&st.registry.upsert_cell(&b.info(), "local", true, None)?)))
+}
+async fn cell_delete(State(st): State<AppState>, Path(id): Path<u16>) -> ApiResult<Json> {
+    Ok(axum::Json(json!({ "deleted": st.registry.delete_cell(id)? })))
+}
+
+#[derive(Deserialize)]
+struct PlcQuery {
+    plc: Option<String>,
+}
+
+/// Import cells from the PLC snapshot (`CELL.Count` + `Cell[1..Count]`).
+async fn cells_import(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
+    let name = q.plc.unwrap_or_else(|| st.cfg.cmd.status_plc.clone());
+    let h = st.plc(&name)?;
+    let snap = h.snap();
+    let d = snap.db("CELL").ok_or_else(|| ApiError::PlcUnavailable(format!("{name}.CELL not read yet")))?;
+    let count = d.json["Count"].as_u64().unwrap_or(0) as usize;
+    let list = d.json["Cell"].as_array().cloned().unwrap_or_default();
+    let now = crate::util::now_str();
+    let (mut imported, mut updated, mut skipped) = (0, 0, 0);
+    let existing = st.registry.cells()?;
+    for c in list.iter().take(count) {
+        let cell: CellInfo = serde_json::from_value(c.clone()).unwrap_or_default();
+        if cell.id == 0 {
+            skipped += 1;
+            continue;
+        }
+        match existing.iter().find(|e| e.id == cell.id) {
+            Some(e) if e.cell == cell => skipped += 1,
+            Some(_) => updated += 1,
+            None => imported += 1,
+        }
+        st.registry.upsert_cell(&cell, "plc", false, Some(now.clone()))?;
+    }
+    Ok(axum::Json(json!({ "imported": imported, "updated": updated, "removed": 0, "skipped": skipped, "errors": [] })))
+}
+
+// ---- stations (frontend shape)
+pub fn station_view(e: &StationEntry) -> Json {
+    let p = &e.para;
+    json!({ "id": e.id, "conv_no": p.conv_no, "task_type": p.task_type, "rotate_type": p.rotate_type, "group": p.group, "group_index": p.group_index,
+        "connection_prev": p.connection_prev, "connection_next": p.connection_next,
+        "info": { "id": p.info.id, "use": p.info.use_, "blend_use": p.info.blend_use, "section": p.info.section, "row": p.info.row, "col": p.info.col, "length": p.info.length, "width": p.info.width, "position": p.info.position },
+        "sensor": { "io_link_master_module": p.sensor_settings.io_link_master_module, "io_link_master_port_l": p.sensor_settings.io_link_master_port_l, "io_link_master_port_r": p.sensor_settings.io_link_master_port_r,
+            "detection_factor": p.sensor_settings.detection_factor, "allow_range": p.sensor_settings.allow_range, "l_sensor_offset": p.sensor_settings.l_sensor_offset, "r_sensor_offset": p.sensor_settings.r_sensor_offset },
+        "io_block_no": p.io_block_no, "source": e.source, "dirty": e.dirty, "updated_at": e.updated_at, "plc_seen_at": e.plc_seen_at })
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+pub struct StationBody {
+    pub id: u16,
+    pub conv_no: u16,
+    pub task_type: u8,
+    pub rotate_type: u8,
+    pub group: u8,
+    pub group_index: u8,
+    pub connection_prev: u8,
+    pub connection_next: u8,
+    pub info: CellBody,
+    pub sensor: Option<Json>,
+    pub io_block_no: u8,
+}
+impl StationBody {
+    pub fn para(&self) -> StationPara {
+        let mut info = self.info.info();
+        info.id = self.id;
+        let sensor = self.sensor.as_ref().map(|s| gr_proto::SensorSettings {
+            io_link_master_module: s["io_link_master_module"].as_u64().unwrap_or(0) as u8,
+            io_link_master_port_l: s["io_link_master_port_l"].as_u64().unwrap_or(0) as u8,
+            io_link_master_port_r: s["io_link_master_port_r"].as_u64().unwrap_or(0) as u8,
+            detection_factor: s["detection_factor"].as_f64().unwrap_or(0.0) as f32,
+            allow_range: s["allow_range"].as_f64().unwrap_or(0.0) as f32,
+            l_sensor_offset: s["l_sensor_offset"].as_f64().unwrap_or(0.0) as f32,
+            r_sensor_offset: s["r_sensor_offset"].as_f64().unwrap_or(0.0) as f32,
+        });
+        StationPara { conv_no: self.conv_no, task_type: self.task_type, rotate_type: self.rotate_type, group: self.group, group_index: self.group_index, connection_prev: self.connection_prev, connection_next: self.connection_next, info, sensor_settings: sensor.unwrap_or_default(), io_block_no: self.io_block_no }
+    }
+}
+
+async fn stations(State(st): State<AppState>) -> ApiResult<Vec<Json>> {
+    Ok(axum::Json(st.registry.stations()?.iter().map(station_view).collect()))
+}
+async fn station_create(State(st): State<AppState>, axum::Json(b): axum::Json<StationBody>) -> ApiResult<Json> {
+    if !gr_proto::is_station_id(b.id) {
+        return Err(ApiError::BadRequest("station id must be 2001..2999 with id mod 100 in 1..32".into()));
+    }
+    Ok(axum::Json(station_view(&st.registry.upsert_station(&b.para(), "local", true, None)?)))
+}
+async fn station_update(State(st): State<AppState>, Path(id): Path<u16>, axum::Json(mut b): axum::Json<StationBody>) -> ApiResult<Json> {
+    b.id = id;
+    Ok(axum::Json(station_view(&st.registry.upsert_station(&b.para(), "local", true, None)?)))
+}
+async fn station_delete(State(st): State<AppState>, Path(id): Path<u16>) -> ApiResult<Json> {
+    Ok(axum::Json(json!({ "deleted": st.registry.delete_station(id)? })))
+}
+
+/// Import stations from a PLC snapshot: GR2 `STATION.Station[i]` (LGR_Station_Para) or GRM `STATION.Station[i].Para`.
+async fn stations_import(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
+    let name = q.plc.unwrap_or_else(|| st.cfg.cmd.status_plc.clone());
+    let h = st.plc(&name)?;
+    let snap = h.snap();
+    let d = snap.db("STATION").ok_or_else(|| ApiError::PlcUnavailable(format!("{name}.STATION not read yet")))?;
+    let count = d.json["Count"].as_u64().unwrap_or(0) as usize;
+    let list = d.json["Station"].as_array().cloned().unwrap_or_default();
+    let now = crate::util::now_str();
+    let (mut imported, mut updated, mut skipped) = (0, 0, 0);
+    let existing = st.registry.stations()?;
+    for s in list.iter().take(count) {
+        let para_json = if s.get("Para").is_some() { &s["Para"] } else { s };
+        let para: StationPara = serde_json::from_value(para_json.clone()).unwrap_or_default();
+        if para.info.id == 0 {
+            skipped += 1;
+            continue;
+        }
+        match existing.iter().find(|e| e.id == para.info.id) {
+            Some(e) if e.para == para => skipped += 1,
+            Some(_) => updated += 1,
+            None => imported += 1,
+        }
+        st.registry.upsert_station(&para, "plc", false, Some(now.clone()))?;
+    }
+    Ok(axum::Json(json!({ "imported": imported, "updated": updated, "removed": 0, "skipped": skipped, "errors": [] })))
+}
+
+// ---- defaults
+async fn defaults(State(st): State<AppState>) -> ApiResult<Defaults> {
+    Ok(axum::Json(st.registry.defaults()?))
+}
+async fn defaults_save(State(st): State<AppState>, axum::Json(d): axum::Json<Defaults>) -> ApiResult<Defaults> {
+    Ok(axum::Json(st.registry.save_defaults(d)?))
+}
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/api/items", get(items).post(item_create))
+        .route("/api/items/{code}", axum::routing::put(item_update).delete(item_delete))
+        .route("/api/cells", get(cells).post(cell_create))
+        .route("/api/cells/import", post(cells_import))
+        .route("/api/cells/{id}", axum::routing::put(cell_update).delete(cell_delete))
+        .route("/api/stations", get(stations).post(station_create))
+        .route("/api/stations/import", post(stations_import))
+        .route("/api/stations/{id}", axum::routing::put(station_update).delete(station_delete))
+        .route("/api/defaults", get(defaults).put(defaults_save))
+}

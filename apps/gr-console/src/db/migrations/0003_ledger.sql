@@ -1,0 +1,5 @@
+-- task ledger
+CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, seq INTEGER NOT NULL, work_id INTEGER NOT NULL, task_id INTEGER NOT NULL, origin TEXT NOT NULL, plc TEXT NOT NULL, state TEXT NOT NULL, doc_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS tasks_key ON tasks(work_id, task_id);
+CREATE INDEX IF NOT EXISTS tasks_state ON tasks(state, seq);
+CREATE TABLE IF NOT EXISTS task_events (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE, ts TEXT NOT NULL, from_state TEXT, to_state TEXT NOT NULL, by TEXT NOT NULL, note TEXT);

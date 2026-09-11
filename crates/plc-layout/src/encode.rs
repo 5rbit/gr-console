@@ -55,7 +55,16 @@ pub fn encode_prim(buf: &mut [u8], prim: Prim, offset: u32, bit: Option<u8>, v: 
         Prim::LReal => b[..8].copy_from_slice(&f.ok_or_else(|| verr(path, "expected number"))?.to_bits().to_be_bytes()),
         Prim::LInt => b[..8].copy_from_slice(&i(i64::MIN, i64::MAX)?.to_be_bytes()),
         Prim::ULInt | Prim::LWord | Prim::LTime => b[..8].copy_from_slice(&u(u64::MAX)?.to_be_bytes()),
-        Prim::DateAndTime => return Err(verr(path, "DATE_AND_TIME write not supported")),
+        Prim::DateAndTime => {
+            // "AA-BB-.." hex dump form (as decoded) or anything else -> zero
+            let s = match v { Value::Str(s) => s.clone(), _ => String::new() };
+            b[..8].fill(0);
+            for (i, part) in s.split('-').take(8).enumerate() {
+                if let Ok(x) = u8::from_str_radix(part.trim(), 16) {
+                    b[i] = x;
+                }
+            }
+        }
         Prim::Dtl => {
             // "YYYY-MM-DD HH:MM:SS.mmm" or empty → zero
             let s = match v { Value::Str(s) => s.clone(), _ => String::new() };

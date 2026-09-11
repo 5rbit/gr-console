@@ -220,7 +220,7 @@ async fn walk_root(
             .await?
             .pop()
             .unwrap_or_default();
-        let found = child_named(&children, &[seg.name.clone()]).ok_or_else(|| {
+        let found = child_named(&children, std::slice::from_ref(&seg.name)).ok_or_else(|| {
             OpcError::Config(format!(
                 "root_path segment {:?} not found under {}; children: [{}]",
                 seg.name,

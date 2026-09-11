@@ -1,0 +1,62 @@
+[server]
+bind = "127.0.0.1:8090"
+cors = ""
+
+[paths]
+data_dir = "data"
+contract_dir = "plc/contract"
+sqlite = "data/gr-console.db"
+
+[[plcs]]
+name = "GR2"
+role = "gr"
+contract = "GR2_PLC"
+host = "192.168.1.102"
+port = 102
+rack = 0
+slot = 1
+fast = ["OPCUA", "TASK"]
+webmon = ["WEBMON"]
+slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG"]
+on_demand = ["MEASLOG_HIST"]
+checks = [
+  { db = "OPCUA", path = "STAT.ComponentID", equals = 4002 },
+  { db = "PARA", path = "Machine.ID", equals = 2 },
+]
+
+[[plcs]]
+name = "GRM"
+role = "grm"
+contract = "GRM_PLC"
+host = "192.168.1.10"
+port = 102
+rack = 0
+slot = 1
+fast = ["OPCUA"]
+webmon = []
+slow = ["STATION", "CELL", "MACHINE"]
+on_demand = []
+checks = [{ db = "OPCUA", path = "GR[2].STAT.ComponentID", equals = 4002 }]
+
+[opcua]
+endpoint = "opc.tcp://192.168.1.10:4840"
+security_policy = "None"
+security_mode = "None"
+user = ""
+ns_hint = 3
+db_name = "OPCUA"
+root_path = "GR[2].CMD"
+
+[poll]
+fast_ms = 200
+webmon_ms = 500
+slow_ms = 5000
+grm_fast_ms = 500
+
+[cmd]
+protocol = 1
+src = 5000
+dst = 4002
+echo_timeout_ms = 5000
+status_plc = "GR2"
+grm_plc = "GRM"

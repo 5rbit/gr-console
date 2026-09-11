@@ -22,19 +22,14 @@ pub use value::PlcKind;
 pub use writer::CmdWriter;
 
 /// Authentication used when activating the session.
-#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Auth {
     /// Anonymous user token.
+    #[default]
     Anonymous,
     /// User name / password token.
     UserPass { user: String, pass: String },
-}
-
-impl Default for Auth {
-    fn default() -> Self {
-        Auth::Anonymous
-    }
 }
 
 impl std::fmt::Debug for Auth {
