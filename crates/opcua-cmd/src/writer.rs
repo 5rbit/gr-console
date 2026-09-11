@@ -5,9 +5,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use opcua::client::Session;
-use opcua::types::{
-    AttributeId, DataValue, NumericRange, ReadValueId, TimestampsToReturn, WriteValue,
-};
+use opcua::types::{AttributeId, DataValue, NumericRange, ReadValueId, TimestampsToReturn, WriteValue};
 use tokio::sync::{Notify, watch};
 
 use crate::browse;
@@ -20,14 +18,7 @@ const BACKOFF_MIN_MS: u64 = 1_000;
 const BACKOFF_MAX_MS: u64 = 30_000;
 
 /// Header field paths in write order.
-pub const HEADER_PATHS: [&str; 6] = [
-    "Header.Protocol",
-    "Header.CMD_ID",
-    "Header.CMD",
-    "Header.SRC",
-    "Header.DST",
-    "Header.SEQ",
-];
+pub const HEADER_PATHS: [&str; 6] = ["Header.Protocol", "Header.CMD_ID", "Header.CMD", "Header.SRC", "Header.DST", "Header.SEQ"];
 
 /// In-memory `cmd_id` / `seq` counters; both skip 0 and wrap.
 #[derive(Debug, Clone)]
@@ -39,10 +30,7 @@ pub struct Counters {
 impl Counters {
     /// Seed from wall-clock time so a restarted process does not repeat recent headers.
     pub fn seeded_now() -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
+        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
         let secs = (nanos / 1_000_000_000) as u64;
         let millis = (nanos / 1_000_000) as u64;
         Self::with(((secs % 255) + 1) as u8, ((millis % 65_535) + 1) as u16)
@@ -89,19 +77,11 @@ impl Inner {
     }
 
     fn session(&self) -> Result<Arc<Session>, OpcError> {
-        self.active
-            .read()
-            .ok()
-            .and_then(|g| g.as_ref().map(|a| a.session.clone()))
-            .ok_or(OpcError::NotReady)
+        self.active.read().ok().and_then(|g| g.as_ref().map(|a| a.session.clone())).ok_or(OpcError::NotReady)
     }
 
     fn map(&self) -> Result<Arc<NodeMap>, OpcError> {
-        self.map
-            .read()
-            .ok()
-            .and_then(|g| g.clone())
-            .ok_or(OpcError::NotReady)
+        self.map.read().ok().and_then(|g| g.clone()).ok_or(OpcError::NotReady)
     }
 
     fn set_map(&self, map: Arc<NodeMap>) {
@@ -117,10 +97,7 @@ impl Inner {
     }
 
     fn ready_state(&self, map: &NodeMap) -> OpcState {
-        OpcState::Ready {
-            node_count: map.members.len(),
-            ns: map.ns,
-        }
+        OpcState::Ready { node_count: map.members.len(), ns: map.ns }
     }
 }
 
@@ -132,10 +109,7 @@ pub struct CmdWriter {
 
 impl std::fmt::Debug for CmdWriter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CmdWriter")
-            .field("endpoint", &self.inner.cfg.endpoint)
-            .field("state", &self.state())
-            .finish()
+        f.debug_struct("CmdWriter").field("endpoint", &self.inner.cfg.endpoint).field("state", &self.state()).finish()
     }
 }
 
@@ -172,11 +146,7 @@ impl CmdWriter {
 
     /// Endpoint descriptions seen at the last GetEndpoints.
     pub fn endpoints(&self) -> Vec<String> {
-        self.inner
-            .endpoints
-            .read()
-            .map(|g| g.clone())
-            .unwrap_or_default()
+        self.inner.endpoints.read().map(|g| g.clone()).unwrap_or_default()
     }
 
     /// Stop the session task and close the session. (Additive; not part of the
@@ -190,11 +160,7 @@ impl CmdWriter {
     /// Re-browse the address space now (ignoring the cache) and replace the node map.
     pub async fn rebrowse(&self) -> Result<NodeMapInfo, OpcError> {
         let session = self.inner.session()?;
-        let endpoint = self
-            .inner
-            .map()
-            .map(|m| m.endpoint.clone())
-            .unwrap_or_else(|_| self.inner.cfg.endpoint.clone());
+        let endpoint = self.inner.map().map(|m| m.endpoint.clone()).unwrap_or_else(|_| self.inner.cfg.endpoint.clone());
         let map = Arc::new(browse::resolve(&session, &self.inner.cfg, &endpoint, false).await?);
         self.inner.set_map(map.clone());
         if self.inner.session().is_ok() {
@@ -222,34 +188,18 @@ impl CmdWriter {
             keys.push(crate::path::normalize_path(p)?);
             ids.push(ReadValueId::new_value(id));
         }
-        let values = with_timeout(
-            self.inner.cfg.write_timeout(),
-            session.read(&ids, TimestampsToReturn::Neither, 0.0),
-        )
-        .await?
-        .map_err(map_err)?;
+        let values = with_timeout(self.inner.cfg.write_timeout(), session.read(&ids, TimestampsToReturn::Neither, 0.0)).await?.map_err(map_err)?;
         if values.len() != ids.len() {
-            return Err(OpcError::Transport(format!(
-                "read returned {} results for {} nodes",
-                values.len(),
-                ids.len()
-            )));
+            return Err(OpcError::Transport(format!("read returned {} results for {} nodes", values.len(), ids.len())));
         }
         let mut out = Vec::with_capacity(paths.len());
         for (key, dv) in keys.into_iter().zip(values) {
             if let Some(s) = dv.status {
                 if s.is_bad() {
-                    return Err(OpcError::Status {
-                        path: key,
-                        code: s.bits(),
-                    });
+                    return Err(OpcError::Status { path: key, code: s.bits() });
                 }
             }
-            let v = dv
-                .value
-                .as_ref()
-                .and_then(from_variant)
-                .ok_or_else(|| OpcError::Transport(format!("{key}: empty value")))?;
+            let v = dv.value.as_ref().and_then(from_variant).ok_or_else(|| OpcError::Transport(format!("{key}: empty value")))?;
             out.push((key, v));
         }
         Ok(out)
@@ -258,14 +208,7 @@ impl CmdWriter {
     /// Task submission: (1) `task_members` + all `Command.*` zeros + `Data[0..15]` zeros
     /// in one request, then (2) the six `Header` fields in a second request.
     /// Serialized by an internal mutex; returns the header written.
-    pub async fn write_task(
-        &self,
-        task_members: &[MemberValue],
-        cmd_code: u8,
-        src: u16,
-        dst: u16,
-        protocol: u8,
-    ) -> Result<HeaderWire, OpcError> {
+    pub async fn write_task(&self, task_members: &[MemberValue], cmd_code: u8, src: u16, dst: u16, protocol: u8) -> Result<HeaderWire, OpcError> {
         let _guard = self.inner.submit.lock().await;
         let map = self.inner.map()?;
 
@@ -276,11 +219,7 @@ impl CmdWriter {
             seen.push(key);
             first.push(m.clone());
         }
-        for p in map
-            .paths_with_prefix("Command.")
-            .into_iter()
-            .chain(map.array_elements("Data"))
-        {
+        for p in map.paths_with_prefix("Command.").into_iter().chain(map.array_elements("Data")) {
             if !seen.contains(&p) {
                 seen.push(p.clone());
                 first.push(MemberValue::new(p, PlcValue::U8(0)));
@@ -289,19 +228,8 @@ impl CmdWriter {
         self.write_batch(&first).await?;
 
         let header = {
-            let mut c = self
-                .inner
-                .counters
-                .lock()
-                .map_err(|_| OpcError::Transport("counter lock poisoned".into()))?;
-            HeaderWire {
-                protocol,
-                cmd_id: c.next_cmd_id(),
-                cmd: cmd_code,
-                src,
-                dst,
-                seq: c.next_seq(),
-            }
+            let mut c = self.inner.counters.lock().map_err(|_| OpcError::Transport("counter lock poisoned".into()))?;
+            HeaderWire { protocol, cmd_id: c.next_cmd_id(), cmd: cmd_code, src, dst, seq: c.next_seq() }
         };
         self.write_batch(&header_members(&header)).await?;
         Ok(header)
@@ -313,11 +241,7 @@ impl CmdWriter {
             TaskOp::Complete => "Command.Task.Complete",
             TaskOp::Delete => "Command.Task.Delete",
         };
-        self.write_batch(&[
-            MemberValue::new(format!("{base}.WorkId"), PlcValue::U32(work_id)),
-            MemberValue::new(format!("{base}.TaskId"), PlcValue::U32(task_id)),
-        ])
-        .await
+        self.write_batch(&[MemberValue::new(format!("{base}.WorkId"), PlcValue::U32(work_id)), MemberValue::new(format!("{base}.TaskId"), PlcValue::U32(task_id))]).await
     }
 
     /// Write all six `Header` fields to 0 (abort).
@@ -337,31 +261,17 @@ impl CmdWriter {
             let (id, kind) = map.lookup(&m.path)?;
             let key = crate::path::normalize_path(&m.path)?;
             let variant = coerce(&m.value, kind, &key)?;
-            writes.push(WriteValue {
-                node_id: id,
-                attribute_id: AttributeId::Value as u32,
-                index_range: NumericRange::None,
-                value: DataValue::value_only(variant),
-            });
+            writes.push(WriteValue { node_id: id, attribute_id: AttributeId::Value as u32, index_range: NumericRange::None, value: DataValue::value_only(variant) });
             keys.push(key);
         }
-        let results = with_timeout(self.inner.cfg.write_timeout(), session.write(&writes))
-            .await?
-            .map_err(map_err)?;
+        let results = with_timeout(self.inner.cfg.write_timeout(), session.write(&writes)).await?.map_err(map_err)?;
         if results.len() != writes.len() {
-            return Err(OpcError::Transport(format!(
-                "write returned {} results for {} nodes",
-                results.len(),
-                writes.len()
-            )));
+            return Err(OpcError::Transport(format!("write returned {} results for {} nodes", results.len(), writes.len())));
         }
         for (key, code) in keys.into_iter().zip(results) {
             if !code.is_good() {
                 tracing::warn!(path = %key, status = %code, "write rejected");
-                return Err(OpcError::Status {
-                    path: key,
-                    code: code.bits(),
-                });
+                return Err(OpcError::Status { path: key, code: code.bits() });
             }
         }
         Ok(())
@@ -396,10 +306,7 @@ async fn run(inner: Arc<Inner>) {
             Ok(c) => c,
             Err(e) => {
                 tracing::warn!(error = %e, retry_in_ms = backoff, "connect failed");
-                inner.set_state(OpcState::Failed {
-                    error: e.to_string(),
-                    retry_in_ms: backoff,
-                });
+                inner.set_state(OpcState::Failed { error: e.to_string(), retry_in_ms: backoff });
                 backoff_sleep(&inner, backoff).await;
                 backoff = (backoff * 2).min(BACKOFF_MAX_MS);
                 continue;
@@ -416,10 +323,7 @@ async fn run(inner: Arc<Inner>) {
                 tracing::warn!(error = %e, retry_in_ms = backoff, "node map resolution failed");
                 let _ = conn.session.disconnect().await;
                 conn.event_loop.abort();
-                inner.set_state(OpcState::Failed {
-                    error: e.to_string(),
-                    retry_in_ms: backoff,
-                });
+                inner.set_state(OpcState::Failed { error: e.to_string(), retry_in_ms: backoff });
                 backoff_sleep(&inner, backoff).await;
                 backoff = (backoff * 2).min(BACKOFF_MAX_MS);
                 continue;
@@ -433,9 +337,7 @@ async fn run(inner: Arc<Inner>) {
             "node map ready"
         );
         inner.set_map(map.clone());
-        inner.set_active(Some(Active {
-            session: conn.session.clone(),
-        }));
+        inner.set_active(Some(Active { session: conn.session.clone() }));
         inner.set_state(inner.ready_state(&map));
         backoff = BACKOFF_MIN_MS;
 
@@ -452,10 +354,7 @@ async fn run(inner: Arc<Inner>) {
                     Err(e) => format!("event loop panicked: {e}"),
                 };
                 tracing::warn!(error = %why, retry_in_ms = backoff, "session ended");
-                inner.set_state(OpcState::Failed {
-                    error: why,
-                    retry_in_ms: backoff,
-                });
+                inner.set_state(OpcState::Failed { error: why, retry_in_ms: backoff });
                 backoff_sleep(&inner, backoff).await;
                 backoff = (backoff * 2).min(BACKOFF_MAX_MS);
             }
@@ -508,14 +407,7 @@ mod tests {
 
     #[test]
     fn header_member_order() {
-        let h = HeaderWire {
-            protocol: 1,
-            cmd_id: 2,
-            cmd: 3,
-            src: 4,
-            dst: 5,
-            seq: 6,
-        };
+        let h = HeaderWire { protocol: 1, cmd_id: 2, cmd: 3, src: 4, dst: 5, seq: 6 };
         let m = header_members(&h);
         let paths: Vec<&str> = m.iter().map(|x| x.path.as_str()).collect();
         assert_eq!(paths, HEADER_PATHS);

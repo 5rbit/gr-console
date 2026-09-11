@@ -5,11 +5,28 @@
 pub fn connect_request(connection_type: u8, rack: u8, slot: u8) -> Vec<u8> {
     let dst_lo = (rack << 5) | (slot & 0x1F);
     vec![
-        0x03, 0x00, 0x00, 0x16, // TPKT, length 22
-        0x11, 0xE0, 0x00, 0x00, 0x00, 0x01, 0x00, // COTP CR
-        0xC0, 0x01, 0x0A, // TPDU size 1024
-        0xC1, 0x02, 0x01, 0x00, // src TSAP
-        0xC2, 0x02, connection_type, dst_lo, // dst TSAP
+        0x03,
+        0x00,
+        0x00,
+        0x16, // TPKT, length 22
+        0x11,
+        0xE0,
+        0x00,
+        0x00,
+        0x00,
+        0x01,
+        0x00, // COTP CR
+        0xC0,
+        0x01,
+        0x0A, // TPDU size 1024
+        0xC1,
+        0x02,
+        0x01,
+        0x00, // src TSAP
+        0xC2,
+        0x02,
+        connection_type,
+        dst_lo, // dst TSAP
     ]
 }
 

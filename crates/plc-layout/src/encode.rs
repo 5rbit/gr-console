@@ -46,7 +46,12 @@ pub fn encode_prim(buf: &mut [u8], prim: Prim, offset: u32, bit: Option<u8>, v: 
         }
         Prim::Byte | Prim::USInt => b[0] = u(255)? as u8,
         Prim::SInt => b[0] = i(-128, 127)? as i8 as u8,
-        Prim::Char => b[0] = match v { Value::Str(s) => s.bytes().next().unwrap_or(0), _ => u(255)? as u8 },
+        Prim::Char => {
+            b[0] = match v {
+                Value::Str(s) => s.bytes().next().unwrap_or(0),
+                _ => u(255)? as u8,
+            }
+        }
         Prim::Word | Prim::UInt | Prim::Date => b[..2].copy_from_slice(&(u(65535)? as u16).to_be_bytes()),
         Prim::Int => b[..2].copy_from_slice(&(i(-32768, 32767)? as i16).to_be_bytes()),
         Prim::DWord | Prim::UDInt | Prim::Time | Prim::Tod => b[..4].copy_from_slice(&(u(u32::MAX as u64)? as u32).to_be_bytes()),
@@ -57,7 +62,10 @@ pub fn encode_prim(buf: &mut [u8], prim: Prim, offset: u32, bit: Option<u8>, v: 
         Prim::ULInt | Prim::LWord | Prim::LTime => b[..8].copy_from_slice(&u(u64::MAX)?.to_be_bytes()),
         Prim::DateAndTime => {
             // "AA-BB-.." hex dump form (as decoded) or anything else -> zero
-            let s = match v { Value::Str(s) => s.clone(), _ => String::new() };
+            let s = match v {
+                Value::Str(s) => s.clone(),
+                _ => String::new(),
+            };
             b[..8].fill(0);
             for (i, part) in s.split('-').take(8).enumerate() {
                 if let Ok(x) = u8::from_str_radix(part.trim(), 16) {
@@ -67,7 +75,10 @@ pub fn encode_prim(buf: &mut [u8], prim: Prim, offset: u32, bit: Option<u8>, v: 
         }
         Prim::Dtl => {
             // "YYYY-MM-DD HH:MM:SS.mmm" or empty → zero
-            let s = match v { Value::Str(s) => s.clone(), _ => String::new() };
+            let s = match v {
+                Value::Str(s) => s.clone(),
+                _ => String::new(),
+            };
             b[..12].fill(0);
             if s.len() >= 19 {
                 let num = |r: std::ops::Range<usize>| s.get(r).and_then(|x| x.parse::<u32>().ok()).unwrap_or(0);
@@ -83,7 +94,10 @@ pub fn encode_prim(buf: &mut [u8], prim: Prim, offset: u32, bit: Option<u8>, v: 
             }
         }
         Prim::String(n) => {
-            let s = match v { Value::Str(s) => s.clone(), other => other.as_f64().map(|x| x.to_string()).unwrap_or_default() };
+            let s = match v {
+                Value::Str(s) => s.clone(),
+                other => other.as_f64().map(|x| x.to_string()).unwrap_or_default(),
+            };
             let bytes: Vec<u8> = s.bytes().take(n as usize).collect();
             b[0] = n as u8;
             b[1] = bytes.len() as u8;

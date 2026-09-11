@@ -4,10 +4,7 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use opcua::client::Session;
-use opcua::types::{
-    AttributeId, BrowseDescription, BrowseDirection, BrowseResultMaskFlags, NodeClass,
-    NodeClassMask, NodeId, ObjectId, ReadValueId, ReferenceTypeId, TimestampsToReturn, Variant,
-};
+use opcua::types::{AttributeId, BrowseDescription, BrowseDirection, BrowseResultMaskFlags, NodeClass, NodeClassMask, NodeId, ObjectId, ReadValueId, ReferenceTypeId, TimestampsToReturn, Variant};
 
 use crate::connect::{map_err, with_timeout};
 use crate::nodemap::NodeMap;
@@ -110,11 +107,7 @@ struct Child {
 
 /// Browse the forward hierarchical Object/Variable children of each parent (batched,
 /// continuation points followed). Result index i corresponds to `parents[i]`.
-async fn browse_children(
-    session: &Session,
-    cfg: &OpcUaConfig,
-    parents: &[NodeId],
-) -> Result<Vec<Vec<Child>>, OpcError> {
+async fn browse_children(session: &Session, cfg: &OpcUaConfig, parents: &[NodeId]) -> Result<Vec<Vec<Child>>, OpcError> {
     let timeout = cfg.connect_timeout();
     let mut out: Vec<Vec<Child>> = Vec::with_capacity(parents.len());
     for chunk in parents.chunks(BROWSE_CHUNK) {
@@ -126,15 +119,10 @@ async fn browse_children(
                 reference_type_id: ReferenceTypeId::HierarchicalReferences.into(),
                 include_subtypes: true,
                 node_class_mask: (NodeClassMask::OBJECT | NodeClassMask::VARIABLE).bits(),
-                result_mask: (BrowseResultMaskFlags::BrowseName
-                    | BrowseResultMaskFlags::NodeClass
-                    | BrowseResultMaskFlags::DisplayName)
-                    .bits(),
+                result_mask: (BrowseResultMaskFlags::BrowseName | BrowseResultMaskFlags::NodeClass | BrowseResultMaskFlags::DisplayName).bits(),
             })
             .collect();
-        let results = with_timeout(timeout, session.browse(&descs, 0, None))
-            .await?
-            .map_err(map_err)?;
+        let results = with_timeout(timeout, session.browse(&descs, 0, None)).await?.map_err(map_err)?;
         for (i, parent) in chunk.iter().enumerate() {
             let mut children = Vec::new();
             let Some(result) = results.get(i) else {
@@ -149,9 +137,7 @@ async fn browse_children(
             let mut refs = result.references.clone().unwrap_or_default();
             let mut cp = result.continuation_point.clone();
             while !cp.is_null() {
-                let more = with_timeout(timeout, session.browse_next(false, &[cp.clone()]))
-                    .await?
-                    .map_err(map_err)?;
+                let more = with_timeout(timeout, session.browse_next(false, &[cp.clone()])).await?.map_err(map_err)?;
                 let Some(next) = more.into_iter().next() else {
                     break;
                 };
@@ -162,11 +148,7 @@ async fn browse_children(
                 if r.node_id.server_index != 0 {
                     continue;
                 }
-                children.push(Child {
-                    node_id: r.node_id.node_id.clone(),
-                    browse_name: r.browse_name.name.as_ref().to_string(),
-                    class: r.node_class,
-                });
+                children.push(Child { node_id: r.node_id.node_id.clone(), browse_name: r.browse_name.name.as_ref().to_string(), class: r.node_class });
             }
             out.push(children);
         }
@@ -202,54 +184,28 @@ async fn find_db(session: &Session, cfg: &OpcUaConfig) -> Result<Option<NodeId>,
 }
 
 fn child_named<'a>(children: &'a [Child], names: &[String]) -> Option<&'a Child> {
-    children
-        .iter()
-        .find(|c| names.iter().any(|n| strip_quotes(&c.browse_name) == *n))
+    children.iter().find(|c| names.iter().any(|n| strip_quotes(&c.browse_name) == *n))
 }
 
 /// Walk `root_path` segments from the DB node.
-async fn walk_root(
-    session: &Session,
-    cfg: &OpcUaConfig,
-    db: NodeId,
-    segments: &[Segment],
-) -> Result<NodeId, OpcError> {
+async fn walk_root(session: &Session, cfg: &OpcUaConfig, db: NodeId, segments: &[Segment]) -> Result<NodeId, OpcError> {
     let mut node = db;
     for seg in segments {
-        let children = browse_children(session, cfg, std::slice::from_ref(&node))
-            .await?
-            .pop()
-            .unwrap_or_default();
+        let children = browse_children(session, cfg, std::slice::from_ref(&node)).await?.pop().unwrap_or_default();
         let found = child_named(&children, std::slice::from_ref(&seg.name)).ok_or_else(|| {
-            OpcError::Config(format!(
-                "root_path segment {:?} not found under {}; children: [{}]",
-                seg.name,
-                node,
-                children
-                    .iter()
-                    .map(|c| c.browse_name.clone())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ))
+            OpcError::Config(format!("root_path segment {:?} not found under {}; children: [{}]", seg.name, node, children.iter().map(|c| c.browse_name.clone()).collect::<Vec<_>>().join(", ")))
         })?;
         node = found.node_id.clone();
         let mut rendered = seg.name.clone();
         for idx in &seg.indices {
-            let children = browse_children(session, cfg, std::slice::from_ref(&node))
-                .await?
-                .pop()
-                .unwrap_or_default();
+            let children = browse_children(session, cfg, std::slice::from_ref(&node)).await?.pop().unwrap_or_default();
             let candidates = element_candidates(&rendered, *idx);
             let found = child_named(&children, &candidates).ok_or_else(|| {
                 OpcError::Config(format!(
                     "array element [{idx}] of {rendered:?} not found under {node} (tried {}); \
                      is \"Export array members\" enabled on the PLC? children: [{}]",
                     candidates.join("/"),
-                    children
-                        .iter()
-                        .map(|c| c.browse_name.clone())
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    children.iter().map(|c| c.browse_name.clone()).collect::<Vec<_>>().join(", ")
                 ))
             })?;
             node = found.node_id.clone();
@@ -260,22 +216,11 @@ async fn walk_root(
 }
 
 /// Read the `DataType` attribute of each node → kind (Unknown on any failure).
-async fn read_kinds(
-    session: &Session,
-    cfg: &OpcUaConfig,
-    nodes: &[(String, NodeId)],
-) -> BTreeMap<String, PlcKind> {
+async fn read_kinds(session: &Session, cfg: &OpcUaConfig, nodes: &[(String, NodeId)]) -> BTreeMap<String, PlcKind> {
     let mut kinds = BTreeMap::new();
     for chunk in nodes.chunks(READ_CHUNK) {
-        let ids: Vec<ReadValueId> = chunk
-            .iter()
-            .map(|(_, id)| ReadValueId::new(id.clone(), AttributeId::DataType))
-            .collect();
-        let res = with_timeout(
-            cfg.connect_timeout(),
-            session.read(&ids, TimestampsToReturn::Neither, 0.0),
-        )
-        .await;
+        let ids: Vec<ReadValueId> = chunk.iter().map(|(_, id)| ReadValueId::new(id.clone(), AttributeId::DataType)).collect();
+        let res = with_timeout(cfg.connect_timeout(), session.read(&ids, TimestampsToReturn::Neither, 0.0)).await;
         let values = match res {
             Ok(Ok(v)) => v,
             Ok(Err(e)) => {
@@ -299,11 +244,7 @@ async fn read_kinds(
 }
 
 /// Browse the whole subtree under `root`, returning every leaf Variable with its path.
-async fn collect_leaves(
-    session: &Session,
-    cfg: &OpcUaConfig,
-    root: &NodeId,
-) -> Result<Vec<(String, NodeId)>, OpcError> {
+async fn collect_leaves(session: &Session, cfg: &OpcUaConfig, root: &NodeId) -> Result<Vec<(String, NodeId)>, OpcError> {
     let mut leaves = Vec::new();
     let mut frontier: Vec<(String, NodeId)> = vec![(String::new(), root.clone())];
     let mut seen = 0usize;
@@ -318,9 +259,7 @@ async fn collect_leaves(
             for c in children {
                 seen += 1;
                 if seen > SUBTREE_MAX_NODES {
-                    return Err(OpcError::Config(format!(
-                        "subtree under {root} exceeds {SUBTREE_MAX_NODES} nodes; refine root_path"
-                    )));
+                    return Err(OpcError::Config(format!("subtree under {root} exceeds {SUBTREE_MAX_NODES} nodes; refine root_path")));
                 }
                 let child_path = join_child(path, &c.browse_name);
                 next.push((child_path, c.node_id, c.class));
@@ -345,38 +284,17 @@ async fn collect_leaves(
     Ok(leaves)
 }
 
-async fn browse_map(
-    session: &Session,
-    cfg: &OpcUaConfig,
-    endpoint_url: &str,
-) -> Result<NodeMap, OpcError> {
+async fn browse_map(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str) -> Result<NodeMap, OpcError> {
     let segments = parse_path(&cfg.root_path)?;
-    let db = find_db(session, cfg).await?.ok_or_else(|| {
-        OpcError::Config(format!(
-            "data block {:?} not found within {DB_SEARCH_DEPTH} levels of Objects",
-            cfg.db_name
-        ))
-    })?;
+    let db = find_db(session, cfg).await?.ok_or_else(|| OpcError::Config(format!("data block {:?} not found within {DB_SEARCH_DEPTH} levels of Objects", cfg.db_name)))?;
     let root = walk_root(session, cfg, db, &segments).await?;
     let leaves = collect_leaves(session, cfg, &root).await?;
     if leaves.is_empty() {
-        return Err(OpcError::Config(format!(
-            "no variable leaves found under {root}"
-        )));
+        return Err(OpcError::Config(format!("no variable leaves found under {root}")));
     }
     let kinds = read_kinds(session, cfg, &leaves).await;
-    let members = leaves
-        .into_iter()
-        .map(|(p, id)| (p, id.to_string()))
-        .collect();
-    Ok(NodeMap {
-        ns: root.namespace,
-        endpoint: endpoint_url.to_string(),
-        root_nodeid: root.to_string(),
-        members,
-        kinds,
-        source: "browse".to_string(),
-    })
+    let members = leaves.into_iter().map(|(p, id)| (p, id.to_string())).collect();
+    Ok(NodeMap { ns: root.namespace, endpoint: endpoint_url.to_string(), root_nodeid: root.to_string(), members, kinds, source: "browse".to_string() })
 }
 
 /// S7 string id for the root: `"OPCUA"."GR"[2]."CMD"` or `"OPCUA"."GR[2]"."CMD"`.
@@ -390,11 +308,7 @@ pub fn synth_root(db: &str, segments: &[Segment], index_in_quotes: bool) -> Stri
 
 fn synth_segment(seg: &Segment, index_in_quotes: bool) -> String {
     let idx: String = seg.indices.iter().map(|i| format!("[{i}]")).collect();
-    if index_in_quotes {
-        format!(".\"{}{idx}\"", seg.name)
-    } else {
-        format!(".\"{}\"{idx}", seg.name)
-    }
+    if index_in_quotes { format!(".\"{}{idx}\"", seg.name) } else { format!(".\"{}\"{idx}", seg.name) }
 }
 
 /// `root` + member path in the same S7 string form.
@@ -407,19 +321,9 @@ pub fn synth_member(root: &str, member: &str, index_in_quotes: bool) -> Result<S
 }
 
 async fn read_value_ok(session: &Session, cfg: &OpcUaConfig, id: &NodeId) -> bool {
-    let res = with_timeout(
-        cfg.write_timeout(),
-        session.read(
-            &[ReadValueId::new_value(id.clone())],
-            TimestampsToReturn::Neither,
-            0.0,
-        ),
-    )
-    .await;
+    let res = with_timeout(cfg.write_timeout(), session.read(&[ReadValueId::new_value(id.clone())], TimestampsToReturn::Neither, 0.0)).await;
     match res {
-        Ok(Ok(v)) => v
-            .first()
-            .is_some_and(|dv| dv.status.is_none_or(|s| s.is_good()) && dv.value.is_some()),
+        Ok(Ok(v)) => v.first().is_some_and(|dv| dv.status.is_none_or(|s| s.is_good()) && dv.value.is_some()),
         _ => false,
     }
 }
@@ -432,11 +336,7 @@ pub async fn verify(session: &Session, cfg: &OpcUaConfig, map: &NodeMap) -> bool
     }
 }
 
-async fn synth_map(
-    session: &Session,
-    cfg: &OpcUaConfig,
-    endpoint_url: &str,
-) -> Result<NodeMap, OpcError> {
+async fn synth_map(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str) -> Result<NodeMap, OpcError> {
     let segments = parse_path(&cfg.root_path)?;
     let mut tried = Vec::new();
     for index_in_quotes in [false, true] {
@@ -459,16 +359,8 @@ async fn synth_map(
         let mut members = BTreeMap::new();
         let mut hint_kinds = BTreeMap::new();
         for chunk in candidates.chunks(READ_CHUNK) {
-            let ids: Vec<ReadValueId> = chunk
-                .iter()
-                .map(|(_, id, _)| ReadValueId::new_value(id.clone()))
-                .collect();
-            let values = with_timeout(
-                cfg.connect_timeout(),
-                session.read(&ids, TimestampsToReturn::Neither, 0.0),
-            )
-            .await?
-            .map_err(map_err)?;
+            let ids: Vec<ReadValueId> = chunk.iter().map(|(_, id, _)| ReadValueId::new_value(id.clone())).collect();
+            let values = with_timeout(cfg.connect_timeout(), session.read(&ids, TimestampsToReturn::Neither, 0.0)).await?.map_err(map_err)?;
             for ((path, id, kind), dv) in chunk.iter().zip(values) {
                 if dv.status.is_none_or(|s| s.is_good()) && dv.value.is_some() {
                     members.insert(path.clone(), id.to_string());
@@ -476,10 +368,7 @@ async fn synth_map(
                 }
             }
         }
-        let nodes: Vec<(String, NodeId)> = members
-            .iter()
-            .filter_map(|(p, s)| NodeId::from_str(s).ok().map(|id| (p.clone(), id)))
-            .collect();
+        let nodes: Vec<(String, NodeId)> = members.iter().filter_map(|(p, s)| NodeId::from_str(s).ok().map(|id| (p.clone(), id))).collect();
         let mut kinds = read_kinds(session, cfg, &nodes).await;
         for (p, k) in hint_kinds {
             let e = kinds.entry(p).or_insert(PlcKind::Unknown);
@@ -493,27 +382,15 @@ async fn synth_map(
             root_nodeid: NodeId::new(cfg.ns_hint, root.as_str()).to_string(),
             members,
             kinds,
-            source: if index_in_quotes {
-                "synth:index-in-quotes".to_string()
-            } else {
-                "synth:quoted-index".to_string()
-            },
+            source: if index_in_quotes { "synth:index-in-quotes".to_string() } else { "synth:quoted-index".to_string() },
         });
     }
-    Err(OpcError::Config(format!(
-        "fallback probe failed for [{}]",
-        tried.join(", ")
-    )))
+    Err(OpcError::Config(format!("fallback probe failed for [{}]", tried.join(", "))))
 }
 
 /// Resolve the node map: cache (verified) → browse → synthesized string ids.
 /// The result is written to `node_cache` when it did not come from the cache.
-pub async fn resolve(
-    session: &Session,
-    cfg: &OpcUaConfig,
-    endpoint_url: &str,
-    use_cache: bool,
-) -> Result<NodeMap, OpcError> {
+pub async fn resolve(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str, use_cache: bool) -> Result<NodeMap, OpcError> {
     if use_cache {
         if let Some(path) = &cfg.node_cache {
             if let Some(map) = NodeMap::load(path) {
@@ -533,9 +410,7 @@ pub async fn resolve(
             match synth_map(session, cfg, endpoint_url).await {
                 Ok(map) => map,
                 Err(synth_err) => {
-                    return Err(OpcError::Config(format!(
-                        "node map resolution failed: browse: {browse_err}; fallback: {synth_err}"
-                    )));
+                    return Err(OpcError::Config(format!("node map resolution failed: browse: {browse_err}; fallback: {synth_err}")));
                 }
             }
         }
@@ -559,18 +434,9 @@ mod tests {
         assert_eq!(synth_root("OPCUA", &segs, false), "\"OPCUA\".\"GR\"[2].\"CMD\"");
         assert_eq!(synth_root("OPCUA", &segs, true), "\"OPCUA\".\"GR[2]\".\"CMD\"");
         let root = synth_root("OPCUA", &segs, false);
-        assert_eq!(
-            synth_member(&root, "TaskData.Position[3]", false).unwrap(),
-            "\"OPCUA\".\"GR\"[2].\"CMD\".\"TaskData\".\"Position\"[3]"
-        );
-        assert_eq!(
-            synth_member("\"OPCUA\"", "Header.CMD_ID", true).unwrap(),
-            "\"OPCUA\".\"Header\".\"CMD_ID\""
-        );
+        assert_eq!(synth_member(&root, "TaskData.Position[3]", false).unwrap(), "\"OPCUA\".\"GR\"[2].\"CMD\".\"TaskData\".\"Position\"[3]");
+        assert_eq!(synth_member("\"OPCUA\"", "Header.CMD_ID", true).unwrap(), "\"OPCUA\".\"Header\".\"CMD_ID\"");
         let id = NodeId::new(3, synth_member(&root, "Header.CMD", false).unwrap().as_str());
-        assert_eq!(
-            id.to_string(),
-            "ns=3;s=\"OPCUA\".\"GR\"[2].\"CMD\".\"Header\".\"CMD\""
-        );
+        assert_eq!(id.to_string(), "ns=3;s=\"OPCUA\".\"GR\"[2].\"CMD\".\"Header\".\"CMD\"");
     }
 }

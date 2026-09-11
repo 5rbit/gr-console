@@ -16,36 +16,12 @@ pub struct Item {
 }
 
 pub fn job_header(seq: u16, param_len: u16, data_len: u16) -> [u8; 10] {
-    [
-        0x32,
-        0x01,
-        0x00,
-        0x00,
-        (seq >> 8) as u8,
-        seq as u8,
-        (param_len >> 8) as u8,
-        param_len as u8,
-        (data_len >> 8) as u8,
-        data_len as u8,
-    ]
+    [0x32, 0x01, 0x00, 0x00, (seq >> 8) as u8, seq as u8, (param_len >> 8) as u8, param_len as u8, (data_len >> 8) as u8, data_len as u8]
 }
 
 /// Ack-data header (12 bytes incl. error class/code).
 pub fn ack_header(seq: u16, param_len: u16, data_len: u16, class: u8, code: u8) -> [u8; 12] {
-    [
-        0x32,
-        0x03,
-        0x00,
-        0x00,
-        (seq >> 8) as u8,
-        seq as u8,
-        (param_len >> 8) as u8,
-        param_len as u8,
-        (data_len >> 8) as u8,
-        data_len as u8,
-        class,
-        code,
-    ]
+    [0x32, 0x03, 0x00, 0x00, (seq >> 8) as u8, seq as u8, (param_len >> 8) as u8, param_len as u8, (data_len >> 8) as u8, data_len as u8, class, code]
 }
 
 fn item_spec(item: &Item, out: &mut Vec<u8>) {

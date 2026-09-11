@@ -70,9 +70,7 @@ fn align2(n: u32) -> u32 {
 
 /// Resolved array dimension (lo..=hi).
 pub fn resolve_dims(contract: &Contract, dims: &[(Bound, Bound)]) -> Result<Vec<(i64, i64)>, LayoutError> {
-    dims.iter()
-        .map(|(lo, hi)| Ok((contract.bound(lo)?, contract.bound(hi)?)))
-        .collect()
+    dims.iter().map(|(lo, hi)| Ok((contract.bound(lo)?, contract.bound(hi)?))).collect()
 }
 
 /// Walks a type, appending members (with `prefix` path) and advancing the cursor.

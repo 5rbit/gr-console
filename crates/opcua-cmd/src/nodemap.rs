@@ -38,38 +38,21 @@ pub struct NodeMap {
 
 impl NodeMap {
     pub fn info(&self) -> NodeMapInfo {
-        NodeMapInfo {
-            ns: self.ns,
-            count: self.members.len(),
-            sample: self
-                .members
-                .iter()
-                .take(20)
-                .map(|(p, n)| (p.clone(), n.clone()))
-                .collect(),
-        }
+        NodeMapInfo { ns: self.ns, count: self.members.len(), sample: self.members.iter().take(20).map(|(p, n)| (p.clone(), n.clone())).collect() }
     }
 
     /// Node id and kind for a member path (path is normalized first).
     pub fn lookup(&self, path: &str) -> Result<(NodeId, PlcKind), OpcError> {
         let key = normalize_path(path)?;
-        let id = self
-            .members
-            .get(&key)
-            .ok_or_else(|| OpcError::NodeMissing(key.clone()))?;
-        let node = NodeId::from_str(id)
-            .map_err(|_| OpcError::Config(format!("{key}: invalid cached node id {id:?}")))?;
+        let id = self.members.get(&key).ok_or_else(|| OpcError::NodeMissing(key.clone()))?;
+        let node = NodeId::from_str(id).map_err(|_| OpcError::Config(format!("{key}: invalid cached node id {id:?}")))?;
         let kind = self.kinds.get(&key).copied().unwrap_or(PlcKind::Unknown);
         Ok((node, kind))
     }
 
     /// All member paths with the given dotted prefix (e.g. `Command.`).
     pub fn paths_with_prefix(&self, prefix: &str) -> Vec<String> {
-        self.members
-            .keys()
-            .filter(|k| k.starts_with(prefix))
-            .cloned()
-            .collect()
+        self.members.keys().filter(|k| k.starts_with(prefix)).cloned().collect()
     }
 
     /// All direct array elements `Name[i]` of `name`, in index order.
@@ -133,8 +116,7 @@ mod tests {
             ("Data[2]", PlcKind::U8),
             ("DataX[1]", PlcKind::U8),
         ] {
-            m.members
-                .insert(p.to_string(), format!("ns=3;s=\"OPCUA\".{p}"));
+            m.members.insert(p.to_string(), format!("ns=3;s=\"OPCUA\".{p}"));
             m.kinds.insert(p.to_string(), k);
         }
         m
@@ -148,10 +130,7 @@ mod tests {
         assert_eq!(id.namespace, 3);
         assert!(matches!(m.lookup("Nope").unwrap_err(), OpcError::NodeMissing(p) if p == "Nope"));
         assert_eq!(m.paths_with_prefix("Command.").len(), 2);
-        assert_eq!(
-            m.array_elements("Data"),
-            vec!["Data[0]", "Data[2]", "Data[10]"]
-        );
+        assert_eq!(m.array_elements("Data"), vec!["Data[0]", "Data[2]", "Data[10]"]);
         assert_eq!(m.info().count, 7);
     }
 

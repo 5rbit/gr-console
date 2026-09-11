@@ -85,7 +85,7 @@ fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
             println!("DB \"{db}\" size {} bytes, number {:?}, sig 16#{:08X}", l.size, c.db_number(&db), c.layout_sig(&db)?);
-            println!("{:>8}  {:<3}  {:<12} {}", "offset", "bit", "type", "path");
+            println!("{:>8}  {:<3}  {:<12} path", "offset", "bit", "type");
             for m in l.members.iter().filter(|m| prefix.as_ref().is_none_or(|p| m.path.starts_with(p))) {
                 let bit = m.bit.map(|b| b.to_string()).unwrap_or_default();
                 println!("{:>8}  {:<3}  {:<12} {}", m.offset, bit, m.prim.name(), m.path);
@@ -140,8 +140,8 @@ fn patch_sig(text: &str, sig: u32) -> anyhow::Result<String> {
                 None => (trimmed.trim_end(), None),
             };
             let attrs = code.find('{').and_then(|s| code.find('}').map(|e| &code[s..=e])).unwrap_or("");
-            let sep = if attrs.is_empty() { " " } else { " " };
-            let mut l = format!("{indent}LayoutSig{sep}{attrs}{}: DWord := 16#{sig:08X};", if attrs.is_empty() { "" } else { " " });
+            let attrs_sp = if attrs.is_empty() { "" } else { " " };
+            let mut l = format!("{indent}LayoutSig {attrs}{attrs_sp}: DWord := 16#{sig:08X};");
             if let Some(cm) = comment {
                 l.push_str("   ");
                 l.push_str(cm);

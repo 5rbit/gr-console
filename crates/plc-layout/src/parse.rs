@@ -57,9 +57,9 @@ pub fn parse_udt(src: &str) -> Result<UdtDecl, LayoutError> {
             name = Some(unquote(rest.trim()).to_string());
             continue;
         }
-        if name.is_some() && code.eq_ignore_ascii_case("STRUCT") {
+        if let Some(n) = name.clone().filter(|_| code.eq_ignore_ascii_case("STRUCT")) {
             let fields = parse_fields(&mut it, "END_STRUCT")?;
-            return Ok(UdtDecl { name: name.unwrap(), fields });
+            return Ok(UdtDecl { name: n, fields });
         }
         if name.is_some() && code.eq_ignore_ascii_case("END_TYPE") {
             return Err(perr(ln, "TYPE without STRUCT"));
@@ -129,11 +129,7 @@ pub fn parse_db(src: &str) -> Result<DbDecl, LayoutError> {
         }
     }
     let name = name.ok_or(LayoutError::Parse { line: None, msg: "no DATA_BLOCK declaration".into() })?;
-    let optimized = attrs
-        .iter()
-        .find(|(k, _)| k.eq_ignore_ascii_case("S7_Optimized_Access"))
-        .map(|(_, v)| v.eq_ignore_ascii_case("TRUE"))
-        .unwrap_or(true);
+    let optimized = attrs.iter().find(|(k, _)| k.eq_ignore_ascii_case("S7_Optimized_Access")).map(|(_, v)| v.eq_ignore_ascii_case("TRUE")).unwrap_or(true);
     Ok(DbDecl { name, optimized, attrs, fields, begin })
 }
 
@@ -191,7 +187,7 @@ fn split_name(code: &str) -> Option<(String, &str)> {
         let end = rest.find('"')?;
         return Some((rest[..end].to_string(), &rest[end + 1..]));
     }
-    let end = code.find(|c: char| c == ' ' || c == '{' || c == ':').unwrap_or(code.len());
+    let end = code.find([' ', '{', ':']).unwrap_or(code.len());
     Some((code[..end].to_string(), &code[end..]))
 }
 
@@ -212,11 +208,7 @@ fn parse_type(text: &str, it: &mut Lines, ln: usize) -> Result<TypeRef, LayoutEr
             dims.push((parse_bound(lo)?, parse_bound(hi)?));
         }
         let rest = t[close + 1..].trim();
-        let elem_text = rest
-            .strip_prefix("of ")
-            .or_else(|| rest.strip_prefix("OF "))
-            .or_else(|| rest.strip_prefix("Of "))
-            .ok_or_else(|| perr(ln, "array without 'of'"))?;
+        let elem_text = rest.strip_prefix("of ").or_else(|| rest.strip_prefix("OF ")).or_else(|| rest.strip_prefix("Of ")).ok_or_else(|| perr(ln, "array without 'of'"))?;
         let elem = parse_type(elem_text, it, ln)?;
         return Ok(TypeRef::Array { dims, elem: Box::new(elem) });
     }

@@ -65,7 +65,9 @@ impl Prim {
             "date_and_time" | "dt" => Prim::DateAndTime,
             "dtl" => Prim::Dtl,
             // hardware / system data types (2-byte identifiers) and misc.
-            "hw_any" | "hw_io" | "hw_iosystem" | "hw_device" | "hw_submodule" | "hw_interface" | "hw_module" | "hw_dpslave" | "hw_hsc" | "hw_pwm" | "hw_pto" | "hw_ieport" | "conn_any" | "conn_ouc" | "conn_prg" | "conn_r_id" | "port" | "rtm" | "event_any" | "event_att" | "event_hwint" | "ob_any" | "ob_delay" | "ob_tod" | "ob_cyclic" | "ob_att" | "ob_pcycle" | "ob_hwint" | "ob_diag" | "ob_timeerror" | "ob_startup" | "db_any" | "db_www" | "db_dyn" | "pip" | "s5time" | "wchar" | "remote" | "aom_ident" | "conn_prog" => Prim::Word,
+            "hw_any" | "hw_io" | "hw_iosystem" | "hw_device" | "hw_submodule" | "hw_interface" | "hw_module" | "hw_dpslave" | "hw_hsc" | "hw_pwm" | "hw_pto" | "hw_ieport" | "conn_any"
+            | "conn_ouc" | "conn_prg" | "conn_r_id" | "port" | "rtm" | "event_any" | "event_att" | "event_hwint" | "ob_any" | "ob_delay" | "ob_tod" | "ob_cyclic" | "ob_att" | "ob_pcycle"
+            | "ob_hwint" | "ob_diag" | "ob_timeerror" | "ob_startup" | "db_any" | "db_www" | "db_dyn" | "pip" | "s5time" | "wchar" | "remote" | "aom_ident" | "conn_prog" => Prim::Word,
             "ldt" => Prim::LTime,
             _ => return None,
         })
@@ -114,7 +116,10 @@ pub enum TypeRef {
     Udt(String),
     Struct(Vec<Field>),
     /// One or more dimensions (multi-dim arrays are laid out row-major like one flat array).
-    Array { dims: Vec<(Bound, Bound)>, elem: Box<TypeRef> },
+    Array {
+        dims: Vec<(Bound, Bound)>,
+        elem: Box<TypeRef>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]

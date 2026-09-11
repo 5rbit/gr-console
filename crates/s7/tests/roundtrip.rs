@@ -34,8 +34,8 @@ async fn read_many_packs_small_items_and_reports_item_errors() {
         DbRead { db: 900, start: 0, len: 4 },
         DbRead { db: 900, start: 7, len: 3 }, // odd length -> pad handling
         DbRead { db: 41, start: 2999, len: 1 },
-        DbRead { db: 41, start: 2999, len: 2 }, // out of range
-        DbRead { db: 5, start: 0, len: 1 },     // missing DB
+        DbRead { db: 41, start: 2999, len: 2 },  // out of range
+        DbRead { db: 5, start: 0, len: 1 },      // missing DB
         DbRead { db: 900, start: 0, len: 1500 }, // larger than a PDU -> chunked read
     ];
     let res = c.read_many(&reads).await.unwrap();

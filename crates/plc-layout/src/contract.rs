@@ -239,11 +239,7 @@ impl Contract {
                     if *idx < lo || *idx > hi {
                         return Err(LayoutError::UnknownPath(format!("{path}: index {idx} out of {lo}..{hi}")));
                     }
-                    let inner: TypeRef = if dims_r.len() > 1 {
-                        TypeRef::Array { dims: dims[1..].to_vec(), elem: elem.clone() }
-                    } else {
-                        (**elem).clone()
-                    };
+                    let inner: TypeRef = if dims_r.len() > 1 { TypeRef::Array { dims: dims[1..].to_vec(), elem: elem.clone() } } else { (**elem).clone() };
                     for _ in lo..*idx {
                         skip(self, &inner, &mut cur)?;
                     }
@@ -342,15 +338,7 @@ mod tests {
     fn split_path_handles_indices() {
         assert_eq!(
             split_path("STAT.Task.Queue[2].Cell.Position[3]"),
-            vec![
-                Seg::Field("STAT".into()),
-                Seg::Field("Task".into()),
-                Seg::Field("Queue".into()),
-                Seg::Index(2),
-                Seg::Field("Cell".into()),
-                Seg::Field("Position".into()),
-                Seg::Index(3)
-            ]
+            vec![Seg::Field("STAT".into()), Seg::Field("Task".into()), Seg::Field("Queue".into()), Seg::Index(2), Seg::Field("Cell".into()), Seg::Field("Position".into()), Seg::Index(3)]
         );
     }
 }

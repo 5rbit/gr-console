@@ -4,8 +4,7 @@ use crate::LayoutError;
 
 /// Returns (name, value, data type) for every `SW.Tags.PlcUserConstant` in the document.
 pub fn parse_const_xml(xml: &str) -> Result<Vec<(String, i64, String)>, LayoutError> {
-    let doc = roxmltree::Document::parse(xml.trim_start_matches('\u{feff}'))
-        .map_err(|e| LayoutError::Parse { line: None, msg: format!("xml: {e}") })?;
+    let doc = roxmltree::Document::parse(xml.trim_start_matches('\u{feff}')).map_err(|e| LayoutError::Parse { line: None, msg: format!("xml: {e}") })?;
     let mut out = Vec::new();
     for node in doc.descendants().filter(|n| n.has_tag_name("SW.Tags.PlcUserConstant")) {
         let Some(attrs) = node.children().find(|c| c.has_tag_name("AttributeList")) else { continue };

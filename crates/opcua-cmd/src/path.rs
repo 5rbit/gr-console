@@ -27,11 +27,7 @@ impl Segment {
 
 /// Strip S7-style quotes and surrounding whitespace from a browse name or path piece.
 pub fn strip_quotes(s: &str) -> String {
-    s.chars()
-        .filter(|c| *c != '"')
-        .collect::<String>()
-        .trim()
-        .to_string()
+    s.chars().filter(|c| *c != '"').collect::<String>().trim().to_string()
 }
 
 /// Parse a single segment `Name[1][2]` (quotes/whitespace tolerated).
@@ -61,9 +57,7 @@ pub fn parse_segment(raw: &str) -> Result<Segment, OpcError> {
             return Err(bad("missing ']'"));
         };
         let idx = stripped[..close].trim();
-        let idx: u32 = idx
-            .parse()
-            .map_err(|_| bad("index is not a non-negative integer"))?;
+        let idx: u32 = idx.parse().map_err(|_| bad("index is not a non-negative integer"))?;
         indices.push(idx);
         rest = stripped[close + 1..].trim_start();
     }
@@ -81,11 +75,7 @@ pub fn parse_path(path: &str) -> Result<Vec<Segment>, OpcError> {
 
 /// Render segments in canonical form.
 pub fn render(segments: &[Segment]) -> String {
-    segments
-        .iter()
-        .map(Segment::render)
-        .collect::<Vec<_>>()
-        .join(".")
+    segments.iter().map(Segment::render).collect::<Vec<_>>().join(".")
 }
 
 /// Canonicalize a member path: `"TaskData" . "Position" [ 3 ]` → `TaskData.Position[3]`.
@@ -100,11 +90,7 @@ pub fn join_child(parent: &str, child_browse_name: &str) -> String {
     let trimmed = child.trim();
 
     // `[2]` or `2`
-    let bare = trimmed
-        .strip_prefix('[')
-        .and_then(|s| s.strip_suffix(']'))
-        .map(str::trim)
-        .unwrap_or(trimmed);
+    let bare = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']')).map(str::trim).unwrap_or(trimmed);
     if !parent.is_empty() {
         if let Ok(idx) = bare.parse::<u32>() {
             if bare.chars().all(|c| c.is_ascii_digit()) {
@@ -116,10 +102,7 @@ pub fn join_child(parent: &str, child_browse_name: &str) -> String {
     // `GR[2]` under `GR`, `Position[1]` under `Position`, `GR[2][3]` under `GR[2]`
     if let (Ok(child_seg), Ok(parent_segs)) = (parse_segment(trimmed), parse_path(parent)) {
         if let Some(last) = parent_segs.last() {
-            if child_seg.name == last.name
-                && child_seg.indices.len() > last.indices.len()
-                && child_seg.indices[..last.indices.len()] == last.indices[..]
-            {
+            if child_seg.name == last.name && child_seg.indices.len() > last.indices.len() && child_seg.indices[..last.indices.len()] == last.indices[..] {
                 let mut segs = parent_segs;
                 segs.pop();
                 segs.push(child_seg);
@@ -129,21 +112,13 @@ pub fn join_child(parent: &str, child_browse_name: &str) -> String {
     }
 
     let child_norm = normalize_path(trimmed).unwrap_or_else(|_| trimmed.to_string());
-    if parent.is_empty() {
-        child_norm
-    } else {
-        format!("{parent}.{child_norm}")
-    }
+    if parent.is_empty() { child_norm } else { format!("{parent}.{child_norm}") }
 }
 
 /// Candidate browse names for the array element `idx` of a node named `name`
 /// (with any already-applied indices rendered into `name`).
 pub fn element_candidates(name_with_indices: &str, idx: u32) -> [String; 3] {
-    [
-        format!("{name_with_indices}[{idx}]"),
-        format!("[{idx}]"),
-        idx.to_string(),
-    ]
+    [format!("{name_with_indices}[{idx}]"), format!("[{idx}]"), idx.to_string()]
 }
 
 #[cfg(test)]
@@ -152,14 +127,8 @@ mod tests {
 
     #[test]
     fn parse_and_render() {
-        assert_eq!(
-            normalize_path("TaskData.Position[3]").unwrap(),
-            "TaskData.Position[3]"
-        );
-        assert_eq!(
-            normalize_path(" \"TaskData\" . \"Position\" [ 3 ] ").unwrap(),
-            "TaskData.Position[3]"
-        );
+        assert_eq!(normalize_path("TaskData.Position[3]").unwrap(), "TaskData.Position[3]");
+        assert_eq!(normalize_path(" \"TaskData\" . \"Position\" [ 3 ] ").unwrap(), "TaskData.Position[3]");
         assert_eq!(normalize_path("GR[2].CMD").unwrap(), "GR[2].CMD");
         assert_eq!(normalize_path("A[1][2].B").unwrap(), "A[1][2].B");
         assert_eq!(normalize_path("").unwrap(), "");
@@ -172,13 +141,7 @@ mod tests {
     #[test]
     fn segments() {
         let s = parse_segment("Position[1]").unwrap();
-        assert_eq!(
-            s,
-            Segment {
-                name: "Position".into(),
-                indices: vec![1]
-            }
-        );
+        assert_eq!(s, Segment { name: "Position".into(), indices: vec![1] });
         assert_eq!(s.render(), "Position[1]");
     }
 
@@ -188,14 +151,8 @@ mod tests {
         assert_eq!(join_child("Header", "CMD_ID"), "Header.CMD_ID");
         assert_eq!(join_child("TaskData.Position", "[3]"), "TaskData.Position[3]");
         assert_eq!(join_child("TaskData.Position", "3"), "TaskData.Position[3]");
-        assert_eq!(
-            join_child("TaskData.Position", "Position[3]"),
-            "TaskData.Position[3]"
-        );
-        assert_eq!(
-            join_child("TaskData.Position", "\"Position\"[3]"),
-            "TaskData.Position[3]"
-        );
+        assert_eq!(join_child("TaskData.Position", "Position[3]"), "TaskData.Position[3]");
+        assert_eq!(join_child("TaskData.Position", "\"Position\"[3]"), "TaskData.Position[3]");
         assert_eq!(join_child("Data", "[0]"), "Data[0]");
         assert_eq!(join_child("Data", "0"), "Data[0]");
         assert_eq!(join_child("GR", "GR[2]"), "GR[2]");
@@ -207,9 +164,6 @@ mod tests {
 
     #[test]
     fn candidates() {
-        assert_eq!(
-            element_candidates("GR", 2),
-            ["GR[2]".to_string(), "[2]".to_string(), "2".to_string()]
-        );
+        assert_eq!(element_candidates("GR", 2), ["GR[2]".to_string(), "[2]".to_string(), "2".to_string()]);
     }
 }

@@ -24,25 +24,16 @@ pub struct Connection {
 
 /// Run `fut` with a timeout, mapping expiry to [`OpcError::Timeout`].
 pub async fn with_timeout<T, F: Future<Output = T>>(d: Duration, fut: F) -> Result<T, OpcError> {
-    tokio::time::timeout(d, fut)
-        .await
-        .map_err(|_| OpcError::Timeout)
+    tokio::time::timeout(d, fut).await.map_err(|_| OpcError::Timeout)
 }
 
 /// Map an async-opcua error to ours (BadTimeout → Timeout, else Transport).
 pub fn map_err(e: opcua::types::Error) -> OpcError {
-    if e.status() == StatusCode::BadTimeout {
-        OpcError::Timeout
-    } else {
-        OpcError::Transport(e.to_string())
-    }
+    if e.status() == StatusCode::BadTimeout { OpcError::Timeout } else { OpcError::Transport(e.to_string()) }
 }
 
 fn squash(s: &str) -> String {
-    s.chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .collect::<String>()
-        .to_ascii_lowercase()
+    s.chars().filter(|c| c.is_ascii_alphanumeric()).collect::<String>().to_ascii_lowercase()
 }
 
 /// Parse the configured policy name (case-insensitive, `-`/`_` ignored).
@@ -55,9 +46,7 @@ pub fn parse_policy(s: &str) -> Result<SecurityPolicy, OpcError> {
         "basic256" => SecurityPolicy::Basic256,
         "basic128rsa15" => SecurityPolicy::Basic128Rsa15,
         _ => {
-            return Err(OpcError::Config(format!(
-                "unknown security_policy {s:?}; use None | Basic256Sha256 | Aes128_Sha256_RsaOaep | Aes256_Sha256_RsaPss"
-            )));
+            return Err(OpcError::Config(format!("unknown security_policy {s:?}; use None | Basic256Sha256 | Aes128_Sha256_RsaOaep | Aes256_Sha256_RsaPss")));
         }
     })
 }
@@ -69,9 +58,7 @@ pub fn parse_mode(s: &str) -> Result<MessageSecurityMode, OpcError> {
         "sign" => MessageSecurityMode::Sign,
         "signandencrypt" | "signencrypt" => MessageSecurityMode::SignAndEncrypt,
         _ => {
-            return Err(OpcError::Config(format!(
-                "unknown security_mode {s:?}; use None | Sign | SignAndEncrypt"
-            )));
+            return Err(OpcError::Config(format!("unknown security_mode {s:?}; use None | Sign | SignAndEncrypt")));
         }
     })
 }
@@ -88,31 +75,12 @@ fn token_type_name(t: UserTokenType) -> &'static str {
 /// One-line description of an endpoint: url, policy, mode, token types, security level.
 pub fn describe_endpoint(e: &EndpointDescription) -> String {
     let policy = SecurityPolicy::from_uri(e.security_policy_uri.as_ref());
-    let tokens = e
-        .user_identity_tokens
-        .as_ref()
-        .map(|v| {
-            v.iter()
-                .map(|t| format!("{}({})", token_type_name(t.token_type), t.policy_id.as_ref()))
-                .collect::<Vec<_>>()
-                .join(",")
-        })
-        .unwrap_or_default();
-    format!(
-        "{} policy={} mode={} tokens=[{}] level={}",
-        e.endpoint_url.as_ref(),
-        policy.to_str(),
-        e.security_mode,
-        tokens,
-        e.security_level
-    )
+    let tokens = e.user_identity_tokens.as_ref().map(|v| v.iter().map(|t| format!("{}({})", token_type_name(t.token_type), t.policy_id.as_ref())).collect::<Vec<_>>().join(",")).unwrap_or_default();
+    format!("{} policy={} mode={} tokens=[{}] level={}", e.endpoint_url.as_ref(), policy.to_str(), e.security_mode, tokens, e.security_level)
 }
 
 fn build_client(cfg: &OpcUaConfig, secure: bool) -> Result<Client, OpcError> {
-    let pki_dir = cfg
-        .pki_dir
-        .clone()
-        .unwrap_or_else(|| std::env::temp_dir().join("gr-console-opcua-pki"));
+    let pki_dir = cfg.pki_dir.clone().unwrap_or_else(|| std::env::temp_dir().join("gr-console-opcua-pki"));
     ClientBuilder::new()
         .application_name("gr-console")
         .application_uri("urn:gr-console:opcua-cmd")
@@ -134,9 +102,7 @@ fn build_client(cfg: &OpcUaConfig, secure: bool) -> Result<Client, OpcError> {
 fn identity(cfg: &OpcUaConfig) -> IdentityToken {
     match &cfg.auth {
         Auth::Anonymous => IdentityToken::Anonymous,
-        Auth::UserPass { user, pass } => {
-            IdentityToken::UserName(user.clone(), Password::new(pass.clone()))
-        }
+        Auth::UserPass { user, pass } => IdentityToken::UserName(user.clone(), Password::new(pass.clone())),
     }
 }
 
@@ -149,9 +115,7 @@ fn endpoint_supports(e: &EndpointDescription, wanted: UserTokenType) -> bool {
 
 fn auth_hint(code: StatusCode, endpoints: &[String]) -> Option<String> {
     let msg = match code {
-        StatusCode::BadUserAccessDenied
-        | StatusCode::BadIdentityTokenInvalid
-        | StatusCode::BadIdentityTokenRejected => {
+        StatusCode::BadUserAccessDenied | StatusCode::BadIdentityTokenInvalid | StatusCode::BadIdentityTokenRejected => {
             "server rejected the user identity token (check user/password, that the user exists \
              in the PLC's OPC UA user management, and that the endpoint offers the token type)"
         }
@@ -165,10 +129,7 @@ fn auth_hint(code: StatusCode, endpoints: &[String]) -> Option<String> {
         }
         _ => return None,
     };
-    Some(format!(
-        "{code}: {msg}; endpoints offered: [{}]",
-        endpoints.join(" | ")
-    ))
+    Some(format!("{code}: {msg}; endpoints offered: [{}]", endpoints.join(" | ")))
 }
 
 /// GetEndpoints → pick the configured policy/mode/token → CreateSession + ActivateSession.
@@ -178,15 +139,10 @@ pub async fn connect(cfg: &OpcUaConfig) -> Result<Connection, OpcError> {
     match (policy, mode) {
         (SecurityPolicy::None, MessageSecurityMode::None) => {}
         (SecurityPolicy::None, m) => {
-            return Err(OpcError::Config(format!(
-                "security_policy None requires security_mode None (got {m})"
-            )));
+            return Err(OpcError::Config(format!("security_policy None requires security_mode None (got {m})")));
         }
         (p, MessageSecurityMode::None) => {
-            return Err(OpcError::Config(format!(
-                "security_policy {} requires security_mode Sign or SignAndEncrypt",
-                p.to_str()
-            )));
+            return Err(OpcError::Config(format!("security_policy {} requires security_mode Sign or SignAndEncrypt", p.to_str())));
         }
         _ => {}
     }
@@ -194,12 +150,7 @@ pub async fn connect(cfg: &OpcUaConfig) -> Result<Connection, OpcError> {
     let mut client = build_client(cfg, secure)?;
     let timeout = cfg.connect_timeout();
 
-    let endpoints = with_timeout(
-        timeout,
-        client.get_server_endpoints_from_url(cfg.endpoint.as_str()),
-    )
-    .await?
-    .map_err(|e| OpcError::Transport(format!("GetEndpoints {}: {e}", cfg.endpoint)))?;
+    let endpoints = with_timeout(timeout, client.get_server_endpoints_from_url(cfg.endpoint.as_str())).await?.map_err(|e| OpcError::Transport(format!("GetEndpoints {}: {e}", cfg.endpoint)))?;
 
     let descriptions: Vec<String> = endpoints.iter().map(describe_endpoint).collect();
     for d in &descriptions {
@@ -212,28 +163,13 @@ pub async fn connect(cfg: &OpcUaConfig) -> Result<Connection, OpcError> {
     };
 
     let matched = Client::find_matching_endpoint(&endpoints, &cfg.endpoint, policy, mode)
-        .ok_or_else(|| {
-            OpcError::Config(format!(
-                "endpoint with policy {} / mode {} not offered by {}; offered: [{}]",
-                policy.to_str(),
-                mode,
-                cfg.endpoint,
-                descriptions.join(" | ")
-            ))
-        })?;
+        .ok_or_else(|| OpcError::Config(format!("endpoint with policy {} / mode {} not offered by {}; offered: [{}]", policy.to_str(), mode, cfg.endpoint, descriptions.join(" | "))))?;
     if !endpoint_supports(&matched, wanted_token) {
-        return Err(OpcError::Config(format!(
-            "endpoint {} does not offer a {} user token; offered: [{}]",
-            describe_endpoint(&matched),
-            token_type_name(wanted_token),
-            descriptions.join(" | ")
-        )));
+        return Err(OpcError::Config(format!("endpoint {} does not offer a {} user token; offered: [{}]", describe_endpoint(&matched), token_type_name(wanted_token), descriptions.join(" | "))));
     }
     let endpoint_url = matched.endpoint_url.as_ref().to_string();
 
-    let (session, event_loop) = client
-        .connect_to_endpoint_directly(matched, identity(cfg))
-        .map_err(|e| OpcError::Config(format!("session setup: {e}")))?;
+    let (session, event_loop) = client.connect_to_endpoint_directly(matched, identity(cfg)).map_err(|e| OpcError::Config(format!("session setup: {e}")))?;
     let mut handle = event_loop.spawn();
 
     let connected = tokio::select! {
@@ -262,12 +198,7 @@ pub async fn connect(cfg: &OpcUaConfig) -> Result<Connection, OpcError> {
         }
     }
 
-    Ok(Connection {
-        session,
-        event_loop: handle,
-        endpoints: descriptions,
-        endpoint_url,
-    })
+    Ok(Connection { session, event_loop: handle, endpoints: descriptions, endpoint_url })
 }
 
 #[cfg(test)]
@@ -278,14 +209,8 @@ mod tests {
     fn policy_names() {
         assert_eq!(parse_policy("None").unwrap(), SecurityPolicy::None);
         assert_eq!(parse_policy("basic256sha256").unwrap(), SecurityPolicy::Basic256Sha256);
-        assert_eq!(
-            parse_policy("Aes128_Sha256_RsaOaep").unwrap(),
-            SecurityPolicy::Aes128Sha256RsaOaep
-        );
-        assert_eq!(
-            parse_policy("Aes256-Sha256-RsaPss").unwrap(),
-            SecurityPolicy::Aes256Sha256RsaPss
-        );
+        assert_eq!(parse_policy("Aes128_Sha256_RsaOaep").unwrap(), SecurityPolicy::Aes128Sha256RsaOaep);
+        assert_eq!(parse_policy("Aes256-Sha256-RsaPss").unwrap(), SecurityPolicy::Aes256Sha256RsaPss);
         assert!(parse_policy("Basic999").is_err());
         assert_eq!(parse_mode("SignAndEncrypt").unwrap(), MessageSecurityMode::SignAndEncrypt);
         assert_eq!(parse_mode("sign_and_encrypt").unwrap(), MessageSecurityMode::SignAndEncrypt);

@@ -141,12 +141,7 @@ fn int_in<T: TryFrom<i128>>(n: Num) -> Option<T> {
 /// Integers convert between widths when the value fits; floats accept integers; `Bool`
 /// accepts `0`/`1`. Anything else is a [`OpcError::Config`] naming the path.
 pub fn coerce(value: &PlcValue, kind: PlcKind, path: &str) -> Result<Variant, OpcError> {
-    let mismatch = || {
-        OpcError::Config(format!(
-            "{path}: cannot write {value:?} to a {} member",
-            kind.name()
-        ))
-    };
+    let mismatch = || OpcError::Config(format!("{path}: cannot write {value:?} to a {} member", kind.name()));
     if kind == PlcKind::Unknown {
         return Ok(native(value));
     }
@@ -226,55 +221,19 @@ mod tests {
 
     #[test]
     fn coerce_exact_and_widening() {
-        assert_eq!(
-            coerce(&PlcValue::U8(7), PlcKind::U8, "p").unwrap(),
-            Variant::Byte(7)
-        );
-        assert_eq!(
-            coerce(&PlcValue::U8(7), PlcKind::U16, "p").unwrap(),
-            Variant::UInt16(7)
-        );
-        assert_eq!(
-            coerce(&PlcValue::U8(7), PlcKind::U32, "p").unwrap(),
-            Variant::UInt32(7)
-        );
-        assert_eq!(
-            coerce(&PlcValue::I32(-5), PlcKind::I16, "p").unwrap(),
-            Variant::Int16(-5)
-        );
-        assert_eq!(
-            coerce(&PlcValue::U32(9), PlcKind::F32, "p").unwrap(),
-            Variant::Float(9.0)
-        );
-        assert_eq!(
-            coerce(&PlcValue::F32(1.5), PlcKind::F64, "p").unwrap(),
-            Variant::Double(1.5)
-        );
-        assert_eq!(
-            coerce(&PlcValue::F64(2.0), PlcKind::U8, "p").unwrap(),
-            Variant::Byte(2)
-        );
-        assert_eq!(
-            coerce(&PlcValue::Bool(true), PlcKind::Bool, "p").unwrap(),
-            Variant::Boolean(true)
-        );
-        assert_eq!(
-            coerce(&PlcValue::U8(1), PlcKind::Bool, "p").unwrap(),
-            Variant::Boolean(true)
-        );
-        assert_eq!(
-            coerce(&PlcValue::U8(0), PlcKind::Bool, "p").unwrap(),
-            Variant::Boolean(false)
-        );
-        assert_eq!(
-            coerce(&PlcValue::Str("x".into()), PlcKind::Str, "p").unwrap(),
-            Variant::String("x".into())
-        );
+        assert_eq!(coerce(&PlcValue::U8(7), PlcKind::U8, "p").unwrap(), Variant::Byte(7));
+        assert_eq!(coerce(&PlcValue::U8(7), PlcKind::U16, "p").unwrap(), Variant::UInt16(7));
+        assert_eq!(coerce(&PlcValue::U8(7), PlcKind::U32, "p").unwrap(), Variant::UInt32(7));
+        assert_eq!(coerce(&PlcValue::I32(-5), PlcKind::I16, "p").unwrap(), Variant::Int16(-5));
+        assert_eq!(coerce(&PlcValue::U32(9), PlcKind::F32, "p").unwrap(), Variant::Float(9.0));
+        assert_eq!(coerce(&PlcValue::F32(1.5), PlcKind::F64, "p").unwrap(), Variant::Double(1.5));
+        assert_eq!(coerce(&PlcValue::F64(2.0), PlcKind::U8, "p").unwrap(), Variant::Byte(2));
+        assert_eq!(coerce(&PlcValue::Bool(true), PlcKind::Bool, "p").unwrap(), Variant::Boolean(true));
+        assert_eq!(coerce(&PlcValue::U8(1), PlcKind::Bool, "p").unwrap(), Variant::Boolean(true));
+        assert_eq!(coerce(&PlcValue::U8(0), PlcKind::Bool, "p").unwrap(), Variant::Boolean(false));
+        assert_eq!(coerce(&PlcValue::Str("x".into()), PlcKind::Str, "p").unwrap(), Variant::String("x".into()));
         // Unknown kind → native type.
-        assert_eq!(
-            coerce(&PlcValue::I16(3), PlcKind::Unknown, "p").unwrap(),
-            Variant::Int16(3)
-        );
+        assert_eq!(coerce(&PlcValue::I16(3), PlcKind::Unknown, "p").unwrap(), Variant::Int16(3));
     }
 
     #[test]
@@ -291,30 +250,12 @@ mod tests {
     #[test]
     fn kinds_from_data_type() {
         assert_eq!(PlcKind::from_data_type(&DataTypeId::Byte.into()), PlcKind::U8);
-        assert_eq!(
-            PlcKind::from_data_type(&DataTypeId::UInt16.into()),
-            PlcKind::U16
-        );
-        assert_eq!(
-            PlcKind::from_data_type(&DataTypeId::UInt32.into()),
-            PlcKind::U32
-        );
-        assert_eq!(
-            PlcKind::from_data_type(&DataTypeId::Float.into()),
-            PlcKind::F32
-        );
-        assert_eq!(
-            PlcKind::from_data_type(&DataTypeId::Boolean.into()),
-            PlcKind::Bool
-        );
-        assert_eq!(
-            PlcKind::from_data_type(&DataTypeId::Structure.into()),
-            PlcKind::Unknown
-        );
-        assert_eq!(
-            PlcKind::from_data_type(&NodeId::new(3, "x")),
-            PlcKind::Unknown
-        );
+        assert_eq!(PlcKind::from_data_type(&DataTypeId::UInt16.into()), PlcKind::U16);
+        assert_eq!(PlcKind::from_data_type(&DataTypeId::UInt32.into()), PlcKind::U32);
+        assert_eq!(PlcKind::from_data_type(&DataTypeId::Float.into()), PlcKind::F32);
+        assert_eq!(PlcKind::from_data_type(&DataTypeId::Boolean.into()), PlcKind::Bool);
+        assert_eq!(PlcKind::from_data_type(&DataTypeId::Structure.into()), PlcKind::Unknown);
+        assert_eq!(PlcKind::from_data_type(&NodeId::new(3, "x")), PlcKind::Unknown);
     }
 
     #[test]

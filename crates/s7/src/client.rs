@@ -22,15 +22,7 @@ pub struct S7Config {
 
 impl Default for S7Config {
     fn default() -> Self {
-        Self {
-            host: "127.0.0.1".into(),
-            port: 102,
-            rack: 0,
-            slot: 1,
-            connection_type: 1,
-            timeout: Duration::from_millis(3000),
-            pdu_request: 960,
-        }
+        Self { host: "127.0.0.1".into(), port: 102, rack: 0, slot: 1, connection_type: 1, timeout: Duration::from_millis(3000), pdu_request: 960 }
     }
 }
 
@@ -70,9 +62,7 @@ pub struct S7Client {
 impl S7Client {
     pub async fn connect(cfg: &S7Config) -> Result<Self, S7Error> {
         let addr = format!("{}:{}", cfg.host, cfg.port);
-        let stream = tokio::time::timeout(cfg.timeout, TcpStream::connect(&addr))
-            .await
-            .map_err(|_| S7Error::ConnectTimeout(addr.clone()))??;
+        let stream = tokio::time::timeout(cfg.timeout, TcpStream::connect(&addr)).await.map_err(|_| S7Error::ConnectTimeout(addr.clone()))??;
         stream.set_nodelay(true)?;
         let mut c = Self { cfg: cfg.clone(), stream, seq: 1, pdu: 240 };
         c.send_raw(&cotp::connect_request(cfg.connection_type, cfg.rack, cfg.slot)).await?;
@@ -144,17 +134,10 @@ impl S7Client {
             batch_bytes += item_cost;
         }
         self.flush_batch(&mut batch, &mut out).await?;
-        Ok(out
-            .into_iter()
-            .map(|o| o.unwrap_or_else(|| Err(S7Error::Pdu("unfilled read slot".into()))))
-            .collect())
+        Ok(out.into_iter().map(|o| o.unwrap_or_else(|| Err(S7Error::Pdu("unfilled read slot".into())))).collect())
     }
 
-    async fn flush_batch(
-        &mut self,
-        batch: &mut Vec<(usize, Item)>,
-        out: &mut [Option<Result<Vec<u8>, S7Error>>],
-    ) -> Result<(), S7Error> {
+    async fn flush_batch(&mut self, batch: &mut Vec<(usize, Item)>, out: &mut [Option<Result<Vec<u8>, S7Error>>]) -> Result<(), S7Error> {
         if batch.is_empty() {
             return Ok(());
         }
@@ -217,11 +200,7 @@ impl S7Client {
                 Err(e) => return Err(e),
             }
         }
-        if last_ok {
-            Ok(ProbeResult::Larger { actual: (lo < 65536).then_some(lo) })
-        } else {
-            Ok(ProbeResult::Smaller { actual: lo })
-        }
+        if last_ok { Ok(ProbeResult::Larger { actual: (lo < 65536).then_some(lo) }) } else { Ok(ProbeResult::Smaller { actual: lo }) }
     }
 
     async fn read_byte(&mut self, db: u16, at: u32) -> Result<(), S7Error> {
