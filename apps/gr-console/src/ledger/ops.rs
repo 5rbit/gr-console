@@ -75,12 +75,26 @@ pub async fn submit(st: &AppState, entry: LedgerEntry) -> Result<LedgerEntry, Ap
 }
 
 /// Creates + submits in one go (used by the task-issue slice and the scenario runner).
-pub async fn create_and_submit(st: &AppState, origin: Origin, request: Option<super::TaskRequest>, resolved: Option<gr_proto::TaskParams>, task: TaskData, submit_now: bool) -> Result<LedgerEntry, ApiError> {
+pub async fn create_and_submit(
+    st: &AppState,
+    origin: Origin,
+    request: Option<super::TaskRequest>,
+    resolved: Option<gr_proto::TaskParams>,
+    task: TaskData,
+    submit_now: bool,
+) -> Result<LedgerEntry, ApiError> {
     let e = st.ledger.create(origin, request, resolved, task)?;
     if !submit_now {
         return Ok(e);
     }
     submit(st, e).await
+}
+
+/// Latest decoded `OPCUA.STAT` of the status PLC (None when there is no snapshot yet).
+fn status_view(st: &AppState) -> Option<gr_proto::StatusView> {
+    let h = st.status_plc().ok()?;
+    let stat = h.decode_path("OPCUA", "STAT")?;
+    gr_proto::StatusView::from_json(&stat).ok()
 }
 
 async fn task_op(cmd: &Arc<CommandPort>, op: TaskOp, key: TaskKey) -> Result<(), ApiError> {
@@ -96,10 +110,24 @@ pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
         TaskState::Submitted | TaskState::Accepted | TaskState::Queued | TaskState::Running | TaskState::Lost => {}
         s => return Err(ApiError::Conflict(format!("cannot cancel a {} task", s.as_str()))),
     }
-    task_op(&st.cmd, TaskOp::Delete, e.key()).await?;
-    let mut e2 = e;
+    // GR2 only processes `Command.Task.Delete` for the running task outside AUTO mode.
+    if e.state == TaskState::Running && !st.cfg.demo {
+        match status_view(st) {
+            Some(v) if v.mode.auto => {
+                return Err(ApiError::Conflict("AUTO 모드에서는 실행 중인 태스크를 취소(Delete)할 수 없습니다 — 로봇을 AUTO에서 내린 뒤 다시 시도하세요".into()));
+            }
+            Some(_) => {}
+            None => return Err(ApiError::PlcUnavailable("상태 PLC 스냅샷 없음 — AUTO 모드 여부를 확인할 수 없습니다".into())),
+        }
+    }
+    // Note the request *before* the op: `task_op` sleeps 600 ms for the re-arm, during which the sync
+    // engine may already record `Canceled` — upserting a pre-op snapshot afterwards would clobber it.
+    let id = e.id.clone();
+    let mut e2 = e.clone();
     e2.history.push(super::Transition { from: Some(e2.state), to: e2.state, at: crate::util::now_str(), by: Actor::Ui, note: Some("delete requested".into()) });
-    st.ledger.upsert(e2)
+    st.ledger.upsert(e2)?;
+    task_op(&st.cmd, TaskOp::Delete, e.key()).await?;
+    Ok(st.ledger.get(&id).unwrap_or(e))
 }
 
 pub async fn force_complete(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
@@ -107,10 +135,23 @@ pub async fn force_complete(st: &AppState, id: &str) -> Result<LedgerEntry, ApiE
     if !matches!(e.state, TaskState::Queued | TaskState::Running | TaskState::Accepted | TaskState::Lost) {
         return Err(ApiError::Conflict(format!("cannot complete a {} task", e.state.as_str())));
     }
-    task_op(&st.cmd, TaskOp::Complete, e.key()).await?;
-    let mut e2 = e;
+    // `STAT.RES.Data[5]` says whether the PLC accepts a forced Complete right now.
+    if !st.cfg.demo {
+        match status_view(st) {
+            Some(v) if !v.reject_info().complete_allowed => {
+                return Err(ApiError::Conflict("PLC가 강제 완료를 허용하지 않습니다 (STAT.RES.Data[5] = 0)".into()));
+            }
+            Some(_) => {}
+            None => return Err(ApiError::PlcUnavailable("상태 PLC 스냅샷 없음 — 완료 허용 여부를 확인할 수 없습니다".into())),
+        }
+    }
+    // Same ordering as `cancel`: note first, op second, fresh read last.
+    let id = e.id.clone();
+    let mut e2 = e.clone();
     e2.history.push(super::Transition { from: Some(e2.state), to: e2.state, at: crate::util::now_str(), by: Actor::Ui, note: Some("complete requested".into()) });
-    st.ledger.upsert(e2)
+    st.ledger.upsert(e2)?;
+    task_op(&st.cmd, TaskOp::Complete, e.key()).await?;
+    Ok(st.ledger.get(&id).unwrap_or(e))
 }
 
 pub async fn resubmit(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
@@ -123,5 +164,17 @@ pub async fn resubmit(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> 
 
 pub fn mark_failed(st: &AppState, id: &str, note: Option<String>) -> Result<LedgerEntry, ApiError> {
     let e = st.ledger.get(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
-    st.ledger.transition(e, TaskState::Failed, Actor::Ui, note)
+    if e.state.is_terminal() {
+        return Err(ApiError::Conflict(format!("cannot fail a {} task", e.state.as_str())));
+    }
+    let mut e2 = e;
+    if e2.error.is_none() {
+        e2.error = Some(note.clone().unwrap_or_else(|| "marked failed by operator".into()));
+    }
+    st.ledger.transition(e2, TaskState::Failed, Actor::Ui, note)
+}
+
+/// Deletes a terminal entry from the ledger (sqlite + cache) and broadcasts `Remove`.
+pub fn remove(st: &AppState, id: &str) -> Result<(), ApiError> {
+    st.ledger.remove(id)
 }

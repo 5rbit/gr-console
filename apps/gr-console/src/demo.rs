@@ -238,6 +238,7 @@ impl DemoWorld {
         g.op_echo = Some((op, work_id, task_id));
     }
 
+    #[allow(dead_code)]
     pub fn clear_header(&self) {
         let mut g = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
         g.pending = None;
@@ -376,7 +377,7 @@ impl DemoWorld {
         let (completed, canceled, rejected) = (ring_json(&g.completed), ring_json(&g.canceled), ring_json(&g.rejected));
         let accept = g.queue.len() < QUEUE && g.pending.is_none();
         let status = json!({ "Accept": accept, "Idle": g.now.is_none() && g.queue.is_empty(), "Assigned": !g.queue.is_empty(), "Inprogress": g.now.is_some(),
-            "AvoidReq": false, "HoldItem": step >= 500 && step < 999, "Complete": false, "Canceled": false, "Reserved": 0, "Step": step });
+            "AvoidReq": false, "HoldItem": (500..999).contains(&step), "Complete": false, "Canceled": false, "Reserved": 0, "Step": step });
         let axis = g.axis;
         let (now_none, now_some, tick, target) = (g.now.is_none(), g.now.is_some(), g.tick, g.target);
         let ntp = now_str().replace('T', " ").chars().take(23).collect::<String>();
@@ -392,7 +393,7 @@ impl DemoWorld {
             set(opc, "/STAT/Status/Idle", json!(now_none));
             set(opc, "/STAT/Status/Busy", json!(now_some));
             set(opc, "/STAT/Status/HeartBeat", json!(tick % 2 == 0));
-            set(opc, "/STAT/Status/ItemDectect", json!(step >= 500 && step < 999));
+            set(opc, "/STAT/Status/ItemDectect", json!((500..999).contains(&step)));
             for (i, a) in axis.iter().enumerate() {
                 set(opc, &format!("/STAT/Drive/{i}/Position"), json!(a));
             }
@@ -419,7 +420,7 @@ impl DemoWorld {
         let measure_json = {
             let t = g.now.as_ref().map(|r| r.task.clone());
             json!({
-                "Item": { "Busy": t.as_ref().is_some_and(|t| t.measure_item) && step >= 400 && step < 999, "Done": false, "Reported": false, "WorkCell": t.as_ref().map(|t| t.cell.id).unwrap_or(0),
+                "Item": { "Busy": t.as_ref().is_some_and(|t| t.measure_item) && (400..999).contains(&step), "Done": false, "Reported": false, "WorkCell": t.as_ref().map(|t| t.cell.id).unwrap_or(0),
                           "Code": t.as_ref().map(|t| t.item.code).unwrap_or(0), "Status": if step > 0 { 1 } else { 0 }, "InnerDia": 0.0, "OffsetX": 0.0, "OffsetY": 0.0, "UpperBeadHeight": 0.0, "TireHeight": 0.0,
                           "Torq_InnerDia": 0.0, "InBusy": step == 400, "InDone": step >= 500, "InValid": step >= 500, "InInnerDia": t.as_ref().map(|t| t.item.inner_diameter + 0.9).unwrap_or(0.0),
                           "OutBusy": step == 600, "OutDone": false, "OutValid": false, "OutInnerDia": 0.0 },
@@ -443,7 +444,7 @@ impl DemoWorld {
                 set(w, &format!("/Axis/{i}/Ready"), json!(true));
                 set(w, &format!("/Axis/{i}/Enabled"), json!(true));
             }
-            set(w, "/Gripper/ItemDetect", json!(step >= 500 && step < 999));
+            set(w, "/Gripper/ItemDetect", json!((500..999).contains(&step)));
             set(w, "/Gripper/GID", json!([120.1, 121.7, 119.4, 120.9]));
             set(w, "/Gripper/FLD", json!(800.0 - (axis[2] - 1500.0)));
             set(w, "/Measure", measure_json);
@@ -623,6 +624,7 @@ impl DemoWorld {
     }
 
     /// Current queue keys (used by tests).
+    #[allow(dead_code)]
     pub fn queue_keys(&self) -> Vec<TaskKey> {
         let g = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
         g.queue.iter().map(|t| t.key()).collect()

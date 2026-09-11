@@ -1,0 +1,113 @@
+// 진행 중 Task 표 — 스토어 목록(SSE 반영)을 그린다. 행 클릭 → 상세 드로어.
+//
+// "PLC와 불일치" 배지는 원장 상태와 `WebMon.Stat.Task` 배열의 대조(`deriveState`) 결과다 — 백엔드
+// 동기 엔진이 놓친 전이를 화면이 한 번 더 잡는다. 대조용 스냅샷은 부모가 1초마다 건넨다(20Hz 피드를
+// 표가 직접 구독하면 초당 스무 번 다시 그린다).
+import { useMemo } from 'react'
+import { DataTable } from '../../lib/ui/DataTable'
+import { StatusBadge } from '../../lib/ui/StatusBadge'
+import type { Column } from '../../lib/ui/table'
+import {
+  ORIGIN_LABEL,
+  STATE_LABEL,
+  STATE_TONE,
+  deriveState,
+  elapsed,
+  fmtElapsed,
+  fmtTime,
+  targetOf,
+  typeName,
+  type PlcTaskArea,
+} from '../../lib/task/state'
+import type { Task } from '../../lib/types'
+
+export interface TaskTableProps {
+  rows: Task[]
+  /** PLC 배열 스냅샷(대조용) — 없으면 배지를 내지 않는다. */
+  area: PlcTaskArea | null
+  /** 경과 시간의 기준 시각(부모의 1초 틱). */
+  now: number
+  selected: string | null
+  onPick: (task: Task) => void
+  loading?: boolean
+  empty?: string
+  emptyHint?: string
+  testid?: string
+}
+
+export function targetLabel(task: Task): string {
+  const t = targetOf(task)
+  if (!t) return ''
+  return `${t.kind === 'station' ? 'ST' : '셀'} ${t.id}`
+}
+
+/** PLC 자리 — 실행 중이면 스텝, 대기면 큐 슬롯. */
+function plcStep(task: Task): string {
+  const p = task.plc
+  if (!p) return ''
+  if (task.state === 'running') return String(p.step)
+  if (task.state === 'queued' && p.queue_index !== null) return `Q${p.queue_index}`
+  return ''
+}
+
+export function StateCell({ task, area }: { task: Task; area: PlcTaskArea | null }) {
+  const d = deriveState(task, area)
+  return (
+    <span className="inline-flex items-center gap-1">
+      <StatusBadge status={STATE_TONE[task.state]} data-testid="task-state">
+        {STATE_LABEL[task.state]}
+      </StatusBadge>
+      {d.mismatch ? (
+        <StatusBadge status="warn" title={d.reason ?? undefined} data-testid="task-mismatch">
+          PLC와 불일치
+        </StatusBadge>
+      ) : null}
+    </span>
+  )
+}
+
+export function AckCell({ task }: { task: Task }) {
+  const a = task.ack
+  if (!a) return <span className="text-slate-400">—</span>
+  return (
+    <span
+      className={`tabular-nums ${a.accepted ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+      title={a.reason}
+    >
+      {a.code}
+      {a.reject_bits ? <span className="ml-1 text-[10px] opacity-70">b{a.reject_bits.toString(2).padStart(4, '0')}</span> : null}
+    </span>
+  )
+}
+
+export function TaskTable({ rows, area, now, selected, onPick, loading = false, empty = '진행 중인 Task 없음', emptyHint, testid = 'task-table' }: TaskTableProps) {
+  const columns = useMemo<Column<Task>[]>(
+    () => [
+      { key: 'seq', label: '#', get: (t) => t.seq, numeric: true, class: 'w-12' },
+      { key: 'state', label: '상태', get: (t) => t.state, cell: (t) => <StateCell task={t} area={area} /> },
+      { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType) },
+      { key: 'target', label: '대상', get: (t) => targetLabel(t) },
+      { key: 'item', label: '품목', get: (t) => t.plc_task?.Item?.Code || null, numeric: true },
+      { key: 'count', label: '수량', get: (t) => t.plc_task?.Item?.Count ?? null, numeric: true },
+      { key: 'ack', label: 'Ack', get: (t) => t.ack?.code ?? null, cell: (t) => <AckCell task={t} />, numeric: true },
+      { key: 'step', label: 'PLC', get: (t) => plcStep(t), class: 'font-mono' },
+      { key: 'origin', label: '출처', get: (t) => ORIGIN_LABEL[t.origin] },
+      { key: 'created', label: '생성', get: (t) => t.created_at, cell: (t) => <span className="tabular-nums">{fmtTime(t.created_at, now)}</span> },
+      { key: 'elapsed', label: '경과', get: (t) => elapsed(t, now), cell: (t) => <span className="tabular-nums">{fmtElapsed(elapsed(t, now))}</span>, numeric: true },
+    ],
+    [area, now],
+  )
+  return (
+    <DataTable
+      rows={rows}
+      columns={columns}
+      rowKey={(t) => t.id}
+      onPick={onPick}
+      selected={selected}
+      loading={loading}
+      empty={empty}
+      emptyHint={emptyHint}
+      testid={testid}
+    />
+  )
+}

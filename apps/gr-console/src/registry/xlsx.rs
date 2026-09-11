@@ -15,8 +15,32 @@ use crate::error::ApiError;
 
 pub const CELL_COLS: [&str; 11] = ["Id", "Use", "BlendUse", "Section", "Row", "Col", "Length", "Width", "X", "Y", "Z"];
 pub const STATION_COLS: [&str; 26] = [
-    "Id", "ConvNo", "TaskType", "RotateType", "Group", "GroupIndex", "ConnPrev", "ConnNext", "Use", "BlendUse", "Section", "Row", "Col", "Length", "Width", "X", "Y", "Z", "IOLinkModule", "IOLinkPortL", "IOLinkPortR",
-    "DetectionFactor", "AllowRange", "LSensorOffset", "RSensorOffset", "IOBlockNo",
+    "Id",
+    "ConvNo",
+    "TaskType",
+    "RotateType",
+    "Group",
+    "GroupIndex",
+    "ConnPrev",
+    "ConnNext",
+    "Use",
+    "BlendUse",
+    "Section",
+    "Row",
+    "Col",
+    "Length",
+    "Width",
+    "X",
+    "Y",
+    "Z",
+    "IOLinkModule",
+    "IOLinkPortL",
+    "IOLinkPortR",
+    "DetectionFactor",
+    "AllowRange",
+    "LSensorOffset",
+    "RSensorOffset",
+    "IOBlockNo",
 ];
 pub const ITEM_COLS: [&str; 10] = ["Code", "Name", "Count", "InnerDiameter", "OuterDiameter", "LowerBeadHeight", "UpperBeadHeight", "Height", "DeflectionFactor", "Note"];
 
@@ -72,7 +96,7 @@ pub fn validate_cell(c: &CellInfo) -> Result<(), String> {
     if !(1..=3).contains(&c.section) {
         return Err(format!("section {} must be 1..3", c.section));
     }
-    if let Some((axis, v)) = ["X", "Y", "Z"].iter().zip(c.position).find(|(_, v)| !(*v > 0.0)) {
+    if let Some((axis, v)) = ["X", "Y", "Z"].iter().zip(c.position).find(|(_, v)| *v <= 0.0 || v.is_nan()) {
         return Err(format!("position {axis} = {v} must be > 0"));
     }
     Ok(())
@@ -86,7 +110,7 @@ pub fn validate_station(p: &StationPara) -> Result<(), String> {
     if !(1..=3).contains(&p.info.section) {
         return Err(format!("section {} must be 1..3", p.info.section));
     }
-    if let Some((axis, v)) = ["X", "Y", "Z"].iter().zip(p.info.position).find(|(_, v)| !(*v > 0.0)) {
+    if let Some((axis, v)) = ["X", "Y", "Z"].iter().zip(p.info.position).find(|(_, v)| *v <= 0.0 || v.is_nan()) {
         return Err(format!("position {axis} = {v} must be > 0"));
     }
     Ok(())
@@ -477,7 +501,11 @@ fn consume_sheet(sheet: &Sheet, as_kind: Want, out: &mut Tables) {
         _ => "Id",
     };
     if !sheet.has(required) {
-        out.errors.push(RowError { sheet: sheet.name.clone(), row: 1, message: format!("header row has no '{required}' column (found: {})", sheet.cols.iter().map(|(k, _)| *k).collect::<Vec<_>>().join(", ")) });
+        out.errors.push(RowError {
+            sheet: sheet.name.clone(),
+            row: 1,
+            message: format!("header row has no '{required}' column (found: {})", sheet.cols.iter().map(|(k, _)| *k).collect::<Vec<_>>().join(", ")),
+        });
         return;
     }
     match as_kind {
@@ -650,7 +678,17 @@ mod tests {
     use super::*;
 
     fn cell(id: u16, i: usize) -> CellInfo {
-        CellInfo { use_: i % 2 == 0, blend_use: i % 3 == 0, id, section: 2, row: (i / 4 + 1) as u16, col: (i % 4 + 1) as u16, length: 1200.5, width: 1100.0, position: [12000.0 + i as f32, 3000.25, 1500.0] }
+        CellInfo {
+            use_: i.is_multiple_of(2),
+            blend_use: i.is_multiple_of(3),
+            id,
+            section: 2,
+            row: (i / 4 + 1) as u16,
+            col: (i % 4 + 1) as u16,
+            length: 1200.5,
+            width: 1100.0,
+            position: [12000.0 + i as f32, 3000.25, 1500.0],
+        }
     }
     fn station(id: u16, i: usize) -> StationPara {
         StationPara {
@@ -662,12 +700,25 @@ mod tests {
             connection_prev: 3,
             connection_next: 4,
             info: CellInfo { use_: true, blend_use: false, id, section: 3, row: 1, col: (i + 1) as u16, length: 1500.0, width: 1500.0, position: [20000.0 + i as f32, 1000.0, 1450.5] },
-            sensor_settings: SensorSettings { io_link_master_module: 1, io_link_master_port_l: 2, io_link_master_port_r: 3, detection_factor: 0.5, allow_range: 12.5, l_sensor_offset: -1.25, r_sensor_offset: 2.5 },
+            sensor_settings: SensorSettings {
+                io_link_master_module: 1,
+                io_link_master_port_l: 2,
+                io_link_master_port_r: 3,
+                detection_factor: 0.5,
+                allow_range: 12.5,
+                l_sensor_offset: -1.25,
+                r_sensor_offset: 2.5,
+            },
             io_block_no: 7,
         }
     }
     fn item(code: u32) -> ItemRow {
-        ItemRow { code, name: format!("225/45R{code}"), note: "비고 테스트".into(), item: StockItem { code, count: 4, inner_diameter: 381.0, outer_diameter: 780.5, lower_bid_height: 20.0, upper_bid_height: 220.0, height: 240.0, deflection_factor: 0.1 } }
+        ItemRow {
+            code,
+            name: format!("225/45R{code}"),
+            note: "비고 테스트".into(),
+            item: StockItem { code, count: 4, inner_diameter: 381.0, outer_diameter: 780.5, lower_bid_height: 20.0, upper_bid_height: 220.0, height: 240.0, deflection_factor: 0.1 },
+        }
     }
 
     #[test]

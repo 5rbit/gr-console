@@ -78,6 +78,17 @@ pub enum Origin {
     External,
 }
 
+impl Origin {
+    pub fn parse(s: &str) -> Option<Origin> {
+        Some(match s.to_ascii_lowercase().as_str() {
+            "console" => Origin::Console,
+            "scenario" => Origin::Scenario,
+            "external" => Origin::External,
+            _ => return None,
+        })
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Actor {
@@ -134,7 +145,7 @@ pub struct TaskRequest {
     pub source: Option<ScenarioSource>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Target {
     pub kind: String,
     pub id: u16,
@@ -179,6 +190,7 @@ impl LedgerEntry {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[allow(clippy::large_enum_variant)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum LedgerEvent {
     Snapshot { tasks: Vec<LedgerEntry> },
@@ -217,6 +229,8 @@ impl Ledger {
         Ok(())
     }
 
+    /// Kept for the other slices (scenario / issue); the ledger itself does not need it.
+    #[allow(dead_code)]
     pub fn plc_name(&self) -> &str {
         &self.plc
     }
@@ -230,10 +244,7 @@ impl Ledger {
         if let Some(e) = self.cache.lock().unwrap_or_else(PoisonError::into_inner).iter().find(|e| e.id == id) {
             return Some(e.clone());
         }
-        self.db
-            .with(|c| c.query_row("SELECT doc_json FROM tasks WHERE id = ?1", [id], |r| r.get::<_, String>(0)))
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
+        self.db.with(|c| c.query_row("SELECT doc_json FROM tasks WHERE id = ?1", [id], |r| r.get::<_, String>(0))).ok().and_then(|s| serde_json::from_str(&s).ok())
     }
 
     pub fn find_by_key(&self, key: TaskKey) -> Option<LedgerEntry> {
@@ -365,24 +376,47 @@ impl Ledger {
         self.upsert(e)
     }
 
-    /// Paged query over the persistent table (newest first).
+    /// Paged query over the persistent table (newest first). Thin wrapper kept for the other slices;
+    /// the routes use [`Ledger::query_filtered`].
+    #[allow(dead_code)]
     pub fn query(&self, states: Option<Vec<TaskState>>, task_type: Option<u8>, q: Option<String>, limit: usize, offset: usize) -> Result<(Vec<LedgerEntry>, usize), ApiError> {
+        self.query_filtered(QueryFilter { states, task_type, q, limit, offset, ..Default::default() })
+    }
+
+    /// All persisted rows, newest first.
+    fn all_rows(&self) -> Result<Vec<LedgerEntry>, ApiError> {
         let rows: Vec<String> = self.db.with(|c| {
             let mut st = c.prepare("SELECT doc_json FROM tasks ORDER BY seq DESC")?;
             let rows = st.query_map([], |r| r.get::<_, String>(0))?;
             rows.collect::<Result<Vec<_>, _>>()
         })?;
-        let mut all: Vec<LedgerEntry> = rows.into_iter().filter_map(|s| serde_json::from_str(&s).ok()).collect();
-        if let Some(states) = states {
+        Ok(rows.into_iter().filter_map(|s| serde_json::from_str(&s).ok()).collect())
+    }
+
+    /// Paged query with every filter the `/api/tasks` list endpoint understands.
+    pub fn query_filtered(&self, f: QueryFilter) -> Result<(Vec<LedgerEntry>, usize), ApiError> {
+        let mut all = self.all_rows()?;
+        if let Some(states) = f.states {
             all.retain(|e| states.contains(&e.state));
         }
-        if let Some(t) = task_type {
+        if let Some(t) = f.task_type {
             all.retain(|e| e.plc_task.task_type == t);
         }
-        if let Some(q) = q.filter(|q| !q.is_empty()) {
+        if let Some(o) = f.origin {
+            all.retain(|e| e.origin == o);
+        }
+        if let Some(since) = f.since.as_deref().filter(|s| !s.is_empty()) {
+            let since_t = parse_rfc3339(since);
+            all.retain(|e| match (since_t, parse_rfc3339(&e.created_at)) {
+                (Some(a), Some(b)) => b >= a,
+                _ => e.created_at.as_str() >= since,
+            });
+        }
+        if let Some(q) = f.q.filter(|q| !q.is_empty()) {
             let q = q.to_ascii_lowercase();
             all.retain(|e| {
-                e.work_id.to_string().contains(&q)
+                e.seq.to_string() == q
+                    || e.work_id.to_string().contains(&q)
                     || e.task_id.to_string().contains(&q)
                     || e.plc_task.cell.id.to_string().contains(&q)
                     || e.plc_task.item.code.to_string().contains(&q)
@@ -390,10 +424,89 @@ impl Ledger {
             });
         }
         let total = all.len();
-        Ok((all.into_iter().skip(offset).take(limit).collect(), total))
+        Ok((all.into_iter().skip(f.offset).take(f.limit).collect(), total))
+    }
+
+    /// Removes a terminal (or draft) entry from sqlite + cache and broadcasts `Remove`.
+    pub fn remove(&self, id: &str) -> Result<(), ApiError> {
+        let e = self.get(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
+        if !(e.state.is_terminal() || e.state == TaskState::Draft) {
+            return Err(ApiError::Conflict(format!("{} 상태의 태스크는 삭제할 수 없습니다 (종결된 태스크만)", e.state.as_str())));
+        }
+        self.db.with(|c| {
+            c.execute("DELETE FROM task_events WHERE task_id = ?1", [id])?;
+            c.execute("DELETE FROM tasks WHERE id = ?1", [id])
+        })?;
+        self.cache.lock().unwrap_or_else(PoisonError::into_inner).retain(|x| x.id != id);
+        let _ = self.events.send(LedgerEvent::Remove { id: id.to_string() });
+        Ok(())
+    }
+
+    /// Counts per state, today's completed / rejected, and the mean submit→completed time.
+    pub fn stats(&self) -> Result<LedgerStats, ApiError> {
+        let all = self.all_rows()?;
+        let today = now_str().chars().take(10).collect::<String>();
+        let mut s = LedgerStats { total: all.len(), ..Default::default() };
+        let mut sum = 0.0_f64;
+        let mut n = 0_u32;
+        for e in &all {
+            *s.by_state.entry(e.state.as_str().to_string()).or_insert(0) += 1;
+            if e.state.is_active() {
+                s.active += 1;
+            }
+            let ended_today = e.ended_at.as_deref().map(|t| t.starts_with(&today)).unwrap_or(false);
+            match e.state {
+                TaskState::Completed => {
+                    if ended_today {
+                        s.completed_today += 1;
+                    }
+                    if let (Some(a), Some(b)) = (e.submitted_at.as_deref().and_then(parse_rfc3339), e.ended_at.as_deref().and_then(parse_rfc3339)) {
+                        let d = (b - a).as_seconds_f64();
+                        if d >= 0.0 {
+                            sum += d;
+                            n += 1;
+                        }
+                    }
+                }
+                TaskState::Rejected if ended_today => s.rejected_today += 1,
+                _ => {}
+            }
+        }
+        s.avg_complete_secs = if n > 0 { Some(sum / n as f64) } else { None };
+        s.completed_samples = n;
+        Ok(s)
     }
 
     pub fn snapshot_event(&self) -> LedgerEvent {
         LedgerEvent::Snapshot { tasks: self.list() }
     }
+}
+
+/// Filters for [`Ledger::query_filtered`].
+#[derive(Debug, Default)]
+pub struct QueryFilter {
+    pub states: Option<Vec<TaskState>>,
+    pub task_type: Option<u8>,
+    pub origin: Option<Origin>,
+    /// RFC 3339 lower bound on `created_at`.
+    pub since: Option<String>,
+    pub q: Option<String>,
+    pub limit: usize,
+    pub offset: usize,
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct LedgerStats {
+    pub total: usize,
+    pub active: usize,
+    pub by_state: std::collections::BTreeMap<String, usize>,
+    pub completed_today: usize,
+    pub rejected_today: usize,
+    /// Mean submit→completed duration in seconds over every completed entry (None when there is none).
+    pub avg_complete_secs: Option<f64>,
+    pub completed_samples: u32,
+}
+
+pub(crate) fn parse_rfc3339(s: &str) -> Option<time::OffsetDateTime> {
+    time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339).ok()
 }

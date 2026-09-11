@@ -29,6 +29,7 @@ impl Db {
         Ok(db)
     }
 
+    #[cfg(test)]
     pub fn open_memory() -> anyhow::Result<Db> {
         let conn = Connection::open_in_memory()?;
         let db = Db { conn: Arc::new(Mutex::new(conn)) };
@@ -56,6 +57,7 @@ impl Db {
         f(&conn)
     }
 
+    #[allow(dead_code)]
     pub fn with_mut<T>(&self, f: impl FnOnce(&mut Connection) -> rusqlite::Result<T>) -> rusqlite::Result<T> {
         let mut conn = self.conn.lock().unwrap_or_else(PoisonError::into_inner);
         f(&mut conn)
@@ -70,7 +72,9 @@ impl Db {
     }
 
     pub fn setting(&self, key: &str) -> rusqlite::Result<Option<String>> {
-        self.with(|c| c.query_row("SELECT value_json FROM settings WHERE key = ?1", [key], |r| r.get(0)).map(Some).or_else(|e| if e == rusqlite::Error::QueryReturnedNoRows { Ok(None) } else { Err(e) }))
+        self.with(|c| {
+            c.query_row("SELECT value_json FROM settings WHERE key = ?1", [key], |r| r.get(0)).map(Some).or_else(|e| if e == rusqlite::Error::QueryReturnedNoRows { Ok(None) } else { Err(e) })
+        })
     }
 
     pub fn set_setting(&self, key: &str, value: &str) -> rusqlite::Result<()> {

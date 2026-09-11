@@ -27,8 +27,11 @@ pub fn info(demo: bool) -> ConsoleInfo {
 
 pub fn router(demo: bool) -> Router {
     let i = info(demo);
-    Router::new().route("/api/console/info", get(move || {
-        let i = i.clone();
-        async move { axum::Json(i) }
-    }))
+    Router::new().route(
+        "/api/console/info",
+        get(move || {
+            let i = i.clone();
+            async move { axum::Json(i) }
+        }),
+    )
 }

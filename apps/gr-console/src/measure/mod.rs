@@ -68,7 +68,7 @@ impl MeasureStore {
             return Ok(0);
         }
         let layout = plc.layout("MEASLOG_HIST").ok_or_else(|| ApiError::Internal("MEASLOG_HIST not in contract".into()))?;
-        let capacity = layout.range_of("Entry").map(|(lo, hi)| (hi - lo) / entry_size(layout).max(1)).unwrap_or(200) as u32;
+        let capacity = layout.range_of("Entry").map(|(lo, hi)| (hi - lo) / entry_size(layout).max(1)).unwrap_or(200);
         let missing = (total - have).min(capacity);
         let mut n = 0;
         for k in 0..missing {

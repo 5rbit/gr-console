@@ -36,7 +36,8 @@ async fn reload(State(st): State<AppState>) -> ApiResult<Json> {
 
 async fn export_csv(State(st): State<AppState>, Query(q): Query<EntriesQuery>) -> Result<impl IntoResponse, ApiError> {
     let (entries, _) = st.measure.entries(None, q.kind, q.code, 100000)?;
-    let mut out = String::from("\u{feff}seq,time,kind,status,work_id,task_id,task_type,cell_id,code,cmd_count,cmd_id,cmd_od,cmd_height,cmd_x,cmd_y,cmd_z,cmd_g,cell_z,d_inner_dia,d_height,d_z,d_offset,d_count");
+    let mut out =
+        String::from("\u{feff}seq,time,kind,status,work_id,task_id,task_type,cell_id,code,cmd_count,cmd_id,cmd_od,cmd_height,cmd_x,cmd_y,cmd_z,cmd_g,cell_z,d_inner_dia,d_height,d_z,d_offset,d_count");
     for i in 0..20 {
         out.push_str(&format!(",data{i}"));
     }
@@ -50,8 +51,29 @@ async fn export_csv(State(st): State<AppState>, Query(q): Query<EntriesQuery>) -
         let f = |v: Option<&Json>| v.map(|x| x.to_string()).unwrap_or_default();
         out.push_str(&format!(
             "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
-            e["Seq"], e["TimeStamp"].as_str().unwrap_or(""), e["Kind"], e["Status"], c["WorkId"], c["TaskId"], c["TaskType"], c["Cell"]["Id"], it["Code"], it["Count"], it["InnerDiameter"], it["OuterDiameter"], it["Height"],
-            f(pos.first()), f(pos.get(1)), f(pos.get(2)), f(pos.get(3)), f(cp.get(2)), d["InnerDia"], d["Height"], d["Z"], d["Offset"], d["Count"]
+            e["Seq"],
+            e["TimeStamp"].as_str().unwrap_or(""),
+            e["Kind"],
+            e["Status"],
+            c["WorkId"],
+            c["TaskId"],
+            c["TaskType"],
+            c["Cell"]["Id"],
+            it["Code"],
+            it["Count"],
+            it["InnerDiameter"],
+            it["OuterDiameter"],
+            it["Height"],
+            f(pos.first()),
+            f(pos.get(1)),
+            f(pos.get(2)),
+            f(pos.get(3)),
+            f(cp.get(2)),
+            d["InnerDia"],
+            d["Height"],
+            d["Z"],
+            d["Offset"],
+            d["Count"]
         ));
         for i in 0..20 {
             out.push(',');
@@ -63,9 +85,5 @@ async fn export_csv(State(st): State<AppState>, Query(q): Query<EntriesQuery>) -
 }
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/api/measlog/snapshot", get(snapshot))
-        .route("/api/measlog/entries", get(entries))
-        .route("/api/measlog/reload", post(reload))
-        .route("/api/measlog/export.csv", get(export_csv))
+    Router::new().route("/api/measlog/snapshot", get(snapshot)).route("/api/measlog/entries", get(entries)).route("/api/measlog/reload", post(reload)).route("/api/measlog/export.csv", get(export_csv))
 }

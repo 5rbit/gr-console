@@ -91,10 +91,7 @@ impl Default for PlcCfg {
             webmon: vec!["WEBMON".into()],
             slow: vec!["PARA".into(), "ALARM".into(), "Interface_GRM".into(), "CELL".into(), "STATION".into(), "MEASLOG".into()],
             on_demand: vec!["MEASLOG_HIST".into()],
-            checks: vec![
-                SemanticCheck { db: "OPCUA".into(), path: "STAT.ComponentID".into(), equals: 4002 },
-                SemanticCheck { db: "PARA".into(), path: "Machine.ID".into(), equals: 2 },
-            ],
+            checks: vec![SemanticCheck { db: "OPCUA".into(), path: "STAT.ComponentID".into(), equals: 4002 }, SemanticCheck { db: "PARA".into(), path: "Machine.ID".into(), equals: 2 }],
         }
     }
 }
@@ -262,6 +259,7 @@ impl Config {
         Ok(c)
     }
 
+    #[allow(dead_code)]
     pub fn plc(&self, name: &str) -> Option<&PlcCfg> {
         self.plcs.iter().find(|p| p.name.eq_ignore_ascii_case(name))
     }

@@ -14,7 +14,7 @@ use serde::Serialize;
 use serde_json::Value as Json;
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
-use crate::config::{PlcCfg, PollCfg, PlcRole};
+use crate::config::{PlcCfg, PlcRole, PollCfg};
 use crate::util::now_str;
 pub use verify::{CheckResult, DbCheck};
 
@@ -24,6 +24,7 @@ pub enum Tier {
     Fast,
     Webmon,
     Slow,
+    #[allow(dead_code)]
     OnDemand,
 }
 
@@ -176,15 +177,8 @@ async fn run(
     ev_tx: broadcast::Sender<PlcEvent>,
     mut cmd_rx: mpsc::Receiver<PlcCommand>,
 ) {
-    let s7cfg = S7Config {
-        host: cfg.host.clone(),
-        port: cfg.port,
-        rack: cfg.rack,
-        slot: cfg.slot,
-        connection_type: cfg.connection_type,
-        timeout: Duration::from_millis(cfg.timeout_ms),
-        pdu_request: 960,
-    };
+    let s7cfg =
+        S7Config { host: cfg.host.clone(), port: cfg.port, rack: cfg.rack, slot: cfg.slot, connection_type: cfg.connection_type, timeout: Duration::from_millis(cfg.timeout_ms), pdu_request: 960 };
     let fast_ms = if cfg.role == PlcRole::Grm { poll.grm_fast_ms } else { poll.fast_ms };
     let mut seq: u64 = 0;
     loop {

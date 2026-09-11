@@ -11,11 +11,7 @@ use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 
-pub fn broadcast_sse<T: Serialize + Clone + Send + 'static>(
-    rx: broadcast::Receiver<T>,
-    event_name: &'static str,
-    first: Option<T>,
-) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+pub fn broadcast_sse<T: Serialize + Clone + Send + 'static>(rx: broadcast::Receiver<T>, event_name: &'static str, first: Option<T>) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let head = futures::stream::iter(first.into_iter().map(move |v| Ok(Event::default().event(event_name).json_data(v).unwrap_or_default())));
     let tail = BroadcastStream::new(rx).map(move |r| match r {
         Ok(v) => Ok(Event::default().event(event_name).json_data(v).unwrap_or_default()),

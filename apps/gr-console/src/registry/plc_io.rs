@@ -132,13 +132,15 @@ pub fn import_stations(st: &AppState, h: &PlcHandle) -> Result<ImportSummary, Ap
 
 pub fn diff_cells(st: &AppState, h: &PlcHandle) -> Result<Vec<Diff<CellEntry>>, ApiError> {
     let local: Vec<(u16, CellEntry)> = st.registry.cells()?.into_iter().map(|e| (e.id, e)).collect();
-    let plc: Vec<(u16, CellEntry)> = plc_cells(h)?.into_iter().map(|c| (c.id, CellEntry { id: c.id, cell: c, source: "plc".into(), dirty: false, plc_seen_at: None, updated_at: String::new() })).collect();
+    let plc: Vec<(u16, CellEntry)> =
+        plc_cells(h)?.into_iter().map(|c| (c.id, CellEntry { id: c.id, cell: c, source: "plc".into(), dirty: false, plc_seen_at: None, updated_at: String::new() })).collect();
     Ok(classify_by(&local, &plc, |a, b| a.cell == b.cell))
 }
 
 pub fn diff_stations(st: &AppState, h: &PlcHandle) -> Result<Vec<Diff<StationEntry>>, ApiError> {
     let local: Vec<(u16, StationEntry)> = st.registry.stations()?.into_iter().map(|e| (e.id, e)).collect();
-    let plc: Vec<(u16, StationEntry)> = plc_stations(h)?.into_iter().map(|p| (p.info.id, StationEntry { id: p.info.id, para: p, source: "plc".into(), dirty: false, plc_seen_at: None, updated_at: String::new() })).collect();
+    let plc: Vec<(u16, StationEntry)> =
+        plc_stations(h)?.into_iter().map(|p| (p.info.id, StationEntry { id: p.info.id, para: p, source: "plc".into(), dirty: false, plc_seen_at: None, updated_at: String::new() })).collect();
     Ok(classify_by(&local, &plc, |a, b| a.para == b.para))
 }
 
@@ -207,8 +209,8 @@ async fn write_and_verify(h: &PlcHandle, db: &str, buf: &[u8], ranges: &[(u32, u
     let back = h.read(db, lo as u32, hi - lo).await.map_err(|e| ApiError::PlcUnavailable(format!("{} read-back {db}: {e}", h.name())))?;
     let mut mismatch_at = None;
     'outer: for (s, e) in ranges {
-        for off in (*s as usize)..(*e as usize) {
-            if back.get(off - lo).copied() != Some(buf[off]) {
+        for (off, b) in buf.iter().enumerate().take(*e as usize).skip(*s as usize) {
+            if back.get(off - lo) != Some(b) {
                 mismatch_at = Some(off as u32);
                 break 'outer;
             }

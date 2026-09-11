@@ -54,9 +54,7 @@ async fn main() -> anyhow::Result<()> {
         println!("{}", Config::example_toml());
         return Ok(());
     }
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,opcua=warn,async_opcua=warn".into()))
-        .init();
+    tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,opcua=warn,async_opcua=warn".into())).init();
     let mut cfg = Config::load(&cli.config)?;
     if cli.demo {
         cfg.demo = true;
@@ -174,7 +172,9 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
             if st2.registry.items().map(|v| v.is_empty()).unwrap_or(true) {
-                for (code, name, id, od, h, cnt) in [(1001u32, "225/45R17", 381.0f32, 780.0f32, 240.0f32, 4u8), (1002, "245/40R19", 431.8, 860.0, 260.0, 3), (1003, "275/35R20", 508.0, 1020.0, 300.0, 3)] {
+                for (code, name, id, od, h, cnt) in
+                    [(1001u32, "225/45R17", 381.0f32, 780.0f32, 240.0f32, 4u8), (1002, "245/40R19", 431.8, 860.0, 260.0, 3), (1003, "275/35R20", 508.0, 1020.0, 300.0, 3)]
+                {
                     let item = gr_proto::StockItem { code, count: cnt, inner_diameter: id, outer_diameter: od, lower_bid_height: 20.0, upper_bid_height: h - 20.0, height: h, deflection_factor: 0.0 };
                     let _ = st2.registry.upsert_item(code, name, &item, "demo");
                 }
@@ -191,9 +191,11 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, web = %web_source, demo = cfg.demo, "gr-console listening");
     println!("gr-console  http://{addr}/  (web: {web_source}, demo: {})", cfg.demo);
-    axum::serve(listener, app).with_graceful_shutdown(async {
-        let _ = tokio::signal::ctrl_c().await;
-    }).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            let _ = tokio::signal::ctrl_c().await;
+        })
+        .await?;
     Ok(())
 }
 

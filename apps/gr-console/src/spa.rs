@@ -9,12 +9,7 @@ use axum::routing::get;
 use tower_http::services::{ServeDir, ServeFile};
 
 pub fn attach(router: Router, web_dir: Option<&Path>) -> (Router, String) {
-    let candidates: Vec<PathBuf> = web_dir
-        .map(|p| vec![p.to_path_buf()])
-        .unwrap_or_default()
-        .into_iter()
-        .chain([PathBuf::from("apps/gr-web/dist"), PathBuf::from("../gr-web/dist")])
-        .collect();
+    let candidates: Vec<PathBuf> = web_dir.map(|p| vec![p.to_path_buf()]).unwrap_or_default().into_iter().chain([PathBuf::from("apps/gr-web/dist"), PathBuf::from("../gr-web/dist")]).collect();
     for dir in candidates {
         if dir.join("index.html").is_file() {
             let index = dir.join("index.html");

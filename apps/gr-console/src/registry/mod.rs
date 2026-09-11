@@ -89,10 +89,7 @@ impl Registry {
             let it = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?;
             it.collect()
         })?;
-        Ok(rows
-            .into_iter()
-            .map(|(code, name, item, note, updated_at)| ItemEntry { code: code as u32, name, item: serde_json::from_str(&item).unwrap_or_default(), note, updated_at })
-            .collect())
+        Ok(rows.into_iter().map(|(code, name, item, note, updated_at)| ItemEntry { code: code as u32, name, item: serde_json::from_str(&item).unwrap_or_default(), note, updated_at }).collect())
     }
     pub fn item(&self, code: u32) -> Result<Option<ItemEntry>, ApiError> {
         Ok(self.items()?.into_iter().find(|i| i.code == code))
@@ -122,7 +119,14 @@ impl Registry {
         })?;
         Ok(rows
             .into_iter()
-            .map(|(id, source, cell, dirty, seen, updated_at)| CellEntry { id: id as u16, cell: serde_json::from_str(&cell).unwrap_or_default(), source, dirty: dirty != 0, plc_seen_at: seen, updated_at })
+            .map(|(id, source, cell, dirty, seen, updated_at)| CellEntry {
+                id: id as u16,
+                cell: serde_json::from_str(&cell).unwrap_or_default(),
+                source,
+                dirty: dirty != 0,
+                plc_seen_at: seen,
+                updated_at,
+            })
             .collect())
     }
     pub fn cell(&self, id: u16) -> Result<Option<CellEntry>, ApiError> {
@@ -162,7 +166,14 @@ impl Registry {
         })?;
         Ok(rows
             .into_iter()
-            .map(|(id, source, para, dirty, seen, updated_at)| StationEntry { id: id as u16, para: serde_json::from_str(&para).unwrap_or_default(), source, dirty: dirty != 0, plc_seen_at: seen, updated_at })
+            .map(|(id, source, para, dirty, seen, updated_at)| StationEntry {
+                id: id as u16,
+                para: serde_json::from_str(&para).unwrap_or_default(),
+                source,
+                dirty: dirty != 0,
+                plc_seen_at: seen,
+                updated_at,
+            })
             .collect())
     }
     pub fn station(&self, id: u16) -> Result<Option<StationEntry>, ApiError> {

@@ -42,12 +42,32 @@ struct ItemBody {
 }
 impl Default for ItemBody {
     fn default() -> Self {
-        Self { code: 0, name: String::new(), count: 1, inner_diameter: 0.0, outer_diameter: 0.0, lower_bead_height: 0.0, upper_bead_height: 0.0, height: 0.0, deflection_factor: 0.0, note: String::new() }
+        Self {
+            code: 0,
+            name: String::new(),
+            count: 1,
+            inner_diameter: 0.0,
+            outer_diameter: 0.0,
+            lower_bead_height: 0.0,
+            upper_bead_height: 0.0,
+            height: 0.0,
+            deflection_factor: 0.0,
+            note: String::new(),
+        }
     }
 }
 impl ItemBody {
     fn stock(&self) -> StockItem {
-        StockItem { code: self.code, count: self.count, inner_diameter: self.inner_diameter, outer_diameter: self.outer_diameter, lower_bid_height: self.lower_bead_height, upper_bid_height: self.upper_bead_height, height: self.height, deflection_factor: self.deflection_factor }
+        StockItem {
+            code: self.code,
+            count: self.count,
+            inner_diameter: self.inner_diameter,
+            outer_diameter: self.outer_diameter,
+            lower_bid_height: self.lower_bead_height,
+            upper_bid_height: self.upper_bead_height,
+            height: self.height,
+            deflection_factor: self.deflection_factor,
+        }
     }
 }
 
@@ -205,7 +225,18 @@ impl StationBody {
             l_sensor_offset: s["l_sensor_offset"].as_f64().unwrap_or(0.0) as f32,
             r_sensor_offset: s["r_sensor_offset"].as_f64().unwrap_or(0.0) as f32,
         });
-        StationPara { conv_no: self.conv_no, task_type: self.task_type, rotate_type: self.rotate_type, group: self.group, group_index: self.group_index, connection_prev: self.connection_prev, connection_next: self.connection_next, info, sensor_settings: sensor.unwrap_or_default(), io_block_no: self.io_block_no }
+        StationPara {
+            conv_no: self.conv_no,
+            task_type: self.task_type,
+            rotate_type: self.rotate_type,
+            group: self.group,
+            group_index: self.group_index,
+            connection_prev: self.connection_prev,
+            connection_next: self.connection_next,
+            info,
+            sensor_settings: sensor.unwrap_or_default(),
+            io_block_no: self.io_block_no,
+        }
     }
 }
 
@@ -307,7 +338,8 @@ fn apply_tables(st: &AppState, t: &Tables, dry_run: bool) -> Result<Json, ApiErr
     if t.has_items {
         c.add(&xlsx::apply_items(&st.registry, &t.items, dry_run)?);
     }
-    let errors: Vec<Json> = t.errors.iter().map(|e| json!({ "row": e.row, "sheet": e.sheet, "message": if e.sheet == "csv" { e.message.clone() } else { format!("{}: {}", e.sheet, e.message) } })).collect();
+    let errors: Vec<Json> =
+        t.errors.iter().map(|e| json!({ "row": e.row, "sheet": e.sheet, "message": if e.sheet == "csv" { e.message.clone() } else { format!("{}: {}", e.sheet, e.message) } })).collect();
     Ok(json!({ "imported": c.imported, "updated": c.updated, "removed": 0, "skipped": c.skipped, "errors": errors, "dry_run": dry_run,
         "counts": { "cells": t.cells.len(), "stations": t.stations.len(), "items": t.items.len() } }))
 }

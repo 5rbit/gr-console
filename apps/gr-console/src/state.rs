@@ -29,6 +29,7 @@ pub struct AppState {
     pub cfg: Arc<Config>,
     pub plcs: Arc<HashMap<String, PlcHandle>>,
     pub cmd: Arc<CommandPort>,
+    #[allow(dead_code)] // 슬라이스들이 각자 Arc<Db> 사본을 들고 있음; 관리용 접근 경로로 유지
     pub db: Db,
     pub ledger: Arc<Ledger>,
     pub registry: Arc<Registry>,

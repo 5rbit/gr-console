@@ -150,6 +150,7 @@ impl CommandPort {
         }
     }
 
+    #[allow(dead_code)] // 에코 후 재무장용 — 실기 M4 에서 사용 예정
     pub async fn clear_header(&self) -> Result<(), ApiError> {
         match self {
             CommandPort::Opc { writer, .. } => writer.clear_header().await.map_err(|e| ApiError::OpcNotReady(e.to_string())),
