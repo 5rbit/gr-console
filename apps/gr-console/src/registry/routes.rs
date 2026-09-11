@@ -1,13 +1,20 @@
-//! `/api/items`, `/api/cells`, `/api/stations`, `/api/defaults` — baseline CRUD + PLC import (M3-A adds
-//! push/diff/Excel).
+//! `/api/items`, `/api/cells`, `/api/stations`, `/api/registry`, `/api/defaults`, `/api/issue/compose`.
+//!
+//! Frontend shapes are snake_case (`Item`, `Cell`, `Station` in `types.ts`); PLC-mirror payloads stay
+//! PascalCase inside `issue::Composed.task`.
 
 use axum::Router;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Multipart, Path, Query, State};
+use axum::http::header;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use gr_proto::{CellInfo, StationPara, StockItem};
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
+use super::diff::Diff;
+use super::plc_io::{self, ImportSummary};
+use super::xlsx::{self, ApplyCounts, ItemRow, Tables, Want};
 use super::{CellEntry, Defaults, ItemEntry, StationEntry};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
@@ -96,49 +103,67 @@ async fn cells(State(st): State<AppState>) -> ApiResult<Vec<Json>> {
     Ok(axum::Json(st.registry.cells()?.iter().map(cell_view).collect()))
 }
 async fn cell_create(State(st): State<AppState>, axum::Json(b): axum::Json<CellBody>) -> ApiResult<Json> {
-    if !(gr_proto::CELL_ID_MIN..=gr_proto::CELL_ID_MAX).contains(&b.id) {
-        return Err(ApiError::BadRequest("cell id must be 1..1000".into()));
-    }
-    Ok(axum::Json(cell_view(&st.registry.upsert_cell(&b.info(), "local", true, None)?)))
+    let info = b.info();
+    xlsx::validate_cell(&info).map_err(ApiError::BadRequest)?;
+    Ok(axum::Json(cell_view(&st.registry.upsert_cell(&info, "local", true, None)?)))
 }
 async fn cell_update(State(st): State<AppState>, Path(id): Path<u16>, axum::Json(mut b): axum::Json<CellBody>) -> ApiResult<Json> {
     b.id = id;
-    Ok(axum::Json(cell_view(&st.registry.upsert_cell(&b.info(), "local", true, None)?)))
+    let info = b.info();
+    xlsx::validate_cell(&info).map_err(ApiError::BadRequest)?;
+    Ok(axum::Json(cell_view(&st.registry.upsert_cell(&info, "local", true, None)?)))
 }
 async fn cell_delete(State(st): State<AppState>, Path(id): Path<u16>) -> ApiResult<Json> {
     Ok(axum::Json(json!({ "deleted": st.registry.delete_cell(id)? })))
 }
 
-#[derive(Deserialize)]
+// ---- query helpers
+
+#[derive(Deserialize, Default)]
 struct PlcQuery {
     plc: Option<String>,
+    force: Option<String>,
+}
+impl PlcQuery {
+    fn plc<'a>(&'a self, st: &'a AppState) -> &'a str {
+        self.plc.as_deref().filter(|s| !s.trim().is_empty()).unwrap_or(&st.cfg.cmd.status_plc)
+    }
+    fn force(&self) -> bool {
+        flag(self.force.as_deref())
+    }
 }
 
-/// Import cells from the PLC snapshot (`CELL.Count` + `Cell[1..Count]`).
+fn flag(v: Option<&str>) -> bool {
+    matches!(v.map(str::trim).map(str::to_ascii_lowercase).as_deref(), Some("1" | "true" | "yes" | "on"))
+}
+
+fn summary_view(s: &ImportSummary) -> Json {
+    json!({ "imported": s.imported, "updated": s.updated, "removed": s.removed, "skipped": s.skipped, "errors": s.errors })
+}
+
+fn diff_view<T>(rows: Vec<Diff<T>>, view: impl Fn(&T) -> Json) -> Vec<Json> {
+    rows.into_iter().map(|d| json!({ "id": d.id, "status": d.status, "local": d.local.as_ref().map(&view), "plc": d.plc.as_ref().map(&view) })).collect()
+}
+
+/// PLC → local. `?plc=GR2|GRM|gr2_s7` (default: status PLC).
 async fn cells_import(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
-    let name = q.plc.unwrap_or_else(|| st.cfg.cmd.status_plc.clone());
-    let h = st.plc(&name)?;
-    let snap = h.snap();
-    let d = snap.db("CELL").ok_or_else(|| ApiError::PlcUnavailable(format!("{name}.CELL not read yet")))?;
-    let count = d.json["Count"].as_u64().unwrap_or(0) as usize;
-    let list = d.json["Cell"].as_array().cloned().unwrap_or_default();
-    let now = crate::util::now_str();
-    let (mut imported, mut updated, mut skipped) = (0, 0, 0);
-    let existing = st.registry.cells()?;
-    for c in list.iter().take(count) {
-        let cell: CellInfo = serde_json::from_value(c.clone()).unwrap_or_default();
-        if cell.id == 0 {
-            skipped += 1;
-            continue;
-        }
-        match existing.iter().find(|e| e.id == cell.id) {
-            Some(e) if e.cell == cell => skipped += 1,
-            Some(_) => updated += 1,
-            None => imported += 1,
-        }
-        st.registry.upsert_cell(&cell, "plc", false, Some(now.clone()))?;
+    let h = plc_io::resolve_plc(&st, q.plc(&st))?;
+    Ok(axum::Json(summary_view(&plc_io::import_cells(&st, h)?)))
+}
+
+/// local → PLC. `?plc=GR2|GRM|both[&force=1]`.
+async fn cells_push(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
+    let mut results = Vec::new();
+    for h in plc_io::plc_targets(&st, q.plc(&st))? {
+        results.push(plc_io::push_cells(&st, h, q.force()).await?);
     }
-    Ok(axum::Json(json!({ "imported": imported, "updated": updated, "removed": 0, "skipped": skipped, "errors": [] })))
+    st.emit("registry", json!({ "kind": "cells_pushed", "results": results }));
+    Ok(axum::Json(plc_io::aggregate(results)))
+}
+
+async fn cells_diff(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Vec<Json>> {
+    let h = plc_io::resolve_plc(&st, q.plc(&st))?;
+    Ok(axum::Json(diff_view(plc_io::diff_cells(&st, h)?, cell_view)))
 }
 
 // ---- stations (frontend shape)
@@ -188,45 +213,123 @@ async fn stations(State(st): State<AppState>) -> ApiResult<Vec<Json>> {
     Ok(axum::Json(st.registry.stations()?.iter().map(station_view).collect()))
 }
 async fn station_create(State(st): State<AppState>, axum::Json(b): axum::Json<StationBody>) -> ApiResult<Json> {
-    if !gr_proto::is_station_id(b.id) {
-        return Err(ApiError::BadRequest("station id must be 2001..2999 with id mod 100 in 1..32".into()));
-    }
-    Ok(axum::Json(station_view(&st.registry.upsert_station(&b.para(), "local", true, None)?)))
+    let para = b.para();
+    xlsx::validate_station(&para).map_err(ApiError::BadRequest)?;
+    Ok(axum::Json(station_view(&st.registry.upsert_station(&para, "local", true, None)?)))
 }
 async fn station_update(State(st): State<AppState>, Path(id): Path<u16>, axum::Json(mut b): axum::Json<StationBody>) -> ApiResult<Json> {
     b.id = id;
-    Ok(axum::Json(station_view(&st.registry.upsert_station(&b.para(), "local", true, None)?)))
+    let para = b.para();
+    xlsx::validate_station(&para).map_err(ApiError::BadRequest)?;
+    Ok(axum::Json(station_view(&st.registry.upsert_station(&para, "local", true, None)?)))
 }
 async fn station_delete(State(st): State<AppState>, Path(id): Path<u16>) -> ApiResult<Json> {
     Ok(axum::Json(json!({ "deleted": st.registry.delete_station(id)? })))
 }
 
-/// Import stations from a PLC snapshot: GR2 `STATION.Station[i]` (LGR_Station_Para) or GRM `STATION.Station[i].Para`.
 async fn stations_import(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
-    let name = q.plc.unwrap_or_else(|| st.cfg.cmd.status_plc.clone());
-    let h = st.plc(&name)?;
-    let snap = h.snap();
-    let d = snap.db("STATION").ok_or_else(|| ApiError::PlcUnavailable(format!("{name}.STATION not read yet")))?;
-    let count = d.json["Count"].as_u64().unwrap_or(0) as usize;
-    let list = d.json["Station"].as_array().cloned().unwrap_or_default();
-    let now = crate::util::now_str();
-    let (mut imported, mut updated, mut skipped) = (0, 0, 0);
-    let existing = st.registry.stations()?;
-    for s in list.iter().take(count) {
-        let para_json = if s.get("Para").is_some() { &s["Para"] } else { s };
-        let para: StationPara = serde_json::from_value(para_json.clone()).unwrap_or_default();
-        if para.info.id == 0 {
-            skipped += 1;
-            continue;
-        }
-        match existing.iter().find(|e| e.id == para.info.id) {
-            Some(e) if e.para == para => skipped += 1,
-            Some(_) => updated += 1,
-            None => imported += 1,
-        }
-        st.registry.upsert_station(&para, "plc", false, Some(now.clone()))?;
+    let h = plc_io::resolve_plc(&st, q.plc(&st))?;
+    Ok(axum::Json(summary_view(&plc_io::import_stations(&st, h)?)))
+}
+
+async fn stations_push(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
+    let mut results = Vec::new();
+    for h in plc_io::plc_targets(&st, q.plc(&st))? {
+        results.push(plc_io::push_stations(&st, h, q.force()).await?);
     }
-    Ok(axum::Json(json!({ "imported": imported, "updated": updated, "removed": 0, "skipped": skipped, "errors": [] })))
+    st.emit("registry", json!({ "kind": "stations_pushed", "results": results }));
+    Ok(axum::Json(plc_io::aggregate(results)))
+}
+
+async fn stations_diff(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Vec<Json>> {
+    let h = plc_io::resolve_plc(&st, q.plc(&st))?;
+    Ok(axum::Json(diff_view(plc_io::diff_stations(&st, h)?, station_view)))
+}
+
+// ---- Excel
+
+const XLSX_MIME: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+fn xlsx_response(bytes: Vec<u8>, filename: &str) -> Response {
+    ([(header::CONTENT_TYPE, XLSX_MIME.to_string()), (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{filename}\""))], bytes).into_response()
+}
+
+fn stamp() -> String {
+    crate::util::now_str().chars().take(19).filter(|c| c.is_ascii_digit()).collect()
+}
+
+async fn cells_export(State(st): State<AppState>) -> Result<Response, ApiError> {
+    let cells: Vec<CellInfo> = st.registry.cells()?.into_iter().map(|e| e.cell).collect();
+    Ok(xlsx_response(xlsx::export_workbook(Some(&cells), None, None)?, &format!("cells_{}.xlsx", stamp())))
+}
+
+async fn stations_export(State(st): State<AppState>) -> Result<Response, ApiError> {
+    let stations: Vec<StationPara> = st.registry.stations()?.into_iter().map(|e| e.para).collect();
+    Ok(xlsx_response(xlsx::export_workbook(None, Some(&stations), None)?, &format!("stations_{}.xlsx", stamp())))
+}
+
+async fn registry_export(State(st): State<AppState>) -> Result<Response, ApiError> {
+    let cells: Vec<CellInfo> = st.registry.cells()?.into_iter().map(|e| e.cell).collect();
+    let stations: Vec<StationPara> = st.registry.stations()?.into_iter().map(|e| e.para).collect();
+    let items: Vec<ItemRow> = st.registry.items()?.iter().map(ItemRow::from).collect();
+    Ok(xlsx_response(xlsx::export_workbook(Some(&cells), Some(&stations), Some(&items))?, &format!("registry_{}.xlsx", stamp())))
+}
+
+#[derive(Deserialize, Default)]
+struct FileQuery {
+    dry_run: Option<String>,
+}
+
+async fn read_upload(mp: &mut Multipart) -> Result<(String, Vec<u8>), ApiError> {
+    let merr = |e: axum::extract::multipart::MultipartError| ApiError::BadRequest(format!("multipart: {e}"));
+    while let Some(field) = mp.next_field().await.map_err(merr)? {
+        if field.name() == Some("file") || field.file_name().is_some() {
+            let name = field.file_name().unwrap_or("upload.xlsx").to_string();
+            let bytes = field.bytes().await.map_err(merr)?;
+            if bytes.is_empty() {
+                return Err(ApiError::BadRequest("empty file".into()));
+            }
+            return Ok((name, bytes.to_vec()));
+        }
+    }
+    Err(ApiError::BadRequest("multipart field 'file' missing".into()))
+}
+
+/// Applies (or, for `dry_run`, only counts) the parsed tables; `errors` carry sheet-prefixed messages.
+fn apply_tables(st: &AppState, t: &Tables, dry_run: bool) -> Result<Json, ApiError> {
+    let mut c = ApplyCounts::default();
+    if t.has_cells {
+        c.add(&xlsx::apply_cells(&st.registry, &t.cells, dry_run)?);
+    }
+    if t.has_stations {
+        c.add(&xlsx::apply_stations(&st.registry, &t.stations, dry_run)?);
+    }
+    if t.has_items {
+        c.add(&xlsx::apply_items(&st.registry, &t.items, dry_run)?);
+    }
+    let errors: Vec<Json> = t.errors.iter().map(|e| json!({ "row": e.row, "sheet": e.sheet, "message": if e.sheet == "csv" { e.message.clone() } else { format!("{}: {}", e.sheet, e.message) } })).collect();
+    Ok(json!({ "imported": c.imported, "updated": c.updated, "removed": 0, "skipped": c.skipped, "errors": errors, "dry_run": dry_run,
+        "counts": { "cells": t.cells.len(), "stations": t.stations.len(), "items": t.items.len() } }))
+}
+
+async fn import_file(st: &AppState, mp: &mut Multipart, want: Want, dry_run: bool) -> ApiResult<Json> {
+    let (name, bytes) = read_upload(mp).await?;
+    let t = xlsx::parse_file(&name, &bytes, want)?;
+    let out = apply_tables(st, &t, dry_run)?;
+    if !dry_run {
+        st.emit("registry", json!({ "kind": "file_imported", "file": name, "result": out }));
+    }
+    Ok(axum::Json(out))
+}
+
+async fn cells_import_file(State(st): State<AppState>, Query(q): Query<FileQuery>, mut mp: Multipart) -> ApiResult<Json> {
+    import_file(&st, &mut mp, Want::Cells, flag(q.dry_run.as_deref())).await
+}
+async fn stations_import_file(State(st): State<AppState>, Query(q): Query<FileQuery>, mut mp: Multipart) -> ApiResult<Json> {
+    import_file(&st, &mut mp, Want::Stations, flag(q.dry_run.as_deref())).await
+}
+async fn registry_import_file(State(st): State<AppState>, Query(q): Query<FileQuery>, mut mp: Multipart) -> ApiResult<Json> {
+    import_file(&st, &mut mp, Want::All, flag(q.dry_run.as_deref())).await
 }
 
 // ---- defaults
@@ -237,15 +340,38 @@ async fn defaults_save(State(st): State<AppState>, axum::Json(d): axum::Json<Def
     Ok(axum::Json(st.registry.save_defaults(d)?))
 }
 
+// ---- compose preview (issue slice; registered here because `routes.rs` is lead-owned)
+async fn compose_preview(State(st): State<AppState>, axum::Json(req): axum::Json<crate::ledger::TaskRequest>) -> ApiResult<crate::issue::Composed> {
+    Ok(axum::Json(crate::issue::compose(&st, &req)?))
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/items", get(items).post(item_create))
         .route("/api/items/{code}", axum::routing::put(item_update).delete(item_delete))
         .route("/api/cells", get(cells).post(cell_create))
         .route("/api/cells/import", post(cells_import))
+        .route("/api/cells/push", post(cells_push))
+        .route("/api/cells/diff", get(cells_diff))
+        .route("/api/cells/export.xlsx", get(cells_export))
+        .route("/api/cells/import-file", post(cells_import_file))
         .route("/api/cells/{id}", axum::routing::put(cell_update).delete(cell_delete))
         .route("/api/stations", get(stations).post(station_create))
         .route("/api/stations/import", post(stations_import))
+        .route("/api/stations/push", post(stations_push))
+        .route("/api/stations/diff", get(stations_diff))
+        .route("/api/stations/export.xlsx", get(stations_export))
+        .route("/api/stations/import-file", post(stations_import_file))
         .route("/api/stations/{id}", axum::routing::put(station_update).delete(station_delete))
+        .route("/api/registry/export.xlsx", get(registry_export))
+        .route("/api/registry/import-file", post(registry_import_file))
+        .route("/api/registry/diff", get(registry_diff))
         .route("/api/defaults", get(defaults).put(defaults_save))
+        .route("/api/issue/compose", post(compose_preview))
+}
+
+/// Both tables at once (plan: `GET /api/registry/diff?plc=`).
+async fn registry_diff(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
+    let h = plc_io::resolve_plc(&st, q.plc(&st))?;
+    Ok(axum::Json(json!({ "plc": h.name(), "cells": diff_view(plc_io::diff_cells(&st, h)?, cell_view), "stations": diff_view(plc_io::diff_stations(&st, h)?, station_view) })))
 }

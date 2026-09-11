@@ -1,7 +1,14 @@
-//! Registries: tire codes (items), cells, stations, defaults — sqlite-backed. M3-A slice owns the
-//! PLC import/push, Excel I/O and routes; M1 ships storage + accessors the issue path needs.
+//! Registries: tire codes (items), cells, stations, defaults — sqlite-backed.
+//!
+//! - `plc_io`: PLC snapshot → local (import) and local → PLC S7 write + read-back verify (push)
+//! - `diff`: local vs PLC classification (`same|local_only|plc_only|changed`)
+//! - `xlsx`: Excel / CSV export + import (header-mapped, row-validated)
+//! - `routes`: `/api/items`, `/api/cells`, `/api/stations`, `/api/registry`, `/api/defaults`, `/api/issue/compose`
 
+pub mod diff;
+pub mod plc_io;
 pub mod routes;
+pub mod xlsx;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -134,6 +141,17 @@ impl Registry {
     pub fn delete_cell(&self, id: u16) -> Result<bool, ApiError> {
         Ok(self.db.with(|c| c.execute("DELETE FROM cells WHERE id = ?1", [id]))? > 0)
     }
+    /// After a verified push: rows now match the PLC.
+    pub fn mark_cells_synced(&self, ids: &[u16], at: &str) -> Result<(), ApiError> {
+        self.db.with(|c| {
+            let mut st = c.prepare("UPDATE cells SET dirty = 0, plc_seen_at = ?1 WHERE id = ?2")?;
+            for id in ids {
+                st.execute((at, id))?;
+            }
+            Ok(())
+        })?;
+        Ok(())
+    }
 
     // ---- stations
     pub fn stations(&self) -> Result<Vec<StationEntry>, ApiError> {
@@ -163,6 +181,16 @@ impl Registry {
     }
     pub fn delete_station(&self, id: u16) -> Result<bool, ApiError> {
         Ok(self.db.with(|c| c.execute("DELETE FROM stations WHERE id = ?1", [id]))? > 0)
+    }
+    pub fn mark_stations_synced(&self, ids: &[u16], at: &str) -> Result<(), ApiError> {
+        self.db.with(|c| {
+            let mut st = c.prepare("UPDATE stations SET dirty = 0, plc_seen_at = ?1 WHERE id = ?2")?;
+            for id in ids {
+                st.execute((at, id))?;
+            }
+            Ok(())
+        })?;
+        Ok(())
     }
 
     // ---- defaults
