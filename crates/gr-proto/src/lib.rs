@@ -1,0 +1,1 @@
+//! gr-proto crate (skeleton)

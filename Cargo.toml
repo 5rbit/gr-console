@@ -1,0 +1,46 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/s7",
+    "crates/plc-layout",
+    "crates/gr-proto",
+    "crates/opcua-cmd",
+    "apps/gr-console",
+    "tools/gr-contract",
+]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.87"
+version = "0.1.0"
+license = "MIT"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util", "signal", "fs"] }
+axum = { version = "0.8", features = ["multipart"] }
+tower-http = { version = "0.6", features = ["fs", "cors"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+thiserror = "2"
+crc32fast = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+async-opcua = { version = "0.19", default-features = false, features = ["client"] }
+roxmltree = "0.20"
+uuid = { version = "1", features = ["v4", "serde"] }
+time = { version = "0.3", features = ["formatting", "parsing", "macros", "local-offset", "serde"] }
+calamine = "0.36"
+rust_xlsxwriter = "0.99"
+csv = "1"
+futures = "0.3"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4

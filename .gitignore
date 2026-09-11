@@ -1,0 +1,5 @@
+/target
+/data/*.db*
+/apps/gr-web/node_modules
+/apps/gr-web/dist
+*.log
