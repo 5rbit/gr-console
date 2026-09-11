@@ -4,8 +4,16 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+description = "Minimal S7comm (ISO-on-TCP) client: DB read/write for standard-access blocks, plus an in-process fake server for tests"
+
+[features]
+default = []
+testing = []
 
 [dependencies]
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [lints]
 workspace = true

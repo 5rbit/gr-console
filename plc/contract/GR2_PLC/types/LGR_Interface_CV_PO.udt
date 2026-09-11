@@ -1,0 +1,15 @@
+﻿TYPE "LGR_Interface_CV_PO"
+VERSION : 0.1
+   STRUCT
+      CVNO : Bool;
+      Comp : Bool;
+      MeasComp : Bool;
+      MeasErr : Bool;
+      SpareX4 : Bool;
+      SpareX5 : Bool;
+      SpareX6 : Bool;
+      SpareX7 : Bool;
+   END_STRUCT;
+
+END_TYPE
+

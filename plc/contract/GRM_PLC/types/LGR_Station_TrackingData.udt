@@ -1,0 +1,9 @@
+﻿TYPE "LGR_Station_TrackingData"
+VERSION : 0.1
+   STRUCT
+      OutterDiameter : Real;
+      TaskOffset : Array["X".."Y"] of Real;
+   END_STRUCT;
+
+END_TYPE
+

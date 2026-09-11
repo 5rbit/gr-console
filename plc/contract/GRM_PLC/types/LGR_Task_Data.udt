@@ -1,0 +1,38 @@
+﻿TYPE "LGR_Task_Data"
+VERSION : 0.1
+   STRUCT
+      WorkId : UDInt;
+      TaskId : UDInt;
+      TaskType : Byte;
+      Position : Array["X".."G"] of Real;
+      Item : "LGR_Stock_Item";
+      Cell : "LGR_Cell_Info";
+      BlendUpDistance : UInt;
+      BlendDownDistance : UInt;
+      DragOutHeight : UInt;
+      DragOutDist : UInt;
+      DragOutDir : Byte;
+      DragInHeight : UInt;
+      DragInDist : UInt;
+      DragInDir : Byte;
+      LiftUpCreepDistance : UInt;
+      LiftDownCreepDistance : UInt;
+      LiftUpHeight : UInt;
+      PreGripDelta : UInt;
+      GripBackDelta : UInt;
+      GripHeight : UInt;
+      UseDragOut : Bool;
+      UseDragIn : Bool;
+      LiftUpAfterComplete : Bool;   // 작업 완료후 Z축 상승 여부
+      LiftUpPartial : Bool;
+      MeasureFloor : Bool;   // 바닥 높이 측정 여부 (Move 명령 전용)
+      MeasureItem : Bool;   // 아이템 측정 여부 (비드 높이, 중심 등)
+      MeasureSku : Bool;   // 재고 및 높이 측정 여부
+      AdjustCenter : Bool;   // 아이템 중심 보정 여부 (Pick)
+      FindStationItem : Bool;   // Station 아이템 중심 탐색 여부 (Pick, Single Stack 기준)
+      Avoid : Bool;   // 회피 동작 여부 (XY이동, Z= 9999)
+      Outbound : Bool;
+   END_STRUCT;
+
+END_TYPE
+

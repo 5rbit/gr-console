@@ -4,8 +4,15 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+description = "Parses TIA Portal SCL sources (.udt/.db) and computes the standard-access (non-optimized) memory layout, decoding/encoding DB bytes to JSON and a layout signature"
 
 [dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+crc32fast = { workspace = true }
+roxmltree = { workspace = true }
+tracing = { workspace = true }
 
 [lints]
 workspace = true

@@ -1,0 +1,15 @@
+﻿TYPE "LGR_Interface_CV_PI"
+VERSION : 0.1
+   STRUCT
+      CVOK : Bool;
+      Req : Bool;
+      MeasReq : Bool;
+      ItemExist : Bool;
+      SpareX4 : Bool;
+      SpareX5 : Bool;
+      SpareX6 : Bool;
+      SpareX7 : Bool;
+   END_STRUCT;
+
+END_TYPE
+

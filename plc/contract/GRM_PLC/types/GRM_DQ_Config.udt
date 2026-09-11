@@ -1,0 +1,183 @@
+﻿TYPE "GRM_DQ_Config"
+VERSION : 0.1
+   STRUCT
+      PBL_GR01_PowerOn : Bool;   // [O_M1_14.00] 0253PB01 - PBL_GR01_PowerOn
+      SPARE : Bool;   // [O_M1_14.01] 0253PB02 - SPARE
+      PBL_GR02_PowerOn : Bool;   // [O_M1_14.02] 0253PB03 - PBL_GR02_PowerOn
+      SPARE_1 : Bool;   // [O_M1_14.03] 0253PB04 - SPARE
+      SPARE_2 : Bool;   // [O_M1_14.04]  - SPARE
+      SPARE_3 : Bool;   // [O_M1_14.05]  - SPARE
+      SPARE_4 : Bool;   // [O_M1_14.06]  - SPARE
+      SPARE_5 : Bool;   // [O_M1_14.07]  - SPARE
+      MCP_EMSL : Bool;   // [O_M1_14.08] 0254EMS01 - MCP_EMSL
+      MCP_PBL_Start : Bool;   // [O_M1_14.09] 0401PB01 - MCP_PBL_Start
+      SPARE_6 : Bool;   // [O_M1_14.10] 0401PB02 - SPARE
+      MCP_PBL_Reset : Bool;   // [O_M1_14.11] 0401PB03 - MCP_PBL_Reset
+      MCP_PBL_ForcedRun : Bool;   // [O_M1_14.12] 0401PB04 - MCP_PBL_ForcedRun
+      SPARE_7 : Bool;   // [O_M1_14.13]  - SPARE
+      SPARE_8 : Bool;   // [O_M1_14.14]  - SPARE
+      SPARE_9 : Bool;   // [O_M1_14.15]  - SPARE
+      TL_RED : Bool;   // [O_M1_15.00] 0153TL01 - TL_RED
+      TL_YELLOW : Bool;   // [O_M1_15.01] 0153TL01 - TL_YELLOW
+      TL_GREEN : Bool;   // [O_M1_15.02] 0153TL01 - TL_GREEN
+      TL_BLUE : Bool;   // [O_M1_15.03] 0153TL01 - TL_BLUE
+      BZ_CH1 : Bool;   // [O_M1_15.04] 0153BZ01 - BZ_CH1
+      BZ_CH2 : Bool;   // [O_M1_15.05] 0153BZ01 - BZ_CH2
+      BZ_CH3 : Bool;   // [O_M1_15.06] 0153BZ01 - BZ_CH3
+      BZ_CH4 : Bool;   // [O_M1_15.07] 0153BZ01 - BZ_CH4
+      SOL_SFD01_Unlock_Req : Bool;   // [O_M1_15.08] 0408CR01 - SOL_SFD01_Unlock_Req
+      SOL_SFD02_Unlock_Req : Bool;   // [O_M1_15.09] 0408CR01 - SOL_SFD02_Unlock_Req
+      SOL_SFD03_Unlock_Req : Bool;   // [O_M1_15.10]  - SOL_SFD03_Unlock_Req
+      SPARE_10 : Bool;   // [O_M1_15.11]  - SPARE
+      SPARE_11 : Bool;   // [O_M1_15.12]  - SPARE
+      SPARE_12 : Bool;   // [O_M1_15.13]  - SPARE
+      SPARE_13 : Bool;   // [O_M1_15.14]  - SPARE
+      SPARE_14 : Bool;   // [O_M1_15.15]  - SPARE
+      SPARE_15 : Bool;   // [O_M1_16.00]  - SPARE
+      SPARE_16 : Bool;   // [O_M1_16.01]  - SPARE
+      SPARE_17 : Bool;   // [O_M1_16.02]  - SPARE
+      SPARE_18 : Bool;   // [O_M1_16.03]  - SPARE
+      SPARE_19 : Bool;   // [O_M1_16.04]  - SPARE
+      SPARE_20 : Bool;   // [O_M1_16.05]  - SPARE
+      SPARE_21 : Bool;   // [O_M1_16.06]  - SPARE
+      SPARE_22 : Bool;   // [O_M1_16.07]  - SPARE
+      FB01_EMSL : Bool;   // [O_M1_16.08]  - FB01_EMSL
+      FB01_PBL_Start : Bool;   // [O_M1_16.09]  - FB01_PBL_Start
+      SPARE_23 : Bool;   // [O_M1_16.10]  - SPARE
+      FB01_PBL_Reset : Bool;   // [O_M1_16.11]  - FB01_PBL_Reset
+      SPARE_24 : Bool;   // [O_M1_16.12]  - SPARE
+      SPARE_25 : Bool;   // [O_M1_16.13]  - SPARE
+      SPARE_26 : Bool;   // [O_M1_16.14]  - SPARE
+      SPARE_27 : Bool;   // [O_M1_16.15]  - SPARE
+      FB02_EMSL : Bool;   // [O_M1_17.00]  - FB02_EMSL
+      FB02_PBL_Start : Bool;   // [O_M1_17.01]  - FB02_PBL_Start
+      SPARE_28 : Bool;   // [O_M1_17.02]  - SPARE
+      FB02_PBL_Reset : Bool;   // [O_M1_17.03]  - FB02_PBL_Reset
+      SPARE_29 : Bool;   // [O_M1_17.04]  - SPARE
+      SPARE_30 : Bool;   // [O_M1_17.05]  - SPARE
+      SPARE_31 : Bool;   // [O_M1_17.06]  - SPARE
+      SPARE_32 : Bool;   // [O_M1_17.07]  - SPARE
+      FB03_EMSL : Bool;   // [O_M1_17.08]  - FB03_EMSL
+      FB03_PBL_Start : Bool;   // [O_M1_17.09]  - FB03_PBL_Start
+      SPARE_33 : Bool;   // [O_M1_17.10]  - SPARE
+      FB03_PBL_Reset : Bool;   // [O_M1_17.11]  - FB03_PBL_Reset
+      SPARE_34 : Bool;   // [O_M1_17.12]  - SPARE
+      SPARE_35 : Bool;   // [O_M1_17.13]  - SPARE
+      SPARE_36 : Bool;   // [O_M1_17.14]  - SPARE
+      SPARE_37 : Bool;   // [O_M1_17.15]  - SPARE
+      FB04_EMSL : Bool;   // [O_M1_18.00]  - FB04_EMSL
+      FB04_PBL_Start : Bool;   // [O_M1_18.01]  - FB04_PBL_Start
+      SPARE_38 : Bool;   // [O_M1_18.02]  - SPARE
+      FB04_PBL_Reset : Bool;   // [O_M1_18.03]  - FB04_PBL_Reset
+      SPARE_39 : Bool;   // [O_M1_18.04]  - SPARE
+      SPARE_40 : Bool;   // [O_M1_18.05]  - SPARE
+      SPARE_41 : Bool;   // [O_M1_18.06]  - SPARE
+      SPARE_42 : Bool;   // [O_M1_18.07]  - SPARE
+      FB05_EMSL : Bool;   // [O_M1_18.08]  - FB05_EMSL
+      FB05_PBL_Start : Bool;   // [O_M1_18.09]  - FB05_PBL_Start
+      SPARE_43 : Bool;   // [O_M1_18.10]  - SPARE
+      FB05_PBL_Reset : Bool;   // [O_M1_18.11]  - FB05_PBL_Reset
+      SPARE_44 : Bool;   // [O_M1_18.12]  - SPARE
+      SPARE_45 : Bool;   // [O_M1_18.13]  - SPARE
+      SPARE_46 : Bool;   // [O_M1_18.14]  - SPARE
+      SPARE_47 : Bool;   // [O_M1_18.15]  - SPARE
+      "Conveyor#0 OUT01" : Bool;   // [O_M1_19.00]  - Conveyor#1 OUT01
+      "Conveyor#0 OUT02" : Bool;   // [O_M1_19.01]  - Conveyor#1 OUT02
+      "Conveyor#0 OUT03" : Bool;   // [O_M1_19.02]  - Conveyor#1 OUT03
+      "Conveyor#0 OUT04" : Bool;   // [O_M1_19.03]  - Conveyor#1 OUT04
+      "Conveyor#1 OUT01" : Bool;   // [O_M1_19.04]  - Conveyor#2 OUT01
+      "Conveyor#1 OUT02" : Bool;   // [O_M1_19.05]  - Conveyor#2 OUT02
+      "Conveyor#1 OUT03" : Bool;   // [O_M1_19.06]  - Conveyor#2 OUT03
+      "Conveyor#1 OUT04" : Bool;   // [O_M1_19.07]  - Conveyor#2 OUT04
+      "Conveyor#2 OUT01" : Bool;   // [O_M1_19.08]  - Conveyor#3 OUT01
+      "Conveyor#2 OUT02" : Bool;   // [O_M1_19.09]  - Conveyor#3 OUT02
+      "Conveyor#2 OUT03" : Bool;   // [O_M1_19.10]  - Conveyor#3 OUT03
+      "Conveyor#2 OUT04" : Bool;   // [O_M1_19.11]  - Conveyor#3 OUT04
+      "Conveyor#3 OUT01" : Bool;   // [O_M1_19.15]  - Conveyor#4 OUT01
+      "Conveyor#3 OUT02" : Bool;   // [O_M1_19.13]  - Conveyor#4 OUT02
+      "Conveyor#3 OUT03" : Bool;   // [O_M1_19.14]  - Conveyor#4 OUT03
+      "Conveyor#3 OUT04" : Bool;   // [O_M1_19.15]  - Conveyor#4 OUT04
+      "Conveyor#4 OUT01" : Bool;   // [O_M1_20.00]  - Conveyor#5 OUT01
+      "Conveyor#4 OUT02" : Bool;   // [O_M1_20.01]  - Conveyor#5 OUT02
+      "Conveyor#4 OUT03" : Bool;   // [O_M1_20.02]  - Conveyor#5 OUT03
+      "Conveyor#4 OUT04" : Bool;   // [O_M1_20.03]  - Conveyor#5 OUT04
+      "Conveyor#5 OUT01" : Bool;   // [O_M1_20.04]  - Conveyor#6 OUT01
+      "Conveyor#5 OUT02" : Bool;   // [O_M1_20.05]  - Conveyor#6 OUT02
+      "Conveyor#5 OUT03" : Bool;   // [O_M1_20.06]  - Conveyor#6 OUT03
+      "Conveyor#5 OUT04" : Bool;   // [O_M1_20.07]  - Conveyor#6 OUT04
+      "Conveyor#6 OUT01" : Bool;   // [O_M1_20.08]  - Conveyor#7 OUT01
+      "Conveyor#6 OUT02" : Bool;   // [O_M1_20.09]  - Conveyor#7 OUT02
+      "Conveyor#6 OUT03" : Bool;   // [O_M1_20.10]  - Conveyor#7 OUT03
+      "Conveyor#6 OUT04" : Bool;   // [O_M1_20.11]  - Conveyor#7 OUT04
+      "Conveyor#7 OUT01" : Bool;   // [O_M1_20.15]  - Conveyor#8 OUT01
+      "Conveyor#7 OUT02" : Bool;   // [O_M1_20.13]  - Conveyor#8 OUT02
+      "Conveyor#7 OUT03" : Bool;   // [O_M1_20.14]  - Conveyor#8 OUT03
+      "Conveyor#7 OUT04" : Bool;   // [O_M1_20.15]  - Conveyor#8 OUT04
+      "Conveyor#8 OUT01" : Bool;   // [O_M1_21.00]  - Conveyor#9 OUT01
+      "Conveyor#8 OUT02" : Bool;   // [O_M1_21.01]  - Conveyor#9 OUT02
+      "Conveyor#8 OUT03" : Bool;   // [O_M1_21.02]  - Conveyor#9 OUT03
+      "Conveyor#8 OUT04" : Bool;   // [O_M1_21.03]  - Conveyor#9 OUT04
+      "Conveyor#9 OUT01" : Bool;   // [O_M1_21.04]  - Conveyor#10 OUT01
+      "Conveyor#9 OUT02" : Bool;   // [O_M1_21.05]  - Conveyor#10 OUT02
+      "Conveyor#9 OUT03" : Bool;   // [O_M1_21.06]  - Conveyor#10 OUT03
+      "Conveyor#9 OUT04" : Bool;   // [O_M1_21.07]  - Conveyor#10 OUT04
+      "Conveyor#10 OUT01" : Bool;   // [O_M1_21.08]  - Conveyor#11 OUT01
+      "Conveyor#10 OUT02" : Bool;   // [O_M1_21.09]  - Conveyor#11 OUT02
+      "Conveyor#10 OUT03" : Bool;   // [O_M1_21.10]  - Conveyor#11 OUT03
+      "Conveyor#10 OUT04" : Bool;   // [O_M1_21.11]  - Conveyor#11 OUT04
+      "Conveyor#11 OUT01" : Bool;   // [O_M1_21.15]  - Conveyor#12 OUT01
+      "Conveyor#11 OUT02" : Bool;   // [O_M1_21.13]  - Conveyor#12 OUT02
+      "Conveyor#11 OUT03" : Bool;   // [O_M1_21.14]  - Conveyor#12 OUT03
+      "Conveyor#11 OUT04" : Bool;   // [O_M1_21.15]  - Conveyor#12 OUT04
+      "Conveyor#12 OUT01" : Bool;   // [O_M1_22.00]  - Conveyor#13 OUT01
+      "Conveyor#12 OUT02" : Bool;   // [O_M1_22.01]  - Conveyor#13 OUT02
+      "Conveyor#12 OUT03" : Bool;   // [O_M1_22.02]  - Conveyor#13 OUT03
+      "Conveyor#12 OUT04" : Bool;   // [O_M1_22.03]  - Conveyor#13 OUT04
+      "Conveyor#13 OUT01" : Bool;   // [O_M1_22.04]  - Conveyor#14 OUT01
+      "Conveyor#13 OUT02" : Bool;   // [O_M1_22.05]  - Conveyor#14 OUT02
+      "Conveyor#13 OUT03" : Bool;   // [O_M1_22.06]  - Conveyor#14 OUT03
+      "Conveyor#13 OUT04" : Bool;   // [O_M1_22.07]  - Conveyor#14 OUT04
+      "Conveyor#14 OUT01" : Bool;   // [O_M1_22.08]  - Conveyor#15 OUT01
+      "Conveyor#14 OUT02" : Bool;   // [O_M1_22.09]  - Conveyor#15 OUT02
+      "Conveyor#14 OUT03" : Bool;   // [O_M1_22.10]  - Conveyor#15 OUT03
+      "Conveyor#14 OUT04" : Bool;   // [O_M1_22.11]  - Conveyor#15 OUT04
+      "Conveyor#15 OUT01" : Bool;   // [O_M1_22.15]  - Conveyor#16 OUT01
+      "Conveyor#15 OUT02" : Bool;   // [O_M1_22.13]  - Conveyor#16 OUT02
+      "Conveyor#15 OUT03" : Bool;   // [O_M1_22.14]  - Conveyor#16 OUT03
+      "Conveyor#15 OUT04" : Bool;   // [O_M1_22.15]  - Conveyor#16 OUT04
+      "Conveyor#16 OUT01" : Bool;   // [O_M1_23.00]  - Conveyor#17 OUT01
+      "Conveyor#16 OUT02" : Bool;   // [O_M1_23.01]  - Conveyor#17 OUT02
+      "Conveyor#16 OUT03" : Bool;   // [O_M1_23.02]  - Conveyor#17 OUT03
+      "Conveyor#16 OUT04" : Bool;   // [O_M1_23.03]  - Conveyor#17 OUT04
+      "Conveyor#17 OUT01" : Bool;   // [O_M1_23.04]  - Conveyor#18 OUT01
+      "Conveyor#17 OUT02" : Bool;   // [O_M1_23.05]  - Conveyor#18 OUT02
+      "Conveyor#17 OUT03" : Bool;   // [O_M1_23.06]  - Conveyor#18 OUT03
+      "Conveyor#17 OUT04" : Bool;   // [O_M1_23.07]  - Conveyor#18 OUT04
+      "AREA1 DOOR OPEN" : Bool;   // [O_M1_23.08]  - Conveyor#19 OUT01
+      "AREA2 DOOR OPEN" : Bool;   // [O_M1_23.09]  - Conveyor#19 OUT02
+      "AREA3 DOOR OPEN" : Bool;   // [O_M1_23.10]  - Conveyor#19 OUT03
+      ROBOT1_MANUAL : Bool;   // [O_M1_23.11]  - Conveyor#19 OUT04
+      ROBOT2_MANUAL : Bool;   // [O_M1_23.15]  - Conveyor#20 OUT01
+      SPARE_51 : Bool;   // [O_M1_23.13]  - Conveyor#20 OUT02
+      SPARE_52 : Bool;   // [O_M1_23.14]  - Conveyor#20 OUT03
+      SPARE_53 : Bool;   // [O_M1_23.15]  - Conveyor#20 OUT04
+      CV21_NORMAL : Bool;   // [O_M1_23.00]  - Conveyor#21 OUT01
+      CV21_REQUEST : Bool;   // [O_M1_23.01]  - Conveyor#21 OUT02
+      CV21_DONE : Bool;   // [O_M1_23.02]  - Conveyor#21 OUT03
+      CV21_INTERLOCK : Bool;   // [O_M1_23.03]  - Conveyor#21 OUT04
+      CV22_NORMAL : Bool;   // [O_M1_23.04]  - Conveyor#22 OUT01
+      CV22_REQUEST : Bool;   // [O_M1_23.05]  - Conveyor#22 OUT02
+      CV22_DONE : Bool;   // [O_M1_23.06]  - Conveyor#22 OUT03
+      CV22_INTERLOCK : Bool;   // [O_M1_23.07]  - Conveyor#22 OUT04
+      Area1_DoorOpen : Bool;   // [O_M1_23.08]  - AREA1 DOOR OPEN
+      Area2_DoorOpen : Bool;   // [O_M1_23.09]  - AREA2 DOOR OPEN
+      Area3_DoorOpen : Bool;   // [O_M1_23.10]  - AREA3 DOOR OPEN
+      Gantry1_Stop : Bool;   // [O_M1_23.11]  - GANTRY1 STOP
+      Gantry2_Stop : Bool;   // [O_M1_23.15]  - GANTRY2 STOP
+      SPARE_48 : Bool;   // [O_M1_23.13]  - SPARE
+      SPARE_49 : Bool;   // [O_M1_23.14]  - SPARE
+      SPARE_50 : Bool;   // [O_M1_23.15]  - SPARE
+   END_STRUCT;
+
+END_TYPE
+

@@ -1,0 +1,13 @@
+﻿DATA_BLOCK "CELL"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+   STRUCT 
+      Count : UInt;
+      Cell { S7_SetPoint := 'False'} : Array["CELL_MIN".."CELL_MAX"] of "LGR_Cell_Info";
+   END_STRUCT;
+
+
+BEGIN
+
+END_DATA_BLOCK
+

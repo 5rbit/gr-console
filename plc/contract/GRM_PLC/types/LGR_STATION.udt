@@ -1,0 +1,16 @@
+﻿TYPE "LGR_STATION"
+VERSION : 0.1
+   STRUCT
+      Cmd { S7_SetPoint := 'False'} : "LGR_Station_Command";
+      Para : "LGR_Station_Para";
+      Status : "LGR_Station_Status";
+      Tracking : Struct
+         Last : "LGR_Station_TrackingData";
+         Now : "LGR_Station_TrackingData";
+         Staged : "LGR_Station_TrackingData";
+      END_STRUCT;
+      Interlock : "LGR_Station_Interlock";
+   END_STRUCT;
+
+END_TYPE
+

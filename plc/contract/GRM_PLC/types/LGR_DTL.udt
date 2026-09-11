@@ -1,0 +1,15 @@
+﻿TYPE "LGR_DTL"
+VERSION : 0.1
+   STRUCT
+      YEAR : UInt;
+      MONTH : USInt;
+      DAY : USInt;
+      WEEKDAY : USInt;
+      HOUR : USInt;
+      MINUTE : USInt;
+      SECOND : USInt;
+      NANOSECOND : UDInt;
+   END_STRUCT;
+
+END_TYPE
+

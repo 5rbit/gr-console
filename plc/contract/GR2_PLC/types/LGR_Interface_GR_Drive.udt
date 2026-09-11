@@ -1,0 +1,17 @@
+﻿TYPE "LGR_Interface_GR_Drive"
+VERSION : 0.1
+   STRUCT
+      MainCode { ExternalWritable := 'False'} : UInt;
+      SubCode { ExternalWritable := 'False'} : UInt;
+      OpMode { ExternalWritable := 'False'} : UInt;
+      Speed { ExternalWritable := 'False'} : Real;
+      Torque { ExternalWritable := 'False'} : Real;
+      Position { ExternalWritable := 'False'} : Real;
+      JerkTime { ExternalWritable := 'False'} : Real;
+      TorqLimit { ExternalWritable := 'False'} : Real;
+      StartPos { ExternalWritable := 'False'} : Real;
+      Direction { ExternalWritable := 'False'} : Int;
+   END_STRUCT;
+
+END_TYPE
+

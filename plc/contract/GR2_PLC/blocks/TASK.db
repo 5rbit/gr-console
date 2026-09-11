@@ -1,0 +1,26 @@
+﻿DATA_BLOCK "TASK"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+   STRUCT 
+      Status { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Equip_TaskStatus";
+      Proc { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Proc_component";
+      ProcBuff { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Proc_component";
+      Now { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Task_Data";
+      NowBuff : "LGR_Task_Data";
+      Buff { ExternalWritable := 'False'; S7_SetPoint := 'False'} : Array[0..3] of "LGR_Task_Data";
+      Last { ExternalWritable := 'False'; S7_SetPoint := 'False'} : Array[0..9] of "LGR_Task_Data";
+      Canceled : Array[0..9] of "LGR_Task_Data";
+      Rejected : Array[0..9] of "LGR_Task_Data";
+      ErrorOccuredData : Struct
+         Last : Array[0..9] of "LGR_Task_Data";
+         Now : Array[0..9] of "LGR_Task_Data";
+         Next : Array[0..9] of "LGR_Task_Data";
+         "Time" {InstructionName := 'DTL'; LibVersion := '1.0'; S7_SetPoint := 'True'} : Array[0..9] of DTL;
+      END_STRUCT;
+   END_STRUCT;
+
+
+BEGIN
+
+END_DATA_BLOCK
+

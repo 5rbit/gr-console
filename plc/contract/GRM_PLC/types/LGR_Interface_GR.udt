@@ -1,0 +1,9 @@
+﻿TYPE "LGR_Interface_GR"
+VERSION : 0.1
+   STRUCT
+      CMD : "LGR_Interface_GR_Command";
+      STAT : "LGR_Interface_GR_Status";
+   END_STRUCT;
+
+END_TYPE
+

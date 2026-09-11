@@ -1,0 +1,17 @@
+﻿TYPE "LGR_Station_Status"
+VERSION : 0.1
+   STRUCT
+      State : USInt;
+      ErrorCode : USInt;
+      ItemDetect : Bool;
+      HasTrackingData : Bool;
+      DataMissMatch : Array[0..1] of Bool;
+      Measuring : Bool;
+      MeasuringError : Bool;
+      PalletCom : Bool;
+      MeasuringValue : Array[0..1] of Real;
+      SensorValueWithOffset : Array[0..1] of Real;
+   END_STRUCT;
+
+END_TYPE
+

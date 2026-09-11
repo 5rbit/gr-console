@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GR 콘솔</title>
+    <!-- 타입 — UI는 IBM Plex Sans(+KR), 값·주소·시각은 코딩용 한글 모노. 한글이 라틴 2배 폭으로
+         고정돼(반각:전각 = 1:2) 한글 섞인 값·경로·로그에서도 표의 열이 흐트러지지 않는다.
+         사내망·오프라인이면 이 세 줄을 지우고 같은 가족의 woff2를 public/fonts/에 두고 @font-face로 바꾼다 —
+         폰트가 못 오면 스택의 다음 후보(system-ui / ui-monospace)로 조용히 내려앉고 화면은 그대로 뜬다. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&family=Nanum+Gothic+Coding:wght@400;700&display=swap"
+    />
+    <!-- 최초 페인트 전 테마 확정(FOUC 방지) — localStorage 우선, 없으면 OS prefers. `dark:` 변형은 app.css의
+         @custom-variant로 [data-theme="dark"]에 바인딩된다. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('gr-theme')
+          if (t !== 'light' && t !== 'dark') {
+            t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          }
+          document.documentElement.setAttribute('data-theme', t)
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light')
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

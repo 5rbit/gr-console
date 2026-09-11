@@ -1,0 +1,260 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Document>
+  <Engineering version="V20" />
+  <SW.Blocks.GlobalDB ID="0">
+    <AttributeList>
+      <AutoNumber>false</AutoNumber>
+      <DBAccessibleFromOPCUA>false</DBAccessibleFromOPCUA>
+      <DBAccessibleFromWebserver>false</DBAccessibleFromWebserver>
+      <HeaderAuthor />
+      <HeaderFamily />
+      <HeaderName />
+      <HeaderVersion>0.1</HeaderVersion>
+      <Interface><Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">
+  <Section Name="Static">
+    <Member Name="SEND" Datatype="&quot;LGR_Interface_GR_to_GRM&quot;" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="Mode" Datatype="Byte" />
+          <Member Name="Spare_B01" Datatype="Byte" />
+          <Member Name="Status" Datatype="Word" />
+          <Member Name="Spare_B04" Datatype="Byte" />
+          <Member Name="Spare_B05" Datatype="Byte" />
+          <Member Name="Spare_B06" Datatype="Byte" />
+          <Member Name="Spare_B07" Datatype="Byte" />
+          <Member Name="InterlockNo" Datatype="Byte" />
+          <Member Name="InterlockBit" Datatype="Byte" />
+          <Member Name="InterlockTask" Datatype="Byte" />
+          <Member Name="Spare_B11" Datatype="Byte" />
+          <Member Name="Spare_B12" Datatype="Byte" />
+          <Member Name="Spare_B13" Datatype="Byte" />
+          <Member Name="Spare_B14" Datatype="Byte" />
+          <Member Name="Spare_B15" Datatype="Byte" />
+          <Member Name="Position" Datatype="UInt" />
+          <Member Name="TargetPosition" Datatype="UInt" />
+          <Member Name="Speed" Datatype="Int" />
+          <Member Name="DecelDist" Datatype="Int" />
+          <Member Name="Proc" Datatype="UInt" />
+          <Member Name="TimeStamp" Datatype="Date_And_Time" />
+          <Member Name="Spare_B34" Datatype="Byte" />
+          <Member Name="Spare_B35" Datatype="Byte" />
+          <Member Name="Spare_B36" Datatype="Byte" />
+          <Member Name="Spare_B37" Datatype="Byte" />
+          <Member Name="Spare_B38" Datatype="Byte" />
+          <Member Name="Spare_B39" Datatype="Byte" />
+          <Member Name="Spare_B40" Datatype="Byte" />
+          <Member Name="Spare_B41" Datatype="Byte" />
+          <Member Name="Spare_B42" Datatype="Byte" />
+          <Member Name="Spare_B43" Datatype="Byte" />
+          <Member Name="Spare_B44" Datatype="Byte" />
+          <Member Name="Spare_B45" Datatype="Byte" />
+          <Member Name="Spare_B46" Datatype="Byte" />
+          <Member Name="Spare_B47" Datatype="Byte" />
+          <Member Name="Spare_B48" Datatype="Byte" />
+          <Member Name="Spare_B49" Datatype="Byte" />
+          <Member Name="Spare_B50" Datatype="Byte" />
+          <Member Name="Spare_B51" Datatype="Byte" />
+          <Member Name="Spare_B52" Datatype="Byte" />
+          <Member Name="Spare_B53" Datatype="Byte" />
+          <Member Name="Spare_B54" Datatype="Byte" />
+          <Member Name="Spare_B55" Datatype="Byte" />
+          <Member Name="Spare_B56" Datatype="Byte" />
+          <Member Name="Spare_B57" Datatype="Byte" />
+          <Member Name="Spare_B58" Datatype="Byte" />
+          <Member Name="Spare_B59" Datatype="Byte" />
+          <Member Name="Spare_B60" Datatype="Byte" />
+          <Member Name="Spare_B61" Datatype="Byte" />
+          <Member Name="Spare_B62" Datatype="Byte" />
+          <Member Name="Spare_B63" Datatype="Byte" />
+          <Member Name="Spare_B64" Datatype="Byte" />
+          <Member Name="Spare_B65" Datatype="Byte" />
+          <Member Name="Spare_B66" Datatype="Byte" />
+          <Member Name="Spare_B67" Datatype="Byte" />
+          <Member Name="Spare_B68" Datatype="Byte" />
+          <Member Name="Spare_B69" Datatype="Byte" />
+          <Member Name="Spare_B70" Datatype="Byte" />
+          <Member Name="Spare_B71" Datatype="Byte" />
+          <Member Name="Spare_B72" Datatype="Byte" />
+          <Member Name="Spare_B73" Datatype="Byte" />
+          <Member Name="Spare_B74" Datatype="Byte" />
+          <Member Name="Spare_B75" Datatype="Byte" />
+          <Member Name="Spare_B76" Datatype="Byte" />
+          <Member Name="Spare_B77" Datatype="Byte" />
+          <Member Name="Spare_B78" Datatype="Byte" />
+          <Member Name="Spare_B79" Datatype="Byte" />
+          <Member Name="Spare_B80" Datatype="Byte" />
+          <Member Name="Spare_B81" Datatype="Byte" />
+          <Member Name="Spare_B82" Datatype="Byte" />
+          <Member Name="Spare_B83" Datatype="Byte" />
+          <Member Name="Spare_B84" Datatype="Byte" />
+          <Member Name="Spare_B85" Datatype="Byte" />
+          <Member Name="Spare_B86" Datatype="Byte" />
+          <Member Name="Spare_B87" Datatype="Byte" />
+          <Member Name="Spare_B88" Datatype="Byte" />
+          <Member Name="Spare_B89" Datatype="Byte" />
+          <Member Name="Spare_B90" Datatype="Byte" />
+          <Member Name="Spare_B91" Datatype="Byte" />
+          <Member Name="Spare_B92" Datatype="Byte" />
+          <Member Name="Spare_B93" Datatype="Byte" />
+          <Member Name="Spare_B94" Datatype="Byte" />
+          <Member Name="Spare_B95" Datatype="Byte" />
+          <Member Name="Spare_B96" Datatype="Byte" />
+          <Member Name="Spare_B97" Datatype="Byte" />
+          <Member Name="Spare_B98" Datatype="Byte" />
+          <Member Name="Spare_B99" Datatype="Byte" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="RECV" Datatype="&quot;LGR_Interface_GRM_to_GR&quot;" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="Mode" Datatype="Byte" />
+          <Member Name="Spare_B01" Datatype="Byte" />
+          <Member Name="Status" Datatype="Word" />
+          <Member Name="Spare_B04" Datatype="Byte" />
+          <Member Name="Spare_B05" Datatype="Byte" />
+          <Member Name="Spare_B06" Datatype="Byte" />
+          <Member Name="Spare_B07" Datatype="Byte" />
+          <Member Name="InterlockNo" Datatype="Byte" />
+          <Member Name="InterlockBit" Datatype="Byte" />
+          <Member Name="InterlockTask" Datatype="Byte" />
+          <Member Name="Spare_B11" Datatype="Byte" />
+          <Member Name="Spare_B12" Datatype="Byte" />
+          <Member Name="Spare_B13" Datatype="Byte" />
+          <Member Name="Spare_B14" Datatype="Byte" />
+          <Member Name="Spare_B15" Datatype="Byte" />
+          <Member Name="GR1_Position" Datatype="UInt" />
+          <Member Name="GR1_TargetPosition" Datatype="UInt" />
+          <Member Name="GR1_Speed" Datatype="Int" />
+          <Member Name="GR1_DecelDist" Datatype="Int" />
+          <Member Name="GR1_Proc" Datatype="UInt" />
+          <Member Name="GR1_Spare_B26" Datatype="Byte" />
+          <Member Name="GR1_Spare_B27" Datatype="Byte" />
+          <Member Name="GR1_Spare_B28" Datatype="Byte" />
+          <Member Name="GR1_Spare_B29" Datatype="Byte" />
+          <Member Name="GR1_Spare_B30" Datatype="Byte" />
+          <Member Name="GR1_Spare_B31" Datatype="Byte" />
+          <Member Name="GR2_Position" Datatype="UInt" />
+          <Member Name="GR2_TargetPosition" Datatype="UInt" />
+          <Member Name="GR2_Speed" Datatype="UInt" />
+          <Member Name="GR2_DecelDist" Datatype="Int" />
+          <Member Name="GR2_Proc" Datatype="UInt" />
+          <Member Name="GR2_Spare_B42" Datatype="Byte" />
+          <Member Name="GR2_Spare_B43" Datatype="Byte" />
+          <Member Name="GR2_Spare_B44" Datatype="Byte" />
+          <Member Name="GR2_Spare_B45" Datatype="Byte" />
+          <Member Name="GR2_Spare_B46" Datatype="Byte" />
+          <Member Name="GR2_Spare_B47" Datatype="Byte" />
+          <Member Name="GR3_Position" Datatype="UInt" />
+          <Member Name="GR3_TargetPosition" Datatype="UInt" />
+          <Member Name="GR3_Speed" Datatype="UInt" />
+          <Member Name="GR3_DecelDist" Datatype="Int" />
+          <Member Name="GR3_Proc" Datatype="UInt" />
+          <Member Name="GR3_Spare_B58" Datatype="Byte" />
+          <Member Name="GR3_Spare_B59" Datatype="Byte" />
+          <Member Name="GR3_Spare_B60" Datatype="Byte" />
+          <Member Name="GR3_Spare_B61" Datatype="Byte" />
+          <Member Name="GR3_Spare_B62" Datatype="Byte" />
+          <Member Name="GR3_Spare_B63" Datatype="Byte" />
+          <Member Name="TimeStamp" Datatype="Date_And_Time" />
+          <Member Name="Spare_B72" Datatype="Byte" />
+          <Member Name="Spare_B73" Datatype="Byte" />
+          <Member Name="Spare_B74" Datatype="Byte" />
+          <Member Name="Spare_B75" Datatype="Byte" />
+          <Member Name="Spare_B76" Datatype="Byte" />
+          <Member Name="Spare_B77" Datatype="Byte" />
+          <Member Name="Spare_B78" Datatype="Byte" />
+          <Member Name="Spare_B79" Datatype="Byte" />
+          <Member Name="Spare_B80" Datatype="Byte" />
+          <Member Name="Spare_B81" Datatype="Byte" />
+          <Member Name="Spare_B82" Datatype="Byte" />
+          <Member Name="Spare_B83" Datatype="Byte" />
+          <Member Name="Spare_B84" Datatype="Byte" />
+          <Member Name="Spare_B85" Datatype="Byte" />
+          <Member Name="Spare_B86" Datatype="Byte" />
+          <Member Name="Spare_B87" Datatype="Byte" />
+          <Member Name="Spare_B88" Datatype="Byte" />
+          <Member Name="Spare_B89" Datatype="Byte" />
+          <Member Name="Spare_B90" Datatype="Byte" />
+          <Member Name="Spare_B91" Datatype="Byte" />
+          <Member Name="Spare_B92" Datatype="Byte" />
+          <Member Name="Spare_B93" Datatype="Byte" />
+          <Member Name="Spare_B94" Datatype="Byte" />
+          <Member Name="Spare_B95" Datatype="Byte" />
+          <Member Name="Spare_B96" Datatype="Byte" />
+          <Member Name="Spare_B97" Datatype="Byte" />
+          <Member Name="Spare_B98" Datatype="Byte" />
+          <Member Name="Spare_B99" Datatype="Byte" />
+        </Section>
+      </Sections>
+    </Member>
+  </Section>
+</Sections></Interface>
+      <IsOnlyStoredInLoadMemory>false</IsOnlyStoredInLoadMemory>
+      <IsWriteProtectedInAS>false</IsWriteProtectedInAS>
+      <MemoryLayout>Standard</MemoryLayout>
+      <Name>Interface_GRM</Name>
+      <Namespace />
+      <Number>999</Number>
+      <ProgrammingLanguage>DB</ProgrammingLanguage>
+    </AttributeList>
+    <ObjectList>
+      <MultilingualText ID="1" CompositionName="Comment">
+        <ObjectList>
+          <MultilingualTextItem ID="2" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="3" CompositionName="Items">
+            <AttributeList>
+              <Culture>hu-HU</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="4" CompositionName="Items">
+            <AttributeList>
+              <Culture>ko-KR</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+      <MultilingualText ID="5" CompositionName="Title">
+        <ObjectList>
+          <MultilingualTextItem ID="6" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="7" CompositionName="Items">
+            <AttributeList>
+              <Culture>hu-HU</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="8" CompositionName="Items">
+            <AttributeList>
+              <Culture>ko-KR</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+    </ObjectList>
+  </SW.Blocks.GlobalDB>
+</Document>

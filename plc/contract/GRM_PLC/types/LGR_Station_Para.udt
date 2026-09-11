@@ -1,0 +1,17 @@
+﻿TYPE "LGR_Station_Para"
+VERSION : 0.1
+   STRUCT
+      ConvNo : UInt;
+      TaskType : USInt;
+      RotateType : USInt;
+      Group : USInt;
+      GroupIndex : USInt;
+      ConnectionPrev : USInt;
+      ConnectionNext : USInt;
+      Info { S7_SetPoint := 'False'} : "LGR_Cell_Info";
+      SensorSettings { S7_SetPoint := 'False'} : "LGR_Station_SensorSetting";
+      IOBlockNo { S7_SetPoint := 'True'} : USInt;
+   END_STRUCT;
+
+END_TYPE
+

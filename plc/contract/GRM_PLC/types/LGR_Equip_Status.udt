@@ -1,0 +1,25 @@
+﻿TYPE "LGR_Equip_Status"
+VERSION : 0.1
+   STRUCT
+      Normal { ExternalWritable := 'False'} : Bool;
+      Idle { ExternalWritable := 'False'} : Bool;
+      Busy { ExternalWritable := 'False'} : Bool;
+      Stopped { ExternalWritable := 'False'} : Bool;
+      Reserved_B0_X4 { ExternalWritable := 'False'} : Bool;
+      Online { ExternalWritable := 'False'} : Bool;
+      Warn { ExternalWritable := 'False'} : Bool;
+      Fault { ExternalWritable := 'False'} : Bool;
+      PowerOn { ExternalWritable := 'False'} : Bool;
+      DoorOpenErrorGR1 { ExternalWritable := 'False'} : Bool;
+      DoorOpenErrorGR2 { ExternalWritable := 'False'} : Bool;
+      Reserved_B1_X3 { ExternalWritable := 'False'} : Bool;
+      Reserved_B1_X4 { ExternalWritable := 'False'} : Bool;
+      ItemDectect { ExternalWritable := 'False'} : Bool;
+      BuzzerStop : Bool;
+      HeartBeat { ExternalWritable := 'False'} : Bool;
+      Speed { ExternalWritable := 'False'} : SInt;
+      Speed_ChangeReserved { ExternalWritable := 'False'} : SInt;
+   END_STRUCT;
+
+END_TYPE
+

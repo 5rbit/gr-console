@@ -1,0 +1,13 @@
+﻿TYPE "LGR_Robot_CommandHandler"
+VERSION : 0.1
+   STRUCT
+      LastCmd { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Interface_GR_Command";
+      LastCmdMm { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : "LGR_Interface_GR_Command";
+      Idle { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Send { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      RecvCheck { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Sleep { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+   END_STRUCT;
+
+END_TYPE
+

@@ -1,0 +1,16 @@
+﻿TYPE "LGR_Station_Command"
+VERSION : 0.1
+   STRUCT
+      Reset : Bool;
+      Tracking : Struct
+         Clear : Bool;
+         ClearStaged : Bool;
+         FetchStaged : Bool;
+         FetchPrev : Bool;
+         FetchNext : Bool;
+         FetchLast : Bool;
+      END_STRUCT;
+   END_STRUCT;
+
+END_TYPE
+

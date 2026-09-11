@@ -1,0 +1,9 @@
+﻿TYPE "LGR_Station_Interlock"
+VERSION : 0.1
+   STRUCT
+      PI : "LGR_Interface_CV_PI";
+      PO : "LGR_Interface_CV_PO";
+   END_STRUCT;
+
+END_TYPE
+

@@ -1,0 +1,14 @@
+﻿DATA_BLOCK "STATION"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+   STRUCT 
+      Count : UInt;
+      Station { S7_SetPoint := 'False'} : Array["STATION_MIN".."STATION_MAX"] of "LGR_Station_Para";
+   END_STRUCT;
+
+
+BEGIN
+   Count := 32;
+
+END_DATA_BLOCK
+

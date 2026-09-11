@@ -1,0 +1,14 @@
+﻿TYPE "LGR_MeasureLogStat"
+VERSION : 0.1
+   STRUCT
+      Count : UDInt;   //  누적 기록 수
+      ErrorCount : UDInt;   //  Status = ERROR / MISMATCH 기록 수
+      InnerDia : "LGR_MeasureLogTrend";   //  편차 : 측정 내경 - 명령 내경 (mm)
+      Height : "LGR_MeasureLogTrend";   //  편차 : 측정 타이어 높이 - 명령 높이 (mm)
+      Z : "LGR_MeasureLogTrend";   //  편차 : 측정 높이 - 명령 Z (mm)
+      Offset : "LGR_MeasureLogTrend";   //  편심 크기 (mm)
+      StackCount : "LGR_MeasureLogTrend";   //  편차 : 측정 단수 - 명령 단수 (Sku)
+   END_STRUCT;
+
+END_TYPE
+

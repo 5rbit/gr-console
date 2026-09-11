@@ -1,0 +1,13 @@
+﻿TYPE "LGR_Scenario_Status"
+VERSION : 0.1
+   STRUCT
+      ScenNo { ExternalVisible := 'False'; ExternalWritable := 'False'} : UInt;
+      Count { ExternalVisible := 'False'; ExternalWritable := 'False'} : UInt;
+      index { ExternalVisible := 'False'; ExternalWritable := 'False'} : UInt;
+      NextReq { ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      NextReqMm { ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      Timeout : Real;
+   END_STRUCT;
+
+END_TYPE
+

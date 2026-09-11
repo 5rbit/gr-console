@@ -1,0 +1,17 @@
+﻿TYPE "LGR_Proc_component"
+VERSION : 0.1
+   STRUCT
+      ProcNo : UInt;
+      Step : Struct
+         Now : UInt;
+         Prev : UInt;
+         ElapseTime { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+      END_STRUCT;
+      Option : Struct
+         Logging : Bool;
+      END_STRUCT;
+      Msg : String;
+   END_STRUCT;
+
+END_TYPE
+

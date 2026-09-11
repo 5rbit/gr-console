@@ -1,0 +1,17 @@
+﻿TYPE "LGR_Equip_Mode"
+TITLE = LGR_Mode
+VERSION : 0.1
+   STRUCT
+      Maint : Bool;
+      Manual : Bool;
+      AutoReady : Bool;
+      Auto : Bool;
+      Reserved_X4 : Bool;
+      Reserved_X5 : Bool;
+      Init : Bool;
+      Fault : Bool;
+      Reserved_B1 : Byte;
+   END_STRUCT;
+
+END_TYPE
+

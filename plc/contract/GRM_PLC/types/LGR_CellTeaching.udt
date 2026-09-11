@@ -1,0 +1,23 @@
+﻿TYPE "LGR_CellTeaching"
+VERSION : 0.1
+   STRUCT
+      Status { ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+         Cell_ID { ExternalVisible := 'False'; ExternalWritable := 'False'} : UInt;
+         PrevCell_ID { ExternalVisible := 'False'; ExternalWritable := 'False'} : UInt;
+         Req { ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         ReqMm { ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         StartCell_ID { ExternalVisible := 'False'; ExternalWritable := 'False'} : UInt;
+         LastCell_ID { ExternalVisible := 'False'; ExternalWritable := 'False'} : UInt;
+      END_STRUCT;
+      Command : Struct
+         Run : Bool;
+         Stop : Bool;
+         Assign : Bool;
+         RobotID : USInt;
+         Direction { ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         Task { S7_SetPoint := 'False'} : "LGR_Task_Data";
+      END_STRUCT;
+   END_STRUCT;
+
+END_TYPE
+

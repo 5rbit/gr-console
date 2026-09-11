@@ -4,8 +4,13 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+description = "Syncs the PLC contract (TIA export text) into the repo, computes layout signatures, dumps member tables"
 
 [dependencies]
+plc-layout = { path = "../../crates/plc-layout" }
+clap = { workspace = true }
+anyhow = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

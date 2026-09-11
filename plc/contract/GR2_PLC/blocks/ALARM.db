@@ -1,0 +1,16 @@
+﻿DATA_BLOCK "ALARM"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   STRUCT 
+      FAULT : Array[0..399] of Byte;
+      WARN : Array[0..399] of Byte;
+      EVENT : Array[0..29] of Byte;
+      TASK : Array[0..199] of Byte;
+   END_STRUCT;
+
+
+BEGIN
+
+END_DATA_BLOCK
+

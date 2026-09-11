@@ -1,0 +1,20 @@
+﻿DATA_BLOCK "STATION"
+{ DB_Accessible_From_Webserver := 'FALSE' ;
+ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+   STRUCT 
+      Count : UInt;
+      Station : Array["STATION_MIN".."STATION_MAX"] of "LGR_STATION";
+      InterlockByGRM : Array["STATION_MIN".."STATION_MAX"] of "LGR_Interface_CV_PO";
+      PreData : Struct
+         Tracking { S7_SetPoint := 'False'} : Array["STATION_MIN".."STATION_MAX"] of "LGR_Station_TrackingData";
+         Error : Array["STATION_MIN".."STATION_MAX"] of "LGR_Station_TrackingData";
+         Last : Array["STATION_MIN".."STATION_MAX"] of "LGR_Station_TrackingData";
+      END_STRUCT;
+   END_STRUCT;
+
+
+BEGIN
+
+END_DATA_BLOCK
+

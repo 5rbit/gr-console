@@ -1,0 +1,174 @@
+﻿DATA_BLOCK "MACHINE"
+{ DB_Accessible_From_OPC_UA := 'FALSE' ;
+ DB_Accessible_From_Webserver := 'FALSE' ;
+ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   STRUCT 
+      Mode : Word;
+      ModeMm : Word;
+      "Time" : Struct
+         Last {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;
+         Now {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;
+      END_STRUCT;
+      Args : Struct
+         Option : Struct
+            "1" : Bool;
+         END_STRUCT;
+         Position : Struct
+            "1" : Bool;
+         END_STRUCT;
+      END_STRUCT;
+      Command { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+         PowerOn_GR1 { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         PowerOff_GR1 { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         PowerOn_GR2 { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         PowerOff_GR2 { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         EMS { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         SSW_Auto { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         SSW_Manual { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         Start_All { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         Start_GR1 { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         Start_GR2 { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         Stop_All { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         Stop_GR1 { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         Stop_GR2 { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         Reset { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         ForceRun { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         ForceMode { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         ForceModeNoLimit { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         IOForceMode { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         RobotUse { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1..2] of Bool;
+         RobotForceUse { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1..2] of Bool;
+         Manual { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+            Init { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+               Cmd { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1..3] of Struct
+                  Axis { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array["X".."G"] of Bool;
+               END_STRUCT;
+            END_STRUCT;
+            Jog { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+               Cmd { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1..3] of Struct
+                  Axis { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array["X".."G"] of Struct
+                     Forward { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+                     Backward { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+                  END_STRUCT;
+               END_STRUCT;
+            END_STRUCT;
+            CellTeach { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_CellTeaching";
+            UserTask { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+               Run { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'True'} : Bool;
+               Stop { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+               Assign { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+               AssignMm { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+               RobotID { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : UInt;
+               Task { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Task_Data";
+            END_STRUCT;
+            Scenario { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+               Run { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'True'} : Bool;
+               Stop { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+               RobotID { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : UInt;
+               StartScenarioID { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : UInt;
+               Task { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Task_Data";
+            END_STRUCT;
+         END_STRUCT;
+      END_STRUCT;
+      Option { S7_SetPoint := 'False'} : "LGR_GRM_Option";
+      Alarm : Struct
+         Warn { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         Fault { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         FaultActive : Bool;
+         WarnActive : Bool;
+         FaultCode { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[0..9] of UDInt;
+         FaultCodeMm { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : UDInt;
+         WarnCode { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[0..9] of UDInt;
+         WarnCodeMm { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : UDInt;
+         NoneStopAlarm : Array[0..9] of UDInt;
+         NoneStopAlarmMm : UDInt;
+         CsvReadFaultIdx : UDInt;
+         CsvWriteFaultIdx : UDInt;
+      END_STRUCT;
+      InitValue { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+         RobotCMD { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Interface_GR_Command";
+         Task { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : "LGR_Task_Data";
+      END_STRUCT;
+      Status { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Equip_Status";
+      Module { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+         PLC_OK { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         RIO_Ok { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1.."RIO_MODULE_COUNT"] of Bool;
+         IOLink_Ok { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1.."IOLINK_MODULE_COUNT"] of Bool;
+         AllStateOk { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      END_STRUCT;
+      TeachCell { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+         GR { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1..2] of Struct
+            Status { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : "LGR_Scenario_Status";
+            Task { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : "LGR_Task_Data";
+            Handler { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : "LGR_Robot_CommandHandler";
+            WorkCellMm { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'True'} : UInt;
+            WorkCell { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'True'} : UInt;
+            Data { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Real;
+         END_STRUCT;
+      END_STRUCT;
+      UserTask { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+         RobotID { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : UInt;
+         Task { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Task_Data";
+      END_STRUCT;
+      CycleTime : Struct
+         TimerMemory : Array[1..3] of Real;
+         PrcoessDataMemory : Array[1..3] of Struct
+            Header { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Command_Header";
+            Data { ExternalWritable := 'False'} : Array[0..15] of Byte;
+            TaskData { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Task_Data";
+         END_STRUCT;
+         InprogressOff { S7_SetPoint := 'False'} : Array[1..3] of "GenerateEdge";
+         InprogressMm : Array[1..3] of Bool;
+         SaveCmd : Array[1..3] of Bool;
+      END_STRUCT;
+      Communication { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+         PrevCmdID { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : USInt;
+         NextCmdID { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : USInt;
+      END_STRUCT;
+      Connected { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Struct
+         GR { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1..3] of Bool;
+         GR_OPCUA { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Array[1..3] of Bool;
+         CV { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+         GCS { ExternalAccessible := 'False'; ExternalVisible := 'False'; ExternalWritable := 'False'} : Bool;
+      END_STRUCT;
+      IO : Struct
+         ContactType : Array[0.."RIO_INPUT_COUNT"] of Word;
+         ContactResult : Array[0.."RIO_INPUT_COUNT"] of Word;
+         Input : Array[0.."RIO_INPUT_COUNT"] of Word;
+         OutputForced { S7_SetPoint := 'False'} : "GRM_DQ_Config";
+         OutputForced_RND { S7_SetPoint := 'False'} : "GRM_DQ_Config_RND";
+      END_STRUCT;
+      CSV : Struct
+         Para : Struct
+            Export : Bool;
+            Import : Bool;
+         END_STRUCT;
+         Station : Struct
+            Export : Bool;
+            Import : Bool;
+         END_STRUCT;
+         Group : Struct
+            Export : Bool;
+            Import : Bool;
+         END_STRUCT;
+         Cell : Struct
+            Export : Bool;
+            Import : Bool;
+         END_STRUCT;
+      END_STRUCT;
+      MaintPos : Struct
+         GR1 : Bool;
+         GR2 : Bool;
+      END_STRUCT;
+      GR { S7_SetPoint := 'False'} : Array[1..3] of "LGR_Interface_GR_Status";
+   END_STRUCT;
+
+
+BEGIN
+   Command.RobotUse[1] := TRUE;
+   Command.RobotUse[2] := TRUE;
+
+END_DATA_BLOCK
+

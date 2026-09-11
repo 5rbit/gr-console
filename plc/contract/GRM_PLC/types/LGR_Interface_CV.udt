@@ -1,0 +1,11 @@
+﻿TYPE "LGR_Interface_CV"
+VERSION : 0.1
+   STRUCT
+      WorkCell : UInt;
+      WorkType : Byte;
+      PI { S7_SetPoint := 'False'} : "LGR_Interface_CV_PI";
+      PO { S7_SetPoint := 'False'} : "LGR_Interface_CV_PO";
+   END_STRUCT;
+
+END_TYPE
+

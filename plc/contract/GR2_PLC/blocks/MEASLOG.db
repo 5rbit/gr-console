@@ -1,0 +1,29 @@
+﻿DATA_BLOCK "MEASLOG"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+// 표준 접근 : 외부 S7 통신(gr-console) 읽기/쓰기, 레이아웃은 LayoutSig 로 검증
+// 표준 접근 : 외부 S7 통신(MeasLogViewer 웹툴) 절대주소 읽기용
+   STRUCT 
+      LayoutSig : DWord;   //  레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
+      Head : Int;   //     다음 기록 위치 (0..MEAS_LOG_LAST, 링버퍼. 최신 = Entry[Head-1])
+      Count : Int;   //     유효 기록 수 (최대 MEAS_LOG_LAST + 1)
+      Total : UDInt;   //     누적 기록 수 = 마지막 Seq
+      Last : Array[1..5] of "LGR_MeasureLog";   //     종류별 최근 기록 (인덱스 = MEAS_LOG_* : 1 Item, 2 Sku, 3 Floor, 4 Pick, 5 수동)
+      Stat : Array[1..5] of "LGR_MeasureLogStat";   //     종류별 추세 통계 (명령 대비 편차의 누적 평균 / EMA / Min / Max)
+      ByCode : Array[0.."MEAS_LOG_CODE_LAST"] of "LGR_MeasureLogByCode";   //     동일 규격(Item Code) 별 누적 - Item / Sku / Pick 기록
+      ByCodeNext : Int;   //     빈 슬롯이 없을 때 교체할 ByCode 인덱스 (순환)
+      Reset : Bool;   //     HMI : 이력 / 통계 / 코드별 누적 초기화 (자동 해제)
+      Edge : Struct   //     "UL_MeasureLog" 에지 메모리
+         ItemDone : Bool;
+         SkuDone : Bool;
+         PickDone : Bool;
+         ManualDone : Bool;
+      END_STRUCT;
+   END_STRUCT;
+
+
+BEGIN
+   LayoutSig := 16#AE44_288F;
+
+END_DATA_BLOCK
+

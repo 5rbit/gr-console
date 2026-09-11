@@ -1,0 +1,43 @@
+﻿TYPE "LGR_Interface_GR_Status"
+VERSION : 0.1
+   STRUCT
+      NTP {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;
+      ComponentID { ExternalWritable := 'False'} : UInt;
+      RES { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Command_Response";
+      Mode { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Equip_Mode";
+      Status { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Equip_Status";
+      StatusCode { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Equip_StatusDetail";
+      Task : Struct
+         Status { S7_SetPoint := 'False'} : "LGR_Equip_TaskStatus";
+         Now : "LGR_Task_Data";
+         Queue : Array[0..3] of "LGR_Task_Data";
+         Completed : Array[0..9] of "LGR_Task_Data";
+         Canceled : Array[0..9] of "LGR_Task_Data";
+         Rejected : Array[0..9] of "LGR_Task_Data";
+      END_STRUCT;
+      Measuring { ExternalWritable := 'False'} : Struct
+         SKU { ExternalWritable := 'False'} : Struct
+            WorkCell { ExternalWritable := 'False'} : UInt;
+            Code { ExternalWritable := 'False'} : UDInt;
+            Data { ExternalWritable := 'False'} : Array[0..19] of Real;   // SKU 측정 데이터 (요소별 주석 참고)
+         END_STRUCT;
+         Item { ExternalWritable := 'False'} : Struct
+            WorkCell { ExternalWritable := 'False'} : UInt;
+            Code { ExternalWritable := 'False'} : UDInt;
+            Data { ExternalWritable := 'False'} : Array[0..19] of Real;   // Item 측정 데이터 (요소별 주석 참고)
+         END_STRUCT;
+         Floor { ExternalWritable := 'False'} : Struct
+            WorkCell { ExternalWritable := 'False'} : UInt;
+            Data { ExternalWritable := 'False'} : Real;
+         END_STRUCT;
+      END_STRUCT;
+      Interlock { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "LGR_Interface_CV";
+      Signal { ExternalWritable := 'False'} : Struct
+         Input { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "GR_DI_Config";
+         Output { ExternalWritable := 'False'; S7_SetPoint := 'False'} : "GR_DQ_Config";
+      END_STRUCT;
+      Drive { ExternalWritable := 'False'; S7_SetPoint := 'False'} : Array[0..3] of "LGR_Interface_GR_Drive";
+   END_STRUCT;
+
+END_TYPE
+

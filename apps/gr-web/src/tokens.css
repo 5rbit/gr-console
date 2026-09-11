@@ -1,0 +1,346 @@
+/* mx-console 디자인 토큰 — **앱과 디자인 라이브러리가 함께 읽는 한 벌**.
+   
+   예전에는 `apps/sh4w-web/src/app.css`와 `packages/mx-console-ui/src/styles/theme.css`에
+   같은 243개가 두 벌로 있었다. 두 벌은 반드시 갈린다 — 한쪽만 고친 순간 디자인 에이전트가
+   앱과 다른 색을 보고, 그 어긋남은 화면을 봐서는 못 찾는다. 파일 하나로 접어 그 면을 없앤다.
+
+   `static`인 이유: 라이브러리 소비자(디자인 에이전트)는 여기 있는 토큰을 **이름으로** 집어
+   쓴다. 트리셰이킹을 켜 두면 앱이 안 쓰는 토큰이 산출물에서 빠져 그쪽에서 없는 이름이 된다.
+   앱이 치르는 값은 안 쓰는 커스텀 프로퍼티 몇 줄이다. */
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   mx-console 디자인 토큰 — 진실원은 디자인 시스템의 `tokens/*.css`다.
+   팔레트는 브랜드 마크(logo.svg)의 두 색에서 나왔다: 골드 #f2a900 · 그린 #009b4d.
+   중립은 그 둘과 맞물리는 **따뜻한 회색**이다 — 순회색(slate)은 골드를 탁하게 만든다.
+
+   두 층으로 얹는다.
+
+   ① **원시 스케일 덮어쓰기** — 화면 97개가 `slate-400`·`indigo-500` 같은 유틸리티를 3,378번
+      직접 쓰고 있다. 그 이름들을 mx 팔레트로 재정의하면 화면을 한 줄도 건드리지 않고 전부 따라온다.
+      이름은 낡았지만(warm gray가 `slate`, 브랜드 그린이 `indigo`) 값이 진실이고, 새 코드는 ②를 쓴다.
+   ② **시맨틱 토큰** — 새로 쓰는 자리는 뜻으로 부른다(`bg-surface-panel` · `text-content-muted`).
+
+   파형 색(`--trace-ch-*`)은 여기 두지 않는다 — `lib/ui/viz/traceSeries.ts`가 진실원이고
+   VSCode 확장이 같은 표를 읽는 **화면 밖 계약**이라 브랜드 팔레트와 별개다.
+   ══════════════════════════════════════════════════════════════════════════════ */
+@theme static {
+  /* ── ① 원시 스케일 ─────────────────────────────────────────────────────────
+     중립 — 따뜻한 회색. `slate`·`neutral`·`gray` 세 이름이 같은 값을 본다. */
+  --color-slate-50: #f5f5f3;
+  --color-slate-100: #ebebe8;
+  --color-slate-200: #dededa;
+  --color-slate-300: #c6c6c1;
+  --color-slate-400: #9a9a94;
+  --color-slate-500: #77776f;
+  --color-slate-600: #5a5a53;
+  --color-slate-700: #42423c;
+  --color-slate-800: #2c2c27;
+  --color-slate-900: #1a1a16;
+  --color-slate-950: #0f0f0d;
+
+  --color-neutral-50: #f5f5f3;
+  --color-neutral-100: #ebebe8;
+  --color-neutral-200: #dededa;
+  --color-neutral-300: #c6c6c1;
+  --color-neutral-400: #9a9a94;
+  --color-neutral-500: #77776f;
+  --color-neutral-600: #5a5a53;
+  --color-neutral-700: #42423c;
+  --color-neutral-800: #2c2c27;
+  --color-neutral-900: #1a1a16;
+  --color-neutral-950: #0f0f0d;
+
+  --color-gray-50: #f5f5f3;
+  --color-gray-100: #ebebe8;
+  --color-gray-200: #dededa;
+  --color-gray-300: #c6c6c1;
+  --color-gray-400: #9a9a94;
+  --color-gray-500: #77776f;
+  --color-gray-600: #5a5a53;
+  --color-gray-700: #42423c;
+  --color-gray-800: #2c2c27;
+  --color-gray-900: #1a1a16;
+  --color-gray-950: #0f0f0d;
+
+  /* 브랜드 그린 — 500이 마크의 색. 흰 글자를 얹는 자리는 700을 쓴다(대비 확보).
+     `indigo`(옛 accent) · `emerald`(옛 ok) · `green` 세 이름이 여기로 모인다. */
+  --color-green-50: #e6f6ed;
+  --color-green-100: #c4ebd5;
+  --color-green-200: #9bdcb8;
+  --color-green-300: #6bcb99;
+  --color-green-400: #35b373;
+  --color-green-500: #009b4d;
+  --color-green-600: #008742;
+  --color-green-700: #006b35;
+  --color-green-800: #005228;
+  --color-green-900: #00381c;
+  --color-green-950: #002512;
+
+  --color-emerald-50: #e6f6ed;
+  --color-emerald-100: #c4ebd5;
+  --color-emerald-200: #9bdcb8;
+  --color-emerald-300: #6bcb99;
+  --color-emerald-400: #35b373;
+  --color-emerald-500: #009b4d;
+  --color-emerald-600: #008742;
+  --color-emerald-700: #006b35;
+  --color-emerald-800: #005228;
+  --color-emerald-900: #00381c;
+  --color-emerald-950: #002512;
+
+  --color-indigo-50: #e6f6ed;
+  --color-indigo-100: #c4ebd5;
+  --color-indigo-200: #9bdcb8;
+  --color-indigo-300: #6bcb99;
+  --color-indigo-400: #35b373;
+  --color-indigo-500: #009b4d;
+  --color-indigo-600: #008742;
+  --color-indigo-700: #006b35;
+  --color-indigo-800: #005228;
+  --color-indigo-900: #00381c;
+  --color-indigo-950: #002512;
+
+  /* 브랜드 골드 — 주의(warn). 글자색으로는 700 이하만 쓴다. */
+  --color-amber-50: #fff7e6;
+  --color-amber-100: #fdebc2;
+  --color-amber-200: #fadb8f;
+  --color-amber-300: #f7c95c;
+  --color-amber-400: #f5b92e;
+  --color-amber-500: #f2a900;
+  --color-amber-600: #d18f00;
+  --color-amber-700: #a06d00;
+  --color-amber-800: #775000;
+  --color-amber-900: #4d3400;
+  --color-amber-950: #2e1f00;
+
+  --color-yellow-50: #fff7e6;
+  --color-yellow-100: #fdebc2;
+  --color-yellow-200: #fadb8f;
+  --color-yellow-300: #f7c95c;
+  --color-yellow-400: #f5b92e;
+  --color-yellow-500: #f2a900;
+  --color-yellow-600: #d18f00;
+  --color-yellow-700: #a06d00;
+  --color-yellow-800: #775000;
+  --color-yellow-900: #4d3400;
+  --color-yellow-950: #2e1f00;
+
+  /* 저하(degraded) — 골드와 갈리도록 더 붉은 주황. */
+  --color-orange-50: #fff1e6;
+  --color-orange-100: #ffe0cc;
+  --color-orange-200: #ffc8a3;
+  --color-orange-300: #fba873;
+  --color-orange-400: #f27f42;
+  --color-orange-500: #e4571b;
+  --color-orange-600: #bf4711;
+  --color-orange-700: #99380d;
+  --color-orange-800: #7a2c0a;
+  --color-orange-900: #5c2108;
+  --color-orange-950: #331205;
+
+  /* 고장(fault) — `red`·`rose` 두 이름이 같은 값을 본다. */
+  --color-red-50: #feecea;
+  --color-red-100: #fcd9d5;
+  --color-red-200: #f9b8b0;
+  --color-red-300: #f28d82;
+  --color-red-400: #e75f50;
+  --color-red-500: #d92d20;
+  --color-red-600: #b42318;
+  --color-red-700: #912018;
+  --color-red-800: #7a1b14;
+  --color-red-900: #611510;
+  --color-red-950: #350b08;
+
+  --color-rose-50: #feecea;
+  --color-rose-100: #fcd9d5;
+  --color-rose-200: #f9b8b0;
+  --color-rose-300: #f28d82;
+  --color-rose-400: #e75f50;
+  --color-rose-500: #d92d20;
+  --color-rose-600: #b42318;
+  --color-rose-700: #912018;
+  --color-rose-800: #7a1b14;
+  --color-rose-900: #611510;
+  --color-rose-950: #350b08;
+
+  /* 파랑 — 정보 상태 + **포커스 링**과 조작 영역 머리띠. 판정 넷과 겹치지 않는 유일한 자리라
+     "누를 수 있음 / 지금 보고 있음"이 판정으로 읽히지 않는다. `sky`·`blue` 두 이름. */
+  --color-blue-50: #e8f1fd;
+  --color-blue-100: #cfe2fb;
+  --color-blue-200: #a7cbf7;
+  --color-blue-300: #7fb2f2;
+  --color-blue-400: #4f97ea;
+  --color-blue-500: #2a7be4;
+  --color-blue-600: #1a62c4;
+  --color-blue-700: #12488f;
+  --color-blue-800: #0e3970;
+  --color-blue-900: #0b2c56;
+  --color-blue-950: #06182f;
+
+  --color-sky-50: #e8f1fd;
+  --color-sky-100: #cfe2fb;
+  --color-sky-200: #a7cbf7;
+  --color-sky-300: #7fb2f2;
+  --color-sky-400: #4f97ea;
+  --color-sky-500: #2a7be4;
+  --color-sky-600: #1a62c4;
+  --color-sky-700: #12488f;
+  --color-sky-800: #0e3970;
+  --color-sky-900: #0b2c56;
+  --color-sky-950: #06182f;
+
+  /* 보라 — **재시작해야 반영되는 값** 전용. 상태 여섯에 들지 않는 '시간축' 표식이라
+     판정색과 섞이지 않는 별색을 쓴다(저장은 됐고, 아직 살아 있지 않다). */
+  --color-violet-50: #f2eefc;
+  --color-violet-100: #e3daf9;
+  --color-violet-200: #cdbdf3;
+  --color-violet-300: #b39aec;
+  --color-violet-400: #9873e2;
+  --color-violet-500: #7c4dd6;
+  --color-violet-600: #6636bf;
+  --color-violet-700: #4f2795;
+  --color-violet-800: #3d1d73;
+  --color-violet-900: #2d1555;
+  --color-violet-950: #1a0c31;
+
+  --color-purple-50: #f2eefc;
+  --color-purple-100: #e3daf9;
+  --color-purple-200: #cdbdf3;
+  --color-purple-300: #b39aec;
+  --color-purple-400: #9873e2;
+  --color-purple-500: #7c4dd6;
+  --color-purple-600: #6636bf;
+  --color-purple-700: #4f2795;
+  --color-purple-800: #3d1d73;
+  --color-purple-900: #2d1555;
+  --color-purple-950: #1a0c31;
+
+  --color-pink-50: #f2eefc;
+  --color-pink-100: #e3daf9;
+  --color-pink-200: #cdbdf3;
+  --color-pink-300: #b39aec;
+  --color-pink-400: #9873e2;
+  --color-pink-500: #7c4dd6;
+  --color-pink-600: #6636bf;
+  --color-pink-700: #4f2795;
+  --color-pink-800: #3d1d73;
+  --color-pink-900: #2d1555;
+  --color-pink-950: #1a0c31;
+
+  /* ── ② 시맨틱 토큰 ─────────────────────────────────────────────────────────
+     표면 — 앱 바닥 / 패널 / 떠오른 면 / 눌린 면 / 호버 · 선택. */
+  --color-surface-app: #f5f5f3;
+  --color-surface-panel: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-surface-inset: #ebebe8;
+  --color-surface-hover: #f5f5f3;
+  --color-surface-active: #ebebe8;
+
+  /* 경계 — 평상시 구분은 그림자가 아니라 1px 보더가 맡는다. */
+  --color-line-subtle: #ebebe8;
+  --color-line-default: #dededa;
+  --color-line-strong: #c6c6c1;
+
+  /* 글자 */
+  --color-content-primary: #1a1a16;
+  --color-content-secondary: #42423c;
+  --color-content-muted: #77776f;
+  --color-content-faint: #9a9a94;
+  --color-content-on-accent: #ffffff;
+
+  /* accent = **브랜드 그린**. 선택·활성·primary 조작 — 화면당 하나로 아낀다.
+     상태 그린(정상)과 색이 겹치지만 **형태가 다르다**: 조작 그린은 채운 버튼·선택 배경으로만 서고,
+     상태 그린은 점·캡슐로만 선다. */
+  --color-accent: #006b35;
+  --color-accent-hover: #008742;
+  --color-accent-text: #006b35;
+  --color-accent-soft: #e6f6ed;
+
+  /* 포커스 링 — **파랑 전용이자 단색**이다. 브랜드색과 갈려야 "지금 여기 포커스"가 읽히고,
+     초록 버튼 위 초록 링은 보이지도 않는다. 반투명 혼합은 표면색에 따라 흐려진다. */
+  --color-focus: #1a62c4;
+
+  /* 조작 전용 영역 — 머리띠·경계만 연한 파랑으로 가른다(면 전체를 물들이면 값 영역과 대비가 과해진다).
+     버튼·선택 배경은 그대로 브랜드 그린이다 — 갈리는 것은 **면**이지 컨트롤이 아니다. */
+  --color-control-header: #e8f1fd;
+  --color-control-border: #7fb2f2;
+  --color-control-text: #12488f;
+
+  /* 상태 6종 — 콘솔의 색 어휘 전부. 각 상태는 dot(채움) · fg(글자) · soft(은은한 배경)를 갖는다.
+     브랜드 두 색이 여기 들어와 있다: ok = 그린, warn = 골드. */
+  --color-ok: #009b4d;
+  --color-ok-fg: #006b35;
+  --color-ok-soft: #e6f6ed;
+  --color-warn: #f2a900;
+  --color-warn-fg: #a06d00;
+  --color-warn-soft: #fff7e6;
+  --color-degraded: #e4571b;
+  --color-degraded-fg: #bf4711;
+  --color-degraded-soft: #fff1e6;
+  --color-fault: #d92d20;
+  --color-fault-fg: #b42318;
+  --color-fault-soft: #feecea;
+  --color-info: #2a7be4;
+  --color-info-fg: #1a62c4;
+  --color-info-soft: #e8f1fd;
+  --color-neutral-dot: #9a9a94;
+  --color-neutral-fg: #77776f;
+  --color-neutral-soft: #ebebe8;
+
+  --color-danger: #b42318;
+  --color-danger-hover: #d92d20;
+  --color-danger-text: #912018;
+  --color-danger-soft: #feecea;
+
+  /* ── 타입 ────────────────────────────────────────────────────────────────
+     UI는 IBM Plex Sans(+KR), 값·주소·시각은 코딩용 한글 모노(한글이 라틴 2배 폭으로 고정돼
+     한글 섞인 값·경로·로그에서도 열이 흐트러지지 않는다). D2Coding이 깔린 PC는 그것이 먼저 잡힌다. */
+  --font-sans:
+    'IBM Plex Sans', 'IBM Plex Sans KR', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:
+    'D2Coding', 'Nanum Gothic Coding', 'Sarasa Mono K', ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+
+  /* 크기는 10·11·12·13·14px 다섯이 거의 전부다 — 조밀한 엔지니어링 화면의 정보 밀도가 그 이유다.
+     Tailwind 기본이 이미 xs=12 · sm=14 · base=16이라 빠진 셋만 채운다.
+       10px — 배지 · tick · 힌트. 읽는 값이 아니라 '있다'를 말하는 자리.
+       11px — 폼 라벨 · 상태바 · 범례.
+       13px — 메뉴바 · 메뉴 항목. */
+  --text-3xs: 10px;
+  --text-2xs: 11px;
+  --text-sm-tight: 13px;
+
+  /* ── 기하 ────────────────────────────────────────────────────────────────
+     라운딩 — 2(인디케이터) · 4(배지) · 6(버튼·입력·패널) · 8(카드·모달·메뉴). */
+  --radius-mark: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* 컨트롤 높이는 셋뿐이라 툴바 한 줄에 무엇을 얹어도 줄이 맞는다. 정지 버튼만 예외로 56. */
+  --spacing-control-sm: 28px;
+  --spacing-control-md: 32px;
+  --spacing-control-stop: 56px;
+
+  /* 셸 지오메트리 — 얇은 머리·꼬리 한 줄, 240px 목록 사이드바, 248px 조작 인스펙터. */
+  --spacing-menubar: 36px;
+  --spacing-statusbar: 24px;
+  --spacing-screen-header: 36px;
+  --spacing-sidebar: 240px;
+  --spacing-sidebar-brief: 164px;
+  --spacing-rail: 32px;
+  --spacing-inspector: 248px;
+  --spacing-shell-min: 1180px;
+
+  /* ── 그림자 ──────────────────────────────────────────────────────────────
+     표면이 겹칠 때만 쓴다(카드 hover · 메뉴 · 토스트 · 모달). 평상시 구분은 1px 보더. */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* ── 모션 ────────────────────────────────────────────────────────────────
+     색 전환 150ms가 거의 전부다. 값이 1초에 여러 번 갱신되는 화면이라 위치·크기 애니메이션을
+     쓰지 않는다 — 움직임은 '변화'라는 신호를 태워야 하고, 장식이면 알람과 경쟁한다. */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+}

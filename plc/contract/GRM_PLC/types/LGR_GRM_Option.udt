@@ -1,0 +1,11 @@
+﻿TYPE "LGR_GRM_Option"
+VERSION : 0.1
+   STRUCT
+      Mode_SafetyCommission : Bool;
+      Mode_Teaching : Bool;
+      Mode_Scenario : Bool;
+      Mode_TeachingOverride : Bool;
+   END_STRUCT;
+
+END_TYPE
+

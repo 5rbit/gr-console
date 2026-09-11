@@ -1,1 +1,26 @@
-//! gr-proto crate (skeleton)
+//! Typed views of the GR PLC interface. Field names mirror the PLC (PascalCase) so the JSON produced by
+//! `plc-layout` deserializes directly and the frontend sees PLC names verbatim.
+
+pub mod consts;
+pub mod measure;
+pub mod params;
+pub mod station;
+pub mod status;
+pub mod task;
+pub mod wire;
+
+pub use consts::*;
+pub use measure::{ByCode, MeasStat, MeasureLogEntry, Trend};
+pub use params::TaskParams;
+pub use station::{SensorSettings, StationPara};
+pub use status::{RejectInfo, ResponseView, StatusView, TaskStatusBits};
+pub use task::{CellInfo, Header, StockItem, TaskData, TaskKey, TaskType};
+pub use wire::{MemberValue, WireValue};
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProtoError {
+    #[error("json: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("{0}")]
+    Invalid(String),
+}

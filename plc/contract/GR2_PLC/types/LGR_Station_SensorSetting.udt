@@ -1,0 +1,14 @@
+﻿TYPE "LGR_Station_SensorSetting"
+VERSION : 0.1
+   STRUCT
+      IOLinkMasterModule : USInt;
+      IOLinkMasterPort_L : USInt;
+      IOLinkMasterPort_R : USInt;
+      DetectionFactor : Real;
+      AllowRange : Real;
+      L_SensorOffset : Real;
+      R_SensorOffset : Real;
+   END_STRUCT;
+
+END_TYPE
+

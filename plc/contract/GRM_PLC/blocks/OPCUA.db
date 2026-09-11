@@ -1,0 +1,31 @@
+﻿DATA_BLOCK "OPCUA"
+TITLE = INTERFACE
+{ DB_Accessible_From_Webserver := 'FALSE' ;
+ S7_Optimized_Access := 'FALSE' }
+AUTHOR : 'HYUNDAI-MOVEX'
+FAMILY : LGR
+VERSION : 0.1
+NON_RETAIN
+   STRUCT 
+      GRM : Struct
+         CMD : Struct
+            NTP { S7_SetPoint := 'False'} : "LGR_DTL";
+            InterlockByGCS { S7_SetPoint := 'False'} : Array[1..32] of "LGR_Interface_CV_PO";
+         END_STRUCT;
+         STAT : Struct
+            NTP {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;
+            CMDRetry : Array[1..3] of Bool;
+            ForceUse : Array[1..2] of Bool;
+            DoorOpened : Array[1..16] of Bool;
+            StatusCode { S7_SetPoint := 'False'} : "LGR_Equip_StatusDetail";
+         END_STRUCT;
+      END_STRUCT;
+      GR { S7_SetPoint := 'False'} : Array[1..3] of "LGR_Interface_GR";
+      STATION { S7_SetPoint := 'False'} : Array[1..32] of "LGR_STATION";
+   END_STRUCT;
+
+
+BEGIN
+
+END_DATA_BLOCK
+

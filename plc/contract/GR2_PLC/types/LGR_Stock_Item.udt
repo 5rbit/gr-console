@@ -1,0 +1,15 @@
+﻿TYPE "LGR_Stock_Item"
+VERSION : 0.1
+   STRUCT
+      Code : UDInt := 0;
+      Count : USInt := 0;
+      InnerDiameter : Real := 0.0;
+      OuterDiameter : Real := 0.0;
+      LowerBidHeight : Real := 0.0;
+      UpperBidHeight : Real := 0.0;
+      Height : Real := 0.0;
+      DeflectionFactor : Real := 0.0;
+   END_STRUCT;
+
+END_TYPE
+

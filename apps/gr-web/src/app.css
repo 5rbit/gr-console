@@ -1,0 +1,63 @@
+@import 'tailwindcss';
+
+@import './tokens.css';
+
+/* 수동 다크 토글: `dark:` 변형을 [data-theme="dark"]에 바인딩한다. index.html 인라인 스크립트가 최초 페인트
+   전에 localStorage||prefers로 data-theme를 세팅하므로 기존 dark: 클래스가 그대로 동작하고 FOUC가 없다.
+   mx-console은 라이트 전용 설계다 — 기존 `dark:` 변형은 남겨 두되 새 화면에서 늘리지 않는다. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* 모션 지속 — Tailwind v4에 duration 네임스페이스가 없어 @theme 밖에 둔다(유틸리티가 아니라 값이다). */
+:root {
+  --dur-flash: 1200ms;
+}
+
+/* 네이티브 폼 컨트롤·스크롤바가 수동 테마를 따르게(data-theme 우선, 미설정 시 auto). */
+html {
+  color-scheme: light dark;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+/* 셸의 타입 바닥 — 폰트·본문 크기를 한 자리에서 정한다. 조밀한 엔지니어링 화면이라 12px가 기본이다. */
+body {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 값·주소·시각의 숫자는 표에서 자리를 지켜야 한다 — tick·좌표·건수가 폴링마다 흔들리지 않게. */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 값 변경 플래시 — 1초에 여러 번 갱신되는 화면에서 유일한 질문은 "무엇이 방금 바뀌었나"다.
+   갈린 줄을 1.2초 동안 파랑으로 물들이고 **왼쪽 막대도 함께** 사라진다 — 배경만 빠지면
+   막대가 남아 '아직 바뀌는 중'으로 잘못 읽힌다. 글자 표식(★·NEW)은 쓰지 않는다. */
+@keyframes ds-flash {
+  0% {
+    background-color: var(--color-blue-100);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+@keyframes ds-flash-bar {
+  0% {
+    box-shadow: inset 3px 0 0 0 var(--color-blue-500);
+  }
+  100% {
+    box-shadow: inset 3px 0 0 0 transparent;
+  }
+}
+.ds-flash {
+  animation:
+    ds-flash var(--dur-flash) var(--ease-standard) 1,
+    ds-flash-bar var(--dur-flash) var(--ease-standard) 1;
+}
+

@@ -1,0 +1,1283 @@
+﻿DATA_BLOCK "PARA"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   STRUCT 
+      Machine : Struct   // [p001 - p099] 장비 파라미터
+         ID : USInt;   // [p1] Machine ID
+         MachinType : USInt;   // [p2] Machin Type
+         ToolType : USInt;   // [p3] Gripper Type
+         LayoutType : USInt;   // [p4]
+         p5 : USInt;   // [p5]
+         p6 : USInt;   // [p6]
+         p7 : USInt;   // [p7]
+         ModuleCount : USInt;   // [p8] Modele Count
+         AxisCount : USInt;   // [p9] AxisCount
+         XLength : UInt;   // [p10] X-Axis Axis Length
+         XLengthFront : UInt;   // [p11] X-Axis Axis Length Front
+         XLengthRear : UInt;   // [p12] X-Axis Axis Length Rear
+         AntiColMargin_Default : UInt;   // [p13] Collision Margin
+         AntiColMargin_XAC : UInt;   // [p14] Collision Margin
+         AntiColMargin_Pos : UInt;   // [p15] Collision Margin
+         AntiColMargin_Avoid : UInt;   // [p16] Collision Margin
+         p17 : UInt;   // [p17]
+         p18 : UInt;   // [p18]
+         p19 : UInt;   // [p19]
+         Z_Drum_Turn : USInt;   // [p20] Z-Axis Drum Turn
+         Z_BeltInitCount : USInt;   // [p21] Z_BeltInitCount
+         Z_BeltThickness : Real;   // [p22] Z_BeltThickness
+         Z_Drum_Dia : Real;   // [p23] Z-Axis  Drum Diameter
+         Z_GripTipHeight : Real;   // [p24] Z-Axis  GripTip Height
+         p25 : Real;   // [p25]
+         p26 : Real;   // [p26]
+         p27 : Real;   // [p27]
+         p28 : Real;   // [p28]
+         p29 : Real;   // [p29]
+         G_LinkBase : Real;   // [p30] G-Axis LinkBase Length
+         G_TipBase : Real;   // [p31] G-Axis TipBase Length
+         G_Link : Real;   // [p32] G-Axis Link Length
+         G_GHP : Real;   // [p33] G-Axis GHP Length
+         G_Offset : Real;   // [p34] G-Axis ACS Offset
+         G_Tip : Real;   // [p35] G-Axis Tip Length
+         G_LeadScrewPitch : Real;   // [p36] G-Axis Lead Screw Pitch
+         p37 : Real;   // [p37]
+         p38 : Real;   // [p38]
+         p39 : Real;   // [p39]
+         p40 : Real;   // [p40]
+         p41 : Real;   // [p41]
+         p42 : Real;   // [p42]
+         p43 : Real;   // [p43]
+         p44 : Real;   // [p44]
+         p45 : Real;   // [p45]
+         p46 : Real;   // [p46]
+         p47 : Real;   // [p47]
+         p48 : Real;   // [p48]
+         p49 : Real;   // [p49]
+         MotorRefTorque : Array["X".."G"] of Real;   // [p50-p53]
+         p54 : Real;   // [p54]
+         p55 : Real;   // [p55]
+         p56 : Real;   // [p56]
+         p57 : Real;   // [p57]
+         p58 : Real;   // [p58]
+         p59 : Real;   // [p59]
+         p60 : Real;   // [p60]
+         p61 : Real;   // [p61]
+         p62 : Real;   // [p62]
+         p63 : Real;   // [p63]
+         p64 : Real;   // [p64]
+         p65 : Real;   // [p65]
+         p66 : Real;   // [p66]
+         p67 : Real;   // [p67]
+         p68 : Real;   // [p68]
+         p69 : Real;   // [p69]
+         p70 : Real;   // [p70]
+         p71 : Real;   // [p71]
+         p72 : Real;   // [p72]
+         p73 : Real;   // [p73]
+         p74 : Real;   // [p74]
+         p75 : Real;   // [p75]
+         p76 : Real;   // [p76]
+         p77 : Real;   // [p77]
+         p78 : Real;   // [p78]
+         p79 : Real;   // [p79]
+         HomeDogLen : Array["X".."G"] of Real;   // [p80-p83] Home Dog Length
+         p84 : Real;   // [p84]
+         p85 : Real;   // [p85]
+         p86 : Real;   // [p86]
+         p87 : Real;   // [p87]
+         p88 : Real;   // [p88]
+         p89 : Real;   // [p89]
+         p90 : Real;   // [p90]
+         p91 : Real;   // [p91]
+         p92 : Real;   // [p92]
+         p93 : Real;   // [p93]
+         p94 : Real;   // [p94]
+         p95 : Real;   // [p95]
+         CellOriginDogLen : Array["X".."Y"] of Real;   // [p96-p97] Cell Origin Dog Len 
+         StandAloneRangeXMin : Real;   // [p98] StandAlone Range Min
+         StandAloneRangeXMax : Real;   // [p99] StandAlone Range Max
+      END_STRUCT;
+      "Network" : Struct   // [p100 - p149] 네트워크 파라미터
+         Device : Array[0..3] of Byte;
+         GR1 : Array[0..3] of Byte;
+         GR2 : Array[0..3] of Byte;
+         GR3 : Array[0..3] of Byte;
+         GCS : Array[0..3] of Byte;
+         GRM : Array[0..3] of Byte;
+      END_STRUCT;
+      DI_Config { S7_SetPoint := 'False'} : "GR_DI_Config";   // [p150 - p299] DI Config (Reserved 영역 포함)
+      DQ_Config : "GR_DQ_Config";   // [p300 - p399] DQ Config (Reserved 영역 포함)
+      Sensor : Struct   // [p400 - p499] Sensor 파라미터
+         ItemDetectDistance_LL : Real;   // [p400]
+         ItemDetectDistance_L : Real;   // [p401]
+         ItemDetectDistance_M : Real;   // [p402]
+         ItemDetectDistance_H : Real;   // [p403]
+         p404 : Real;
+         p405 : Real;
+         p406 : Real;
+         p407 : Real;
+         p408 : Real;
+         FLD_AntiColDistance : Real;   // [p409] FLD_AntiColDistance
+         FLD_Offset : Real;   // [p410] FLDOffset
+         XACF_Offset : Real;   // [p411] XAC_Front_Offset
+         XACR_Offset : Real;   // [p412] XAC_Rear_Offset
+         GIDL_Offset : Real;   // [p413] GDL Offset
+         GIDF_Offset : Real;   // [p414] GDF Offset
+         GIDR_Offset : Real;   // [p415] GDR Offset
+         GIDB_Offset : Real;   // [p416] GDB Offset
+         GIDType : USInt;
+         p418 : Real;
+         p419 : Real;
+         p420 : Real;
+         p421 : Real;
+         p422 : Real;
+         p423 : Real;
+         p424 : Real;
+         p425 : Real;
+         p426 : Real;
+         p427 : Real;
+         p428 : Real;
+         p429 : Real;
+         p430 : Real;
+         X1RD_Offset : Real;   // [p431] X1RD Offset
+         X2RD_Offset : Real;   // [p432] X2RD Offset
+         p433 : Real;
+         p434 : Real;
+         p435 : Real;
+         p436 : Real;
+         p437 : Real;
+         p438 : Real;
+         p439 : Real;
+         p440 : Real;
+         p441 : Real;
+         p442 : Real;
+         p443 : Real;
+         p444 : Real;
+         p445 : Real;
+         p446 : Real;
+         p447 : Real;
+         p448 : Real;
+         p449 : Real;
+         p450 : Real;
+         p451 : Real;
+         p452 : Real;
+         p453 : Real;
+         p454 : Real;
+         p455 : Real;
+         p456 : Real;
+         p457 : Real;
+         p458 : Real;
+         p459 : Real;
+         p460 : Real;
+         p461 : Real;
+         p462 : Real;
+         p463 : Real;
+         p464 : Real;
+         p465 : Real;
+         p466 : Real;
+         p467 : Real;
+         p468 : Real;
+         p469 : Real;
+         p470 : Real;
+         p471 : Real;
+         p472 : Real;
+         p473 : Real;
+         p474 : Real;
+         p475 : Real;
+         p476 : Real;
+         p477 : Real;
+         p478 : Real;
+         p479 : Real;
+         p480 : Real;
+         p481 : Real;
+         p482 : Real;
+         p483 : Real;
+         p484 : Real;
+         p485 : Real;
+         p486 : Real;
+         p487 : Real;
+         p488 : Real;
+         p489 : Real;
+         p490 : Real;
+         p491 : Real;
+         p492 : Real;
+         p493 : Real;
+         p494 : Real;
+         p495 : Real;
+         p496 : Real;
+         p497 : Real;
+         p498 : Real;
+         p499 : Real;
+      END_STRUCT;
+      Drive : Struct   // [p500 - p899] Drive
+         SpeedFactor : Array["X".."G"] of Real;   // [p500-p515] 축 속도 배율 %
+         PIN : Array["X".."G"] of Real;   // [p516-p531] 축 정위치 범위 
+         PIH : Array["X".."G"] of Real;   // [p532-p547] 축 정위치 해제 범위  
+         StandStillSpd : Array["X".."G"] of Real;   // [p548-p563]축 정지 결정 속도 (m/s) 파라미터
+         StandStillDwellTime : Array["X".."G"] of Real;   // [p564-p579] 축 정지 결정 시간 파라미터
+         FaultMargin : Array["X".."G"] of Real;   // [p580-p595] 축 포지셔닝 명령 허용 오차 파라미터(mm) 
+         JogTorqLimit : Array["X".."G"] of Real;   // [p596-p611] 축 조그 기동 시 토크 리미트(%) 파라미터
+         InverseHomingDir : Array["X".."G"] of USInt;   // [p612-p627] Homing 방향 변경 파라메터
+         RangeMin : Array["X".."G"] of Real;   // [p628-p643] 축 가동 최소 범위
+         RangeMax : Array["X".."G"] of Real;   // [p644-p659] 축 가동 최소 범위
+         HomePos : Array["X".."G"] of Real;   // [p660-p675] 축 홈 위치
+         MaintPos : Array["X".."G"] of Real;   // [p676-p691] 축 Maintenance 위치
+         UtilityPos_A : Array["X".."G"] of Real;   // [p692-p707] Utility Pos A
+         UtilityPos_B : Array["X".."G"] of Real;   // [p708-p723] Utility Pos B
+         CellOriginPos : Array["X".."Y"] of Real;   // [p756-p757] Cell Layout 원점
+         SyncFltDiff : Real;   // [p772] X1, X2축 동기 오차 Fault 거리 파라미터
+         SyncFltDiffMarginByVelocity : Real;   // [p773] X1, X2축 동기 오차 Fault 감지 거리 속도 마진 파라미터
+         OriginPos : Array["X".."G"] of Real;   // [p784..p799] 드라이브 원점 위치 (ACS)
+         MCS_TO_ACS : Array["X".."G", 0..2] of Real;   // [p800..p849] ACS 변환 계수
+         ACS_TO_MCS : Array["X".."G", 0..2] of Real;   // [p850..p899] MCS 변환 계수
+      END_STRUCT;
+      Task : Struct   // [p900 - p999] Task
+         CheckStation : Bool;   // [p900] 명령 수행 시 Station Interlock 확인 여부 파라미터 
+         CheckGoods : Bool;   // [p901] 명령 수행 시 물체 감지 센서 사용 여부, PICK 인 경우 타이어 빠짐 Detection
+         CheckCellUse : Bool;   // [p902] 명령 수행 시 Cell 사용 여부 파라미터
+         CheckCollision : Bool;   // [p903] 명령 수행 시 충돌방지 로직 사용 여부 파라미터
+         EnablePreGrip : Bool;   // [p904] 명령 수행 시 PreGrip 사용 여부, PreGrip : PICK 명령 시 Gripper 를 PreGripDelta 거리 만큼 미리 이동 시키는 기능
+         EnableCreepUp : Bool;   // [p905] PICK 명령 수행 이후 저속 들기 사용 여부 파라미터
+         EnableCreepDown : Bool;   // [p906] DROP 명령 수행 시 저속 내려 놓기 사용 여부 파라미터
+         EnableTorqBack : Bool;   // [p907] 명령 수행 시 일정 구간 Gripper TorqRelease 사용 여부 파라미터 
+         EnableInitializingBeforeAuto : Bool;   // [p908] 명령 수행 전 Initializing 확인 여부 파라미터
+         p909 : Bool;   // [p909]
+         p910 : Bool;   // [p910]
+         p911 : Bool;   // [p911]
+         p912 : Bool;   // [p912]
+         p913 : Bool;   // [p913]
+         p914 : Bool;   // [p914]
+         p915 : Bool;   // [p915]
+         p916 : Bool;   // [p916]
+         p917 : Bool;   // [p917]
+         p918 : Bool;   // [p918]
+         p919 : Bool;   // [p919]
+         p920 : Bool;   // [p920]
+         p921 : Bool;   // [p921]
+         p922 : Bool;   // [p922]
+         p923 : Bool;   // [p923]
+         p924 : Bool;   // [p924]
+         p925 : Bool;   // [p925]
+         p926 : Bool;   // [p926]
+         p927 : Bool;   // [p927]
+         p928 : Bool;   // [p928]
+         p929 : Bool;   // [p929]
+         BlendingDistance : Real;   // [p930] XYZ 블랜딩 거리(mm) 파라미터
+         MoveAllowZHeight : Real;   // [p931] XY 동작 허용 Z 높이(mm) 파라미터
+         StationGoodsGap : Real;   // [p932] Station 다스택 적재 시 타이어 간의 거리 파라미터
+         StationDragDistance : Real;   // [p933] Station 명령 시 Drag 이동 거리 파라미터
+         StationDragHeight : Real;   // [p934] Station 명령 시 Drag 동작 시작 높이 파라미터
+         StationDragBlendDistance : Real;   // [p935] Station 명령시 Drage 동작 Blending 거리 파라미터
+         PickSlowDownDistance : Real;   // [p936] PICK 명령 수행 저속 운행 거리 여부 파라미터
+         DropSlowDownDistance : Real;   // [p937] DROP 명령 수행 저속 운행 거리 여부 파라미터
+         DropOffset : Real;   // [p938] DROP 명령 수행 시 Z축 DROP 포지션 Offset 파라미터, 지정된 포지션 + Offset 위치에 DROP 명령을 수행 하게 됨
+         PreGripDelta : Real;   // [p939] 명령 수행 중 PREGRIP시 타이어와의 거리 파라미터
+         G_DropTorq_Factor : Real;   // [p940] DROP 명령 수행 시 Gripper Torq(%)  파라미터 
+         G_PickTorq_Factor : Real;   // [p941] PICK 명령 수행 시 Gripper Torq(%)  파라미터 
+         G_TorqLimitAllowDistance : Real;   // [p942] Gripper Torq 리미트 동작 시 Inposition 허용 거리(mm) 파라미터
+         G_TorqRelease_Factor : Real;   // [p943] Gripper Torq Release 동작시 토크 제한 해제 % 파라미터
+         G_TorqReleaseRemainZHeight : Real;   // [p944] Gripper Torq Release 동작 높이 (mm) 파라미터
+         G_PickGripOffset : Real;   // [p945] Gripper PICK 명령시 Gripper Position Offset (mm) 파라미터
+         G_PickGripOffset_Factor : Real;   // [p946] Gripper PICK 명령시 Gripper Position Offset (%) 파라미터, 명령 Position에 대한 추가 %를 의미한다
+         PreDropHeight_Factor : Real;   // [p947] PreGrip Drop시 명령시 시작 Z 위치
+         PrePickHeight_Factor : Real;   // [p948] PreGrip Pick 명령시 타이어 높이 대비 시작 위치 %
+         p949 : Real;   // [p949]
+         p950 : Real;   // [p950]
+         p951 : Real;   // [p951]
+         p952 : Real;   // [p952]
+         p953 : Real;   // [p953]
+         p954 : Real;   // [p954]
+         p955 : Real;   // [p955]
+         p956 : Real;   // [p956]
+         p957 : Real;   // [p957]
+         p958 : Real;   // [p958]
+         p959 : Real;   // [p959]
+         pickRetryCountMax : USInt;   // [p960]
+         p961 : Real;   // [p961]
+         p962 : Real;   // [p962]
+         p963 : Real;   // [p963]
+         p964 : Real;   // [p964]
+         p965 : Real;   // [p965]
+         p966 : Real;   // [p966]
+         p967 : Real;   // [p967]
+         p968 : Real;   // [p968]
+         p969 : Real;   // [p969]
+         Pick_GripExtra : Real;   // [p970]
+         Pick_GripBackDelta : Real;   // [p971]
+         p972 : Real;   // [p972]
+         p973 : Real;   // [p973]
+         p974 : Real;   // [p974]
+         p975 : Real;   // [p975]
+         p976 : Real;   // [p976]
+         p977 : Real;   // [p977]
+         p978 : Real;   // [p978]
+         p979 : Real;   // [p979]
+         p980 : Real;   // [p980]
+         p981 : Real;   // [p981]
+         p982 : Real;   // [p982]
+         p983 : Real;   // [p983]
+         p984 : Real;   // [p984]
+         p985 : Real;   // [p985]
+         p986 : Real;   // [p986]
+         p987 : Real;   // [p987]
+         p988 : Real;   // [p988]
+         p989 : Real;   // [p989]
+         p990 : Real;   // [p990]
+         p991 : Real;   // [p991]
+         p992 : Real;   // [p992]
+         p993 : Real;   // [p993]
+         p994 : Real;   // [p994]
+         p995 : Real;   // [p995]
+         p996 : Real;   // [p996]
+         p997 : Real;   // [p997]
+         p998 : Real;   // [p998]
+         p999 : Real;   // [p999]
+      END_STRUCT;
+      Timeout : Struct   // [p1000 - p1099] Timout 
+         PowerOn : Real;   // [p1000]  PowerOn 단계에서 TimeOut (ms) 파라미터, 1000ms = 1.0s
+         DriveOn : Real;   // [p1001]  DriveOn 단계에서 TimeOut (ms) 파라미터, 1000ms = 1.0s
+         DriveOffDly : Real;   // [p1002]  IDLE 상태에서 Drive Off 동작 타이머(ms), 1000ms = 1.0s
+         DriveOffDlyForJog : Real;   // [p1003]  Manual, JOG 동작 시 Drive Off 동작 타이머(ms), 1000ms = 1.0s
+         DriveReady : Real;   // [p1004]  명령 실행 전 DriveReady TimeOut 파라미터(ms), 1000ms=1.0s
+         p1005 : Real;
+         p1006 : Real;
+         p1007 : Real;
+         p1008 : Real;
+         p1009 : Real;
+         SetOrigin : Array["X".."X2"] of Real;   // [p1010-p1025] 축 원점 이동 Timeout
+         p1026 : Real;   // [p1026]
+         p1027 : Real;   // [p1027]
+         p1028 : Real;   // [p1028]
+         p1029 : Real;   // [p1029]
+         BeltTentionOnDlyTime : Real;   // [p1030]
+         p1031 : Real;   // [p1031]
+         p1032 : Real;   // [p1032]
+         p1033 : Real;   // [p1033]
+         p1034 : Real;   // [p1034]
+         p1035 : Real;   // [p1035]
+         p1036 : Real;   // [p1036]
+         p1037 : Real;   // [p1037]
+         p1038 : Real;   // [p1038]
+         p1039 : Real;   // [p1039]
+         p1040 : Real;   // [p1040]
+         p1041 : Real;   // [p1041]
+         p1042 : Real;   // [p1042]
+         p1043 : Real;   // [p1043]
+         p1044 : Real;   // [p1044]
+         p1045 : Real;   // [p1045]
+         p1046 : Real;   // [p1046]
+         p1047 : Real;   // [p1047]
+         p1048 : Real;   // [p1048]
+         p1049 : Real;   // [p1049]
+         p1050 : Real;   // [p1050]
+         p1051 : Real;   // [p1051]
+         p1052 : Real;   // [p1052]
+         p1053 : Real;   // [p1053]
+         p1054 : Real;   // [p1054]
+         p1055 : Real;   // [p1055]
+         p1056 : Real;   // [p1056]
+         p1057 : Real;   // [p1057]
+         p1058 : Real;   // [p1058]
+         p1059 : Real;   // [p1059]
+         CVInterlock : Real;   // [p1060]  Station InterLock TimOut 파라미터(ms), 1000ms=1.0s
+         p1061 : Real;   // [p1061]
+         p1062 : Real;   // [p1062]
+         p1063 : Real;   // [p1063]
+         p1064 : Real;   // [p1064]
+         p1065 : Real;   // [p1065]
+         p1066 : Real;   // [p1066]
+         p1067 : Real;   // [p1067]
+         p1068 : Real;   // [p1068]
+         p1069 : Real;   // [p1069]
+         p1070 : Real;   // [p1070]
+         p1071 : Real;   // [p1071]
+         p1072 : Real;   // [p1072]
+         p1073 : Real;   // [p1073]
+         p1074 : Real;   // [p1074]
+         p1075 : Real;   // [p1075]
+         p1076 : Real;   // [p1076]
+         p1077 : Real;   // [p1077]
+         p1078 : Real;   // [p1078]
+         p1079 : Real;   // [p1079]
+         p1080 : Real;   // [p1080]
+         p1081 : Real;   // [p1081]
+         p1082 : Real;   // [p1082]
+         p1083 : Real;   // [p1083]
+         p1084 : Real;   // [p1084]
+         p1085 : Real;   // [p1085]
+         p1086 : Real;   // [p1086]
+         p1087 : Real;   // [p1087]
+         p1088 : Real;   // [p1088]
+         p1089 : Real;   // [p1089]
+         CommGRM : Real;   // [p1090]  Mainpanel 통신 TimeOut 파라미터(ms),1000ms=1.0s
+         CommGCS : Real;   // [p1091]  GCS 통신 TimeOut 파라미터(ms),1000ms=1.0s
+         CommFrontGR : Real;   // [p1092]  GCS 통신 TimeOut 파라미터(ms),1000ms=1.0s
+         CommRearGR : Real;   // [p1093]  GCS 통신 TimeOut 파라미터(ms),1000ms=1.0s
+         p1094 : Real;   // [p1094]
+         p1095 : Real;   // [p1095]
+         p1096 : Real;   // [p1096]
+         p1097 : Real;   // [p1097]
+         CsvImport : Real;   // [p1098]  파라미터 파일(CSV) 읽기 TimeOut 파라미터(s)
+         CsvExport : Real;   // [p1099]  파라미터 파일(CSV) 쓰기 TimeOut 파라미터(s)
+      END_STRUCT;
+      SpeedSet { S7_SetPoint := 'False'} : Array["X".."G", 0..9] of "LGR_PARA_SpeedSet";   // [p1100 - p1799] SpeedSet
+   END_STRUCT;
+
+
+BEGIN
+   Machine.ID := 2;
+   Machine.MachinType := 2;
+   Machine.ToolType := 2;
+   Machine.LayoutType := 0;
+   Machine.p5 := 0;
+   Machine.p6 := 0;
+   Machine.p7 := 0;
+   Machine.ModuleCount := 3;
+   Machine.AxisCount := 4;
+   Machine.XLength := 3000;
+   Machine.XLengthFront := 1903;
+   Machine.XLengthRear := 1903;
+   Machine.AntiColMargin_Default := 100;
+   Machine.AntiColMargin_XAC := 200;
+   Machine.AntiColMargin_Pos := 300;
+   Machine.AntiColMargin_Avoid := 400;
+   Machine.p17 := 0;
+   Machine.p18 := 0;
+   Machine.p19 := 0;
+   Machine.Z_Drum_Turn := 0;
+   Machine.Z_BeltInitCount := 0;
+   Machine.Z_BeltThickness := 0.0;
+   Machine.Z_Drum_Dia := 0.0;
+   Machine.Z_GripTipHeight := 10.0;
+   Machine.p25 := 0.0;
+   Machine.p26 := 0.0;
+   Machine.p27 := 0.0;
+   Machine.p28 := 0.0;
+   Machine.p29 := 0.0;
+   Machine.G_LinkBase := 62.0;
+   Machine.G_TipBase := 25.6;
+   Machine.G_Link := 265.0;
+   Machine.G_GHP := 261.65;
+   Machine.G_Offset := 4.76;
+   Machine.G_Tip := 17.0;
+   Machine.G_LeadScrewPitch := 20.0;
+   Machine.p37 := 0.0;
+   Machine.p38 := 0.0;
+   Machine.p39 := 0.0;
+   Machine.p40 := 60.0;
+   Machine.p41 := 0.0;
+   Machine.p42 := 0.0;
+   Machine.p43 := 0.0;
+   Machine.p44 := 0.0;
+   Machine.p45 := 0.0;
+   Machine.p46 := 0.0;
+   Machine.p47 := 0.0;
+   Machine.p48 := 0.0;
+   Machine.p49 := 0.0;
+   Machine.MotorRefTorque[1] := 69.0;
+   Machine.MotorRefTorque[2] := 45.0;
+   Machine.MotorRefTorque[3] := 68.0;
+   Machine.MotorRefTorque[4] := 6.5;
+   Machine.p54 := 0.0;
+   Machine.p55 := 0.0;
+   Machine.p56 := 0.0;
+   Machine.p57 := 0.0;
+   Machine.p58 := 0.0;
+   Machine.p59 := 0.0;
+   Machine.p60 := 0.0;
+   Machine.p61 := 0.0;
+   Machine.p62 := 0.0;
+   Machine.p63 := 0.0;
+   Machine.p64 := 0.0;
+   Machine.p65 := 0.0;
+   Machine.p66 := 0.0;
+   Machine.p67 := 0.0;
+   Machine.p68 := 0.0;
+   Machine.p69 := 0.0;
+   Machine.p70 := 0.0;
+   Machine.p71 := 0.0;
+   Machine.p72 := 0.0;
+   Machine.p73 := 0.0;
+   Machine.p74 := 0.0;
+   Machine.p75 := 0.0;
+   Machine.p76 := 0.0;
+   Machine.p77 := 0.0;
+   Machine.p78 := 0.0;
+   Machine.p79 := 0.0;
+   Machine.HomeDogLen[1] := 20.0;
+   Machine.HomeDogLen[2] := 20.0;
+   Machine.HomeDogLen[3] := 40.0;
+   Machine.HomeDogLen[4] := 4.0;
+   Machine.p84 := 0.0;
+   Machine.p85 := 0.0;
+   Machine.p86 := 0.0;
+   Machine.p87 := 0.0;
+   Machine.p88 := 0.0;
+   Machine.p89 := 0.0;
+   Machine.p90 := 0.0;
+   Machine.p91 := 0.0;
+   Machine.p92 := 0.0;
+   Machine.p93 := 0.0;
+   Machine.p94 := 0.0;
+   Machine.p95 := 0.0;
+   Machine.CellOriginDogLen[1] := 20.0;
+   Machine.CellOriginDogLen[2] := 20.0;
+   Machine.StandAloneRangeXMin := 4300.0;
+   Machine.StandAloneRangeXMax := 12500.0;
+   "Network".Device[0] := 16#C0;
+   "Network".Device[1] := 16#A8;
+   "Network".Device[2] := 16#01;
+   "Network".Device[3] := 16#66;
+   "Network".GR1[0] := 16#C0;
+   "Network".GR1[1] := 16#A8;
+   "Network".GR1[2] := 16#01;
+   "Network".GR1[3] := 16#65;
+   "Network".GR2[0] := 16#C0;
+   "Network".GR2[1] := 16#A8;
+   "Network".GR2[2] := 16#01;
+   "Network".GR2[3] := 16#66;
+   "Network".GR3[0] := 16#C0;
+   "Network".GR3[1] := 16#A8;
+   "Network".GR3[2] := 16#01;
+   "Network".GR3[3] := 16#67;
+   "Network".GCS[0] := 16#C0;
+   "Network".GCS[1] := 16#A8;
+   "Network".GCS[2] := 16#0A;
+   "Network".GCS[3] := 16#96;
+   "Network".GRM[0] := 16#C0;
+   "Network".GRM[1] := 16#A8;
+   "Network".GRM[2] := 16#01;
+   "Network".GRM[3] := 16#64;
+   DI_Config.MC_Feed_SD_POWER := FALSE;
+   DI_Config.LSW_DOOR01 := FALSE;
+   DI_Config.LSW_DOOR02 := FALSE;
+   DI_Config.LSW_DOOR03 := FALSE;
+   DI_Config.SPARE := FALSE;
+   DI_Config.TEMP_PANEL := FALSE;
+   DI_Config.SPARE_1 := FALSE;
+   DI_Config.SPARE_2 := FALSE;
+   DI_Config.FAN_1_ON := FALSE;
+   DI_Config.FAN_2_ON := FALSE;
+   DI_Config.FAN_3_ON := FALSE;
+   DI_Config.FAN_4_ON := FALSE;
+   DI_Config.FAN_5_ON := FALSE;
+   DI_Config.FAN_6_ON := FALSE;
+   DI_Config.SPARE_3 := FALSE;
+   DI_Config.SPARE_4 := FALSE;
+   DI_Config.SPARE_5 := FALSE;
+   DI_Config.MCCB_SD_Power_Ok := FALSE;
+   DI_Config.MCB_PS01_Ok := FALSE;
+   DI_Config.MCB_PS02_Ok := FALSE;
+   DI_Config.MCB_PS03_Ok := FALSE;
+   DI_Config.MCB_PS04_Ok := FALSE;
+   DI_Config.MCB_PS05_Ok := FALSE;
+   DI_Config.SUB_PS01_Ok := FALSE;
+   DI_Config.SUB_PS02_Ok := FALSE;
+   DI_Config.SUB_PS03_Ok := FALSE;
+   DI_Config.SUB_PS04_Ok := FALSE;
+   DI_Config.SUB_PS05_Ok := FALSE;
+   DI_Config.SPARE_6 := FALSE;
+   DI_Config.SPARE_7 := FALSE;
+   DI_Config.SPARE_8 := FALSE;
+   DI_Config.SPARE_9 := FALSE;
+   DI_Config.MCB_PLC_Ok := FALSE;
+   DI_Config.MCB_SPLC_Ok := FALSE;
+   DI_Config.MCB_RIO_Ok := FALSE;
+   DI_Config.MCB_Sensor_Ok := FALSE;
+   DI_Config.MCB_BZ_TL_Ok := FALSE;
+   DI_Config.SPARE_10 := FALSE;
+   DI_Config.MCB_Hub01_Ok := FALSE;
+   DI_Config.MCB_Hub02_Ok := FALSE;
+   DI_Config.MCB_AP_Ok := FALSE;
+   DI_Config.MCB_FAN_Ok := FALSE;
+   DI_Config.MCB_PanelLamp_Ok := FALSE;
+   DI_Config.MCB_HandTouch_Ok := FALSE;
+   DI_Config.MCB_G_BRAKE_Ok := FALSE;
+   DI_Config.MCB_Z_FAN_Ok := FALSE;
+   DI_Config.MCB_DRIVE_DC_POWER_Ok := FALSE;
+   DI_Config.SPARE_11 := FALSE;
+   DI_Config.Reserved_0 := FALSE;
+   DI_Config.Reserved_1 := FALSE;
+   DI_Config.Reserved_2 := FALSE;
+   DI_Config.Reserved_3 := FALSE;
+   DI_Config.Reserved_4 := FALSE;
+   DI_Config.Reserved_5 := FALSE;
+   DI_Config.Reserved_6 := FALSE;
+   DI_Config.Reserved_7 := FALSE;
+   DI_Config.Reserved_8 := FALSE;
+   DI_Config.Reserved_9 := FALSE;
+   DI_Config.Reserved_10 := FALSE;
+   DI_Config.Reserved_11 := FALSE;
+   DI_Config.Reserved_12 := FALSE;
+   DI_Config.Reserved_13 := FALSE;
+   DI_Config.Reserved_14 := FALSE;
+   DI_Config.Reserved_15 := FALSE;
+   DI_Config.Reserved_16 := FALSE;
+   DI_Config.Reserved_17 := FALSE;
+   DI_Config.Reserved_18 := FALSE;
+   DI_Config.Reserved_19 := FALSE;
+   DI_Config.Reserved_20 := FALSE;
+   DI_Config.Reserved_21 := FALSE;
+   DI_Config.Reserved_22 := FALSE;
+   DI_Config.Reserved_23 := FALSE;
+   DI_Config.Reserved_24 := FALSE;
+   DI_Config.Reserved_25 := FALSE;
+   DI_Config.Reserved_26 := FALSE;
+   DI_Config.Reserved_27 := FALSE;
+   DI_Config.Reserved_28 := FALSE;
+   DI_Config.Reserved_29 := FALSE;
+   DI_Config.Reserved_30 := FALSE;
+   DI_Config.Reserved_31 := FALSE;
+   DI_Config.Reserved_32 := FALSE;
+   DI_Config.Reserved_33 := FALSE;
+   DI_Config.Reserved_34 := FALSE;
+   DI_Config.Reserved_35 := FALSE;
+   DI_Config.Reserved_36 := FALSE;
+   DI_Config.Reserved_37 := FALSE;
+   DI_Config.Reserved_38 := FALSE;
+   DI_Config.Reserved_39 := FALSE;
+   DI_Config.Reserved_40 := FALSE;
+   DI_Config.Reserved_41 := FALSE;
+   DI_Config.Reserved_42 := FALSE;
+   DI_Config.Reserved_43 := FALSE;
+   DI_Config.Reserved_44 := FALSE;
+   DI_Config.Reserved_45 := FALSE;
+   DI_Config.Reserved_46 := FALSE;
+   DI_Config.Reserved_47 := FALSE;
+   DI_Config.Reserved_48 := FALSE;
+   DI_Config.Reserved_49 := FALSE;
+   DI_Config.Reserved_50 := FALSE;
+   DI_Config.Reserved_51 := FALSE;
+   DI_Config.Reserved_52 := FALSE;
+   DI_Config.Reserved_53 := FALSE;
+   DI_Config.Reserved_54 := FALSE;
+   DI_Config.Reserved_55 := FALSE;
+   DI_Config.Reserved_56 := FALSE;
+   DI_Config.Reserved_57 := FALSE;
+   DI_Config.Reserved_58 := FALSE;
+   DI_Config.Reserved_59 := FALSE;
+   DI_Config.Reserved_60 := FALSE;
+   DI_Config.Reserved_61 := FALSE;
+   DI_Config.Reserved_62 := FALSE;
+   DI_Config.Reserved_63 := FALSE;
+   DI_Config.Reserved_64 := FALSE;
+   DI_Config.Reserved_65 := FALSE;
+   DI_Config.Reserved_66 := FALSE;
+   DI_Config.Reserved_67 := FALSE;
+   DI_Config.Reserved_68 := FALSE;
+   DI_Config.Reserved_69 := FALSE;
+   DI_Config.Reserved_70 := FALSE;
+   DI_Config.Reserved_71 := FALSE;
+   DI_Config.Reserved_72 := FALSE;
+   DI_Config.Reserved_73 := FALSE;
+   DI_Config.Reserved_74 := FALSE;
+   DI_Config.Reserved_75 := FALSE;
+   DI_Config.Reserved_76 := FALSE;
+   DI_Config.Reserved_77 := FALSE;
+   DI_Config.Reserved_78 := FALSE;
+   DI_Config.Reserved_79 := FALSE;
+   DQ_Config.SOL_SD01_Signal := FALSE;
+   DQ_Config.SOL_SD02_Signal := FALSE;
+   DQ_Config.SOL_SD03_Signal := FALSE;
+   DQ_Config.SOL_SD04_Signal := FALSE;
+   DQ_Config.SOL_SD05_Signal := FALSE;
+   DQ_Config."SEVOCONTROL ON" := FALSE;
+   DQ_Config."PENDANT AUTO" := FALSE;
+   DQ_Config."PENDANT TEACH" := FALSE;
+   DQ_Config.SPARE := FALSE;
+   DQ_Config.SPARE_1 := FALSE;
+   DQ_Config.SPARE_2 := FALSE;
+   DQ_Config.SPARE_3 := FALSE;
+   DQ_Config.SPARE_4 := FALSE;
+   DQ_Config.SPARE_5 := FALSE;
+   DQ_Config.SPARE_6 := FALSE;
+   DQ_Config.SPARE_7 := FALSE;
+   DQ_Config.TL_RED := FALSE;
+   DQ_Config.TL_YELLOW := FALSE;
+   DQ_Config.TL_GREEN := FALSE;
+   DQ_Config.TL_BLUE := FALSE;
+   DQ_Config.BZ_CH1 := FALSE;
+   DQ_Config.BZ_CH2 := FALSE;
+   DQ_Config.BZ_CH3 := FALSE;
+   DQ_Config.BZ_CH4 := FALSE;
+   DQ_Config.SPARE_8 := FALSE;
+   DQ_Config.SPARE_9 := FALSE;
+   DQ_Config.SPARE_10 := FALSE;
+   DQ_Config.SPARE_11 := FALSE;
+   DQ_Config.SPARE_12 := FALSE;
+   DQ_Config.SPARE_13 := FALSE;
+   DQ_Config.SPARE_14 := FALSE;
+   DQ_Config.SPARE_15 := FALSE;
+   DQ_Config.Reserved_0 := FALSE;
+   DQ_Config.Reserved_1 := FALSE;
+   DQ_Config.Reserved_2 := FALSE;
+   DQ_Config.Reserved_3 := FALSE;
+   DQ_Config.Reserved_4 := FALSE;
+   DQ_Config.Reserved_5 := FALSE;
+   DQ_Config.Reserved_6 := FALSE;
+   DQ_Config.Reserved_7 := FALSE;
+   DQ_Config.Reserved_8 := FALSE;
+   DQ_Config.Reserved_9 := FALSE;
+   DQ_Config.Reserved_10 := FALSE;
+   DQ_Config.Reserved_11 := FALSE;
+   DQ_Config.Reserved_12 := FALSE;
+   DQ_Config.Reserved_13 := FALSE;
+   DQ_Config.Reserved_14 := FALSE;
+   DQ_Config.Reserved_15 := FALSE;
+   DQ_Config.Reserved_16 := FALSE;
+   DQ_Config.Reserved_17 := FALSE;
+   DQ_Config.Reserved_18 := FALSE;
+   DQ_Config.Reserved_19 := FALSE;
+   DQ_Config.Reserved_20 := FALSE;
+   DQ_Config.Reserved_21 := FALSE;
+   DQ_Config.Reserved_22 := FALSE;
+   DQ_Config.Reserved_23 := FALSE;
+   DQ_Config.Reserved_24 := FALSE;
+   DQ_Config.Reserved_25 := FALSE;
+   DQ_Config.Reserved_26 := FALSE;
+   DQ_Config.Reserved_27 := FALSE;
+   DQ_Config.Reserved_28 := FALSE;
+   DQ_Config.Reserved_29 := FALSE;
+   DQ_Config.Reserved_30 := FALSE;
+   DQ_Config.Reserved_31 := FALSE;
+   Sensor.ItemDetectDistance_LL := 15.0;
+   Sensor.ItemDetectDistance_L := 0.0;
+   Sensor.ItemDetectDistance_M := 300.0;
+   Sensor.ItemDetectDistance_H := 800.0;
+   Sensor.p404 := 0.0;
+   Sensor.p405 := 0.0;
+   Sensor.p406 := 0.0;
+   Sensor.p407 := 0.0;
+   Sensor.p408 := 0.0;
+   Sensor.FLD_AntiColDistance := 40.0;
+   Sensor.FLD_Offset := 62.0;
+   Sensor.XACF_Offset := 755.0;
+   Sensor.XACR_Offset := 755.0;
+   Sensor.GIDL_Offset := 41.0;
+   Sensor.GIDF_Offset := 41.0;
+   Sensor.GIDR_Offset := 41.0;
+   Sensor.GIDB_Offset := 41.0;
+   Sensor.GIDType := 0;
+   Sensor.p418 := 0.0;
+   Sensor.p419 := 0.0;
+   Sensor.p420 := 0.0;
+   Sensor.p421 := 0.0;
+   Sensor.p422 := 0.0;
+   Sensor.p423 := 0.0;
+   Sensor.p424 := 0.0;
+   Sensor.p425 := 0.0;
+   Sensor.p426 := 0.0;
+   Sensor.p427 := 0.0;
+   Sensor.p428 := 0.0;
+   Sensor.p429 := 0.0;
+   Sensor.p430 := 0.0;
+   Sensor.X1RD_Offset := 0.0;
+   Sensor.X2RD_Offset := 0.0;
+   Sensor.p433 := 0.0;
+   Sensor.p434 := 0.0;
+   Sensor.p435 := 0.0;
+   Sensor.p436 := 0.0;
+   Sensor.p437 := 0.0;
+   Sensor.p438 := 0.0;
+   Sensor.p439 := 0.0;
+   Sensor.p440 := 0.0;
+   Sensor.p441 := 0.0;
+   Sensor.p442 := 0.0;
+   Sensor.p443 := 0.0;
+   Sensor.p444 := 0.0;
+   Sensor.p445 := 0.0;
+   Sensor.p446 := 0.0;
+   Sensor.p447 := 0.0;
+   Sensor.p448 := 0.0;
+   Sensor.p449 := 0.0;
+   Sensor.p450 := 0.0;
+   Sensor.p451 := 0.0;
+   Sensor.p452 := 0.0;
+   Sensor.p453 := 0.0;
+   Sensor.p454 := 0.0;
+   Sensor.p455 := 0.0;
+   Sensor.p456 := 0.0;
+   Sensor.p457 := 0.0;
+   Sensor.p458 := 0.0;
+   Sensor.p459 := 0.0;
+   Sensor.p460 := 0.0;
+   Sensor.p461 := 0.0;
+   Sensor.p462 := 0.0;
+   Sensor.p463 := 0.0;
+   Sensor.p464 := 0.0;
+   Sensor.p465 := 0.0;
+   Sensor.p466 := 0.0;
+   Sensor.p467 := 0.0;
+   Sensor.p468 := 0.0;
+   Sensor.p469 := 0.0;
+   Sensor.p470 := 0.0;
+   Sensor.p471 := 0.0;
+   Sensor.p472 := 0.0;
+   Sensor.p473 := 0.0;
+   Sensor.p474 := 0.0;
+   Sensor.p475 := 0.0;
+   Sensor.p476 := 0.0;
+   Sensor.p477 := 0.0;
+   Sensor.p478 := 0.0;
+   Sensor.p479 := 0.0;
+   Sensor.p480 := 0.0;
+   Sensor.p481 := 0.0;
+   Sensor.p482 := 0.0;
+   Sensor.p483 := 0.0;
+   Sensor.p484 := 0.0;
+   Sensor.p485 := 0.0;
+   Sensor.p486 := 0.0;
+   Sensor.p487 := 0.0;
+   Sensor.p488 := 0.0;
+   Sensor.p489 := 0.0;
+   Sensor.p490 := 0.0;
+   Sensor.p491 := 0.0;
+   Sensor.p492 := 0.0;
+   Sensor.p493 := 0.0;
+   Sensor.p494 := 0.0;
+   Sensor.p495 := 0.0;
+   Sensor.p496 := 0.0;
+   Sensor.p497 := 0.0;
+   Sensor.p498 := 0.0;
+   Sensor.p499 := 0.0;
+   Drive.SpeedFactor[1] := 1.0;
+   Drive.SpeedFactor[2] := 1.0;
+   Drive.SpeedFactor[3] := 1.0;
+   Drive.SpeedFactor[4] := 1.0;
+   Drive.PIN[1] := 3.0;
+   Drive.PIN[2] := 1.0;
+   Drive.PIN[3] := 1.0;
+   Drive.PIN[4] := 0.2;
+   Drive.PIH[1] := 2.0;
+   Drive.PIH[2] := 2.0;
+   Drive.PIH[3] := 1.0;
+   Drive.PIH[4] := 1.0;
+   Drive.StandStillSpd[1] := 0.5;
+   Drive.StandStillSpd[2] := 0.5;
+   Drive.StandStillSpd[3] := 0.5;
+   Drive.StandStillSpd[4] := 4.0;
+   Drive.StandStillDwellTime[1] := 0.1;
+   Drive.StandStillDwellTime[2] := 0.1;
+   Drive.StandStillDwellTime[3] := 0.1;
+   Drive.StandStillDwellTime[4] := 0.1;
+   Drive.FaultMargin[1] := 2.0;
+   Drive.FaultMargin[2] := 0.2;
+   Drive.FaultMargin[3] := 0.2;
+   Drive.FaultMargin[4] := 0.2;
+   Drive.JogTorqLimit[1] := 50.0;
+   Drive.JogTorqLimit[2] := 50.0;
+   Drive.JogTorqLimit[3] := 100.0;
+   Drive.JogTorqLimit[4] := 100.0;
+   Drive.InverseHomingDir[1] := 0;
+   Drive.InverseHomingDir[2] := 0;
+   Drive.InverseHomingDir[3] := 0;
+   Drive.InverseHomingDir[4] := 0;
+   Drive.RangeMin[1] := 4300.0;
+   Drive.RangeMin[2] := 928.0;
+   Drive.RangeMin[3] := 60.0;
+   Drive.RangeMin[4] := 295.0;
+   Drive.RangeMax[1] := 12500.0;
+   Drive.RangeMax[2] := 9428.0;
+   Drive.RangeMax[3] := 3279.9;
+   Drive.RangeMax[4] := 630.0;
+   Drive.HomePos[1] := 15000.0;
+   Drive.HomePos[2] := 1000.0;
+   Drive.HomePos[3] := 3279.9;
+   Drive.HomePos[4] := 271.41;
+   Drive.MaintPos[1] := 15000.0;
+   Drive.MaintPos[2] := 1000.0;
+   Drive.MaintPos[3] := 600.0;
+   Drive.MaintPos[4] := 630.0;
+   Drive.UtilityPos_A[1] := 15000.0;
+   Drive.UtilityPos_A[2] := 1000.0;
+   Drive.UtilityPos_A[3] := 0.0;
+   Drive.UtilityPos_A[4] := 275.0;
+   Drive.UtilityPos_B[1] := 0.0;
+   Drive.UtilityPos_B[2] := 0.0;
+   Drive.UtilityPos_B[3] := 0.0;
+   Drive.UtilityPos_B[4] := 630.0;
+   Drive.CellOriginPos[1] := 5700.0;
+   Drive.CellOriginPos[2] := 1639.6;
+   Drive.SyncFltDiff := 30.0;
+   Drive.SyncFltDiffMarginByVelocity := 40.0;
+   Drive.OriginPos[1] := 1000.0;
+   Drive.OriginPos[2] := 1000.0;
+   Drive.OriginPos[3] := 3300.0;
+   Drive.OriginPos[4] := 271.41;
+   Drive.MCS_TO_ACS[1,0] := 0.0;
+   Drive.MCS_TO_ACS[1,1] := 1.0;
+   Drive.MCS_TO_ACS[1,2] := 0.0;
+   Drive.MCS_TO_ACS[2,0] := 0.0;
+   Drive.MCS_TO_ACS[2,1] := 1.0;
+   Drive.MCS_TO_ACS[2,2] := 66.0;
+   Drive.MCS_TO_ACS[3,0] := -6.15498E-06;
+   Drive.MCS_TO_ACS[3,1] := 0.9892772;
+   Drive.MCS_TO_ACS[3,2] := 121.0;
+   Drive.MCS_TO_ACS[4,0] := 0.0;
+   Drive.MCS_TO_ACS[4,1] := 1.0;
+   Drive.MCS_TO_ACS[4,2] := 0.0;
+   Drive.ACS_TO_MCS[1,0] := 0.0;
+   Drive.ACS_TO_MCS[1,1] := 1.0;
+   Drive.ACS_TO_MCS[1,2] := 0.0;
+   Drive.ACS_TO_MCS[2,0] := 0.0;
+   Drive.ACS_TO_MCS[2,1] := 1.0;
+   Drive.ACS_TO_MCS[2,2] := -66.0;
+   Drive.ACS_TO_MCS[3,0] := 6.77245E-06;
+   Drive.ACS_TO_MCS[3,1] := 1.008633;
+   Drive.ACS_TO_MCS[3,2] := -122.0;
+   Drive.ACS_TO_MCS[4,0] := 0.0;
+   Drive.ACS_TO_MCS[4,1] := 1.0;
+   Drive.ACS_TO_MCS[4,2] := 0.0;
+   Task.CheckStation := TRUE;
+   Task.CheckGoods := TRUE;
+   Task.CheckCellUse := TRUE;
+   Task.CheckCollision := TRUE;
+   Task.EnablePreGrip := TRUE;
+   Task.EnableCreepUp := TRUE;
+   Task.EnableCreepDown := TRUE;
+   Task.EnableTorqBack := TRUE;
+   Task.EnableInitializingBeforeAuto := FALSE;
+   Task.p909 := FALSE;
+   Task.p910 := FALSE;
+   Task.p911 := FALSE;
+   Task.p912 := FALSE;
+   Task.p913 := FALSE;
+   Task.p914 := FALSE;
+   Task.p915 := FALSE;
+   Task.p916 := FALSE;
+   Task.p917 := FALSE;
+   Task.p918 := FALSE;
+   Task.p919 := FALSE;
+   Task.p920 := FALSE;
+   Task.p921 := FALSE;
+   Task.p922 := FALSE;
+   Task.p923 := FALSE;
+   Task.p924 := FALSE;
+   Task.p925 := FALSE;
+   Task.p926 := FALSE;
+   Task.p927 := FALSE;
+   Task.p928 := FALSE;
+   Task.p929 := FALSE;
+   Task.BlendingDistance := 500.0;
+   Task.MoveAllowZHeight := 2700.0;
+   Task.StationGoodsGap := 20.0;
+   Task.StationDragDistance := 100.0;
+   Task.StationDragHeight := 500.0;
+   Task.StationDragBlendDistance := 200.0;
+   Task.PickSlowDownDistance := 150.0;
+   Task.DropSlowDownDistance := 150.0;
+   Task.DropOffset := 10.0;
+   Task.PreGripDelta := 100.0;
+   Task.G_DropTorq_Factor := 70.0;
+   Task.G_PickTorq_Factor := 50.0;
+   Task.G_TorqLimitAllowDistance := 10.0;
+   Task.G_TorqRelease_Factor := 100.0;
+   Task.G_TorqReleaseRemainZHeight := 50.0;
+   Task.G_PickGripOffset := 0.0;
+   Task.G_PickGripOffset_Factor := 0.0;
+   Task.PreDropHeight_Factor := 0.0;
+   Task.PrePickHeight_Factor := 0.0;
+   Task.p949 := 0.0;
+   Task.p950 := 0.0;
+   Task.p951 := 0.0;
+   Task.p952 := 0.0;
+   Task.p953 := 0.0;
+   Task.p954 := 0.0;
+   Task.p955 := 0.0;
+   Task.p956 := 0.0;
+   Task.p957 := 0.0;
+   Task.p958 := 0.0;
+   Task.p959 := 0.0;
+   Task.pickRetryCountMax := 1;
+   Task.p961 := 0.0;
+   Task.p962 := 0.0;
+   Task.p963 := 0.0;
+   Task.p964 := 0.0;
+   Task.p965 := 0.0;
+   Task.p966 := 0.0;
+   Task.p967 := 0.0;
+   Task.p968 := 0.0;
+   Task.p969 := 0.0;
+   Task.Pick_GripExtra := 0.0;
+   Task.Pick_GripBackDelta := 0.0;
+   Task.p972 := 0.0;
+   Task.p973 := 0.0;
+   Task.p974 := 0.0;
+   Task.p975 := 0.0;
+   Task.p976 := 0.0;
+   Task.p977 := 0.0;
+   Task.p978 := 0.0;
+   Task.p979 := 0.0;
+   Task.p980 := 0.0;
+   Task.p981 := 0.0;
+   Task.p982 := 0.0;
+   Task.p983 := 0.0;
+   Task.p984 := 0.0;
+   Task.p985 := 0.0;
+   Task.p986 := 0.0;
+   Task.p987 := 0.0;
+   Task.p988 := 0.0;
+   Task.p989 := 0.0;
+   Task.p990 := 0.0;
+   Task.p991 := 0.0;
+   Task.p992 := 0.0;
+   Task.p993 := 0.0;
+   Task.p994 := 0.0;
+   Task.p995 := 0.0;
+   Task.p996 := 0.0;
+   Task.p997 := 0.0;
+   Task.p998 := 0.0;
+   Task.p999 := 0.0;
+   Timeout.PowerOn := 1.0;
+   Timeout.DriveOn := 3.0;
+   Timeout.DriveOffDly := 60.0;
+   Timeout.DriveOffDlyForJog := 5.0;
+   Timeout.DriveReady := 0.5;
+   Timeout.p1005 := 0.0;
+   Timeout.p1006 := 0.0;
+   Timeout.p1007 := 0.0;
+   Timeout.p1008 := 0.0;
+   Timeout.p1009 := 0.0;
+   Timeout.SetOrigin[1] := 1.0;
+   Timeout.SetOrigin[2] := 2.0;
+   Timeout.SetOrigin[3] := 8.0;
+   Timeout.SetOrigin[4] := 1.0;
+   Timeout.SetOrigin[5] := 1.0;
+   Timeout.SetOrigin[6] := 1.0;
+   Timeout.p1026 := 0.0;
+   Timeout.p1027 := 0.0;
+   Timeout.p1028 := 0.0;
+   Timeout.p1029 := 0.0;
+   Timeout.BeltTentionOnDlyTime := 0.3;
+   Timeout.p1031 := 0.0;
+   Timeout.p1032 := 0.0;
+   Timeout.p1033 := 0.0;
+   Timeout.p1034 := 0.0;
+   Timeout.p1035 := 0.0;
+   Timeout.p1036 := 0.0;
+   Timeout.p1037 := 0.0;
+   Timeout.p1038 := 0.0;
+   Timeout.p1039 := 0.0;
+   Timeout.p1040 := 0.0;
+   Timeout.p1041 := 0.0;
+   Timeout.p1042 := 0.0;
+   Timeout.p1043 := 0.0;
+   Timeout.p1044 := 0.0;
+   Timeout.p1045 := 0.0;
+   Timeout.p1046 := 0.0;
+   Timeout.p1047 := 0.0;
+   Timeout.p1048 := 0.0;
+   Timeout.p1049 := 0.0;
+   Timeout.p1050 := 0.0;
+   Timeout.p1051 := 0.0;
+   Timeout.p1052 := 0.0;
+   Timeout.p1053 := 0.0;
+   Timeout.p1054 := 0.0;
+   Timeout.p1055 := 0.0;
+   Timeout.p1056 := 0.0;
+   Timeout.p1057 := 0.0;
+   Timeout.p1058 := 0.0;
+   Timeout.p1059 := 0.0;
+   Timeout.CVInterlock := 30.0;
+   Timeout.p1061 := 0.0;
+   Timeout.p1062 := 0.0;
+   Timeout.p1063 := 0.0;
+   Timeout.p1064 := 0.0;
+   Timeout.p1065 := 0.0;
+   Timeout.p1066 := 0.0;
+   Timeout.p1067 := 0.0;
+   Timeout.p1068 := 0.0;
+   Timeout.p1069 := 0.0;
+   Timeout.p1070 := 0.0;
+   Timeout.p1071 := 0.0;
+   Timeout.p1072 := 0.0;
+   Timeout.p1073 := 0.0;
+   Timeout.p1074 := 0.0;
+   Timeout.p1075 := 0.0;
+   Timeout.p1076 := 0.0;
+   Timeout.p1077 := 0.0;
+   Timeout.p1078 := 0.0;
+   Timeout.p1079 := 0.0;
+   Timeout.p1080 := 0.0;
+   Timeout.p1081 := 0.0;
+   Timeout.p1082 := 0.0;
+   Timeout.p1083 := 0.0;
+   Timeout.p1084 := 0.0;
+   Timeout.p1085 := 0.0;
+   Timeout.p1086 := 0.0;
+   Timeout.p1087 := 0.0;
+   Timeout.p1088 := 0.0;
+   Timeout.p1089 := 0.0;
+   Timeout.CommGRM := 3.0;
+   Timeout.CommGCS := 0.0;
+   Timeout.CommFrontGR := 0.0;
+   Timeout.CommRearGR := 0.0;
+   Timeout.p1094 := 0.0;
+   Timeout.p1095 := 0.0;
+   Timeout.p1096 := 0.0;
+   Timeout.p1097 := 0.0;
+   Timeout.CsvImport := 10.0;
+   Timeout.CsvExport := 10.0;
+   SpeedSet[1,0].Speed := 20.0;
+   SpeedSet[1,0].Accel := 100.0;
+   SpeedSet[1,0].Decel := 100.0;
+   SpeedSet[1,0].JerkTime := 100.0;
+   SpeedSet[1,1].Speed := 50.0;
+   SpeedSet[1,1].Accel := 100.0;
+   SpeedSet[1,1].Decel := 100.0;
+   SpeedSet[1,1].JerkTime := 100.0;
+   SpeedSet[1,2].Speed := 1000.0;
+   SpeedSet[1,2].Accel := 2500.0;
+   SpeedSet[1,2].Decel := 2500.0;
+   SpeedSet[1,2].JerkTime := 1000.0;
+   SpeedSet[1,3].Speed := 2000.0;
+   SpeedSet[1,3].Accel := 2500.0;
+   SpeedSet[1,3].Decel := 2500.0;
+   SpeedSet[1,3].JerkTime := 1000.0;
+   SpeedSet[1,4].Speed := 4000.0;
+   SpeedSet[1,4].Accel := 2500.0;
+   SpeedSet[1,4].Decel := 2500.0;
+   SpeedSet[1,4].JerkTime := 1000.0;
+   SpeedSet[1,5].Speed := 400.0;
+   SpeedSet[1,5].Accel := 2500.0;
+   SpeedSet[1,5].Decel := 2500.0;
+   SpeedSet[1,5].JerkTime := 1000.0;
+   SpeedSet[1,6].Speed := 20.0;
+   SpeedSet[1,6].Accel := 500.0;
+   SpeedSet[1,6].Decel := 500.0;
+   SpeedSet[1,6].JerkTime := 200.0;
+   SpeedSet[1,7].Speed := 5.0;
+   SpeedSet[1,7].Accel := 100.0;
+   SpeedSet[1,7].Decel := 100.0;
+   SpeedSet[1,7].JerkTime := 100.0;
+   SpeedSet[1,8].Speed := 0.0;
+   SpeedSet[1,8].Accel := 2500.0;
+   SpeedSet[1,8].Decel := 2500.0;
+   SpeedSet[1,8].JerkTime := 1000.0;
+   SpeedSet[1,9].Speed := 0.0;
+   SpeedSet[1,9].Accel := 3000.0;
+   SpeedSet[1,9].Decel := 3000.0;
+   SpeedSet[1,9].JerkTime := 1000.0;
+   SpeedSet[2,0].Speed := 20.0;
+   SpeedSet[2,0].Accel := 100.0;
+   SpeedSet[2,0].Decel := 100.0;
+   SpeedSet[2,0].JerkTime := 50.0;
+   SpeedSet[2,1].Speed := 50.0;
+   SpeedSet[2,1].Accel := 100.0;
+   SpeedSet[2,1].Decel := 100.0;
+   SpeedSet[2,1].JerkTime := 50.0;
+   SpeedSet[2,2].Speed := 1000.0;
+   SpeedSet[2,2].Accel := 2500.0;
+   SpeedSet[2,2].Decel := 2500.0;
+   SpeedSet[2,2].JerkTime := 1000.0;
+   SpeedSet[2,3].Speed := 2000.0;
+   SpeedSet[2,3].Accel := 2500.0;
+   SpeedSet[2,3].Decel := 2500.0;
+   SpeedSet[2,3].JerkTime := 500.0;
+   SpeedSet[2,4].Speed := 4000.0;
+   SpeedSet[2,4].Accel := 2500.0;
+   SpeedSet[2,4].Decel := 2500.0;
+   SpeedSet[2,4].JerkTime := 500.0;
+   SpeedSet[2,5].Speed := 400.0;
+   SpeedSet[2,5].Accel := 2500.0;
+   SpeedSet[2,5].Decel := 2500.0;
+   SpeedSet[2,5].JerkTime := 1000.0;
+   SpeedSet[2,6].Speed := 20.0;
+   SpeedSet[2,6].Accel := 500.0;
+   SpeedSet[2,6].Decel := 500.0;
+   SpeedSet[2,6].JerkTime := 200.0;
+   SpeedSet[2,7].Speed := 5.0;
+   SpeedSet[2,7].Accel := 500.0;
+   SpeedSet[2,7].Decel := 500.0;
+   SpeedSet[2,7].JerkTime := 100.0;
+   SpeedSet[2,8].Speed := 0.0;
+   SpeedSet[2,8].Accel := 2500.0;
+   SpeedSet[2,8].Decel := 2500.0;
+   SpeedSet[2,8].JerkTime := 500.0;
+   SpeedSet[2,9].Speed := 0.0;
+   SpeedSet[2,9].Accel := 3000.0;
+   SpeedSet[2,9].Decel := 3000.0;
+   SpeedSet[2,9].JerkTime := 500.0;
+   SpeedSet[3,0].Speed := 20.0;
+   SpeedSet[3,0].Accel := 100.0;
+   SpeedSet[3,0].Decel := 100.0;
+   SpeedSet[3,0].JerkTime := 50.0;
+   SpeedSet[3,1].Speed := 100.0;
+   SpeedSet[3,1].Accel := 100.0;
+   SpeedSet[3,1].Decel := 100.0;
+   SpeedSet[3,1].JerkTime := 200.0;
+   SpeedSet[3,2].Speed := 1000.0;
+   SpeedSet[3,2].Accel := 2500.0;
+   SpeedSet[3,2].Decel := 2500.0;
+   SpeedSet[3,2].JerkTime := 200.0;
+   SpeedSet[3,3].Speed := 1250.0;
+   SpeedSet[3,3].Accel := 4000.0;
+   SpeedSet[3,3].Decel := 4000.0;
+   SpeedSet[3,3].JerkTime := 200.0;
+   SpeedSet[3,4].Speed := 2500.0;
+   SpeedSet[3,4].Accel := 4000.0;
+   SpeedSet[3,4].Decel := 4000.0;
+   SpeedSet[3,4].JerkTime := 200.0;
+   SpeedSet[3,5].Speed := 500.0;
+   SpeedSet[3,5].Accel := 4000.0;
+   SpeedSet[3,5].Decel := 4000.0;
+   SpeedSet[3,5].JerkTime := 200.0;
+   SpeedSet[3,6].Speed := 20.0;
+   SpeedSet[3,6].Accel := 500.0;
+   SpeedSet[3,6].Decel := 500.0;
+   SpeedSet[3,6].JerkTime := 200.0;
+   SpeedSet[3,7].Speed := 10.0;
+   SpeedSet[3,7].Accel := 500.0;
+   SpeedSet[3,7].Decel := 500.0;
+   SpeedSet[3,7].JerkTime := 200.0;
+   SpeedSet[3,8].Speed := 0.0;
+   SpeedSet[3,8].Accel := 4000.0;
+   SpeedSet[3,8].Decel := 4000.0;
+   SpeedSet[3,8].JerkTime := 200.0;
+   SpeedSet[3,9].Speed := 0.0;
+   SpeedSet[3,9].Accel := 4000.0;
+   SpeedSet[3,9].Decel := 4000.0;
+   SpeedSet[3,9].JerkTime := 200.0;
+   SpeedSet[4,0].Speed := 5.0;
+   SpeedSet[4,0].Accel := 100.0;
+   SpeedSet[4,0].Decel := 100.0;
+   SpeedSet[4,0].JerkTime := 50.0;
+   SpeedSet[4,1].Speed := 10.0;
+   SpeedSet[4,1].Accel := 100.0;
+   SpeedSet[4,1].Decel := 100.0;
+   SpeedSet[4,1].JerkTime := 50.0;
+   SpeedSet[4,2].Speed := 10.0;
+   SpeedSet[4,2].Accel := 1000.0;
+   SpeedSet[4,2].Decel := 1000.0;
+   SpeedSet[4,2].JerkTime := 100.0;
+   SpeedSet[4,3].Speed := 100.0;
+   SpeedSet[4,3].Accel := 2500.0;
+   SpeedSet[4,3].Decel := 2500.0;
+   SpeedSet[4,3].JerkTime := 200.0;
+   SpeedSet[4,4].Speed := 200.0;
+   SpeedSet[4,4].Accel := 2500.0;
+   SpeedSet[4,4].Decel := 2500.0;
+   SpeedSet[4,4].JerkTime := 100.0;
+   SpeedSet[4,5].Speed := 200.0;
+   SpeedSet[4,5].Accel := 2500.0;
+   SpeedSet[4,5].Decel := 2500.0;
+   SpeedSet[4,5].JerkTime := 200.0;
+   SpeedSet[4,6].Speed := 5.0;
+   SpeedSet[4,6].Accel := 1000.0;
+   SpeedSet[4,6].Decel := 1000.0;
+   SpeedSet[4,6].JerkTime := 50.0;
+   SpeedSet[4,7].Speed := 10.0;
+   SpeedSet[4,7].Accel := 1000.0;
+   SpeedSet[4,7].Decel := 1000.0;
+   SpeedSet[4,7].JerkTime := 100.0;
+   SpeedSet[4,8].Speed := 0.0;
+   SpeedSet[4,8].Accel := 2500.0;
+   SpeedSet[4,8].Decel := 2500.0;
+   SpeedSet[4,8].JerkTime := 200.0;
+   SpeedSet[4,9].Speed := 0.0;
+   SpeedSet[4,9].Accel := 3000.0;
+   SpeedSet[4,9].Decel := 3000.0;
+   SpeedSet[4,9].JerkTime := 100.0;
+
+END_DATA_BLOCK
+

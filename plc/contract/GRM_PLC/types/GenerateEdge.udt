@@ -1,0 +1,10 @@
+﻿TYPE "GenerateEdge"
+VERSION : 0.1
+   STRUCT
+      Cmd : Bool;
+      Latch : Bool;
+      Output : Bool;
+   END_STRUCT;
+
+END_TYPE
+

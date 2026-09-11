@@ -1,0 +1,13 @@
+﻿TYPE "LGR_Command_Header"
+VERSION : 0.1
+   STRUCT
+      Protocol : Byte;   // Protocol ID
+      CMD_ID : Byte;   // Command ID
+      CMD : Byte;   // Command Code
+      SRC : Word;   // Source Component ID (Send Component)
+      DST : Word;   // Destination Compoenet ID (Recieve Component)
+      SEQ : Word;   // Squencial and Identical Command Number
+   END_STRUCT;
+
+END_TYPE
+

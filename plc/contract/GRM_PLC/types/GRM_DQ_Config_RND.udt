@@ -1,0 +1,135 @@
+﻿TYPE "GRM_DQ_Config_RND"
+VERSION : 0.1
+   STRUCT
+      PBL_GR01_PowerOn : Bool;   // 0253PB01
+      DQ_SPARE_1 : Bool;
+      PBL_GR02_PowerOn : Bool;   // 0253PB03
+      DQ_SPARE_2 : Bool;
+      DQ_SPARE_3 : Bool;
+      DQ_SPARE_4 : Bool;
+      DQ_SPARE_5 : Bool;
+      DQ_SPARE_6 : Bool;
+      MCP_EMSL : Bool;   // 0254EMS01
+      MCP_PBL_Start : Bool;   // 0401PB01
+      DQ_SPARE_7 : Bool;
+      MCP_PBL_Reset : Bool;   // 0401PB03
+      MCP_PBL_ForcedRun : Bool;   // 0401PB04
+      DQ_SPARE_8 : Bool;
+      DQ_SPARE_9 : Bool;
+      DQ_SPARE_10 : Bool;
+      TL_RED : Bool;   // 0153TL01
+      TL_YELLOW : Bool;   // 0153TL01
+      TL_GREEN : Bool;   // 0153TL01
+      TL_BLUE : Bool;   // 0153TL01
+      BZ_CH1 : Bool;   // 0153BZ01
+      BZ_CH2 : Bool;   // 0153BZ01
+      BZ_CH3 : Bool;   // 0153BZ01
+      BZ_CH4 : Bool;   // 0153BZ01
+      SOL_SFD01_Unlock_Req : Bool;   // 0408CR01
+      SOL_SFD02_Unlock_Req : Bool;   // 0408CR01
+      DQ_SPARE_11 : Bool;
+      DQ_SPARE_12 : Bool;
+      DQ_SPARE_13 : Bool;
+      DQ_SPARE_14 : Bool;
+      DQ_SPARE_15 : Bool;
+      DQ_SPARE_16 : Bool;
+      DQ_SPARE_17 : Bool;
+      DQ_SPARE_18 : Bool;
+      DQ_SPARE_19 : Bool;
+      DQ_SPARE_20 : Bool;
+      DQ_SPARE_21 : Bool;
+      DQ_SPARE_22 : Bool;
+      DQ_SPARE_23 : Bool;
+      DQ_SPARE_24 : Bool;
+      FB01_EMSL : Bool;   // 5051EMS01
+      FB01_PBL_Start : Bool;   // 5201PB01
+      DQ_SPARE_25 : Bool;
+      FB01_PBL_Reset : Bool;   // 5201PB02
+      DQ_SPARE_26 : Bool;
+      DQ_SPARE_27 : Bool;
+      DQ_SPARE_28 : Bool;
+      DQ_SPARE_29 : Bool;
+      FB02_EMSL : Bool;   // 5351EMS01
+      FB02_PBL_Start : Bool;   // 5501PB01
+      DQ_SPARE_30 : Bool;
+      FB02_PBL_Reset : Bool;   // 5501PB02
+      DQ_SPARE_31 : Bool;
+      DQ_SPARE_32 : Bool;
+      DQ_SPARE_33 : Bool;
+      DQ_SPARE_34 : Bool;
+      DQ_SPARE_35 : Bool;
+      DQ_SPARE_36 : Bool;
+      DQ_SPARE_37 : Bool;
+      DQ_SPARE_38 : Bool;
+      DQ_SPARE_39 : Bool;
+      DQ_SPARE_40 : Bool;
+      DQ_SPARE_41 : Bool;
+      DQ_SPARE_42 : Bool;
+      Reserved_1 : Bool;
+      Reserved_2 : Bool;
+      Reserved_3 : Bool;
+      Reserved_4 : Bool;
+      Reserved_5 : Bool;
+      Reserved_6 : Bool;
+      Reserved_7 : Bool;
+      Reserved_8 : Bool;
+      Reserved_9 : Bool;
+      Reserved_10 : Bool;
+      Reserved_11 : Bool;
+      Reserved_12 : Bool;
+      Reserved_13 : Bool;
+      Reserved_14 : Bool;
+      Reserved_15 : Bool;
+      Reserved_16 : Bool;
+      Reserved_17 : Bool;
+      Reserved_18 : Bool;
+      Reserved_19 : Bool;
+      Reserved_20 : Bool;
+      Reserved_21 : Bool;
+      Reserved_22 : Bool;
+      Reserved_23 : Bool;
+      Reserved_24 : Bool;
+      Reserved_25 : Bool;
+      Reserved_26 : Bool;
+      Reserved_27 : Bool;
+      Reserved_28 : Bool;
+      Reserved_29 : Bool;
+      Reserved_30 : Bool;
+      Reserved_31 : Bool;
+      Reserved_32 : Bool;
+      Reserved_33 : Bool;
+      Reserved_34 : Bool;
+      Reserved_35 : Bool;
+      Reserved_36 : Bool;
+      Reserved_37 : Bool;
+      Reserved_38 : Bool;
+      Reserved_39 : Bool;
+      Reserved_40 : Bool;
+      Reserved_41 : Bool;
+      Reserved_42 : Bool;
+      Reserved_43 : Bool;
+      Reserved_44 : Bool;
+      Reserved_45 : Bool;
+      Reserved_46 : Bool;
+      Reserved_47 : Bool;
+      Reserved_48 : Bool;
+      Reserved_49 : Bool;
+      Reserved_50 : Bool;
+      Reserved_51 : Bool;
+      Reserved_52 : Bool;
+      Reserved_53 : Bool;
+      Reserved_54 : Bool;
+      Reserved_55 : Bool;
+      Reserved_56 : Bool;
+      Reserved_57 : Bool;
+      Reserved_58 : Bool;
+      Reserved_59 : Bool;
+      Reserved_60 : Bool;
+      Reserved_61 : Bool;
+      Reserved_62 : Bool;
+      Reserved_63 : Bool;
+      Reserved_64 : Bool;
+   END_STRUCT;
+
+END_TYPE
+
