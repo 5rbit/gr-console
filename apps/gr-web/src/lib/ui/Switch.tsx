@@ -32,7 +32,7 @@ export function Switch({
 }: SwitchProps) {
   if (inline && label) {
     return (
-      <label className="inline-flex h-control-md cursor-pointer items-center gap-1.5 text-xs text-slate-600 select-none dark:text-slate-300">
+      <label className="inline-flex h-control-md cursor-pointer items-center gap-1.5 text-xs text-content-tertiary select-none">
         <Switch
           checked={checked}
           label={label}
@@ -57,12 +57,12 @@ export function Switch({
       title={title}
       disabled={disabled}
       className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
-        checked ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+        checked ? 'bg-accent' : 'bg-line-strong'
       } ${pending ? 'animate-pulse' : ''}`}
       onClick={() => (onCheckedChange ?? onchange)?.(!checked)}
     >
       <span
-        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
+        className={`absolute top-0.5 h-4 w-4 rounded-full bg-surface-panel shadow transition-all ${
           checked ? 'left-[18px]' : 'left-0.5'
         }`}
       />

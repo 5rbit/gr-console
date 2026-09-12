@@ -317,54 +317,54 @@ export function CommandPalette() {
         role="dialog"
         aria-modal="true"
         aria-label="명령 팔레트"
-        className="relative flex max-h-[60vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"
+        className="relative flex max-h-[60vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-line-default bg-surface-panel shadow-xl"
         data-testid="command-palette"
         onKeyDown={onKeyDown}
       >
         {asking ? (
           // 두 번째 걸음 — 이름 받기. 무엇을 적는지 라벨로 말하고 Enter로 끝낸다.
           <label className="flex flex-col gap-1 p-3">
-            <span className="text-2xs font-medium text-slate-500">{asking.prompt?.label}</span>
+            <span className="text-2xs font-medium text-content-muted">{asking.prompt?.label}</span>
             <input
               autoFocus
               value={text}
               placeholder={asking.prompt?.placeholder}
-              className="h-8 rounded-md border border-slate-300 bg-transparent px-2 text-sm focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none dark:border-slate-600"
+              className="h-8 rounded-md border border-line-strong bg-transparent px-2 text-sm focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
               data-testid="palette-prompt"
               onChange={(e) => setText(e.target.value)}
             />
-            <span className="text-3xs text-slate-400">
+            <span className="text-3xs text-content-faint">
               Enter 저장 · Escape 취소 — 저장한 배치는 이 브라우저에 남습니다
             </span>
           </label>
         ) : (
           <>
-            <div className="flex items-center gap-2 border-b border-slate-200 px-3 dark:border-slate-700">
-              <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <div className="flex items-center gap-2 border-b border-line-default px-3">
+              <Search className="h-3.5 w-3.5 shrink-0 text-content-faint" />
               <input
                 ref={input}
                 value={query}
                 placeholder="명령 검색 — 패널 · 배치 · 존 · 설정"
                 aria-label="명령 검색"
-                className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
+                className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-content-faint"
                 data-testid="palette-input"
                 onChange={(e) => {
                   palette.setQuery(e.target.value)
                   setAt(0)
                 }}
               />
-              <kbd className="shrink-0 font-mono text-3xs text-slate-400">{chord('K')}</kbd>
+              <kbd className="shrink-0 font-mono text-3xs text-content-faint">{chord('K')}</kbd>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto py-1" role="listbox">
               {flat.length === 0 ? (
-                <p className="px-3 py-4 text-center text-2xs text-slate-400">
+                <p className="px-3 py-4 text-center text-2xs text-content-faint">
                   '{query}'에 맞는 명령이 없습니다
                 </p>
               ) : null}
               {groups.map((g) => (
                 <div key={`${g.group}-${g.hits[0].command.id}`}>
-                  <div className="px-3 pt-1.5 pb-0.5 text-3xs font-semibold tracking-wide text-slate-400">
+                  <div className="px-3 pt-1.5 pb-0.5 text-3xs font-semibold tracking-wide text-content-faint">
                     {g.group}
                   </div>
                   {g.hits.map((h) => {
@@ -379,20 +379,20 @@ export function CommandPalette() {
                         aria-selected={on}
                         className={`flex w-full items-center gap-2 px-3 py-1 text-left text-sm-tight ${
                           on
-                            ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-200'
-                            : 'text-slate-700 dark:text-slate-200'
+                            ? 'bg-accent-soft text-accent-text'
+                            : 'text-content-secondary'
                         } ${c.disabled ? 'opacity-50' : ''}`}
                         data-testid={`cmd-${c.id}`}
                         title={c.disabled}
                         onMouseEnter={() => setAt(row)}
                         onClick={() => pick(c)}
                       >
-                        <span className="w-3.5 shrink-0 text-indigo-600 dark:text-indigo-300">
+                        <span className="w-3.5 shrink-0 text-accent-text">
                           {c.checked ? <Check className="h-3.5 w-3.5" /> : null}
                         </span>
                         <span className="min-w-0 flex-1 truncate">{c.label}</span>
                         {c.hint ? (
-                          <kbd className="shrink-0 font-mono text-3xs text-slate-400">
+                          <kbd className="shrink-0 font-mono text-3xs text-content-faint">
                             {c.hint}
                           </kbd>
                         ) : null}
@@ -403,7 +403,7 @@ export function CommandPalette() {
               ))}
             </div>
 
-            <div className="flex shrink-0 items-center gap-3 border-t border-slate-200 px-3 py-1 text-3xs text-slate-400 dark:border-slate-700">
+            <div className="flex shrink-0 items-center gap-3 border-t border-line-default px-3 py-1 text-3xs text-content-faint">
               <span>↑↓ 이동</span>
               <span>Enter 실행</span>
               <span>Escape 닫기</span>

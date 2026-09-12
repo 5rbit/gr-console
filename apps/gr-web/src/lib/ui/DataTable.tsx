@@ -113,7 +113,7 @@ export function DataTable<T>({
     <div className="overflow-x-auto" ref={box}>
       <table className="w-full text-xs" data-testid={testid}>
         <thead>
-          <tr className="text-left text-slate-600 dark:text-slate-300">
+          <tr className="text-left text-content-tertiary">
             {hidden.length > 0 ? (
               <th className="w-5 px-1 py-1">
                 <span className="sr-only">접힌 열 펼치기</span>
@@ -132,7 +132,7 @@ export function DataTable<T>({
                 >
                   {can ? (
                     <button
-                      className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-100"
+                      className="inline-flex items-center gap-1 hover:text-content-primary"
                       onClick={() => toggle(c)}
                       aria-label={`${c.label} 정렬`}
                     >
@@ -160,9 +160,9 @@ export function DataTable<T>({
               <Fragment key={k}>
               <tr
                 className={cn(
-                  'border-t border-slate-200 dark:border-slate-700',
+                  'border-t border-line-default',
                   !!onPick && 'cursor-pointer',
-                  selected === k && 'bg-indigo-50 dark:bg-indigo-950',
+                  selected === k && 'bg-accent-soft',
                 )}
                 data-testid="dt-row"
               >
@@ -172,7 +172,7 @@ export function DataTable<T>({
                   <td className="px-1 py-1 align-top">
                     <button
                       type="button"
-                      className="rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700"
+                      className="rounded p-0.5 text-content-faint hover:bg-surface-active hover:text-content-secondary"
                       aria-expanded={open.has(k)}
                       aria-label={open.has(k) ? '접힌 열 숨기기' : `접힌 열 ${hidden.length}개 보기`}
                       title={`좁아서 접힌 열 ${hidden.length}개 — ${hidden.map((c) => c.label).join(' · ')}`}
@@ -206,14 +206,14 @@ export function DataTable<T>({
                 {actions && <td className="px-2 py-1 text-right">{actions(row)}</td>}
               </tr>
               {hidden.length > 0 && open.has(k) ? (
-                <tr className="bg-slate-50 dark:bg-slate-800" data-testid="dt-row-detail">
+                <tr className="bg-surface-app" data-testid="dt-row-detail">
                   <td colSpan={span} className="px-2 py-1.5">
                     {/* 접힌 값은 **라벨+값 짝**으로 — 표의 머리글이 없으니 각 값이 자기 이름을 들고
                         있어야 한다(`docs/DESIGN.md` 4절 ②와 같은 규칙). */}
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-2xs sm:grid-cols-[auto_1fr_auto_1fr]">
                       {hidden.map((c) => (
                         <Fragment key={c.key}>
-                          <dt className="text-slate-400">{c.label}</dt>
+                          <dt className="text-content-faint">{c.label}</dt>
                           <dd className={cn('min-w-0', c.numeric && 'tabular-nums')}>
                             {c.cell ? c.cell(row) : (c.get?.(row) ?? '—')}
                           </dd>

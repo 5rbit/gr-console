@@ -80,13 +80,13 @@ const PANE_TITLED = { titled: true }
  * 탭을 죽이는 것과 같은 이유).
  */
 const tabCls = (active: boolean, inFocusedZone: boolean): string =>
-  'group/tab flex max-w-[14rem] shrink-0 items-center gap-1.5 border-r border-slate-200 px-2 py-1 text-2xs transition-colors dark:border-slate-700 ' +
+  'group/tab flex max-w-[14rem] shrink-0 items-center gap-1.5 border-r border-line-default px-2 py-1 text-2xs transition-colors ' +
   (active
-    ? 'bg-white font-medium text-slate-900 dark:bg-slate-900 dark:text-slate-100 ' +
+    ? 'bg-surface-panel font-medium text-content-primary ' +
       (inFocusedZone
         ? 'shadow-[inset_0_-2px_0_0_var(--color-accent)]'
         : 'shadow-[inset_0_-2px_0_0_var(--color-line-strong)]')
-    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-100')
+    : 'text-content-muted hover:bg-surface-inset hover:text-content-primary')
 
 export interface DockZoneProps {
   zone: ZoneId
@@ -110,7 +110,7 @@ export function DockZone({ zone }: DockZoneProps) {
 
   return (
     <section
-      className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-white dark:bg-slate-900"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-surface-panel"
       data-testid={`zone-${zone}`}
       data-focused={focused ? '' : undefined}
       aria-label={`${ZONE_LABEL[zone]} 존`}
@@ -122,10 +122,10 @@ export function DockZone({ zone }: DockZoneProps) {
       {/* ── 탭 띠 ── */}
       <div
         className={
-          'flex h-control-sm shrink-0 items-stretch overflow-x-auto border-b border-slate-200 dark:border-slate-700 ' +
+          'flex h-control-sm shrink-0 items-stretch overflow-x-auto border-b border-line-default ' +
           // 면은 스케일에서 고른다 — `/70` 같은 투명도로 5층을 만들지 않는다(`docs/DESIGN.md` 5절).
           // 활성 존은 raised(200/700), 비활성은 inset(100/800).
-          (focused ? 'bg-slate-200 dark:bg-slate-700' : 'bg-slate-100 dark:bg-slate-800')
+          (focused ? 'bg-surface-active' : 'bg-surface-inset')
         }
         data-testid={`tabs-${zone}`}
         onDragOver={(e) => {
@@ -177,7 +177,7 @@ export function DockZone({ zone }: DockZoneProps) {
               <Icon className="h-3 w-3 shrink-0 opacity-70" />
               <span className="truncate">{d.label}</span>
               {on && Summary ? (
-                <span className="shrink-0 text-3xs text-slate-400">
+                <span className="shrink-0 text-3xs text-content-faint">
                   <Summary />
                 </span>
               ) : null}
@@ -190,7 +190,7 @@ export function DockZone({ zone }: DockZoneProps) {
                   aria-label={`${d.label} 닫기`}
                   title="닫기"
                   className={
-                    'ml-0.5 rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 ' +
+                    'ml-0.5 rounded p-0.5 text-content-faint hover:bg-surface-active hover:text-content-secondary ' +
                     (on ? 'inline' : 'hidden group-hover/tab:inline')
                   }
                   data-testid={`tab-close-${id}`}
@@ -212,7 +212,7 @@ export function DockZone({ zone }: DockZoneProps) {
           // 최대화 중에는 **나가는 길이 보여야 한다.** 단축키와 창 메뉴만 두면 갇힌 것처럼 느껴진다.
           <button
             type="button"
-            className="flex shrink-0 items-center gap-1 px-1.5 text-3xs text-slate-500 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700"
+            className="flex shrink-0 items-center gap-1 px-1.5 text-3xs text-content-muted hover:bg-surface-active hover:text-content-primary"
             aria-label="최대화 해제"
             title="최대화 해제 — Alt+Enter"
             data-testid="zone-unmaximize"
@@ -225,7 +225,7 @@ export function DockZone({ zone }: DockZoneProps) {
         {active ? (
           <button
             type="button"
-            className="shrink-0 px-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700"
+            className="shrink-0 px-1 text-content-faint hover:bg-surface-active hover:text-content-secondary"
             aria-label="창 메뉴"
             title="창 메뉴 — 최대화 · 존 이동 · 닫기"
             data-testid={`zone-menu-${zone}`}
@@ -237,7 +237,7 @@ export function DockZone({ zone }: DockZoneProps) {
         {zone !== 'center' ? (
           <button
             type="button"
-            className="shrink-0 px-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700"
+            className="shrink-0 px-1 text-content-faint hover:bg-surface-active hover:text-content-secondary"
             aria-label={`${ZONE_LABEL[zone]} 존 접기`}
             title="접기 — 탭은 기억한다"
             data-testid={`zone-collapse-${zone}`}
@@ -271,7 +271,7 @@ export function DockZone({ zone }: DockZoneProps) {
         {/* 드롭 면 — 다른 존의 탭을 끌고 있을 때만 깔린다(평소에는 DOM에 없다: 클릭을 먹지 않게). */}
         {dropping ? (
           <div
-            className="absolute inset-0 z-20 m-1 rounded-md border-2 border-dashed border-indigo-400 bg-indigo-500/10"
+            className="absolute inset-0 z-20 m-1 rounded-md border-2 border-dashed border-accent bg-accent/10"
             data-testid={`drop-${zone}`}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
@@ -279,7 +279,7 @@ export function DockZone({ zone }: DockZoneProps) {
               dropAt()
             }}
           >
-            <span className="m-1 inline-block rounded bg-indigo-600 px-1.5 py-0.5 text-3xs text-white">
+            <span className="m-1 inline-block rounded bg-accent px-1.5 py-0.5 text-3xs text-content-on-accent">
               {ZONE_LABEL[zone]}에 도킹
             </span>
           </div>
@@ -307,12 +307,12 @@ export function ZoneRail({ zone }: DockZoneProps) {
     <div
       className={
         (side === 'col'
-          ? 'flex w-8 shrink-0 flex-col items-center gap-0.5 border-slate-200 py-1 dark:border-slate-700'
-          : 'flex h-control-sm shrink-0 items-center gap-0.5 border-slate-200 px-1 dark:border-slate-700') +
+          ? 'flex w-8 shrink-0 flex-col items-center gap-0.5 border-line-default py-1'
+          : 'flex h-control-sm shrink-0 items-center gap-0.5 border-line-default px-1') +
         (zone === 'left' ? ' border-r' : zone === 'right' ? ' border-l' : ' border-t') +
         (empty && drag
-          ? ' border-dashed border-indigo-400 bg-indigo-500/10'
-          : ' bg-slate-100 dark:bg-slate-800')
+          ? ' border-dashed border-accent bg-accent/10'
+          : ' bg-surface-inset')
       }
       title={empty ? `${ZONE_LABEL[zone]} 존 — 탭을 여기에 놓으면 도킹된다` : undefined}
       data-testid={`rail-${zone}`}
@@ -326,7 +326,7 @@ export function ZoneRail({ zone }: DockZoneProps) {
       }}
     >
       {empty ? (
-        <span className="grid flex-1 place-items-center text-3xs text-indigo-700 dark:text-indigo-300">
+        <span className="grid flex-1 place-items-center text-3xs text-accent-text">
           <PanelsTopLeft className="h-4 w-4" />
         </span>
       ) : null}
@@ -338,7 +338,7 @@ export function ZoneRail({ zone }: DockZoneProps) {
           <button
             key={id}
             type="button"
-            className="rounded p-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+            className="rounded p-1.5 text-content-muted hover:bg-surface-active hover:text-content-primary"
             title={`${d.label} 펼치기`}
             aria-label={`${d.label} 펼치기`}
             data-testid={`rail-${id}`}

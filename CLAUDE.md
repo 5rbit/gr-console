@@ -18,8 +18,12 @@ docs/              DESIGN.md(UI 규칙) · ui-ux-plan.md(결정 기록) · scree
 코드가 버그다**. `.claude/skills/gr-design`이 UI 작업에서 이 문서를 가리킨다.
 
 예산 중 **셀 수 있는 것은 `npm run check`가 막는다**(색값 하드코드 · 임의값 · 투명도 면 · 굵기 700 ·
-그라디언트/블러/이모지 · 킷의 컨트롤 높이). 기준선 방식이라 **늘어나면 실패**한다 —
-기준선을 올리는 커밋은 리뷰에서 막는다.
+그라디언트/블러/이모지 · 킷의 컨트롤 높이 · **킷·셸의 `dark:` 짝과 원시 색 스케일**). 기준선
+방식이라 **늘어나면 실패**한다 — 기준선을 올리는 커밋은 리뷰에서 막는다.
+
+색은 **뜻으로 부른다**: `bg-surface-panel` · `text-content-muted` · `bg-warn-soft` ·
+`text-accent-text`. 기본은 화이트톤이고 다크는 `tokens.css`의 `[data-theme='dark']` 한 블록이 든다 —
+`dark:` 짝을 손으로 달 일이 없다.
 
 ## 자주 쓰는 명령
 

@@ -31,14 +31,14 @@ export function PlcDetail({ id }: { id: PlcId }) {
   useStore(plcs)
   const p = plcs.byId(id)
   const [busy, setBusy] = useState<'check' | 'reconnect' | null>(null)
-  if (!p) return <p className="text-sm text-slate-500">PLC `{id}`가 목록에 없습니다.</p>
+  if (!p) return <p className="text-sm text-content-muted">PLC `{id}`가 목록에 없습니다.</p>
   const lb = layoutBadge(p)
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <StatusDot status={plcDot(p)} label={p.connected ? '연결됨' : '미연결'} />
         <StatusBadge status={lb.status}>{lb.label}</StatusBadge>
-        <span className="font-mono text-xs text-slate-400">{p.endpoint}</span>
+        <span className="font-mono text-xs text-content-faint">{p.endpoint}</span>
         <span className="flex-1" />
         <Button
           size="sm"
@@ -68,7 +68,7 @@ export function PlcDetail({ id }: { id: PlcId }) {
           재연결
         </Button>
       </div>
-      {p.last_error ? <p className="text-xs text-red-500">{p.last_error}</p> : null}
+      {p.last_error ? <p className="text-xs text-fault-fg">{p.last_error}</p> : null}
       <JsonView value={p} rootLabel={p.id} defaultDepth={2} height={360} />
     </div>
   )
@@ -83,7 +83,7 @@ export default function PlcPane() {
   return (
     <ul className="min-h-0 flex-1 overflow-y-auto" data-testid="plc-list">
       {plcs.list.length === 0 ? (
-        <li className="px-2 py-2 text-2xs text-slate-400">
+        <li className="px-2 py-2 text-2xs text-content-faint">
           {plcs.error ? `PLC 목록 조회 실패 — ${plcs.error}` : 'PLC 목록 없음'}
         </li>
       ) : null}
@@ -93,7 +93,7 @@ export default function PlcPane() {
           <li key={p.id}>
             <button
               type="button"
-              className={`flex w-full items-center gap-2 px-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 ${rowPad}`}
+              className={`flex w-full items-center gap-2 px-2 text-left hover:bg-surface-inset ${rowPad}`}
               data-testid={`plc-${p.id}`}
               title={p.last_error ?? p.endpoint}
               onClick={() =>
@@ -108,7 +108,7 @@ export default function PlcPane() {
             >
               <StatusDot status={plcDot(p)} size="sm" />
               <span className="min-w-0 flex-1 truncate text-xs font-medium">{p.label}</span>
-              <span className="font-mono text-3xs tabular-nums text-slate-400">
+              <span className="font-mono text-3xs tabular-nums text-content-faint">
                 {p.rtt_ms !== null ? `${Math.round(p.rtt_ms)}ms` : '—'}
               </span>
               <StatusBadge status={lb.status}>{lb.label}</StatusBadge>

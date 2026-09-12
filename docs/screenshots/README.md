@@ -59,3 +59,7 @@
 | ![](37_table_narrow_zone.png) | 273px 존에 들어간 Task 표 — 열 열둘이 `#·상태·대상` 셋으로 접힌다(가로 스크롤이 아니라) |
 | ![](38_table_wide_after_maximize.png) | 같은 표, 최대화(1574px) — 열 열둘이 전부 돌아온다 |
 | ![](39_table_row_expanded.png) | 접힌 열은 버리지 않는다 — 행을 펼치면 아홉 열이 라벨+값 짝으로 나온다 |
+| ![](40_theme_light.png) | **기본은 화이트톤** — 색은 전부 시맨틱 토큰에서 나온다 |
+| ![](41_theme_dark.png) | 다크는 토큰 한 층(`[data-theme='dark']`) — 킷·셸에 `dark:` 짝이 0개다 |
+| ![](43_theme_dark_triage.png) | 다크 · 데이터 3분할 — 상태 배지·점이 두 테마에서 같은 뜻으로 읽힌다 |
+| ![](42_view_menu_fixed.png) | `보기` 메뉴 — 라벨이 줄어들지 않고 힌트가 먼저 잘린다(예전에는 `명령 중 / 심`으로 끊겼다) |

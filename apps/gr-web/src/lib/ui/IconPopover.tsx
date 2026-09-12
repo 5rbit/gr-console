@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '../utils'
 
 export const mapIconBtn =
-  'flex h-control-md w-control-md items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+  'flex h-control-md w-control-md items-center justify-center rounded-md border border-line-default bg-surface-panel text-content-tertiary shadow-sm transition-colors hover:bg-surface-app hover:text-content-primary'
 
 export interface MapIconButtonProps {
   icon: ReactNode
@@ -81,7 +81,7 @@ export function IconPopover({
         aria-label={title}
         aria-expanded={open}
         data-testid={testid}
-        className={cn(mapIconBtn, open && 'border-indigo-400 text-indigo-600 dark:text-indigo-300')}
+        className={cn(mapIconBtn, open && 'border-accent text-accent-text')}
         onClick={() => setOpen((o) => !o)}
       >
         {icon}
@@ -93,7 +93,7 @@ export function IconPopover({
           style={{ width }}
           data-testid={testid ? `${testid}-panel` : undefined}
           className={cn(
-            'absolute z-20 rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900',
+            'absolute z-20 rounded-lg border border-line-default bg-surface-panel p-3 text-xs shadow-lg',
             side === 'left'
               ? 'top-0 right-10'
               : side === 'bottom-right'
@@ -101,7 +101,7 @@ export function IconPopover({
                 : 'top-10 left-0',
           )}
         >
-          <div className="mb-2 text-2xs font-semibold text-slate-500">{title}</div>
+          <div className="mb-2 text-2xs font-semibold text-content-muted">{title}</div>
           {children}
         </div>
       ) : null}

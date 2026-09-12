@@ -22,7 +22,7 @@ export function Pagination({ total, limit, offset, onMove, testid = 'pager' }: P
 
   return (
     <div
-      className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300"
+      className="flex items-center gap-2 text-xs text-content-tertiary"
       data-testid={testid}
     >
       {/* **어디를 보고 있는지 먼저 말한다.** 페이지 번호만 있으면 "지금 몇 번째 줄"을 사람이 센다. */}

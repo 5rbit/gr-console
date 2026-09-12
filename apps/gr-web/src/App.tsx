@@ -49,10 +49,10 @@ function groupCls(active: boolean, open: boolean): string {
   return (
     'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded px-2 py-1 text-sm-tight transition-colors ' +
     (open
-      ? 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-100'
+      ? 'bg-surface-active text-content-primary'
       : active
-        ? 'font-medium text-indigo-700 dark:text-indigo-300'
-        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-100')
+        ? 'font-medium text-accent-text'
+        : 'text-content-muted hover:bg-surface-inset hover:text-content-primary')
   )
 }
 
@@ -72,12 +72,12 @@ function Screen({ tab }: { tab: Tab }) {
 }
 
 const menuRowCls =
-  'flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm-tight text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent dark:text-slate-300 dark:hover:bg-slate-700'
+  'flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm-tight text-content-tertiary hover:bg-surface-inset disabled:opacity-40 disabled:hover:bg-transparent'
 
 /** 메뉴 구분 머리줄 — 항목이 스물 가까이 되면 묶음 이름 없이는 훑을 수 없다. */
 function MenuLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-2.5 pt-1.5 pb-0.5 text-3xs font-semibold tracking-wide text-slate-400">
+    <div className="px-2.5 pt-1.5 pb-0.5 text-3xs font-semibold tracking-wide text-content-faint">
       {children}
     </div>
   )
@@ -110,11 +110,20 @@ function MenuRow({
       aria-checked={checked}
       onClick={onPick}
     >
-      <span className="w-3 shrink-0 text-indigo-600 dark:text-indigo-300">
+      <span className="w-3 shrink-0 text-accent-text">
         {checked ? <Check className="h-3 w-3" /> : null}
       </span>
-      <span className="flex-1">{label}</span>
-      {hint ? <kbd className="font-mono text-3xs text-slate-400">{hint}</kbd> : null}
+      {/* **라벨이 먼저다.** 예전에는 라벨이 `flex-1`이라 긴 힌트에 밀려 `명령 중 / 심`처럼 글자마다
+          끊겼다 — 가이드 4절 ②가 금지하는 그것을 메뉴가 하고 있었다. 라벨은 줄어들지 않고, 남는
+          폭을 힌트가 가져가며 모자라면 **힌트가 먼저** 잘린다. */}
+      <span className="shrink-0 whitespace-nowrap">{label}</span>
+      {hint ? (
+        <kbd className="min-w-0 flex-1 truncate text-right font-mono text-3xs text-content-faint">
+          {hint}
+        </kbd>
+      ) : (
+        <span className="flex-1" />
+      )}
     </button>
   )
 }
@@ -135,7 +144,7 @@ function ViewMenu({ onDone }: { onDone: () => void }) {
 
   return (
     <div
-      className="absolute top-full left-0 z-50 mt-0.5 max-h-[70vh] min-w-60 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
+      className="absolute top-full left-0 z-50 mt-0.5 max-h-[70vh] min-w-80 overflow-y-auto rounded-md border border-line-default bg-surface-panel py-1 shadow-lg"
       role="menu"
       tabIndex={-1}
       data-testid="view-menu"
@@ -368,25 +377,25 @@ export function App() {
   }, [info, tabs, nav.tab])
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+    <div className="flex h-screen flex-col bg-surface-app text-content-primary">
       {/* 메뉴바 — 맥 스타일의 얇은 한 줄. 네비게이션만 남기고 상태·단축키는 하단 StatusBar가 맡는다. */}
-      <header className="flex h-menubar shrink-0 items-center gap-1 border-b border-slate-200 px-2 dark:border-slate-700">
+      <header className="flex h-menubar shrink-0 items-center gap-1 border-b border-line-default px-2">
         <button
           type="button"
-          className="rounded p-1 text-slate-500 hover:bg-slate-100 md:hidden dark:hover:bg-slate-800"
+          className="rounded p-1 text-content-muted hover:bg-surface-inset md:hidden"
           aria-label="사이드바 토글"
           onClick={() => setSidebarOpen(!sidebarOpen)}
         >
           <Menu className="h-4 w-4" />
         </button>
         <h1 className="flex items-center gap-1.5 pr-1 text-sm-tight font-semibold">
-          <span className="grid h-5 w-5 place-items-center rounded bg-indigo-600 text-3xs text-white">
+          <span className="grid h-5 w-5 place-items-center rounded bg-accent text-3xs text-content-on-accent">
             GR
           </span>
           <span className="hidden sm:inline">
             GR 콘솔
             {info?.app_name ? (
-              <span className="font-normal text-slate-400"> · {info.app_name}</span>
+              <span className="font-normal text-content-faint"> · {info.app_name}</span>
             ) : null}
           </span>
         </h1>
@@ -415,7 +424,7 @@ export function App() {
                 </button>
                 {openGroup === g.id ? (
                   <div
-                    className="absolute top-full left-0 z-50 mt-0.5 min-w-48 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
+                    className="absolute top-full left-0 z-50 mt-0.5 min-w-48 overflow-hidden rounded-md border border-line-default bg-surface-panel py-1 shadow-lg"
                     role="menu"
                     tabIndex={-1}
                   >
@@ -427,8 +436,8 @@ export function App() {
                           type="button"
                           className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm-tight ${
                             nav.tab === t.id
-                              ? 'bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300'
-                              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
+                              ? 'bg-accent-soft font-medium text-accent-text'
+                              : 'text-content-tertiary hover:bg-surface-inset'
                           }`}
                           role="menuitem"
                           data-testid={`tab-${t.id}`}
@@ -441,7 +450,7 @@ export function App() {
                           <Icon className="h-4 w-4 shrink-0 opacity-70" />
                           <span className="flex-1">{t.label}</span>
                           {hotkey(t) ? (
-                            <kbd className="font-mono text-3xs text-slate-400">{hotkey(t)}</kbd>
+                            <kbd className="font-mono text-3xs text-content-faint">{hotkey(t)}</kbd>
                           ) : null}
                         </button>
                       )
@@ -475,7 +484,7 @@ export function App() {
 
         <button
           type="button"
-          className="ml-auto flex items-center gap-1.5 rounded border border-slate-200 px-2 py-0.5 text-2xs text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          className="ml-auto flex items-center gap-1.5 rounded border border-line-default px-2 py-0.5 text-2xs text-content-faint hover:bg-surface-inset hover:text-content-secondary"
           aria-label="명령 팔레트 열기"
           title="명령 팔레트 — 패널 · 배치 · 존 · 설정을 이름으로"
           data-testid="open-palette"
@@ -488,7 +497,7 @@ export function App() {
 
         <button
           type="button"
-          className="rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+          className="rounded p-1 text-content-muted hover:bg-surface-inset"
           aria-label="테마 전환"
           title="라이트/다크 전환"
           onClick={() => theme.toggle()}
@@ -512,8 +521,8 @@ export function App() {
           />
         ) : null}
         <aside
-          className={`shrink-0 border-r border-slate-200 dark:border-slate-700 ${
-            sidebarOpen ? 'absolute inset-y-0 top-menubar z-40 bg-slate-50 dark:bg-slate-900' : 'hidden'
+          className={`shrink-0 border-r border-line-default ${
+            sidebarOpen ? 'absolute inset-y-0 top-menubar z-40 bg-surface-app' : 'hidden'
           } md:relative md:top-0 md:block`}
         >
           <Sidebar />

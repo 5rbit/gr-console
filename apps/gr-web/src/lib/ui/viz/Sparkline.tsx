@@ -45,7 +45,7 @@ export function Sparkline({
     return { line, fill, base: hasBase ? path(baseline) : '' }
   }, [values, baseline, width, height, area])
 
-  if (!geom) return <span className="text-3xs text-slate-400">—</span>
+  if (!geom) return <span className="text-3xs text-content-faint">—</span>
 
   return (
     <svg

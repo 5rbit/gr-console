@@ -22,14 +22,14 @@ export function Gauge({
 
   return (
     <div className={`flex items-center gap-2 ${cls}`}>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-active">
         <div
           className={`h-full rounded-full transition-all ${t.dot}`}
           style={{ width: `${pct}%` }}
         />
       </div>
       {label ? (
-        <span className="w-12 text-right text-3xs text-slate-500 tabular-nums dark:text-slate-400">
+        <span className="w-12 text-right text-3xs text-content-muted tabular-nums">
           {label}
         </span>
       ) : null}

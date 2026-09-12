@@ -27,11 +27,11 @@ function readWidth(): number {
 }
 
 const headCls =
-  'flex shrink-0 items-center gap-1.5 border-b border-slate-200 px-2 py-1.5 dark:border-slate-700'
+  'flex shrink-0 items-center gap-1.5 border-b border-line-default px-2 py-1.5'
 const countCls =
-  'rounded-full bg-slate-200 px-1.5 text-2xs tabular-nums text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+  'rounded-full bg-surface-active px-1.5 text-2xs tabular-nums text-content-tertiary'
 const iconCls =
-  'rounded p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-800 dark:hover:bg-slate-700 dark:hover:text-slate-100'
+  'rounded p-1 text-content-faint transition-colors hover:bg-surface-active hover:text-content-primary'
 
 /** 접이식 섹션 하나 — 머리줄(제목·요약·오른쪽 손잡이) + 몸. 도킹 모드의 탭 띠와 같은 일을 한다. */
 function Section({
@@ -58,9 +58,9 @@ function Section({
           data-testid={`sec-${id}`}
         >
           <ChevronRight
-            className={`h-3 w-3 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-90' : ''}`}
+            className={`h-3 w-3 shrink-0 text-content-faint transition-transform ${open ? 'rotate-90' : ''}`}
           />
-          <span className="text-xs font-semibold text-slate-500">{title}</span>
+          <span className="text-xs font-semibold text-content-muted">{title}</span>
           {summary ? <span className={countCls}>{summary}</span> : null}
         </button>
         {trailing}

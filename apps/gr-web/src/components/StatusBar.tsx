@@ -45,13 +45,13 @@ export function StatusBar({ tab }: StatusBarProps) {
 
   return (
     <footer
-      className="flex h-6 shrink-0 items-center gap-3 border-t border-slate-200 bg-slate-100 px-2 text-2xs text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+      className="flex h-6 shrink-0 items-center gap-3 border-t border-line-default bg-surface-inset px-2 text-2xs text-content-muted"
       data-testid="statusbar"
     >
       {workspace.enabled ? (
         <button
           type="button"
-          className="max-w-[22rem] shrink-0 truncate rounded px-1 font-medium text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
+          className="max-w-[22rem] shrink-0 truncate rounded px-1 font-medium text-content-tertiary hover:bg-surface-active"
           title="보이는 패널 — 누르면 배치·패널 명령"
           data-testid="sb-panes"
           onClick={() => palette.show('배치')}
@@ -60,7 +60,7 @@ export function StatusBar({ tab }: StatusBarProps) {
           {visibleLabels().join(' · ') || tab}
         </button>
       ) : (
-        <span className="shrink-0 font-medium text-slate-600 dark:text-slate-300">{tab}</span>
+        <span className="shrink-0 font-medium text-content-tertiary">{tab}</span>
       )}
 
       <span className="flex shrink-0 items-center gap-2" data-testid="sb-feeds">
@@ -89,7 +89,7 @@ export function StatusBar({ tab }: StatusBarProps) {
 
       <span className="shrink-0" data-testid="sb-counts">
         Task <strong className="font-medium tabular-nums">{counts.total}</strong>
-        <span className="text-slate-400">
+        <span className="text-content-faint">
           (진행 {counts.active} · 실행 {counts.running} · 대기 {counts.queued})
         </span>
       </span>
@@ -99,7 +99,7 @@ export function StatusBar({ tab }: StatusBarProps) {
       {slow > 1.05 ? (
         // 폴이 물러난 상태 — 화면이 밀리고 있다는 사실을 값 대신 여기서 말한다.
         <span
-          className="shrink-0 rounded bg-amber-100 px-1 text-amber-700 tabular-nums dark:bg-amber-500/15 dark:text-amber-300"
+          className="shrink-0 rounded bg-warn-soft px-1 text-warn-fg tabular-nums"
           title="화면이 밀려 폴링 주기를 자동으로 늘렸습니다(메인스레드 보호). 한가해지면 원래대로 돌아옵니다."
           data-testid="sb-poll-slow"
         >

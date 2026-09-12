@@ -13,7 +13,7 @@ export function Card({ accent = '', padded = true, className = '', children }: C
   return (
     <div
       className={cn(
-        'rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800',
+        'rounded-lg border border-line-default bg-surface-panel shadow-sm',
         accent && 'border-l-4 ' + accent,
         padded && 'p-3',
         className,

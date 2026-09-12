@@ -107,7 +107,7 @@ export function WorkspaceShell() {
               onResize={(v) => workspace.resize('bottom', v)}
             />
             <div
-              className="flex min-h-0 shrink-0 flex-col border-t border-slate-200 dark:border-slate-700"
+              className="flex min-h-0 shrink-0 flex-col border-t border-line-default"
               style={{ height: `${bottom.size}px` }}
             >
               <DockZone zone="bottom" />
@@ -133,7 +133,7 @@ export function WorkspaceShell() {
             onResize={(v) => workspace.resize('right', v)}
           />
           <div
-            className="flex min-h-0 shrink-0 flex-col border-l border-slate-200 dark:border-slate-700"
+            className="flex min-h-0 shrink-0 flex-col border-l border-line-default"
             style={{ width: `${right.size}px` }}
           >
             <DockZone zone="right" />

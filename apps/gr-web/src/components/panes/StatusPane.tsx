@@ -22,20 +22,20 @@ export default function StatusPane() {
       className={`grid min-h-0 flex-1 auto-rows-min grid-cols-[auto_1fr] gap-x-3 overflow-y-auto px-2 text-xs ${gap}`}
       data-testid="status-rows"
     >
-      <dt className="text-slate-400">모드</dt>
+      <dt className="text-content-faint">모드</dt>
       <dd className="font-mono" data-testid="st-mode">
         {wm ? modeName(wm.Mode) : '—'}
       </dd>
-      <dt className="text-slate-400">작업</dt>
+      <dt className="text-content-faint">작업</dt>
       <dd className="font-mono tabular-nums" data-testid="st-task">
         {wm ? `W${wm.Stat.Task.Now.WorkId} / T${wm.Stat.Task.Now.TaskId}` : '—'}
       </dd>
-      <dt className="text-slate-400">스텝</dt>
+      <dt className="text-content-faint">스텝</dt>
       <dd className="font-mono tabular-nums" data-testid="st-step">
         {wm ? `${wm.Proc.Step.Now}` : '—'}
-        {wm?.Proc.Msg ? <span className="ml-1 text-slate-400">{wm.Proc.Msg}</span> : null}
+        {wm?.Proc.Msg ? <span className="ml-1 text-content-faint">{wm.Proc.Msg}</span> : null}
       </dd>
-      <dt className="text-slate-400">알람</dt>
+      <dt className="text-content-faint">알람</dt>
       <dd className="flex items-center gap-2" data-testid="st-alarm">
         {wm ? (
           <>
@@ -46,7 +46,7 @@ export default function StatusPane() {
           '—'
         )}
       </dd>
-      <dt className="text-slate-400">대기열</dt>
+      <dt className="text-content-faint">대기열</dt>
       <dd className="font-mono tabular-nums" data-testid="st-queue">
         {wm ? wm.Stat.Task.Queue.length : '—'}
       </dd>

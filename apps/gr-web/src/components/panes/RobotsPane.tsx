@@ -4,9 +4,9 @@
 // 오른쪽에도 하단에도 설 수 있어야 하고, 그러려면 섹션이 **자기 머리띠 없이** 자기 몸만 그려야 한다
 // (제목·탭·닫기는 도킹 껍데기가 그린다). 사이드바는 이제 이 패널들을 얹는 존 하나다.
 //
-// 클래스는 사이드바에 있던 것을 그대로 옮겼다(슬레이트 + `dark:`) — 이 변경은 **자리 이동**이고
-// 색을 다시 고르는 일이 아니다. 셸 크롬(App·PanelHost)이 아직 다크를 들고 있어 여기서만 시맨틱
-// 토큰으로 갈아타면 다크에서 이 패널만 하얗게 뜬다.
+// 색은 **시맨틱 토큰**으로 부른다(`bg-surface-*` · `text-content-*` · 상태 6종). 처음 떼어 낼 때는
+// 셸 크롬이 아직 `slate` + `dark:` 쌍이라 그대로 옮겼지만, 이제 `tokens.css`가 다크 층을 들고 있어
+// 킷·셸 전체가 토큰을 쓴다 — 두 테마가 이 파일을 고치지 않고 따라온다.
 import { useEffect } from 'react'
 import { robotColor, robots } from '../../lib/robots'
 import { density } from '../../lib/density'
@@ -29,7 +29,7 @@ export default function RobotsPane() {
       aria-label="명령을 보낼 로봇"
     >
       {robots.list.length === 0 ? (
-        <li className="px-2 py-2 text-2xs text-slate-400">
+        <li className="px-2 py-2 text-2xs text-content-faint">
           {robots.error ? `로봇 목록 조회 실패 — ${robots.error}` : '로봇 목록 없음'}
         </li>
       ) : null}
@@ -41,7 +41,7 @@ export default function RobotsPane() {
               type="button"
               role="radio"
               aria-checked={on}
-              className={`flex w-full items-center gap-2 px-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 ${rowPad} ${on ? 'bg-indigo-50 dark:bg-indigo-950' : ''}`}
+              className={`flex w-full items-center gap-2 px-2 text-left hover:bg-surface-inset ${rowPad} ${on ? 'bg-accent-soft' : ''}`}
               data-testid={`robot-${r.id}`}
               title={`${r.opcua_root} · DST ${r.dst} · 상태 PLC ${r.plc}${r.gate.can_submit ? '' : ` · 게이트 닫힘: ${r.gate.reasons.join('; ')}`}`}
               onClick={() => robots.select(r.id)}
@@ -53,12 +53,12 @@ export default function RobotsPane() {
                 title="맵에서 이 로봇의 작업 테두리 색"
               />
               <span
-                className={`min-w-0 flex-1 truncate text-xs ${on ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'font-medium'}`}
+                className={`min-w-0 flex-1 truncate text-xs ${on ? 'font-semibold text-accent-text' : 'font-medium'}`}
               >
                 {r.name}
               </span>
               {r.active_tasks ? (
-                <span className="font-mono text-3xs text-slate-400" title="진행 중 Task">
+                <span className="font-mono text-3xs text-content-faint" title="진행 중 Task">
                   {r.active_tasks}
                 </span>
               ) : null}

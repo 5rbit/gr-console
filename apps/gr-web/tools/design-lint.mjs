@@ -102,6 +102,34 @@ const RULES = [
     test: (l) => [...l.matchAll(/\bfont-(?:bold|extrabold|black)\b/g)].map((m) => m[0]),
   },
   {
+    id: 'no-dark-variant',
+    why: '킷·셸에서는 `dark:` 짝을 쓰지 않는다 — 색을 시맨틱 토큰으로 부르면 `tokens.css`의 다크 층이 알아서 따라온다',
+    ext: ['.tsx'],
+    /**
+     * 킷과 셸 크롬만 본다. 이 영역은 `dark:`가 **0개**인 상태로 정리됐고(면·글자·상태·accent 전부
+     * 토큰), 이 규칙은 그 상태가 되돌아가지 못하게 잠그는 자리다. 화면 안(`components/<page>/`)은
+     * 아직 `dark:`가 남아 기준선이 든다 — 그 화면 담당이 토큰으로 옮길 때 함께 줄어든다.
+     */
+    only: ['src/lib/ui/', 'src/components/workspace/', 'src/components/panes/', 'src/App.tsx',
+      'src/components/StatusBar.tsx', 'src/components/Sidebar.tsx', 'src/components/PanelHost.tsx',
+      'src/components/CommandPalette.tsx'],
+    test: (l) => [...l.matchAll(/\bdark:[a-z-]+/g)].map((m) => m[0]),
+  },
+  {
+    id: 'no-raw-palette',
+    why: '킷·셸에서는 원시 색 스케일(`bg-slate-100`·`text-indigo-600`)을 부르지 않는다 — 뜻으로 부른다(`bg-surface-inset`·`text-accent-text`)',
+    ext: ['.tsx'],
+    only: ['src/lib/ui/', 'src/components/workspace/', 'src/components/panes/', 'src/App.tsx',
+      'src/components/StatusBar.tsx', 'src/components/Sidebar.tsx', 'src/components/PanelHost.tsx',
+      'src/components/CommandPalette.tsx'],
+    test: (l) =>
+      [
+        ...l.matchAll(
+          /(?<![\w:/-])(?:hover:|focus-visible:|group-hover:|group-hover\/tab:|active:|peer-checked:|disabled:|placeholder:)*(?:bg|text|border|ring)-(?:slate|neutral|gray|zinc|stone|indigo|emerald|green|amber|yellow|red|rose|orange|sky|blue|violet|pink)-\d{2,3}(?:\/\d{1,3})?\b/g,
+        ),
+      ].map((m) => m[0]),
+  },
+  {
     id: 'no-decoration',
     why: '그라디언트·블러·이모지는 쓰지 않는다 — 값이 알람인 화면에서 장식은 알람과 경쟁한다',
     ext: ['.tsx', '.ts', '.css'],

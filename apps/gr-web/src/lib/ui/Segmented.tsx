@@ -37,7 +37,7 @@ export function Segmented<T extends string>({
       role="tablist"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex h-control-sm flex-none items-stretch rounded-md border border-slate-300 bg-white p-0.5 dark:border-slate-600 dark:bg-slate-900',
+        'inline-flex h-control-sm flex-none items-stretch rounded-md border border-line-strong bg-surface-panel p-0.5',
         className,
       )}
     >
@@ -57,8 +57,8 @@ export function Segmented<T extends string>({
             className={cn(
               'flex items-center gap-1 rounded px-2 text-xs whitespace-nowrap transition-colors',
               on
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+                ? 'bg-accent text-content-on-accent'
+                : 'text-content-tertiary hover:bg-surface-inset',
             )}
             onClick={() => onChange(o.id)}
           >
@@ -66,7 +66,7 @@ export function Segmented<T extends string>({
             {showLabel ? <span>{o.label}</span> : null}
             {hasBadge ? (
               <span
-                className={cn('text-3xs tabular-nums', on ? 'opacity-80' : 'text-slate-400')}
+                className={cn('text-3xs tabular-nums', on ? 'opacity-80' : 'text-content-faint')}
               >
                 {o.badge}
               </span>

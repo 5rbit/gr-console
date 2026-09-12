@@ -1,10 +1,14 @@
 // 시맨틱 **상태 → 클래스** 단일 진실원. 컴포넌트마다 흩어져 있던 tone()/boolTone()/statusColor()
 // (SchemaTable·EventTimeline·Fleet·ReportView)를 하나로 수렴한다 — green↔emerald 불일치를 봉합하고,
-// StatusDot/StatusBadge가 이 표를 소비한다. 다크 대응 soft 배경 포함.
+// StatusDot/StatusBadge가 이 표를 소비한다.
 //
-// 색값은 `app.css`의 @theme이 갖는다 — 여기 적힌 `emerald`·`amber`·`sky`·`slate`는 mx-console
-// 팔레트로 재정의된 이름이라(브랜드 그린 · 골드 · 파랑 · 따뜻한 회색) 클래스 문자열은 그대로 두고
-// 값만 갈린다. 상태 여섯의 dot·fg·soft·border는 디자인 시스템 `tokens/status.css`와 1:1이다.
+// **클래스는 시맨틱 토큰으로 부른다**(`bg-ok` · `text-ok-fg` · `bg-ok-soft`). 예전에는 원시 스케일과
+// `dark:` 쌍을 함께 적었다(`bg-emerald-50 dark:bg-emerald-500/15`) — 그러면 ① 다크 배경을 투명도로
+// 만들게 되고(면이 한 층 더 생긴다) ② 두 테마의 값이 이 파일에 박혀서 팔레트를 갈 때 여기도 같이
+// 고쳐야 한다. 토큰으로 부르면 `tokens.css`의 라이트/다크 블록이 알아서 따라오고, 이 표는 **뜻만**
+// 든다. 상태 여섯의 dot·fg·soft는 그 토큰과 1:1이다.
+//
+// 기본은 화이트톤이고 다크는 두 번째 층이다(`tokens.css`의 `[data-theme='dark']`).
 
 export type Status = 'ok' | 'warn' | 'degraded' | 'fault' | 'info' | 'neutral'
 
@@ -23,46 +27,46 @@ export interface StatusClasses {
 
 const MAP: Record<Status, StatusClasses> = {
   ok: {
-    dot: 'bg-emerald-500',
-    text: 'text-emerald-700 dark:text-emerald-400',
-    soft: 'bg-emerald-50 dark:bg-emerald-500/15',
-    border: 'border-emerald-500',
-    ring: 'ring-emerald-500/30',
+    dot: 'bg-ok',
+    text: 'text-ok-fg',
+    soft: 'bg-ok-soft',
+    border: 'border-ok',
+    ring: 'ring-ok/30',
   },
   warn: {
-    dot: 'bg-amber-500',
-    text: 'text-amber-700 dark:text-amber-400',
-    soft: 'bg-amber-50 dark:bg-amber-500/15',
-    border: 'border-amber-500',
-    ring: 'ring-amber-500/30',
+    dot: 'bg-warn',
+    text: 'text-warn-fg',
+    soft: 'bg-warn-soft',
+    border: 'border-warn',
+    ring: 'ring-warn/30',
   },
   degraded: {
-    dot: 'bg-orange-500',
-    text: 'text-orange-600 dark:text-orange-400',
-    soft: 'bg-orange-50 dark:bg-orange-500/15',
-    border: 'border-orange-500',
-    ring: 'ring-orange-500/30',
+    dot: 'bg-degraded',
+    text: 'text-degraded-fg',
+    soft: 'bg-degraded-soft',
+    border: 'border-degraded',
+    ring: 'ring-degraded/30',
   },
   fault: {
-    dot: 'bg-red-500',
-    text: 'text-red-600 dark:text-red-400',
-    soft: 'bg-red-50 dark:bg-red-500/15',
-    border: 'border-red-500',
-    ring: 'ring-red-500/30',
+    dot: 'bg-fault',
+    text: 'text-fault-fg',
+    soft: 'bg-fault-soft',
+    border: 'border-fault',
+    ring: 'ring-fault/30',
   },
   info: {
-    dot: 'bg-sky-500',
-    text: 'text-sky-600 dark:text-sky-400',
-    soft: 'bg-sky-50 dark:bg-sky-500/15',
-    border: 'border-sky-500',
-    ring: 'ring-sky-500/30',
+    dot: 'bg-info',
+    text: 'text-info-fg',
+    soft: 'bg-info-soft',
+    border: 'border-info',
+    ring: 'ring-info/30',
   },
   neutral: {
-    dot: 'bg-slate-400',
-    text: 'text-slate-500 dark:text-slate-400',
-    soft: 'bg-slate-100 dark:bg-slate-800',
-    border: 'border-slate-400',
-    ring: 'ring-slate-400/30',
+    dot: 'bg-neutral-dot',
+    text: 'text-neutral-fg',
+    soft: 'bg-neutral-soft',
+    border: 'border-neutral-dot',
+    ring: 'ring-neutral-dot/30',
   },
 }
 
