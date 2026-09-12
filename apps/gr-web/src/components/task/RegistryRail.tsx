@@ -1,52 +1,60 @@
-// 레지스트리 레일 — 품목 | 셀 | 스테이션 세그먼트 + 검색 + 해당 표. 화면 왼쪽을 차지한다.
-import { useState } from 'react'
+// 레지스트리 레일 — 품목 | 셀 | 스테이션 | 재고 | 레이아웃 세그먼트 + 검색 + 해당 표/맵. 화면 왼쪽을 차지한다.
+import { useState, type ReactNode } from 'react'
 import { Search } from 'lucide-react'
 import type { Registry } from '../../lib/registry'
 import { cn } from '../../lib/utils'
-import type { Cell, Item, Station, Target } from '../../lib/types'
-import { CellMap } from './CellMap'
-import type { Shape } from '../../lib/task/layoutModel'
+import type { Cell, Item, Station } from '../../lib/types'
 import { CellRegistry } from './CellRegistry'
 import { ItemRegistry } from './ItemRegistry'
 import { StationRegistry } from './StationRegistry'
+import { StockRegistry } from './StockRegistry'
 
-export type RailTab = 'item' | 'cell' | 'station' | 'layout'
+export type RailTab = 'item' | 'cell' | 'station' | 'stock' | 'layout'
 
 const TABS: { id: RailTab; label: string }[] = [
-  { id: 'item', label: '품목' },
+  { id: 'layout', label: '레이아웃' },
+  { id: 'stock', label: '재고' },
   { id: 'cell', label: '셀' },
   { id: 'station', label: '스테이션' },
-  { id: 'layout', label: '레이아웃' },
+  { id: 'item', label: '품목' },
 ]
+const RAIL_KEY = 'gr-rail-tab'
 
 export interface RegistryRailProps {
   items: Registry<Item>
   cells: Registry<Cell>
   stations: Registry<Station>
-  /** 작성 카드에 잡힌 대상(레이아웃 강조용). */
-  selected?: Target | null
-  /** 레이아웃에서 도형을 눌렀을 때. */
-  onPick?: (t: Target, shape: Shape) => void
+  /** 레이아웃 탭 내용(맵·편집기·정보 패널) — 상태는 화면 루트가 든다. */
+  layout: ReactNode
+  /** 셀 탭을 열고 특정 셀 편집 폼을 띄우라는 요청(레이아웃 팔레트 → 셀 편집). */
+  editCell?: Cell | null
 }
 
-export function RegistryRail({
-  items,
-  cells,
-  stations,
-  selected = null,
-  onPick,
-}: RegistryRailProps) {
-  const [tab, setTab] = useState<RailTab>('cell')
+export function RegistryRail({ items, cells, stations, layout }: RegistryRailProps) {
+  const [tab, setTab] = useState<RailTab>(() => {
+    try {
+      return (localStorage.getItem(RAIL_KEY) as RailTab) || 'layout'
+    } catch {
+      return 'layout'
+    }
+  })
   const [q, setQ] = useState('')
   const count = (t: RailTab) =>
-    (t === 'item'
-      ? items
-      : t === 'cell'
-        ? cells
+    t === 'item'
+      ? items.items.length
+      : t === 'cell' || t === 'stock'
+        ? cells.items.length
         : t === 'station'
-          ? stations
-          : { items: [...cells.items, ...stations.items] }
-    ).items.length
+          ? stations.items.length
+          : cells.items.length + stations.items.length
+  const go = (t: RailTab) => {
+    setTab(t)
+    try {
+      localStorage.setItem(RAIL_KEY, t)
+    } catch {
+      /* 저장 못 해도 동작 */
+    }
+  }
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="registry-rail">
       <div className="flex flex-none items-center gap-2 border-b border-slate-200 px-2 py-1.5 dark:border-slate-700">
@@ -68,7 +76,7 @@ export function RegistryRail({
                   ? 'bg-indigo-600 text-white'
                   : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
               )}
-              onClick={() => setTab(t.id)}
+              onClick={() => go(t.id)}
             >
               {t.label}{' '}
               <span className={cn('tabular-nums', tab === t.id ? 'opacity-80' : 'text-slate-400')}>
@@ -83,7 +91,11 @@ export function RegistryRail({
             <input
               className="h-7 w-44 rounded-md border border-slate-300 bg-transparent pr-2 pl-7 text-xs focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none dark:border-slate-600"
               placeholder={
-                tab === 'item' ? '코드·이름' : tab === 'cell' ? 'id·구역·행·열' : 'id·컨베이어·그룹'
+                tab === 'item'
+                  ? '코드·이름'
+                  : tab === 'cell' || tab === 'stock'
+                    ? 'id·구역·행·열'
+                    : 'id·컨베이어·그룹'
               }
               value={q}
               onChange={(e) => setQ(e.currentTarget.value)}
@@ -99,13 +111,10 @@ export function RegistryRail({
           <CellRegistry reg={cells} q={q.trim()} />
         ) : tab === 'station' ? (
           <StationRegistry reg={stations} q={q.trim()} />
+        ) : tab === 'stock' ? (
+          <StockRegistry cells={cells.items} items={items.items} q={q.trim()} />
         ) : (
-          <CellMap
-            cells={cells.items}
-            stations={stations.items}
-            selected={selected}
-            onPick={(t, s) => onPick?.(t, s)}
-          />
+          layout
         )}
       </div>
     </div>

@@ -134,7 +134,9 @@ function FormModal({
 // ── 검증(백엔드 규칙 그대로) ─────────────────────────────────────────────────
 
 const positionErrors = (p: [number, number, number]): string[] =>
-  (['X', 'Y', 'Z'] as const).filter((_, i) => !(p[i] > 0)).map((a) => `위치 ${a}는 0보다 커야 합니다`)
+  (['X', 'Y', 'Z'] as const)
+    .filter((_, i) => !(p[i] > 0))
+    .map((a) => `위치 ${a}는 0보다 커야 합니다`)
 
 export function validateCell(c: CellUpsert): string[] {
   const out: string[] = []
@@ -238,12 +240,28 @@ function CellFields({
   return (
     <>
       <Section title="식별">
-        <Num label="Id" value={v.id} onChange={(id) => set({ id })} disabled={lockId} step="1" min={1} />
-        <Num label="구역(Section)" value={v.section} onChange={(section) => set({ section })} step="1" />
+        <Num
+          label="Id"
+          value={v.id}
+          onChange={(id) => set({ id })}
+          disabled={lockId}
+          step="1"
+          min={1}
+        />
+        <Num
+          label="구역(Section)"
+          value={v.section}
+          onChange={(section) => set({ section })}
+          step="1"
+        />
         <Num label="행(Row)" value={v.row} onChange={(row) => set({ row })} step="1" />
         <Num label="열(Col)" value={v.col} onChange={(col) => set({ col })} step="1" />
         <Bool label="사용(Use)" value={v.use} onChange={(use) => set({ use })} />
-        <Bool label="블렌드(BlendUse)" value={v.blend_use} onChange={(blend_use) => set({ blend_use })} />
+        <Bool
+          label="블렌드(BlendUse)"
+          value={v.blend_use}
+          onChange={(blend_use) => set({ blend_use })}
+        />
       </Section>
       <Section title="치수·위치 (mm)">
         <Num label="길이(Length)" value={v.length} onChange={(length) => set({ length })} />
@@ -276,18 +294,32 @@ export function CellForm({ open, onOpenChange, initial, editing, onSave }: FormP
     }
   }
   return (
-    <FormModal open={open} onOpenChange={onOpenChange} title={editing ? `셀 #${initial.id} 편집` : '셀 추가'} errors={errors} saving={saving} onSave={save}>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? `셀 #${initial.id} 편집` : '셀 추가'}
+      errors={errors}
+      saving={saving}
+      onSave={save}
+    >
       <CellFields v={v} set={set} lockId={editing} />
     </FormModal>
   )
 }
 
-export function StationForm({ open, onOpenChange, initial, editing, onSave }: FormProps<StationUpsert>) {
+export function StationForm({
+  open,
+  onOpenChange,
+  initial,
+  editing,
+  onSave,
+}: FormProps<StationUpsert>) {
   const [v, setV] = useState<StationUpsert>(initial)
   const [errors, setErrors] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const set = (patch: Partial<StationUpsert>) => setV((cur) => ({ ...cur, ...patch }))
-  const setInfo = (patch: Partial<CellUpsert>) => setV((cur) => ({ ...cur, info: { ...cur.info, ...patch } }))
+  const setInfo = (patch: Partial<CellUpsert>) =>
+    setV((cur) => ({ ...cur, info: { ...cur.info, ...patch } }))
   const setSensor = (patch: Partial<StationUpsert['sensor']>) =>
     setV((cur) => ({ ...cur, sensor: { ...cur.sensor, ...patch } }))
   const save = async () => {
@@ -306,28 +338,109 @@ export function StationForm({ open, onOpenChange, initial, editing, onSave }: Fo
   }
   const s = v.sensor
   return (
-    <FormModal open={open} onOpenChange={onOpenChange} title={editing ? `스테이션 #${initial.id} 편집` : '스테이션 추가'} errors={errors} saving={saving} onSave={save} wide>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? `스테이션 #${initial.id} 편집` : '스테이션 추가'}
+      errors={errors}
+      saving={saving}
+      onSave={save}
+      wide
+    >
       <Section title="스테이션">
-        <Num label="Id" value={v.id} onChange={(id) => set({ id })} disabled={editing} step="1" min={2001} />
-        <Num label="컨베이어(ConvNo)" value={v.conv_no} onChange={(conv_no) => set({ conv_no })} step="1" />
-        <Num label="작업 종류(TaskType)" value={v.task_type} onChange={(task_type) => set({ task_type })} step="1" />
-        <Num label="회전(RotateType)" value={v.rotate_type} onChange={(rotate_type) => set({ rotate_type })} step="1" />
+        <Num
+          label="Id"
+          value={v.id}
+          onChange={(id) => set({ id })}
+          disabled={editing}
+          step="1"
+          min={2001}
+        />
+        <Num
+          label="컨베이어(ConvNo)"
+          value={v.conv_no}
+          onChange={(conv_no) => set({ conv_no })}
+          step="1"
+        />
+        <Num
+          label="작업 종류(TaskType)"
+          value={v.task_type}
+          onChange={(task_type) => set({ task_type })}
+          step="1"
+        />
+        <Num
+          label="회전(RotateType)"
+          value={v.rotate_type}
+          onChange={(rotate_type) => set({ rotate_type })}
+          step="1"
+        />
         <Num label="그룹(Group)" value={v.group} onChange={(group) => set({ group })} step="1" />
-        <Num label="그룹 순번(GroupIndex)" value={v.group_index} onChange={(group_index) => set({ group_index })} step="1" />
-        <Num label="이전 연결(ConnPrev)" value={v.connection_prev} onChange={(connection_prev) => set({ connection_prev })} step="1" />
-        <Num label="다음 연결(ConnNext)" value={v.connection_next} onChange={(connection_next) => set({ connection_next })} step="1" />
-        <Num label="IO 블록(IOBlockNo)" value={v.io_block_no} onChange={(io_block_no) => set({ io_block_no })} step="1" />
+        <Num
+          label="그룹 순번(GroupIndex)"
+          value={v.group_index}
+          onChange={(group_index) => set({ group_index })}
+          step="1"
+        />
+        <Num
+          label="이전 연결(ConnPrev)"
+          value={v.connection_prev}
+          onChange={(connection_prev) => set({ connection_prev })}
+          step="1"
+        />
+        <Num
+          label="다음 연결(ConnNext)"
+          value={v.connection_next}
+          onChange={(connection_next) => set({ connection_next })}
+          step="1"
+        />
+        <Num
+          label="IO 블록(IOBlockNo)"
+          value={v.io_block_no}
+          onChange={(io_block_no) => set({ io_block_no })}
+          step="1"
+        />
       </Section>
       <CellFields v={{ ...v.info, id: v.id }} set={setInfo} lockId />
       <Section title="센서(IO-Link)">
-        <Num label="모듈" value={s.io_link_master_module} onChange={(n) => setSensor({ io_link_master_module: n })} step="1" />
-        <Num label="포트 L" value={s.io_link_master_port_l} onChange={(n) => setSensor({ io_link_master_port_l: n })} step="1" />
-        <Num label="포트 R" value={s.io_link_master_port_r} onChange={(n) => setSensor({ io_link_master_port_r: n })} step="1" />
-        <Num label="검출 계수" value={s.detection_factor} onChange={(n) => setSensor({ detection_factor: n })} />
-        <Num label="허용 범위" value={s.allow_range} onChange={(n) => setSensor({ allow_range: n })} />
+        <Num
+          label="모듈"
+          value={s.io_link_master_module}
+          onChange={(n) => setSensor({ io_link_master_module: n })}
+          step="1"
+        />
+        <Num
+          label="포트 L"
+          value={s.io_link_master_port_l}
+          onChange={(n) => setSensor({ io_link_master_port_l: n })}
+          step="1"
+        />
+        <Num
+          label="포트 R"
+          value={s.io_link_master_port_r}
+          onChange={(n) => setSensor({ io_link_master_port_r: n })}
+          step="1"
+        />
+        <Num
+          label="검출 계수"
+          value={s.detection_factor}
+          onChange={(n) => setSensor({ detection_factor: n })}
+        />
+        <Num
+          label="허용 범위"
+          value={s.allow_range}
+          onChange={(n) => setSensor({ allow_range: n })}
+        />
         <span />
-        <Num label="L 센서 오프셋" value={s.l_sensor_offset} onChange={(n) => setSensor({ l_sensor_offset: n })} />
-        <Num label="R 센서 오프셋" value={s.r_sensor_offset} onChange={(n) => setSensor({ r_sensor_offset: n })} />
+        <Num
+          label="L 센서 오프셋"
+          value={s.l_sensor_offset}
+          onChange={(n) => setSensor({ l_sensor_offset: n })}
+        />
+        <Num
+          label="R 센서 오프셋"
+          value={s.r_sensor_offset}
+          onChange={(n) => setSensor({ r_sensor_offset: n })}
+        />
       </Section>
     </FormModal>
   )
@@ -352,18 +465,69 @@ export function ItemForm({ open, onOpenChange, initial, editing, onSave }: FormP
     }
   }
   return (
-    <FormModal open={open} onOpenChange={onOpenChange} title={editing ? `품목 ${initial.code} 편집` : '품목 추가'} errors={errors} saving={saving} onSave={save}>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? `품목 ${initial.code} 편집` : '품목 추가'}
+      errors={errors}
+      saving={saving}
+      onSave={save}
+    >
       <Section title="품목">
-        <Num label="코드(Code)" value={v.code} onChange={(code) => set({ code })} disabled={editing} step="1" min={1} />
-        <Input className="col-span-2" label="이름" value={v.name} onValueChange={(name) => set({ name })} placeholder="예: 225/45R17" />
-        <Num label="적재 수량(Count)" value={v.count} onChange={(count) => set({ count })} step="1" min={1} />
-        <Num label="내경(mm)" value={v.inner_diameter} onChange={(inner_diameter) => set({ inner_diameter })} />
-        <Num label="외경(mm)" value={v.outer_diameter} onChange={(outer_diameter) => set({ outer_diameter })} />
-        <Num label="하부 비드 높이" value={v.lower_bead_height} onChange={(lower_bead_height) => set({ lower_bead_height })} />
-        <Num label="상부 비드 높이" value={v.upper_bead_height} onChange={(upper_bead_height) => set({ upper_bead_height })} />
+        <Num
+          label="코드(Code)"
+          value={v.code}
+          onChange={(code) => set({ code })}
+          disabled={editing}
+          step="1"
+          min={1}
+        />
+        <Input
+          className="col-span-2"
+          label="이름"
+          value={v.name}
+          onValueChange={(name) => set({ name })}
+          placeholder="예: 225/45R17"
+        />
+        <Num
+          label="적재 수량(Count)"
+          value={v.count}
+          onChange={(count) => set({ count })}
+          step="1"
+          min={1}
+        />
+        <Num
+          label="내경(mm)"
+          value={v.inner_diameter}
+          onChange={(inner_diameter) => set({ inner_diameter })}
+        />
+        <Num
+          label="외경(mm)"
+          value={v.outer_diameter}
+          onChange={(outer_diameter) => set({ outer_diameter })}
+        />
+        <Num
+          label="하부 비드 높이"
+          value={v.lower_bead_height}
+          onChange={(lower_bead_height) => set({ lower_bead_height })}
+        />
+        <Num
+          label="상부 비드 높이"
+          value={v.upper_bead_height}
+          onChange={(upper_bead_height) => set({ upper_bead_height })}
+        />
         <Num label="높이(mm)" value={v.height} onChange={(height) => set({ height })} />
-        <Num label="처짐 계수" value={v.deflection_factor} onChange={(deflection_factor) => set({ deflection_factor })} />
-        <Input className="col-span-2" label="비고" value={v.note} onValueChange={(note) => set({ note })} />
+        <Num
+          label="처짐 계수"
+          value={v.deflection_factor}
+          onChange={(deflection_factor) => set({ deflection_factor })}
+        />
+        <Input
+          className="col-span-2"
+          label="비고"
+          value={v.note}
+          onValueChange={(note) => set({ note })}
+        />
       </Section>
     </FormModal>
   )

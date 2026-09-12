@@ -10,6 +10,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ("0002_registry", include_str!("migrations/0002_registry.sql")),
     ("0003_ledger", include_str!("migrations/0003_ledger.sql")),
     ("0004_scenario", include_str!("migrations/0004_scenario.sql")),
+    ("0005_stock", include_str!("migrations/0005_stock.sql")),
 ];
 
 #[derive(Clone)]

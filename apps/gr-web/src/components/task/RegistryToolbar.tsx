@@ -4,14 +4,29 @@
 // 다이얼로그 상태(쓰기 확인·차이·가져오기 미리보기)는 이 컴포넌트가 들고, 결과는 토스트 + 다이얼로그로 낸다.
 import type * as React from 'react'
 import { useRef, useState } from 'react'
-import { Download, FileDiff, Pencil, Plus, RefreshCw, Trash2, Upload, UploadCloud } from 'lucide-react'
+import {
+  Download,
+  FileDiff,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Upload,
+  UploadCloud,
+} from 'lucide-react'
 import { Button } from '../../lib/ui/Button'
 import { Select } from '../../lib/ui/Select'
 import { Toolbar } from '../../lib/ui/Toolbar'
 import { toast } from '../../lib/ui/toast'
 import type { DiffRow } from '../../lib/types'
 import type { FileImportResult, PlcTarget, PushResult } from '../../lib/task/types'
-import { DiffDialog, ImportDialog, PLC_TARGET_LABEL, PushDialog, pushSummary } from './registryDialogs'
+import {
+  DiffDialog,
+  ImportDialog,
+  PLC_TARGET_LABEL,
+  PushDialog,
+  pushSummary,
+} from './registryDialogs'
 
 /** 한 레지스트리의 PLC/Excel 백엔드 묶음. 품목은 `plc`가 없다. */
 export interface RegistryIo<T> {
@@ -40,12 +55,35 @@ export interface RegistryToolbarProps<T> {
   reload: () => Promise<void>
 }
 
-export function RegistryToolbar<T>({ title, icon, what, rows, dirty, selected, io, onAdd, onEdit, onDelete, reload }: RegistryToolbarProps<T>) {
+export function RegistryToolbar<T>({
+  title,
+  icon,
+  what,
+  rows,
+  dirty,
+  selected,
+  io,
+  onAdd,
+  onEdit,
+  onDelete,
+  reload,
+}: RegistryToolbarProps<T>) {
   const [plc, setPlc] = useState<PlcTarget>('GR2')
   const [busy, setBusy] = useState<'import' | 'push' | 'diff' | 'file' | null>(null)
   const [pushOpen, setPushOpen] = useState(false)
-  const [diff, setDiff] = useState<{ open: boolean; rows: DiffRow<T>[] | null; error: string | null; plc: PlcTarget }>({ open: false, rows: null, error: null, plc: 'GR2' })
-  const [imp, setImp] = useState<{ open: boolean; file: File | null; preview: FileImportResult | null; error: string | null; applying: boolean }>({ open: false, file: null, preview: null, error: null, applying: false })
+  const [diff, setDiff] = useState<{
+    open: boolean
+    rows: DiffRow<T>[] | null
+    error: string | null
+    plc: PlcTarget
+  }>({ open: false, rows: null, error: null, plc: 'GR2' })
+  const [imp, setImp] = useState<{
+    open: boolean
+    file: File | null
+    preview: FileImportResult | null
+    error: string | null
+    applying: boolean
+  }>({ open: false, file: null, preview: null, error: null, applying: false })
   const fileRef = useRef<HTMLInputElement>(null)
   /** 읽기·차이는 PLC 한 대만 — '둘 다'면 GR2로 본다. */
   const one: PlcTarget = plc === 'both' ? 'GR2' : plc
@@ -57,9 +95,17 @@ export function RegistryToolbar<T>({ title, icon, what, rows, dirty, selected, i
     try {
       const r = await io.plc.import(one)
       await reload()
-      toast.resolve(tid, 'ok', `${one} ${what} 읽기 — 추가 ${r.imported} · 갱신 ${r.updated} · 동일 ${r.skipped}`)
+      toast.resolve(
+        tid,
+        'ok',
+        `${one} ${what} 읽기 — 추가 ${r.imported} · 갱신 ${r.updated} · 동일 ${r.skipped}`,
+      )
     } catch (e) {
-      toast.resolve(tid, 'error', `${what} 읽기 실패 — ${e instanceof Error ? e.message : String(e)}`)
+      toast.resolve(
+        tid,
+        'error',
+        `${what} 읽기 실패 — ${e instanceof Error ? e.message : String(e)}`,
+      )
     } finally {
       setBusy(null)
     }
@@ -74,7 +120,11 @@ export function RegistryToolbar<T>({ title, icon, what, rows, dirty, selected, i
       await reload()
       toast.resolve(tid, r.verified ? 'ok' : 'warn', pushSummary(r))
     } catch (e) {
-      toast.resolve(tid, 'error', `${what} 쓰기 실패 — ${e instanceof Error ? e.message : String(e)}`)
+      toast.resolve(
+        tid,
+        'error',
+        `${what} 쓰기 실패 — ${e instanceof Error ? e.message : String(e)}`,
+      )
     } finally {
       setBusy(null)
     }
@@ -114,7 +164,9 @@ export function RegistryToolbar<T>({ title, icon, what, rows, dirty, selected, i
     try {
       const r = await io.importFile(imp.file, false)
       await reload()
-      toast.ok(`${what} 가져오기 — 추가 ${r.imported} · 갱신 ${r.updated} · 동일 ${r.skipped} · 오류 ${r.errors.length}`)
+      toast.ok(
+        `${what} 가져오기 — 추가 ${r.imported} · 갱신 ${r.updated} · 동일 ${r.skipped} · 오류 ${r.errors.length}`,
+      )
       setImp({ open: false, file: null, preview: null, error: null, applying: false })
     } catch (e) {
       setImp((s) => ({ ...s, applying: false, error: e instanceof Error ? e.message : String(e) }))
@@ -123,31 +175,90 @@ export function RegistryToolbar<T>({ title, icon, what, rows, dirty, selected, i
 
   return (
     <>
-      <Toolbar icon={icon} title={title} dense meta={<span className="tabular-nums">{rows}건{dirty ? ` · 수정 ${dirty}` : ''}</span>}>
-        <Button size="sm" intent="ghost" icon={<Plus className="h-3.5 w-3.5" />} onClick={onAdd} data-testid="reg-add">
+      <Toolbar
+        icon={icon}
+        title={title}
+        dense
+        meta={
+          <span className="tabular-nums">
+            {rows}건{dirty ? ` · 수정 ${dirty}` : ''}
+          </span>
+        }
+      >
+        <Button
+          size="sm"
+          intent="ghost"
+          icon={<Plus className="h-3.5 w-3.5" />}
+          onClick={onAdd}
+          data-testid="reg-add"
+        >
           추가
         </Button>
-        <Button size="sm" intent="ghost" icon={<Pencil className="h-3.5 w-3.5" />} disabled={!selected} onClick={onEdit} data-testid="reg-edit">
+        <Button
+          size="sm"
+          intent="ghost"
+          icon={<Pencil className="h-3.5 w-3.5" />}
+          disabled={!selected}
+          onClick={onEdit}
+          data-testid="reg-edit"
+        >
           편집
         </Button>
-        <Button size="sm" intent="ghost" icon={<Trash2 className="h-3.5 w-3.5" />} disabled={!selected} onClick={onDelete} data-testid="reg-delete">
+        <Button
+          size="sm"
+          intent="ghost"
+          icon={<Trash2 className="h-3.5 w-3.5" />}
+          disabled={!selected}
+          onClick={onDelete}
+          data-testid="reg-delete"
+        >
           삭제
         </Button>
         {io.plc ? (
           <>
             <span className="mx-1 h-4 w-px bg-slate-300 dark:bg-slate-600" />
-            <Select dense value={plc} onValueChange={(v) => setPlc(v as PlcTarget)} aria-label="PLC 대상" data-testid="reg-plc">
+            <Select
+              dense
+              value={plc}
+              onValueChange={(v) => setPlc(v as PlcTarget)}
+              aria-label="PLC 대상"
+              data-testid="reg-plc"
+            >
               <option value="GR2">GR2</option>
               <option value="GRM">GRM</option>
               <option value="both">둘 다(쓰기)</option>
             </Select>
-            <Button size="sm" icon={<Download className="h-3.5 w-3.5" />} loading={busy === 'import'} disabled={busy !== null} onClick={() => void doImport()} title={`${one} PLC 테이블을 로컬로 읽어 옵니다`} data-testid="reg-plc-read">
+            <Button
+              size="sm"
+              icon={<Download className="h-3.5 w-3.5" />}
+              loading={busy === 'import'}
+              disabled={busy !== null}
+              onClick={() => void doImport()}
+              title={`${one} PLC 테이블을 로컬로 읽어 옵니다`}
+              data-testid="reg-plc-read"
+            >
               PLC 읽기
             </Button>
-            <Button size="sm" intent="danger" icon={<UploadCloud className="h-3.5 w-3.5" />} loading={busy === 'push'} disabled={busy !== null || rows === 0} onClick={() => setPushOpen(true)} title={`로컬 테이블을 ${PLC_TARGET_LABEL[plc]}에 씁니다`} data-testid="reg-plc-write">
+            <Button
+              size="sm"
+              intent="danger"
+              icon={<UploadCloud className="h-3.5 w-3.5" />}
+              loading={busy === 'push'}
+              disabled={busy !== null || rows === 0}
+              onClick={() => setPushOpen(true)}
+              title={`로컬 테이블을 ${PLC_TARGET_LABEL[plc]}에 씁니다`}
+              data-testid="reg-plc-write"
+            >
               PLC 쓰기
             </Button>
-            <Button size="sm" icon={<FileDiff className="h-3.5 w-3.5" />} loading={busy === 'diff'} disabled={busy !== null} onClick={() => void doDiff()} data-testid="reg-diff">
+            <Button
+              size="sm"
+              icon={<FileDiff className="h-3.5 w-3.5" />}
+              loading={busy === 'diff'}
+              disabled={busy !== null}
+              onClick={() => void doDiff()}
+              data-testid="reg-diff"
+            >
               차이 보기
             </Button>
           </>
@@ -162,7 +273,14 @@ export function RegistryToolbar<T>({ title, icon, what, rows, dirty, selected, i
           <Download className="h-3.5 w-3.5" />
           Excel 내보내기
         </a>
-        <Button size="sm" icon={<Upload className="h-3.5 w-3.5" />} loading={busy === 'file'} disabled={busy !== null} onClick={() => fileRef.current?.click()} data-testid="reg-import">
+        <Button
+          size="sm"
+          icon={<Upload className="h-3.5 w-3.5" />}
+          loading={busy === 'file'}
+          disabled={busy !== null}
+          onClick={() => fileRef.current?.click()}
+          data-testid="reg-import"
+        >
           Excel 가져오기
         </Button>
         <input
@@ -176,18 +294,47 @@ export function RegistryToolbar<T>({ title, icon, what, rows, dirty, selected, i
             void pickFile(f)
           }}
         />
-        <Button size="icon-sm" intent="ghost" aria-label="새로고침" title="목록 새로고침" onClick={() => void reload()}>
+        <Button
+          size="icon-sm"
+          intent="ghost"
+          aria-label="새로고침"
+          title="목록 새로고침"
+          onClick={() => void reload()}
+        >
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
       </Toolbar>
 
       {io.plc ? (
         <>
-          <PushDialog open={pushOpen} onOpenChange={setPushOpen} what={what === '품목' ? '셀' : what} plc={plc} rows={rows} dirty={dirty} onConfirm={(force) => void doPush(force)} />
-          <DiffDialog open={diff.open} onOpenChange={(o) => setDiff((s) => ({ ...s, open: o }))} title={`${what} — 로컬 vs ${diff.plc}`} rows={diff.rows} error={diff.error} summarize={io.plc.summarize} />
+          <PushDialog
+            open={pushOpen}
+            onOpenChange={setPushOpen}
+            what={what === '품목' ? '셀' : what}
+            plc={plc}
+            rows={rows}
+            dirty={dirty}
+            onConfirm={(force) => void doPush(force)}
+          />
+          <DiffDialog
+            open={diff.open}
+            onOpenChange={(o) => setDiff((s) => ({ ...s, open: o }))}
+            title={`${what} — 로컬 vs ${diff.plc}`}
+            rows={diff.rows}
+            error={diff.error}
+            summarize={io.plc.summarize}
+          />
         </>
       ) : null}
-      <ImportDialog open={imp.open} onOpenChange={(o) => setImp((s) => ({ ...s, open: o }))} file={imp.file} preview={imp.preview} error={imp.error} applying={imp.applying} onApply={() => void applyFile()} />
+      <ImportDialog
+        open={imp.open}
+        onOpenChange={(o) => setImp((s) => ({ ...s, open: o }))}
+        file={imp.file}
+        preview={imp.preview}
+        error={imp.error}
+        applying={imp.applying}
+        onApply={() => void applyFile()}
+      />
     </>
   )
 }

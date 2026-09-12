@@ -26,10 +26,13 @@ import type {
   Station,
   StationUpsert,
   StatusEvent,
+  StockEntry,
+  StockZ,
   Task,
   TaskPage,
   TaskQuery,
   TaskRequest,
+  TaskType,
 } from './types'
 
 // ── fetch 래퍼 ────────────────────────────────────────────────────────────────
@@ -143,6 +146,7 @@ export const STREAM_URL = {
   status: '/api/status/stream',
   tasks: '/api/tasks/stream',
   runs: '/api/scenarios/runs/stream',
+  stock: '/api/stock/stream',
 } as const
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -177,6 +181,12 @@ export const api = {
   cellCreate: (body: CellUpsert) => postJson<Cell>('/api/cells', body),
   cellUpdate: (id: number, body: CellUpsert) => putJson<Cell>(`/api/cells/${id}`, body),
   cellDelete: (id: number) => del(`/api/cells/${id}`),
+  /** 레이아웃 편집기 — 여러 셀 한 번에(로컬 사본). `replaceSection` 이면 그 구간 기존 셀을 먼저 지운다. */
+  cellsBulk: (rows: CellUpsert[], replaceSection: number | null) =>
+    postJson<{ created: number; updated: number; removed: number; total: number }>(
+      `/api/cells/bulk${qs({ replace_section: replaceSection ?? undefined })}`,
+      rows,
+    ),
   cellsImport: (plc: PlcId) => postJson<ImportResult>(`/api/cells/import${qs({ plc })}`),
   cellsPush: (plc: PlcId) => postJson<ImportResult>(`/api/cells/push${qs({ plc })}`),
   cellsDiff: (plc: PlcId) => getJson<DiffRow<Cell>[]>(`/api/cells/diff${qs({ plc })}`),
@@ -187,8 +197,7 @@ export const api = {
   // 스테이션
   stations: () => getJson<Station[]>('/api/stations'),
   stationCreate: (body: StationUpsert) => postJson<Station>('/api/stations', body),
-  stationUpdate: (id: number, body: StationUpsert) =>
-    putJson<Station>(`/api/stations/${id}`, body),
+  stationUpdate: (id: number, body: StationUpsert) => putJson<Station>(`/api/stations/${id}`, body),
   stationDelete: (id: number) => del(`/api/stations/${id}`),
   stationsImport: (plc: PlcId) => postJson<ImportResult>(`/api/stations/import${qs({ plc })}`),
   stationsPush: (plc: PlcId) => postJson<ImportResult>(`/api/stations/push${qs({ plc })}`),
@@ -227,6 +236,15 @@ export const api = {
   taskResubmit: (id: string) => postJson<Task>(`/api/tasks/${id}/resubmit`),
   taskGate: () => getJson<Gate>('/api/tasks/gate'),
   tasksStream: (): EventSource => new EventSource(STREAM_URL.tasks),
+
+  // 재고(셀별 화물) — 콘솔 소유, 완료된 PICK/DROP 으로 자동 갱신
+  stock: () => getJson<StockEntry[]>('/api/stock'),
+  stockSet: (cell: number, body: { item_code: number; count: number; note?: string }) =>
+    putJson<StockEntry>(`/api/stock/${cell}`, body),
+  stockDelete: (cell: number) => del(`/api/stock/${cell}`),
+  stockClear: () => postJson<{ removed: number }>('/api/stock/clear'),
+  stockZ: (type: TaskType, cell: number, item?: number | null, count = 1) =>
+    getJson<StockZ>(`/api/stock/z${qs({ type, cell, item: item ?? undefined, count })}`),
 
   // 시나리오
   scenarios: () => getJson<Scenario[]>('/api/scenarios'),

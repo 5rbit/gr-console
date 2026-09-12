@@ -122,7 +122,10 @@ export interface Derived {
 }
 
 /** `WebMon.Stat.Task` 모양의 부분집합 — 테스트에서 통째로 만들지 않아도 되게. */
-export type PlcTaskArea = Pick<WebMon['Stat']['Task'], 'Now' | 'Queue' | 'Completed' | 'Canceled' | 'Rejected'>
+export type PlcTaskArea = Pick<
+  WebMon['Stat']['Task'],
+  'Now' | 'Queue' | 'Completed' | 'Canceled' | 'Rejected'
+>
 
 function isZero(t: PlcTask | undefined | null): boolean {
   return !t || (t.WorkId === 0 && t.TaskId === 0 && t.TaskType === 0)
@@ -135,7 +138,10 @@ function find(arr: PlcTask[] | undefined, work: number, task: number): number | 
 }
 
 /** Task 키를 PLC 배열에서 찾는다. */
-export function locate(task: Pick<Task, 'work_id' | 'task_id'>, area: PlcTaskArea): { location: PlcLocation; index: number | null } {
+export function locate(
+  task: Pick<Task, 'work_id' | 'task_id'>,
+  area: PlcTaskArea,
+): { location: PlcLocation; index: number | null } {
   const { work_id: w, task_id: t } = task
   if (!isZero(area.Now) && area.Now.WorkId === w && area.Now.TaskId === t)
     return { location: 'now', index: 0 }
@@ -163,7 +169,10 @@ const LOC_LABEL: Record<PlcLocation, string> = {
  * 원장 상태 ↔ PLC 배열 일관성. 링은 10건이라 종결 상태가 링에서 밀려난 것(`absent`)은 정상이고,
  * 제출됨/수락됨은 PLC에 아직 없거나 막 들어간 과도기라 어느 자리든 어긋남이 아니다.
  */
-export function deriveState(task: Pick<Task, 'work_id' | 'task_id' | 'state'>, area: PlcTaskArea | null | undefined): Derived {
+export function deriveState(
+  task: Pick<Task, 'work_id' | 'task_id' | 'state'>,
+  area: PlcTaskArea | null | undefined,
+): Derived {
   if (!area) return { location: 'absent', index: null, mismatch: false, reason: null }
   const { location, index } = locate(task, area)
   const bad = (reason: string): Derived => ({ location, index, mismatch: true, reason })
@@ -175,16 +184,24 @@ export function deriveState(task: Pick<Task, 'work_id' | 'task_id' | 'state'>, a
     case 'queued':
       return location === 'queue' ? ok : bad(`원장은 대기인데 PLC에서는 ${at}`)
     case 'completed':
-      return location === 'completed' || location === 'absent' ? ok : bad(`원장은 완료인데 PLC에서는 ${at}`)
+      return location === 'completed' || location === 'absent'
+        ? ok
+        : bad(`원장은 완료인데 PLC에서는 ${at}`)
     case 'canceled':
-      return location === 'canceled' || location === 'absent' ? ok : bad(`원장은 취소인데 PLC에서는 ${at}`)
+      return location === 'canceled' || location === 'absent'
+        ? ok
+        : bad(`원장은 취소인데 PLC에서는 ${at}`)
     case 'rejected':
-      return location === 'rejected' || location === 'absent' ? ok : bad(`원장은 거부인데 PLC에서는 ${at}`)
+      return location === 'rejected' || location === 'absent'
+        ? ok
+        : bad(`원장은 거부인데 PLC에서는 ${at}`)
     case 'lost':
       return location === 'absent' ? ok : bad(`원장은 유실인데 PLC에서는 ${at}`)
     case 'failed':
     case 'draft':
-      return location === 'absent' ? ok : bad(`원장은 ${task.state === 'draft' ? '초안' : '실패'}인데 PLC에서는 ${at}`)
+      return location === 'absent'
+        ? ok
+        : bad(`원장은 ${task.state === 'draft' ? '초안' : '실패'}인데 PLC에서는 ${at}`)
     case 'submitted':
     case 'accepted':
       return ok
@@ -194,7 +211,10 @@ export function deriveState(task: Pick<Task, 'work_id' | 'task_id' | 'state'>, a
 // ── 시간 ─────────────────────────────────────────────────────────────────────
 
 /** 시작(제출, 없으면 생성)부터 끝(종결, 진행 중이면 `now`)까지 초. 시각을 못 읽으면 `null`. */
-export function elapsed(task: Pick<Task, 'created_at' | 'submitted_at' | 'ended_at' | 'state'>, now: number = Date.now()): number | null {
+export function elapsed(
+  task: Pick<Task, 'created_at' | 'submitted_at' | 'ended_at' | 'state'>,
+  now: number = Date.now(),
+): number | null {
   const start = Date.parse(task.submitted_at ?? task.created_at)
   if (Number.isNaN(start)) return null
   const endStr = task.ended_at
@@ -223,12 +243,19 @@ export function fmtTime(iso: string | null | undefined, now: number = Date.now()
   const n = new Date(now)
   const pad = (x: number) => String(x).padStart(2, '0')
   const hms = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-  if (d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate()) return hms
+  if (
+    d.getFullYear() === n.getFullYear() &&
+    d.getMonth() === n.getMonth() &&
+    d.getDate() === n.getDate()
+  )
+    return hms
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${hms.slice(0, 5)}`
 }
 
 /** 대상 표시 — `request.target`이 있으면 그것, 없으면(외부 Task) PLC `Cell.Id`로 셀/스테이션을 가른다. */
-export function targetOf(task: Pick<Task, 'request' | 'plc_task'>): { kind: 'cell' | 'station'; id: number } | null {
+export function targetOf(
+  task: Pick<Task, 'request' | 'plc_task'>,
+): { kind: 'cell' | 'station'; id: number } | null {
   const t = task.request?.target
   if (t) return { kind: t.kind, id: t.id }
   const id = task.plc_task?.Cell?.Id ?? 0
@@ -248,7 +275,11 @@ export function endedToday(task: Pick<Task, 'ended_at'>, now: number = Date.now(
   if (Number.isNaN(t)) return false
   const a = new Date(t)
   const b = new Date(now)
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
 }
 
 /** 필터 — 화면의 검색어와 상태·종류 선택을 한 번에 건다(스토어 목록에 클라이언트 측으로). */
@@ -261,7 +292,11 @@ export interface TaskFilter {
 
 export const EMPTY_FILTER: TaskFilter = { states: [], type: '', q: '', includeTerminal: false }
 
-export function matchesFilter(task: Task, f: TaskFilter, typeName: (code: number) => string): boolean {
+export function matchesFilter(
+  task: Task,
+  f: TaskFilter,
+  typeName: (code: number) => string,
+): boolean {
   if (f.states.length > 0) {
     if (!f.states.includes(task.state)) return false
   } else if (!f.includeTerminal && isTerminal(task.state)) return false

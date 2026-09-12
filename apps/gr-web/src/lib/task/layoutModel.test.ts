@@ -108,3 +108,14 @@ describe('layoutModel', () => {
     expect(gridStep(0.05, 60)).toBe(2000)
   })
 })
+
+describe('layoutModel flipX', () => {
+  it('flipX mirrors X on screen and round-trips', () => {
+    const v = fitView({ minX: 0, minY: 0, maxX: 2000, maxY: 1000 }, 800, 600, 24, true, true)
+    expect(toScreen(v, 2000, 0)[0]).toBeLessThan(toScreen(v, 0, 0)[0])
+    const [sx, sy] = toScreen(v, 1500, 250)
+    const [wx, wy] = toWorld(v, sx, sy)
+    expect(wx).toBeCloseTo(1500)
+    expect(wy).toBeCloseTo(250)
+  })
+})

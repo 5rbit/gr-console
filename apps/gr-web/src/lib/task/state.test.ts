@@ -99,8 +99,13 @@ describe('locate / deriveState', () => {
     expect(locate(t, area())).toEqual({ location: 'absent', index: null })
   })
   it('agrees when the ledger and the PLC match', () => {
-    expect(deriveState(task({ state: 'running' }), area({ Now: plc(260912001, 7) })).mismatch).toBe(false)
-    expect(deriveState(task({ state: 'queued' }), area({ Queue: [plc(260912001, 7), ZERO, ZERO, ZERO] })).mismatch).toBe(false)
+    expect(deriveState(task({ state: 'running' }), area({ Now: plc(260912001, 7) })).mismatch).toBe(
+      false,
+    )
+    expect(
+      deriveState(task({ state: 'queued' }), area({ Queue: [plc(260912001, 7), ZERO, ZERO, ZERO] }))
+        .mismatch,
+    ).toBe(false)
     const comp = area()
     comp.Completed[0] = plc(260912001, 7)
     expect(deriveState(task({ state: 'completed' }), comp).mismatch).toBe(false)
@@ -130,7 +135,9 @@ describe('locate / deriveState', () => {
     expect(deriveState(task({ state: 'running' }), null).mismatch).toBe(false)
   })
   it('flags a lost task that reappeared', () => {
-    expect(deriveState(task({ state: 'lost' }), area({ Now: plc(260912001, 7) })).mismatch).toBe(true)
+    expect(deriveState(task({ state: 'lost' }), area({ Now: plc(260912001, 7) })).mismatch).toBe(
+      true,
+    )
   })
 })
 
@@ -164,12 +171,20 @@ describe('elapsed', () => {
 
 describe('targetOf / isStationId', () => {
   it('prefers the request target, else derives from Cell.Id', () => {
-    expect(targetOf(task({ request: { target: { kind: 'station', id: 2101 } } as Task['request'] }))).toEqual({
+    expect(
+      targetOf(task({ request: { target: { kind: 'station', id: 2101 } } as Task['request'] })),
+    ).toEqual({
       kind: 'station',
       id: 2101,
     })
     expect(targetOf(task())).toEqual({ kind: 'cell', id: 101 })
-    expect(targetOf(task({ plc_task: plc(1, 1) && { ...plc(1, 1), Cell: { Id: 2102 } } as unknown as PlcTask }))).toEqual({
+    expect(
+      targetOf(
+        task({
+          plc_task: plc(1, 1) && ({ ...plc(1, 1), Cell: { Id: 2102 } } as unknown as PlcTask),
+        }),
+      ),
+    ).toEqual({
       kind: 'station',
       id: 2102,
     })
@@ -198,6 +213,14 @@ describe('matchesFilter', () => {
     expect(matchesFilter(task(), { ...EMPTY_FILTER, type: 'DROP' }, typeName)).toBe(false)
     expect(matchesFilter(task(), { ...EMPTY_FILTER, q: '101' }, typeName)).toBe(true)
     expect(matchesFilter(task(), { ...EMPTY_FILTER, q: 'zzz' }, typeName)).toBe(false)
-    expect(matchesFilter(task({ ack: { accepted: false, code: 429, reason: 'INVALID_CELL', reject_bits: 4, at: '' } }), { ...EMPTY_FILTER, q: 'invalid_cell' }, typeName)).toBe(true)
+    expect(
+      matchesFilter(
+        task({
+          ack: { accepted: false, code: 429, reason: 'INVALID_CELL', reject_bits: 4, at: '' },
+        }),
+        { ...EMPTY_FILTER, q: 'invalid_cell' },
+        typeName,
+      ),
+    ).toBe(true)
   })
 })

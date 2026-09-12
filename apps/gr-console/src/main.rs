@@ -15,6 +15,7 @@ mod spa;
 mod sse;
 mod state;
 mod status;
+mod stock;
 mod util;
 
 use std::collections::HashMap;
@@ -133,6 +134,8 @@ async fn main() -> anyhow::Result<()> {
     let registry = registry::Registry::new(db.clone());
     let measure = measure::MeasureStore::new(db.clone());
     let scenario = scenario::Runner::new(db.clone());
+    let stock = stock::Stock::new(db.clone());
+    stock::spawn(stock.clone(), ledger.clone());
     let status = status::StatusBus::new();
     let (events, _) = tokio::sync::broadcast::channel(256);
 
@@ -144,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::error!(plc = %cfg.cmd.status_plc, "status PLC not configured");
     }
 
-    let st = AppState { cfg: cfg.clone(), plcs, cmd, db, ledger, registry, measure, scenario, status, events };
+    let st = AppState { cfg: cfg.clone(), plcs, cmd, db, ledger, registry, measure, scenario, stock, status, events };
 
     // demo: seed registries from the fake PLC tables once they are readable
     if cfg.demo {
@@ -177,6 +180,12 @@ async fn main() -> anyhow::Result<()> {
                 {
                     let item = gr_proto::StockItem { code, count: cnt, inner_diameter: id, outer_diameter: od, lower_bid_height: 20.0, upper_bid_height: h - 20.0, height: h, deflection_factor: 0.0 };
                     let _ = st2.registry.upsert_item(code, name, &item, "demo");
+                }
+            }
+            // 재고: 셀 101..106 에 데모 품목을 쌓아 두면 레이아웃·계획 화면에 바로 보인다
+            if st2.stock.list().map(|v| v.is_empty()).unwrap_or(true) {
+                for (cell, code, n) in [(101u16, 1001u32, 3u32), (102, 1002, 2), (103, 1003, 4), (104, 1001, 1), (105, 1002, 3), (106, 1003, 2)] {
+                    let _ = st2.stock.set(cell, code, n, "", "demo seed");
                 }
             }
             let _ = st2.measure.sync(st2.plc("GR2").unwrap()).await;

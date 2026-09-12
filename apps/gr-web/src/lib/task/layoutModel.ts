@@ -1,6 +1,6 @@
 // 셀/스테이션 레이아웃 맵의 순수 계산 — PLC 좌표계(mm) ↔ 화면 픽셀 변환, 도형 목록, 맞춤(fit).
 //
-// 좌표계: PLC X 는 화면 오른쪽(+), PLC Y 는 기본으로 화면 위쪽(+)이다(`flipY` 로 아래쪽(+)로 바꿀 수 있다).
+// 좌표계: 기본은 PLC X+ = 화면 오른쪽, PLC Y+ = 화면 위쪽. 현장 배치가 반대면 `flipX` / `flipY` 로 각각 뒤집는다.
 // 도형은 모두 **중심점** = PLC Position[0..1] 에 놓인다 — 셀은 원(지름은 UI 에서 고른다), 스테이션은 정사각형.
 import type { Cell, Station, Target } from '../types'
 
@@ -34,7 +34,10 @@ export interface View {
   k: number
   ox: number
   oy: number
+  /** PLC Y+ 가 화면 위쪽. */
   flipY: boolean
+  /** PLC X+ 가 화면 왼쪽(현장 배치가 반대일 때). */
+  flipX: boolean
 }
 
 export function shapesFrom(cells: readonly Cell[], stations: readonly Station[]): Shape[] {
@@ -96,23 +99,33 @@ export function boundsOf(shapes: readonly Shape[], pad = 0): Bounds | null {
 }
 
 /** 경계가 `w × h` 픽셀 안에 여백 `margin` 을 두고 들어가는 변환. 폭·높이가 0 이면 1 mm = 1 px 로 둔다. */
-export function fitView(b: Bounds, w: number, h: number, margin = 24, flipY = true): View {
+export function fitView(
+  b: Bounds,
+  w: number,
+  h: number,
+  margin = 24,
+  flipY = true,
+  flipX = false,
+): View {
   const bw = Math.max(b.maxX - b.minX, 1)
   const bh = Math.max(b.maxY - b.minY, 1)
   const k = Math.max(Math.min((w - 2 * margin) / bw, (h - 2 * margin) / bh), 1e-6)
   const cx = (b.minX + b.maxX) / 2
   const cy = (b.minY + b.maxY) / 2
-  const ox = w / 2 - cx * k
+  const ox = flipX ? w / 2 + cx * k : w / 2 - cx * k
   const oy = flipY ? h / 2 + cy * k : h / 2 - cy * k
-  return { k, ox, oy, flipY }
+  return { k, ox, oy, flipY, flipX }
 }
 
 export function toScreen(v: View, x: number, y: number): [number, number] {
-  return [v.ox + x * v.k, v.flipY ? v.oy - y * v.k : v.oy + y * v.k]
+  return [v.flipX ? v.ox - x * v.k : v.ox + x * v.k, v.flipY ? v.oy - y * v.k : v.oy + y * v.k]
 }
 
 export function toWorld(v: View, sx: number, sy: number): [number, number] {
-  return [(sx - v.ox) / v.k, v.flipY ? (v.oy - sy) / v.k : (sy - v.oy) / v.k]
+  return [
+    v.flipX ? (v.ox - sx) / v.k : (sx - v.ox) / v.k,
+    v.flipY ? (v.oy - sy) / v.k : (sy - v.oy) / v.k,
+  ]
 }
 
 /** 화면 점 `(sx, sy)` 를 고정한 채 배율을 `factor` 배 한다. */

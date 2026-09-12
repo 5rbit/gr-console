@@ -54,5 +54,9 @@ export const taskApi = {
     ),
 
   // 작성 미리보기
-  compose: (req: TaskRequest) => postJson<ComposePreview>('/api/issue/compose', req),
+  compose: (req: TaskRequest, stock?: number | null) =>
+    postJson<ComposePreview>(
+      `/api/issue/compose${stock === null || stock === undefined ? '' : `?stock=${stock}`}`,
+      req,
+    ),
 }

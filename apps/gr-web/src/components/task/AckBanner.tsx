@@ -28,7 +28,13 @@ export function AckBanner({ task, phase, onDismiss }: AckBannerProps) {
           ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200'
           : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200'
   const Icon =
-    phase === 'waiting' ? LoaderCircle : accepted === true ? CircleCheck : accepted === false ? CircleX : LoaderCircle
+    phase === 'waiting'
+      ? LoaderCircle
+      : accepted === true
+        ? CircleCheck
+        : accepted === false
+          ? CircleX
+          : LoaderCircle
 
   const headline =
     phase === 'waiting'
@@ -46,7 +52,9 @@ export function AckBanner({ task, phase, onDismiss }: AckBannerProps) {
       data-phase={phase}
       data-accepted={accepted === null ? undefined : String(accepted)}
     >
-      <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${phase === 'waiting' ? 'animate-spin' : ''}`} />
+      <Icon
+        className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${phase === 'waiting' ? 'animate-spin' : ''}`}
+      />
       <div className="min-w-0 flex-1">
         <div className="font-medium">{headline}</div>
         <div className="mt-0.5 flex flex-wrap gap-x-3 opacity-80">

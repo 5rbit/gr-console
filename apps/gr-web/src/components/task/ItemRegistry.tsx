@@ -46,7 +46,12 @@ export interface ItemRegistryProps {
 
 export function ItemRegistry({ reg, q }: ItemRegistryProps) {
   const [selected, setSelected] = useState<number | null>(null)
-  const [form, setForm] = useState<{ open: boolean; editing: boolean; initial: ItemUpsert; key: number }>({ open: false, editing: false, initial: EMPTY_ITEM, key: 0 })
+  const [form, setForm] = useState<{
+    open: boolean
+    editing: boolean
+    initial: ItemUpsert
+    key: number
+  }>({ open: false, editing: false, initial: EMPTY_ITEM, key: 0 })
   const [del, setDel] = useState(false)
   const rows = useMemo(() => reg.items.filter((i) => matchItem(i, q)), [reg.items, q])
   const sel = reg.items.find((i) => i.code === selected) ?? null
@@ -55,11 +60,35 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
     { key: 'code', label: '코드', get: (i) => i.code, numeric: true, class: 'font-mono' },
     { key: 'name', label: '이름', get: (i) => i.name },
     { key: 'count', label: '수량', get: (i) => i.count, numeric: true },
-    { key: 'id', label: '내경', get: (i) => i.inner_diameter, numeric: true, cell: (i) => f1(i.inner_diameter) },
-    { key: 'od', label: '외경', get: (i) => i.outer_diameter, numeric: true, cell: (i) => f1(i.outer_diameter) },
+    {
+      key: 'id',
+      label: '내경',
+      get: (i) => i.inner_diameter,
+      numeric: true,
+      cell: (i) => f1(i.inner_diameter),
+    },
+    {
+      key: 'od',
+      label: '외경',
+      get: (i) => i.outer_diameter,
+      numeric: true,
+      cell: (i) => f1(i.outer_diameter),
+    },
     { key: 'h', label: '높이', get: (i) => i.height, numeric: true, cell: (i) => f1(i.height) },
-    { key: 'lb', label: '하부 비드', get: (i) => i.lower_bead_height, numeric: true, cell: (i) => f1(i.lower_bead_height) },
-    { key: 'ub', label: '상부 비드', get: (i) => i.upper_bead_height, numeric: true, cell: (i) => f1(i.upper_bead_height) },
+    {
+      key: 'lb',
+      label: '하부 비드',
+      get: (i) => i.lower_bead_height,
+      numeric: true,
+      cell: (i) => f1(i.lower_bead_height),
+    },
+    {
+      key: 'ub',
+      label: '상부 비드',
+      get: (i) => i.upper_bead_height,
+      numeric: true,
+      cell: (i) => f1(i.upper_bead_height),
+    },
     { key: 'df', label: '처짐', get: (i) => i.deflection_factor, numeric: true },
     { key: 'note', label: '비고', get: (i) => i.note, class: 'text-slate-500' },
   ]
@@ -95,17 +124,49 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
         io={IO}
         reload={reg.reload}
         onAdd={() => setForm({ open: true, editing: false, initial: EMPTY_ITEM, key: Date.now() })}
-        onEdit={() => sel && setForm({ open: true, editing: true, initial: toItemUpsert(sel), key: Date.now() })}
+        onEdit={() =>
+          sel && setForm({ open: true, editing: true, initial: toItemUpsert(sel), key: Date.now() })
+        }
         onDelete={() => setDel(true)}
       />
       <div className="min-h-0 flex-1 overflow-auto">
         {reg.error ? <p className="p-2 text-xs text-red-600">{reg.error}</p> : null}
-        <DataTable rows={rows} columns={columns} rowKey={(i) => String(i.code)} selected={selected === null ? null : String(selected)} onPick={(i) => setSelected(i.code === selected ? null : i.code)} loading={reg.loading} empty={q ? '검색 결과 없음' : '품목 없음'} emptyHint={q ? undefined : '추가 버튼이나 Excel 가져오기(Items 시트)로 타이어 코드를 등록하세요.'} testid="item-table" />
+        <DataTable
+          rows={rows}
+          columns={columns}
+          rowKey={(i) => String(i.code)}
+          selected={selected === null ? null : String(selected)}
+          onPick={(i) => setSelected(i.code === selected ? null : i.code)}
+          loading={reg.loading}
+          empty={q ? '검색 결과 없음' : '품목 없음'}
+          emptyHint={
+            q ? undefined : '추가 버튼이나 Excel 가져오기(Items 시트)로 타이어 코드를 등록하세요.'
+          }
+          testid="item-table"
+        />
       </div>
-      {form.open ? <ItemForm key={form.key} open={form.open} onOpenChange={(o) => setForm((s) => ({ ...s, open: o }))} initial={form.initial} editing={form.editing} onSave={save} /> : null}
-      <ConfirmDialog open={del} onOpenChange={setDel} scope="single" title="품목 삭제" danger confirmLabel="삭제" onConfirm={() => void remove()}>
+      {form.open ? (
+        <ItemForm
+          key={form.key}
+          open={form.open}
+          onOpenChange={(o) => setForm((s) => ({ ...s, open: o }))}
+          initial={form.initial}
+          editing={form.editing}
+          onSave={save}
+        />
+      ) : null}
+      <ConfirmDialog
+        open={del}
+        onOpenChange={setDel}
+        scope="single"
+        title="품목 삭제"
+        danger
+        confirmLabel="삭제"
+        onConfirm={() => void remove()}
+      >
         <p className="text-sm">
-          품목 <b>{sel?.code}</b> {sel?.name}을 지웁니다. 이 코드를 쓰는 시나리오 스텝은 제출 때 실패합니다.
+          품목 <b>{sel?.code}</b> {sel?.name}을 지웁니다. 이 코드를 쓰는 시나리오 스텝은 제출 때
+          실패합니다.
         </p>
       </ConfirmDialog>
     </div>

@@ -39,8 +39,14 @@ pub fn parse_task_type(s: &str) -> Result<TaskType, ApiError> {
     })
 }
 
-/// Full path: resolve target + item from the registry, then compose.
+/// Full path: resolve target + item from the registry, then compose (stock from the console inventory).
 pub fn compose(st: &AppState, req: &TaskRequest) -> Result<Composed, ApiError> {
+    compose_with(st, req, None)
+}
+
+/// Like `compose`, but `stock_hint` (assumed tires in the target cell) replaces the inventory count —
+/// used by the planning preview whose stock is a simulated chain of the steps before.
+pub fn compose_with(st: &AppState, req: &TaskRequest, stock_hint: Option<u32>) -> Result<Composed, ApiError> {
     let cell = match &req.target {
         Some(t) => {
             let cell = match t.kind.as_str() {
@@ -52,15 +58,28 @@ pub fn compose(st: &AppState, req: &TaskRequest) -> Result<Composed, ApiError> {
         }
         None => None,
     };
-    let item = match req.item_code {
+    // stock of the target cell (console-owned inventory) — Z stacking + item code fallback
+    let stock = match &req.target {
+        Some(t) if t.kind == "cell" => st.stock.get(t.id)?,
+        _ => None,
+    };
+    let code = req.item_code.or_else(|| stock.as_ref().map(|s| s.item_code).filter(|c| *c != 0));
+    let item = match code {
         Some(code) => Some(st.registry.item(code)?.ok_or_else(|| ApiError::BadRequest(format!("item {code} not registered")))?.item),
         None => None,
     };
-    compose_from(&st.registry.defaults()?, req, cell, item)
+    let stock_pair = match (stock_hint, stock) {
+        (Some(n), Some(s)) => Some((s.item_code, n)),
+        (Some(n), None) => Some((0, n)),
+        (None, Some(s)) => Some((s.item_code, s.count)),
+        (None, None) => None,
+    };
+    compose_from(&st.registry.defaults()?, req, cell, item, stock_pair)
 }
 
 /// Pure composition from already-resolved inputs.
-pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInfo>, item: Option<StockItem>) -> Result<Composed, ApiError> {
+/// `stock` = (item_code, count) currently in the target cell, if known.
+pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInfo>, item: Option<StockItem>, stock: Option<(u32, u32)>) -> Result<Composed, ApiError> {
     let tt = parse_task_type(&req.task_type)?;
     let mut warnings = Vec::new();
     let mut task = TaskData { task_type: tt.code(), ..Default::default() };
@@ -113,16 +132,30 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
     }
     params.apply(&mut task);
 
-    // Z / G heuristics (the UI can override the whole position)
+    // Z from the cell stock (n tires already there), G from the inner diameter. The UI can override the whole position.
     if req.position_override.is_none() && task.cell.id != 0 {
-        let stack = task.item.count.max(1) as f32;
+        let c = task.item.count.max(1) as u32;
         let h = task.item.height.max(0.0);
         let floor = task.cell.position[2];
+        let n = stock.map(|(_, n)| n).unwrap_or(match tt {
+            TaskType::Pick | TaskType::Measure => c,
+            _ => 0,
+        });
+        if let Some((code, n)) = stock {
+            let taking = matches!(tt, TaskType::Pick | TaskType::Measure);
+            if taking && n == 0 {
+                warnings.push(format!("cell {} stock is empty", task.cell.id));
+            } else if tt == TaskType::Pick && n < c {
+                warnings.push(format!("cell {} stock {n} < count {c}", task.cell.id));
+            }
+            if (taking || tt == TaskType::Drop) && n > 0 && code != 0 && task.item.code != 0 && code != task.item.code {
+                warnings.push(format!("cell {} holds item {code}, task item is {}", task.cell.id, task.item.code));
+            }
+        } else if matches!(tt, TaskType::Pick | TaskType::Drop | TaskType::Measure) {
+            warnings.push(format!("cell {} stock unknown — Z assumes {}", task.cell.id, if tt == TaskType::Drop { "an empty cell" } else { "the task count on the floor" }));
+        }
         task.position[2] = match tt {
-            // top of the stack: floor + (n-1) tires already below the one we grip
-            TaskType::Pick | TaskType::Measure => floor + (stack - 1.0) * h,
-            // DROP lands on top of what is there: same formula, count = tires already in the cell
-            TaskType::Drop => floor + (stack - 1.0).max(0.0) * h,
+            TaskType::Pick | TaskType::Measure | TaskType::Drop => crate::stock::stack_z(tt, floor, h, n, c),
             TaskType::Move => floor + MOVE_CLEARANCE,
             TaskType::Up => task.position[2],
         };
@@ -167,22 +200,22 @@ mod tests {
     fn precedence_base_by_request() {
         let d = defaults();
         // base only (DROP has no cell override for grip_height)
-        let c = compose_from(&d, &req("DROP", "cell"), Some(cell()), Some(item())).unwrap();
+        let c = compose_from(&d, &req("DROP", "cell"), Some(cell()), Some(item()), None).unwrap();
         assert_eq!(c.params.grip_height, 40);
         assert!(!c.params.avoid);
         // by[PICK][cell]
-        let c = compose_from(&d, &req("PICK", "cell"), Some(cell()), Some(item())).unwrap();
+        let c = compose_from(&d, &req("PICK", "cell"), Some(cell()), Some(item()), None).unwrap();
         assert_eq!(c.params.grip_height, 50);
         assert!(c.params.avoid);
         assert_eq!(c.task.grip_height, 50, "params are applied onto the PLC task");
         // by[PICK][station]
-        let c = compose_from(&d, &req("PICK", "station"), Some(cell()), Some(item())).unwrap();
+        let c = compose_from(&d, &req("PICK", "station"), Some(cell()), Some(item()), None).unwrap();
         assert_eq!(c.params.grip_height, 55);
         assert!(c.params.find_station_item);
         // request overrides everything; null keys are ignored
         let mut r = req("PICK", "cell");
         r.params = json!({ "grip_height": 60, "avoid": null, "lift_up_height": 1000 });
-        let c = compose_from(&d, &r, Some(cell()), Some(item())).unwrap();
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), None).unwrap();
         assert_eq!(c.params.grip_height, 60);
         assert!(c.params.avoid);
         assert_eq!(c.task.lift_up_height, 1000);
@@ -191,17 +224,28 @@ mod tests {
     #[test]
     fn position_and_item_count() {
         let d = defaults();
-        let c = compose_from(&d, &req("PICK", "cell"), Some(cell()), Some(item())).unwrap();
+        let c = compose_from(&d, &req("PICK", "cell"), Some(cell()), Some(item()), None).unwrap();
         assert_eq!(c.task.item.count, 3);
         assert_eq!(c.task.position[0], 12000.0);
-        assert_eq!(c.task.position[2], 1500.0 + 2.0 * 240.0);
+        // stock unknown: PICK assumes the 3 tires sit on the floor → grip the bottom one (mid-tire)
+        assert_eq!(c.task.position[2], 1500.0 + 120.0);
         assert_eq!(c.task.position[3], 381.0 - 30.0);
         assert_eq!(c.task.cell.id, 101);
         assert_eq!(c.task.task_type, gr_proto::CMD_TASK_PICK);
+        assert!(c.warnings.iter().any(|w| w.contains("stock unknown")), "{:?}", c.warnings);
+        // stock known: 5 tires, taking 3 → grip the 3rd from the bottom; DROP lands on top of 5
+        let c = compose_from(&d, &req("PICK", "cell"), Some(cell()), Some(item()), Some((1001, 5))).unwrap();
+        assert_eq!(c.task.position[2], 1500.0 + 2.0 * 240.0 + 120.0);
         assert!(c.warnings.is_empty(), "{:?}", c.warnings);
+        let c = compose_from(&d, &req("DROP", "cell"), Some(cell()), Some(item()), Some((1001, 5))).unwrap();
+        assert_eq!(c.task.position[2], 1500.0 + 5.0 * 240.0 + 120.0);
+        // stock too small / different item → warnings
+        let c = compose_from(&d, &req("PICK", "cell"), Some(cell()), Some(item()), Some((1002, 2))).unwrap();
+        assert!(c.warnings.iter().any(|w| w.contains("stock 2 < count 3")));
+        assert!(c.warnings.iter().any(|w| w.contains("holds item 1002")));
         let mut r = req("MOVE", "cell");
         r.position_override = Some([1.0, 2.0, 3.0, 4.0]);
-        let c = compose_from(&d, &r, Some(cell()), None).unwrap();
+        let c = compose_from(&d, &r, Some(cell()), None, None).unwrap();
         assert_eq!(c.task.position, [1.0, 2.0, 3.0, 4.0]);
     }
 
@@ -211,13 +255,13 @@ mod tests {
         let mut r = req("MEASURE", "cell");
         r.item_code = None;
         r.target = None;
-        let c = compose_from(&d, &r, None, None).unwrap();
+        let c = compose_from(&d, &r, None, None, None).unwrap();
         assert!(c.params.measure_item);
         assert!(c.warnings.iter().any(|w| w.contains("target not set")));
         assert!(c.warnings.iter().any(|w| w.contains("item not set")));
         assert!(c.warnings.iter().any(|w| w.contains("MeasureItem assumed")));
-        let c = compose_from(&d, &req("UP", "cell"), None, None).unwrap();
+        let c = compose_from(&d, &req("UP", "cell"), None, None, None).unwrap();
         assert!(c.warnings.is_empty());
-        assert!(compose_from(&d, &req("FLY", "cell"), None, None).is_err());
+        assert!(compose_from(&d, &req("FLY", "cell"), None, None, None).is_err());
     }
 }

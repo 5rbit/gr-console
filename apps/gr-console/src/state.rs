@@ -15,6 +15,7 @@ use crate::plc::PlcHandle;
 use crate::registry::Registry;
 use crate::scenario::Runner;
 use crate::status::StatusBus;
+use crate::stock::Stock;
 
 /// Unified console event (SSE `/api/events`).
 #[derive(Clone, Debug, Serialize)]
@@ -35,6 +36,7 @@ pub struct AppState {
     pub registry: Arc<Registry>,
     pub measure: Arc<MeasureStore>,
     pub scenario: Arc<Runner>,
+    pub stock: Arc<Stock>,
     pub status: StatusBus,
     pub events: broadcast::Sender<ConsoleEvent>,
 }

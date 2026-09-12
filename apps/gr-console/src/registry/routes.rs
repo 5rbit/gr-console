@@ -373,8 +373,14 @@ async fn defaults_save(State(st): State<AppState>, axum::Json(d): axum::Json<Def
 }
 
 // ---- compose preview (issue slice; registered here because `routes.rs` is lead-owned)
-async fn compose_preview(State(st): State<AppState>, axum::Json(req): axum::Json<crate::ledger::TaskRequest>) -> ApiResult<crate::issue::Composed> {
-    Ok(axum::Json(crate::issue::compose(&st, &req)?))
+#[derive(Deserialize)]
+pub struct ComposeQuery {
+    /// 미리보기용 가정 재고(순차 계획 시뮬레이션 체인) — 있으면 실제 재고 대신 이 개수로 Z 를 계산한다.
+    pub stock: Option<u32>,
+}
+
+async fn compose_preview(State(st): State<AppState>, Query(q): Query<ComposeQuery>, axum::Json(req): axum::Json<crate::ledger::TaskRequest>) -> ApiResult<crate::issue::Composed> {
+    Ok(axum::Json(crate::issue::compose_with(&st, &req, q.stock)?))
 }
 
 pub fn router() -> Router<AppState> {
@@ -382,6 +388,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/items", get(items).post(item_create))
         .route("/api/items/{code}", axum::routing::put(item_update).delete(item_delete))
         .route("/api/cells", get(cells).post(cell_create))
+        .route("/api/cells/bulk", post(cells_bulk))
         .route("/api/cells/import", post(cells_import))
         .route("/api/cells/push", post(cells_push))
         .route("/api/cells/diff", get(cells_diff))
@@ -406,4 +413,44 @@ pub fn router() -> Router<AppState> {
 async fn registry_diff(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
     let h = plc_io::resolve_plc(&st, q.plc(&st))?;
     Ok(axum::Json(json!({ "plc": h.name(), "cells": diff_view(plc_io::diff_cells(&st, h)?, cell_view), "stations": diff_view(plc_io::diff_stations(&st, h)?, station_view) })))
+}
+
+#[derive(Deserialize)]
+pub struct BulkQuery {
+    /// Delete every existing cell of this section first (layout regeneration).
+    pub replace_section: Option<u16>,
+}
+
+/// `POST /api/cells/bulk?replace_section=` — upsert many local cells at once (layout editor).
+/// All rows are validated before anything is written; the result counts created/updated/removed.
+async fn cells_bulk(State(st): State<AppState>, Query(q): Query<BulkQuery>, axum::Json(rows): axum::Json<Vec<CellBody>>) -> ApiResult<Json> {
+    let infos: Vec<gr_proto::CellInfo> = rows.iter().map(|b| b.info()).collect();
+    let mut seen = std::collections::HashSet::new();
+    for (i, info) in infos.iter().enumerate() {
+        xlsx::validate_cell(info).map_err(|e| ApiError::BadRequest(format!("row {}: {e}", i + 1)))?;
+        if !seen.insert(info.id) {
+            return Err(ApiError::BadRequest(format!("row {}: duplicate id {}", i + 1, info.id)));
+        }
+    }
+    let before = st.registry.cells()?;
+    let mut removed = 0usize;
+    if let Some(sec) = q.replace_section {
+        for c in before.iter().filter(|c| c.cell.section == sec && !seen.contains(&c.id)) {
+            if st.registry.delete_cell(c.id)? {
+                removed += 1;
+            }
+        }
+    }
+    let existing: std::collections::HashSet<u16> = before.iter().map(|c| c.id).collect();
+    let mut created = 0usize;
+    let mut updated = 0usize;
+    for info in &infos {
+        st.registry.upsert_cell(info, "local", true, None)?;
+        if existing.contains(&info.id) {
+            updated += 1;
+        } else {
+            created += 1;
+        }
+    }
+    Ok(axum::Json(json!({ "created": created, "updated": updated, "removed": removed, "total": st.registry.cells()?.len() })))
 }

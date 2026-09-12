@@ -101,7 +101,11 @@ export async function runAction(
         toast.resolve(tid, 'ok', `#${task.seq} 기록 삭제`)
         return { ok: true, task: null }
       } catch (e) {
-        toast.resolve(tid, 'error', `기록 삭제 실패 — ${e instanceof Error ? e.message : String(e)}`)
+        toast.resolve(
+          tid,
+          'error',
+          `기록 삭제 실패 — ${e instanceof Error ? e.message : String(e)}`,
+        )
         return { ok: false, task: null }
       }
     }

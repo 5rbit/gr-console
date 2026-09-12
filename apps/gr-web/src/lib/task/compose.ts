@@ -91,9 +91,9 @@ export function effectiveParams(
 ): TaskParams | null {
   if (!defaults) return null
   const out: Record<string, number | boolean> = { ...defaults.base }
-  const by = (defaults.by as Partial<Record<string, Partial<Record<TargetKind, Partial<TaskParams>>>>>)[
-    type
-  ]?.[kind]
+  const by = (
+    defaults.by as Partial<Record<string, Partial<Record<TargetKind, Partial<TaskParams>>>>>
+  )[type]?.[kind]
   for (const layer of [by ?? {}, overrides]) {
     for (const [k, v] of Object.entries(layer)) {
       if (v !== undefined && v !== null) out[k] = v as number | boolean
@@ -117,7 +117,10 @@ export function previewFields(p: ComposePreview | null): { label: string; value:
     { label: '셀 Id', value: t.Cell?.Id ? String(t.Cell.Id) : '' },
     { label: '셀 위치', value: t.Cell?.Id ? (t.Cell.Position ?? []).map(f).join(' / ') : '' },
     { label: '품목', value: t.Item?.Code ? `${t.Item.Code} × ${t.Item.Count}` : '' },
-    { label: '내경/높이', value: t.Item?.Code ? `${f(t.Item.InnerDiameter)} / ${f(t.Item.Height)}` : '' },
+    {
+      label: '내경/높이',
+      value: t.Item?.Code ? `${f(t.Item.InnerDiameter)} / ${f(t.Item.Height)}` : '',
+    },
     { label: PARAM_LABELS.grip_height, value: String(p.params.grip_height) },
     { label: PARAM_LABELS.lift_up_height, value: String(p.params.lift_up_height) },
     { label: PARAM_LABELS.blend_up_distance, value: String(p.params.blend_up_distance) },

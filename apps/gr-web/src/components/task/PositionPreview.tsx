@@ -70,14 +70,19 @@ export function PositionPreview({ request, onPreview }: PositionPreviewProps) {
         </p>
       ) : null}
       {!request ? (
-        <p className="text-xs text-slate-400">대상과 품목을 고르면 PLC로 갈 위치를 미리 계산합니다.</p>
+        <p className="text-xs text-slate-400">
+          대상과 품목을 고르면 PLC로 갈 위치를 미리 계산합니다.
+        </p>
       ) : items.length === 0 && loading ? (
         <p className="text-xs text-slate-400">계산 중…</p>
       ) : (
         <FieldList items={items} columns={2} dense labelWidth={96} />
       )}
       {preview && preview.warnings.length > 0 ? (
-        <ul className="list-disc pl-4 text-xs text-amber-700 dark:text-amber-300" data-testid="preview-warnings">
+        <ul
+          className="list-disc pl-4 text-xs text-amber-700 dark:text-amber-300"
+          data-testid="preview-warnings"
+        >
           {preview.warnings.map((w) => (
             <li key={w}>{w}</li>
           ))}

@@ -388,7 +388,14 @@ export interface WebMon {
     NTP: string
     ComponentID: number
     RES: {
-      Header: { Protocol: number; CMD_ID: number; CMD: number; SRC: number; DST: number; SEQ: number }
+      Header: {
+        Protocol: number
+        CMD_ID: number
+        CMD: number
+        SRC: number
+        DST: number
+        SEQ: number
+      }
       Data: number[]
     }
     Mode: Record<string, boolean | number>
@@ -513,4 +520,31 @@ export interface MeasLogSnapshot {
 export interface MeasLogEntries {
   total: number
   entries: MeasLogEntry[]
+}
+
+// ── 셀 재고(콘솔 소유) ───────────────────────────────────────────────────────
+
+export interface StockEntry {
+  cell_id: number
+  /** 0 = 비어 있음/품목 미상 */
+  item_code: number
+  count: number
+  note: string
+  updated_at: string
+}
+
+export type StockEvent =
+  | { kind: 'snapshot'; stock: StockEntry[] }
+  | { kind: 'upsert'; entry: StockEntry; reason: string }
+  | { kind: 'remove'; cell_id: number }
+
+/** `GET /api/stock/z` — 지금 재고 기준으로 백엔드가 쓸 Z */
+export interface StockZ {
+  cell: number
+  type: TaskType
+  item_code: number | null
+  height: number
+  stock: number
+  floor: number
+  z: number
 }

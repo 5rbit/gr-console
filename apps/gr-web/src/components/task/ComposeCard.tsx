@@ -59,8 +59,8 @@ export interface ComposeCardProps {
   defaults: Defaults | null
   gate: Gate | null
   onOpenDefaults: () => void
-  /** 바깥(레이아웃 맵)에서 고른 대상 — nonce 가 바뀔 때마다 초안에 적용. */
-  pickedTarget?: { target: Target; nonce: number } | null
+  /** 바깥(레이아웃 맵·명령 팔레트)에서 고른 대상 — nonce 가 바뀔 때마다 초안에 적용. `type` 이 있으면 종류도. */
+  pickedTarget?: { target: Target; type?: TaskType; nonce: number } | null
   /** 초안 대상이 바뀔 때 알린다(레이아웃 강조용). */
   onTargetChange?: (t: Target | null) => void
 }
@@ -108,11 +108,11 @@ export function ComposeCard({
   useEffect(() => {
     if (!pickedTarget) return
     const t = pickedTarget.target
-    setDraft((d) => ({
-      ...d,
-      target: t,
-      type: targetKindsFor(d.type).includes(t.kind) ? d.type : 'PICK',
-    }))
+    const forced = pickedTarget.type
+    setDraft((d) => {
+      const type = forced ?? (targetKindsFor(d.type).includes(t.kind) ? d.type : 'PICK')
+      return { ...d, target: t, type: targetKindsFor(type).includes(t.kind) ? type : 'PICK' }
+    })
     cardRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
   }, [pickedTarget])
 

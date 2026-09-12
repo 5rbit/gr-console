@@ -35,12 +35,18 @@ export function toStationUpsert(s: Station): StationUpsert {
 
 export function matchStation(s: Station, q: string): boolean {
   if (!q) return true
-  const t = `${s.id} cv${s.conv_no} g${s.group}-${s.group_index} s${s.info.section} ${s.source}`.toLowerCase()
+  const t =
+    `${s.id} cv${s.conv_no} g${s.group}-${s.group_index} s${s.info.section} ${s.source}`.toLowerCase()
   return t.includes(q.toLowerCase())
 }
 
 const IO: RegistryIo<Station> = {
-  plc: { import: taskApi.stationsImport, push: taskApi.stationsPush, diff: taskApi.stationsDiff, summarize: stationSummary },
+  plc: {
+    import: taskApi.stationsImport,
+    push: taskApi.stationsPush,
+    diff: taskApi.stationsDiff,
+    summarize: stationSummary,
+  },
   exportUrl: taskApi.stationsExportUrl,
   importFile: taskApi.stationsImportFile,
 }
@@ -52,7 +58,12 @@ export interface StationRegistryProps {
 
 export function StationRegistry({ reg, q }: StationRegistryProps) {
   const [selected, setSelected] = useState<number | null>(null)
-  const [form, setForm] = useState<{ open: boolean; editing: boolean; initial: StationUpsert; key: number }>({ open: false, editing: false, initial: EMPTY_STATION, key: 0 })
+  const [form, setForm] = useState<{
+    open: boolean
+    editing: boolean
+    initial: StationUpsert
+    key: number
+  }>({ open: false, editing: false, initial: EMPTY_STATION, key: 0 })
   const [del, setDel] = useState(false)
   const rows = useMemo(() => reg.items.filter((s) => matchStation(s, q)), [reg.items, q])
   const sel = reg.items.find((s) => s.id === selected) ?? null
@@ -60,19 +71,58 @@ export function StationRegistry({ reg, q }: StationRegistryProps) {
 
   const columns: Column<Station>[] = [
     { key: 'id', label: 'Id', get: (s) => s.id, numeric: true, class: 'font-mono' },
-    { key: 'state', label: '상태', get: (s) => (s.dirty ? 1 : s.source === 'plc' ? 0 : 2), cell: (s) => <RowBadge source={s.source} dirty={s.dirty} /> },
+    {
+      key: 'state',
+      label: '상태',
+      get: (s) => (s.dirty ? 1 : s.source === 'plc' ? 0 : 2),
+      cell: (s) => <RowBadge source={s.source} dirty={s.dirty} />,
+    },
     { key: 'conv', label: '컨베이어', get: (s) => s.conv_no, numeric: true },
     { key: 'type', label: '작업', get: (s) => s.task_type, numeric: true },
     { key: 'rot', label: '회전', get: (s) => s.rotate_type, numeric: true },
     { key: 'grp', label: '그룹', get: (s) => `${s.group}-${s.group_index}` },
-    { key: 'conn', label: '연결', get: (s) => `${s.connection_prev}→${s.connection_next}`, class: 'font-mono' },
-    { key: 'use', label: '사용', get: (s) => (s.info.use ? 1 : 0), cell: (s) => (s.info.use ? 'Y' : <span className="text-slate-400">N</span>) },
+    {
+      key: 'conn',
+      label: '연결',
+      get: (s) => `${s.connection_prev}→${s.connection_next}`,
+      class: 'font-mono',
+    },
+    {
+      key: 'use',
+      label: '사용',
+      get: (s) => (s.info.use ? 1 : 0),
+      cell: (s) => (s.info.use ? 'Y' : <span className="text-slate-400">N</span>),
+    },
     { key: 'sec', label: '구역', get: (s) => s.info.section, numeric: true },
-    { key: 'x', label: 'X', get: (s) => s.info.position[0], numeric: true, cell: (s) => f1(s.info.position[0]) },
-    { key: 'y', label: 'Y', get: (s) => s.info.position[1], numeric: true, cell: (s) => f1(s.info.position[1]) },
-    { key: 'z', label: 'Z', get: (s) => s.info.position[2], numeric: true, cell: (s) => f1(s.info.position[2]) },
+    {
+      key: 'x',
+      label: 'X',
+      get: (s) => s.info.position[0],
+      numeric: true,
+      cell: (s) => f1(s.info.position[0]),
+    },
+    {
+      key: 'y',
+      label: 'Y',
+      get: (s) => s.info.position[1],
+      numeric: true,
+      cell: (s) => f1(s.info.position[1]),
+    },
+    {
+      key: 'z',
+      label: 'Z',
+      get: (s) => s.info.position[2],
+      numeric: true,
+      cell: (s) => f1(s.info.position[2]),
+    },
     { key: 'io', label: 'IO블록', get: (s) => s.io_block_no, numeric: true },
-    { key: 'sensor', label: '센서', get: (s) => `${s.sensor.io_link_master_module}/${s.sensor.io_link_master_port_l}/${s.sensor.io_link_master_port_r}`, class: 'font-mono text-slate-500' },
+    {
+      key: 'sensor',
+      label: '센서',
+      get: (s) =>
+        `${s.sensor.io_link_master_module}/${s.sensor.io_link_master_port_l}/${s.sensor.io_link_master_port_r}`,
+      class: 'font-mono text-slate-500',
+    },
   ]
 
   async function save(v: StationUpsert) {
@@ -105,16 +155,50 @@ export function StationRegistry({ reg, q }: StationRegistryProps) {
         selected={!!sel}
         io={IO}
         reload={reg.reload}
-        onAdd={() => setForm({ open: true, editing: false, initial: EMPTY_STATION, key: Date.now() })}
-        onEdit={() => sel && setForm({ open: true, editing: true, initial: toStationUpsert(sel), key: Date.now() })}
+        onAdd={() =>
+          setForm({ open: true, editing: false, initial: EMPTY_STATION, key: Date.now() })
+        }
+        onEdit={() =>
+          sel &&
+          setForm({ open: true, editing: true, initial: toStationUpsert(sel), key: Date.now() })
+        }
         onDelete={() => setDel(true)}
       />
       <div className="min-h-0 flex-1 overflow-auto">
         {reg.error ? <p className="p-2 text-xs text-red-600">{reg.error}</p> : null}
-        <DataTable rows={rows} columns={columns} rowKey={(s) => String(s.id)} selected={selected === null ? null : String(selected)} onPick={(s) => setSelected(s.id === selected ? null : s.id)} loading={reg.loading} empty={q ? '검색 결과 없음' : '스테이션 없음'} emptyHint={q ? undefined : 'PLC 읽기로 STATION 테이블을 가져오거나 추가/Excel 가져오기로 만드세요.'} testid="station-table" />
+        <DataTable
+          rows={rows}
+          columns={columns}
+          rowKey={(s) => String(s.id)}
+          selected={selected === null ? null : String(selected)}
+          onPick={(s) => setSelected(s.id === selected ? null : s.id)}
+          loading={reg.loading}
+          empty={q ? '검색 결과 없음' : '스테이션 없음'}
+          emptyHint={
+            q ? undefined : 'PLC 읽기로 STATION 테이블을 가져오거나 추가/Excel 가져오기로 만드세요.'
+          }
+          testid="station-table"
+        />
       </div>
-      {form.open ? <StationForm key={form.key} open={form.open} onOpenChange={(o) => setForm((s) => ({ ...s, open: o }))} initial={form.initial} editing={form.editing} onSave={save} /> : null}
-      <ConfirmDialog open={del} onOpenChange={setDel} scope="single" title="스테이션 삭제" danger confirmLabel="삭제" onConfirm={() => void remove()}>
+      {form.open ? (
+        <StationForm
+          key={form.key}
+          open={form.open}
+          onOpenChange={(o) => setForm((s) => ({ ...s, open: o }))}
+          initial={form.initial}
+          editing={form.editing}
+          onSave={save}
+        />
+      ) : null}
+      <ConfirmDialog
+        open={del}
+        onOpenChange={setDel}
+        scope="single"
+        title="스테이션 삭제"
+        danger
+        confirmLabel="삭제"
+        onConfirm={() => void remove()}
+      >
         <p className="text-sm">
           로컬 스테이션 <b>#{sel?.id}</b>을 지웁니다. PLC 테이블은 다음 <b>PLC 쓰기</b> 때 바뀝니다.
         </p>

@@ -70,7 +70,12 @@ describe('effectiveParams precedence', () => {
 
 describe('draft → request + validation', () => {
   it('builds a request with sane count and no overrides leaking', () => {
-    const r = buildRequest({ ...EMPTY_DRAFT, count: 0, target: { kind: 'cell', id: 101 }, item_code: 1 })
+    const r = buildRequest({
+      ...EMPTY_DRAFT,
+      count: 0,
+      target: { kind: 'cell', id: 101 },
+      item_code: 1,
+    })
     expect(r.count).toBe(1)
     expect(r.type).toBe('PICK')
     expect(r.position_override).toBeNull()
@@ -205,8 +210,8 @@ describe('reject codes', () => {
     expect(ackText({ accepted: true, code: 1, reason: '', reject_bits: 0, at: '' })).toBe(
       '수락됨 (코드 1)',
     )
-    expect(
-      ackText({ accepted: false, code: 419, reason: 'x', reject_bits: 4, at: '' }),
-    ).toContain('스테이션이 PLC에 등록되지 않음')
+    expect(ackText({ accepted: false, code: 419, reason: 'x', reject_bits: 4, at: '' })).toContain(
+      '스테이션이 PLC에 등록되지 않음',
+    )
   })
 })

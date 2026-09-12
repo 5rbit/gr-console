@@ -25,7 +25,17 @@ export const cellSummary = (c: Cell): string =>
   `S${c.section} R${c.row} C${c.col} ${c.use ? '' : '(미사용)'} · ${c.position.map(f1).join('/')} · ${f1(c.length)}×${f1(c.width)}`
 
 export function toCellUpsert(c: Cell): CellUpsert {
-  return { id: c.id, use: c.use, blend_use: c.blend_use, section: c.section, row: c.row, col: c.col, length: c.length, width: c.width, position: [...c.position] as [number, number, number] }
+  return {
+    id: c.id,
+    use: c.use,
+    blend_use: c.blend_use,
+    section: c.section,
+    row: c.row,
+    col: c.col,
+    length: c.length,
+    width: c.width,
+    position: [...c.position] as [number, number, number],
+  }
 }
 
 export function matchCell(c: Cell, q: string): boolean {
@@ -35,7 +45,12 @@ export function matchCell(c: Cell, q: string): boolean {
 }
 
 const IO: RegistryIo<Cell> = {
-  plc: { import: taskApi.cellsImport, push: taskApi.cellsPush, diff: taskApi.cellsDiff, summarize: cellSummary },
+  plc: {
+    import: taskApi.cellsImport,
+    push: taskApi.cellsPush,
+    diff: taskApi.cellsDiff,
+    summarize: cellSummary,
+  },
   exportUrl: taskApi.cellsExportUrl,
   importFile: taskApi.cellsImportFile,
 }
@@ -47,7 +62,12 @@ export interface CellRegistryProps {
 
 export function CellRegistry({ reg, q }: CellRegistryProps) {
   const [selected, setSelected] = useState<number | null>(null)
-  const [form, setForm] = useState<{ open: boolean; editing: boolean; initial: CellUpsert; key: number }>({ open: false, editing: false, initial: EMPTY_CELL, key: 0 })
+  const [form, setForm] = useState<{
+    open: boolean
+    editing: boolean
+    initial: CellUpsert
+    key: number
+  }>({ open: false, editing: false, initial: EMPTY_CELL, key: 0 })
   const [del, setDel] = useState(false)
   const rows = useMemo(() => reg.items.filter((c) => matchCell(c, q)), [reg.items, q])
   const sel = reg.items.find((c) => c.id === selected) ?? null
@@ -55,15 +75,48 @@ export function CellRegistry({ reg, q }: CellRegistryProps) {
 
   const columns: Column<Cell>[] = [
     { key: 'id', label: 'Id', get: (c) => c.id, numeric: true, class: 'font-mono' },
-    { key: 'state', label: '상태', get: (c) => (c.dirty ? 1 : c.source === 'plc' ? 0 : 2), cell: (c) => <RowBadge source={c.source} dirty={c.dirty} /> },
-    { key: 'use', label: '사용', get: (c) => (c.use ? 1 : 0), cell: (c) => (c.use ? 'Y' : <span className="text-slate-400">N</span>) },
-    { key: 'blend', label: '블렌드', get: (c) => (c.blend_use ? 1 : 0), cell: (c) => (c.blend_use ? 'Y' : <span className="text-slate-400">N</span>) },
+    {
+      key: 'state',
+      label: '상태',
+      get: (c) => (c.dirty ? 1 : c.source === 'plc' ? 0 : 2),
+      cell: (c) => <RowBadge source={c.source} dirty={c.dirty} />,
+    },
+    {
+      key: 'use',
+      label: '사용',
+      get: (c) => (c.use ? 1 : 0),
+      cell: (c) => (c.use ? 'Y' : <span className="text-slate-400">N</span>),
+    },
+    {
+      key: 'blend',
+      label: '블렌드',
+      get: (c) => (c.blend_use ? 1 : 0),
+      cell: (c) => (c.blend_use ? 'Y' : <span className="text-slate-400">N</span>),
+    },
     { key: 'section', label: '구역', get: (c) => c.section, numeric: true },
     { key: 'row', label: '행', get: (c) => c.row, numeric: true },
     { key: 'col', label: '열', get: (c) => c.col, numeric: true },
-    { key: 'x', label: 'X', get: (c) => c.position[0], numeric: true, cell: (c) => f1(c.position[0]) },
-    { key: 'y', label: 'Y', get: (c) => c.position[1], numeric: true, cell: (c) => f1(c.position[1]) },
-    { key: 'z', label: 'Z', get: (c) => c.position[2], numeric: true, cell: (c) => f1(c.position[2]) },
+    {
+      key: 'x',
+      label: 'X',
+      get: (c) => c.position[0],
+      numeric: true,
+      cell: (c) => f1(c.position[0]),
+    },
+    {
+      key: 'y',
+      label: 'Y',
+      get: (c) => c.position[1],
+      numeric: true,
+      cell: (c) => f1(c.position[1]),
+    },
+    {
+      key: 'z',
+      label: 'Z',
+      get: (c) => c.position[2],
+      numeric: true,
+      cell: (c) => f1(c.position[2]),
+    },
     { key: 'len', label: '길이', get: (c) => c.length, numeric: true, cell: (c) => f1(c.length) },
     { key: 'wid', label: '폭', get: (c) => c.width, numeric: true, cell: (c) => f1(c.width) },
   ]
@@ -99,23 +152,52 @@ export function CellRegistry({ reg, q }: CellRegistryProps) {
         io={IO}
         reload={reg.reload}
         onAdd={() => setForm({ open: true, editing: false, initial: EMPTY_CELL, key: Date.now() })}
-        onEdit={() => sel && setForm({ open: true, editing: true, initial: toCellUpsert(sel), key: Date.now() })}
+        onEdit={() =>
+          sel && setForm({ open: true, editing: true, initial: toCellUpsert(sel), key: Date.now() })
+        }
         onDelete={() => setDel(true)}
       />
       <div className="min-h-0 flex-1 overflow-auto">
         {reg.error ? <p className="p-2 text-xs text-red-600">{reg.error}</p> : null}
-        <DataTable rows={rows} columns={columns} rowKey={(c) => String(c.id)} selected={selected === null ? null : String(selected)} onPick={(c) => setSelected(c.id === selected ? null : c.id)} loading={reg.loading} empty={q ? '검색 결과 없음' : '셀 없음'} emptyHint={q ? undefined : 'PLC 읽기로 GR2 CELL 테이블을 가져오거나 추가/Excel 가져오기로 만드세요.'} testid="cell-table" />
+        <DataTable
+          rows={rows}
+          columns={columns}
+          rowKey={(c) => String(c.id)}
+          selected={selected === null ? null : String(selected)}
+          onPick={(c) => setSelected(c.id === selected ? null : c.id)}
+          loading={reg.loading}
+          empty={q ? '검색 결과 없음' : '셀 없음'}
+          emptyHint={
+            q
+              ? undefined
+              : 'PLC 읽기로 GR2 CELL 테이블을 가져오거나 추가/Excel 가져오기로 만드세요.'
+          }
+          testid="cell-table"
+        />
       </div>
-      {form.open ? <CellForm key={form.key} open={form.open} onOpenChange={(o) => setForm((s) => ({ ...s, open: o }))} initial={form.initial} editing={form.editing} onSave={save} /> : null}
-      <ConfirmDialog open={del} onOpenChange={setDel} scope="single" title="셀 삭제" danger confirmLabel="삭제" onConfirm={() => void remove()}>
+      {form.open ? (
+        <CellForm
+          key={form.key}
+          open={form.open}
+          onOpenChange={(o) => setForm((s) => ({ ...s, open: o }))}
+          initial={form.initial}
+          editing={form.editing}
+          onSave={save}
+        />
+      ) : null}
+      <ConfirmDialog
+        open={del}
+        onOpenChange={setDel}
+        scope="single"
+        title="셀 삭제"
+        danger
+        confirmLabel="삭제"
+        onConfirm={() => void remove()}
+      >
         <p className="text-sm">
           로컬 셀 <b>#{sel?.id}</b>을 지웁니다. PLC 테이블은 다음 <b>PLC 쓰기</b> 때 바뀝니다.
         </p>
-        {sel ? (
-          <p className="mt-1 text-xs text-slate-500">
-            {cellSummary(sel)}
-          </p>
-        ) : null}
+        {sel ? <p className="mt-1 text-xs text-slate-500">{cellSummary(sel)}</p> : null}
       </ConfirmDialog>
     </div>
   )

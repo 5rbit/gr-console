@@ -40,29 +40,38 @@ export function DefaultsDialog({ open, onOpenChange, defaults, onSaved }: Defaul
   const changed = !!draft && !!defaults && defaultsChanged(draft, defaults)
 
   const columns: DataGridColumn<DefaultsRow>[] = [
-    { id: 'label', header: '파라미터', width: '12rem', sticky: true, editor: 'none', text: (r) => r.label, title: (r) => r.key, sortable: true },
-    ...DEFAULTS_COLS.map(
-      (c): DataGridColumn<DefaultsRow> => ({
-        id: c.id,
-        header: c.header,
-        headerSub: c.id === 'base' ? '' : '비면 공통 상속',
-        width: '8rem',
-        align: 'right',
-        mono: true,
-        editor: (r) => (r.bool ? 'select' : 'number'),
-        options: (r) => (r.bool ? (c.id === 'base' ? ['true', 'false'] : ['', 'true', 'false']) : []),
-        decimals: 0,
-        text: (r) => fmt(r.values[c.id]),
-        cellClass: (r) => (c.id !== 'base' && r.values[c.id] === undefined ? 'text-slate-300 dark:text-slate-600' : ''),
-        title: (r) => (c.id !== 'base' && r.values[c.id] === undefined ? `공통 값 ${fmt(r.values.base)} 상속` : ''),
-        coercePaste: (v, r) => {
-          const s = v.trim()
-          if (s === '') return c.id === 'base' ? null : ''
-          if (r.bool) return ['true', 'false', '1', '0'].includes(s.toLowerCase()) ? s : null
-          return Number.isFinite(Number(s)) ? s : null
-        },
-      }),
-    ),
+    {
+      id: 'label',
+      header: '파라미터',
+      width: '12rem',
+      sticky: true,
+      editor: 'none',
+      text: (r) => r.label,
+      title: (r) => r.key,
+      sortable: true,
+    },
+    ...DEFAULTS_COLS.map((c): DataGridColumn<DefaultsRow> => ({
+      id: c.id,
+      header: c.header,
+      headerSub: c.id === 'base' ? '' : '비면 공통 상속',
+      width: '8rem',
+      align: 'right',
+      mono: true,
+      editor: (r) => (r.bool ? 'select' : 'number'),
+      options: (r) => (r.bool ? (c.id === 'base' ? ['true', 'false'] : ['', 'true', 'false']) : []),
+      decimals: 0,
+      text: (r) => fmt(r.values[c.id]),
+      cellClass: (r) =>
+        c.id !== 'base' && r.values[c.id] === undefined ? 'text-slate-300 dark:text-slate-600' : '',
+      title: (r) =>
+        c.id !== 'base' && r.values[c.id] === undefined ? `공통 값 ${fmt(r.values.base)} 상속` : '',
+      coercePaste: (v, r) => {
+        const s = v.trim()
+        if (s === '') return c.id === 'base' ? null : ''
+        if (r.bool) return ['true', 'false', '1', '0'].includes(s.toLowerCase()) ? s : null
+        return Number.isFinite(Number(s)) ? s : null
+      },
+    })),
   ]
 
   function edit(rowId: string, colId: string, value: string) {
@@ -94,7 +103,8 @@ export function DefaultsDialog({ open, onOpenChange, defaults, onSaved }: Defaul
     <Modal open={open} onOpenChange={onOpenChange} title="작업 파라미터 기본값" wide>
       <div className="flex flex-col gap-2" data-testid="defaults-dialog">
         <p className="text-xs text-slate-500">
-          우선순위: 공통 ← 종류·대상별 ← 작성 카드의 덮어쓰기. 셀을 더블클릭하거나 타이핑해 고치고, 붙여넣기(엑셀)도 됩니다.
+          우선순위: 공통 ← 종류·대상별 ← 작성 카드의 덮어쓰기. 셀을 더블클릭하거나 타이핑해 고치고,
+          붙여넣기(엑셀)도 됩니다.
           {defaults ? ` 현재 v${defaults.version}` : ''}
         </p>
         {draft ? (
@@ -107,7 +117,12 @@ export function DefaultsDialog({ open, onOpenChange, defaults, onSaved }: Defaul
               let cur = draft
               for (const u of ups) {
                 if (u.colId === 'label') continue
-                const next = applyDefaultsEdit(cur, u.rowId as ParamKey, u.colId as DefaultsCol, u.value)
+                const next = applyDefaultsEdit(
+                  cur,
+                  u.rowId as ParamKey,
+                  u.colId as DefaultsCol,
+                  u.value,
+                )
                 if (next) cur = next
               }
               setDraft(cur)
@@ -126,7 +141,15 @@ export function DefaultsDialog({ open, onOpenChange, defaults, onSaved }: Defaul
           <Button size="sm" intent="ghost" disabled={!changed} onClick={() => setDraft(defaults)}>
             되돌리기
           </Button>
-          <Button size="sm" intent="primary" icon={<Save className="h-3.5 w-3.5" />} disabled={!changed} loading={saving} onClick={() => void save()} data-testid="defaults-save">
+          <Button
+            size="sm"
+            intent="primary"
+            icon={<Save className="h-3.5 w-3.5" />}
+            disabled={!changed}
+            loading={saving}
+            onClick={() => void save()}
+            data-testid="defaults-save"
+          >
             저장
           </Button>
         </div>
