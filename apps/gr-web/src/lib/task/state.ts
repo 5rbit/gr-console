@@ -263,6 +263,20 @@ export function targetOf(
   return { kind: isStationId(id) ? 'station' : 'cell', id }
 }
 
+/** 대상 표시 — 표·대화상자가 같은 말을 쓴다(`셀 104` · `ST 2001`). */
+export function targetLabel(task: Pick<Task, 'request' | 'plc_task'>): string {
+  const t = targetOf(task)
+  if (!t) return ''
+  return `${t.kind === 'station' ? 'ST' : '셀'} ${t.id}`
+}
+
+/** 타이어 치수 `ID/OD/H` — 품목 코드만으로는 현장에서 어떤 타이어인지 모른다. 없으면 빈 문자열. */
+export function dimsLabel(task: Pick<Task, 'plc_task'>): string {
+  const i = task.plc_task?.Item
+  if (!i || (!i.InnerDiameter && !i.OuterDiameter && !i.Height)) return ''
+  return `${Math.round(i.InnerDiameter)}/${Math.round(i.OuterDiameter)}/${Math.round(i.Height)}`
+}
+
 /** 스테이션 Id 규칙 — 백엔드 `gr_proto::is_station_id`: 2001..2999 이고 `id MOD 100 ∈ 1..32`. */
 export function isStationId(id: number): boolean {
   return id >= 2001 && id <= 2999 && id % 100 >= 1 && id % 100 <= 32

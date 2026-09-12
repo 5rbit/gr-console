@@ -17,7 +17,8 @@ import {
   elapsed,
   fmtElapsed,
   fmtTime,
-  targetOf,
+  dimsLabel,
+  targetLabel,
   typeName,
   type PlcTaskArea,
 } from '../../lib/task/state'
@@ -42,11 +43,8 @@ export interface TaskTableProps {
 /** 행에 싣는 조작은 PLC에 가는 둘뿐이다 — 실패 표시·삭제·재제출은 상세에서(행이 조작 띠가 되지 않게). */
 const ROW_ACTIONS = ['cancel', 'complete'] as const
 
-export function targetLabel(task: Task): string {
-  const t = targetOf(task)
-  if (!t) return ''
-  return `${t.kind === 'station' ? 'ST' : '셀'} ${t.id}`
-}
+// 라벨 도우미는 `lib/task/state.ts`에 있다(순수 · 테스트 가능). 여기서는 이력 표가 쓰던 이름을 그대로 낸다.
+export { targetLabel }
 
 /** PLC 자리 — 실행 중이면 스텝, 대기면 큐 슬롯. */
 function plcStep(task: Task): string {
@@ -137,6 +135,26 @@ export function TaskTable({
         label: '수량',
         get: (t) => t.plc_task?.Item?.Count ?? null,
         numeric: true,
+        priority: 3,
+      },
+      { key: 'dims', label: 'ID/OD/H', get: (t) => dimsLabel(t), class: 'font-mono', priority: 3 },
+      {
+        key: 'note',
+        label: '메모',
+        get: (t) => t.request?.note ?? '',
+        // 메모는 작업자가 적은 "이 작업의 뜻"이라 번호보다 먼저 알아본다 — 2순위. 길면 자른다.
+        cell: (t) => (
+          <span className="block max-w-48 truncate" title={t.request?.note ?? undefined}>
+            {t.request?.note ?? ''}
+          </span>
+        ),
+        priority: 2,
+      },
+      {
+        key: 'work',
+        label: 'WorkId',
+        get: (t) => (t.work_id ? String(t.work_id) : ''),
+        class: 'font-mono',
         priority: 3,
       },
       {

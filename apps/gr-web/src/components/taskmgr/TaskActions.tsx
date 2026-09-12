@@ -11,6 +11,7 @@ import {
   ACTION_LABEL,
   STATE_LABEL,
   allowedActions,
+  dimsLabel,
   isRobotAction,
   targetOf,
   typeName,
@@ -83,6 +84,7 @@ function identity(task: Task): FieldItem[] {
           ? `${req.item_code} × ${req.count ?? 1}`
           : null,
     },
+    { label: '치수 ID/OD/H', value: dimsLabel(task) || null, mono: true },
     { label: '로봇', value: task.plc_name ?? null },
     { label: '상태', value: STATE_LABEL[task.state] },
     {
