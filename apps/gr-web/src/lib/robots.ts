@@ -100,3 +100,12 @@ class Robots extends Store {
 }
 
 export const robots = new Robots()
+
+/** 로봇에 할당된 색 — 맵 작업 테두리·로봇 십자·사이드바 견본이 같은 색을 쓴다. */
+export const ROBOT_COLORS: Readonly<Record<number, string>> = { 1: '#0284c7', 2: '#ea580c' }
+const FALLBACK_COLORS = ['#7c3aed', '#db2777', '#0d9488']
+
+export function robotColor(id: number | null | undefined): string {
+  if (id === null || id === undefined) return FALLBACK_COLORS[0]
+  return ROBOT_COLORS[id] ?? FALLBACK_COLORS[Math.abs(id) % FALLBACK_COLORS.length]
+}

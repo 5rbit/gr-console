@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from 'react'
 import { Search } from 'lucide-react'
 import type { Registry } from '../../lib/registry'
-import { cn } from '../../lib/utils'
+import { Segmented } from '../../lib/ui/Segmented'
 import type { Cell, Item, Station } from '../../lib/types'
 import { CellRegistry } from './CellRegistry'
 import { ItemRegistry } from './ItemRegistry'
@@ -28,16 +28,27 @@ export interface RegistryRailProps {
   layout: ReactNode
   /** 셀 탭을 열고 특정 셀 편집 폼을 띄우라는 요청(레이아웃 팔레트 → 셀 편집). */
   editCell?: Cell | null
+  /** 바깥이 탭을 쥘 때(맵 모드와 사이드바 연동). */
+  tab?: RailTab
+  onTabChange?: (t: RailTab) => void
 }
 
-export function RegistryRail({ items, cells, stations, layout }: RegistryRailProps) {
-  const [tab, setTab] = useState<RailTab>(() => {
+export function RegistryRail({
+  items,
+  cells,
+  stations,
+  layout,
+  tab: tabProp,
+  onTabChange,
+}: RegistryRailProps) {
+  const [tabLocal, setTab] = useState<RailTab>(() => {
     try {
       return (localStorage.getItem(RAIL_KEY) as RailTab) || 'layout'
     } catch {
       return 'layout'
     }
   })
+  const tab = tabProp ?? tabLocal
   const [q, setQ] = useState('')
   const count = (t: RailTab) =>
     t === 'item'
@@ -49,6 +60,7 @@ export function RegistryRail({ items, cells, stations, layout }: RegistryRailPro
           : cells.items.length + stations.items.length
   const go = (t: RailTab) => {
     setTab(t)
+    onTabChange?.(t)
     try {
       localStorage.setItem(RAIL_KEY, t)
     } catch {
@@ -57,34 +69,18 @@ export function RegistryRail({ items, cells, stations, layout }: RegistryRailPro
   }
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="registry-rail">
-      <div className="flex flex-none items-center gap-2 border-b border-slate-200 px-2 py-1.5 dark:border-slate-700">
-        <div
-          className="inline-flex rounded-md border border-slate-300 p-0.5 dark:border-slate-600"
-          role="tablist"
-          aria-label="레지스트리"
-        >
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              data-testid={`rail-${t.id}`}
-              className={cn(
-                'rounded px-2.5 py-0.5 text-xs transition-colors',
-                tab === t.id
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
-              )}
-              onClick={() => go(t.id)}
-            >
-              {t.label}{' '}
-              <span className={cn('tabular-nums', tab === t.id ? 'opacity-80' : 'text-slate-400')}>
-                {count(t.id)}
-              </span>
-            </button>
-          ))}
-        </div>
+      <div className="flex h-10 flex-none items-center gap-2 border-b border-slate-200 px-2 dark:border-slate-700">
+        <Segmented
+          ariaLabel="레지스트리"
+          value={tab}
+          onChange={go}
+          options={TABS.map((t) => ({
+            id: t.id,
+            label: t.label,
+            badge: count(t.id),
+            testid: `rail-${t.id}`,
+          }))}
+        />
         {tab !== 'layout' ? (
           <label className="relative ml-auto flex items-center">
             <Search className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-slate-400" />

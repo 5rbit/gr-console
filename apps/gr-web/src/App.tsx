@@ -24,6 +24,7 @@ import MeasureMonitor from './components/measure/MeasureMonitor'
 import ScenarioPage from './components/scenario/ScenarioPage'
 import { ContextMenuHost } from './lib/ui/ContextMenuHost'
 import { Toaster } from './lib/ui/Toaster'
+import { ErrorBoundary } from './lib/ui/ErrorBoundary'
 
 function groupCls(active: boolean, open: boolean): string {
   return (
@@ -298,7 +299,9 @@ export function App() {
           <Sidebar />
         </aside>
         <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-          <Screen tab={nav.tab} />
+          <ErrorBoundary label="화면" resetKey={nav.tab}>
+            <Screen tab={nav.tab} />
+          </ErrorBoundary>
         </main>
       </div>
 

@@ -41,6 +41,10 @@ export interface RegistryIo<T> {
 }
 
 export interface RegistryToolbarProps<T> {
+  /** 좁은 사이드바 — 버튼을 아이콘만으로(글자는 title). */
+  compact?: boolean
+  /** 행 추가·편집·삭제를 숨긴다(그리드 편집기가 맡을 때). */
+  hideCrud?: boolean
   title: string
   icon: React.ReactNode
   what: '셀' | '스테이션' | '품목'
@@ -67,6 +71,8 @@ export function RegistryToolbar<T>({
   onEdit,
   onDelete,
   reload,
+  compact = false,
+  hideCrud = false,
 }: RegistryToolbarProps<T>) {
   const [plc, setPlc] = useState<PlcTarget>('GR2')
   const [busy, setBusy] = useState<'import' | 'push' | 'diff' | 'file' | null>(null)
@@ -185,35 +191,44 @@ export function RegistryToolbar<T>({
           </span>
         }
       >
-        <Button
-          size="sm"
-          intent="ghost"
-          icon={<Plus className="h-3.5 w-3.5" />}
-          onClick={onAdd}
-          data-testid="reg-add"
-        >
-          추가
-        </Button>
-        <Button
-          size="sm"
-          intent="ghost"
-          icon={<Pencil className="h-3.5 w-3.5" />}
-          disabled={!selected}
-          onClick={onEdit}
-          data-testid="reg-edit"
-        >
-          편집
-        </Button>
-        <Button
-          size="sm"
-          intent="ghost"
-          icon={<Trash2 className="h-3.5 w-3.5" />}
-          disabled={!selected}
-          onClick={onDelete}
-          data-testid="reg-delete"
-        >
-          삭제
-        </Button>
+        {hideCrud ? null : (
+          <Button
+            size="sm"
+            intent="ghost"
+            icon={<Plus className="h-3.5 w-3.5" />}
+            onClick={onAdd}
+            data-testid="reg-add"
+            title="추가"
+          >
+            {compact ? null : '추가'}
+          </Button>
+        )}
+        {hideCrud ? null : (
+          <Button
+            size="sm"
+            intent="ghost"
+            icon={<Pencil className="h-3.5 w-3.5" />}
+            disabled={!selected}
+            onClick={onEdit}
+            data-testid="reg-edit"
+            title="편집"
+          >
+            {compact ? null : '편집'}
+          </Button>
+        )}
+        {hideCrud ? null : (
+          <Button
+            size="sm"
+            intent="ghost"
+            icon={<Trash2 className="h-3.5 w-3.5" />}
+            disabled={!selected}
+            onClick={onDelete}
+            data-testid="reg-delete"
+            title="삭제"
+          >
+            {compact ? null : '삭제'}
+          </Button>
+        )}
         {io.plc ? (
           <>
             <span className="mx-1 h-4 w-px bg-slate-300 dark:bg-slate-600" />
@@ -237,7 +252,7 @@ export function RegistryToolbar<T>({
               title={`${one} PLC 테이블을 로컬로 읽어 옵니다`}
               data-testid="reg-plc-read"
             >
-              PLC 읽기
+              {compact ? null : 'PLC 읽기'}
             </Button>
             <Button
               size="sm"
@@ -249,7 +264,7 @@ export function RegistryToolbar<T>({
               title={`로컬 테이블을 ${PLC_TARGET_LABEL[plc]}에 씁니다`}
               data-testid="reg-plc-write"
             >
-              PLC 쓰기
+              {compact ? null : 'PLC 쓰기'}
             </Button>
             <Button
               size="sm"
@@ -258,8 +273,9 @@ export function RegistryToolbar<T>({
               disabled={busy !== null}
               onClick={() => void doDiff()}
               data-testid="reg-diff"
+              title="차이 보기"
             >
-              차이 보기
+              {compact ? null : '차이 보기'}
             </Button>
           </>
         ) : null}
@@ -269,9 +285,10 @@ export function RegistryToolbar<T>({
           download
           className="inline-flex h-7 items-center gap-1.5 rounded-md bg-slate-100 px-2 text-xs font-medium text-slate-800 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
           data-testid="reg-export"
+          title="Excel 내보내기"
         >
           <Download className="h-3.5 w-3.5" />
-          Excel 내보내기
+          {compact ? null : 'Excel 내보내기'}
         </a>
         <Button
           size="sm"
@@ -280,8 +297,9 @@ export function RegistryToolbar<T>({
           disabled={busy !== null}
           onClick={() => fileRef.current?.click()}
           data-testid="reg-import"
+          title="Excel 가져오기"
         >
-          Excel 가져오기
+          {compact ? null : 'Excel 가져오기'}
         </Button>
         <input
           ref={fileRef}

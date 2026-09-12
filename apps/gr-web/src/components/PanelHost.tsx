@@ -7,9 +7,11 @@ import { X } from 'lucide-react'
 import { panels } from '../lib/panels'
 import type { PanelSpec } from '../lib/panels'
 import { useStore } from '../lib/store'
+import { ErrorBoundary } from '../lib/ui/ErrorBoundary'
 import { useFocusTrap } from '../lib/ui/focusTrap'
 
-const headerCls = 'flex items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-700'
+const headerCls =
+  'flex items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-700'
 
 function PanelHeader({ panel }: { panel: PanelSpec }) {
   return (
@@ -30,7 +32,11 @@ function PanelHeader({ panel }: { panel: PanelSpec }) {
 function PanelFrame({ panel }: { panel: PanelSpec }) {
   const box = useFocusTrap<HTMLDivElement>(true)
   const Comp = panel.component
-  const body = <Comp {...(panel.props ?? {})} />
+  const body = (
+    <ErrorBoundary label={panel.title} resetKey={panel.props}>
+      <Comp {...(panel.props ?? {})} />
+    </ErrorBoundary>
+  )
 
   if (panel.mode === 'popup') {
     return (

@@ -93,7 +93,11 @@ export function DataTable<T>({
               return (
                 <th
                   key={c.key}
-                  className={cn('px-2 py-1 font-medium', c.class ?? '', c.numeric && 'text-right')}
+                  className={cn(
+                    'px-2 py-1 font-medium whitespace-nowrap',
+                    c.class ?? '',
+                    c.numeric && 'text-right',
+                  )}
                 >
                   {can ? (
                     <button

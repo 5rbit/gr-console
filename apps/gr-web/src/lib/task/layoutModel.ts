@@ -1,6 +1,8 @@
 // 셀/스테이션 레이아웃 맵의 순수 계산 — PLC 좌표계(mm) ↔ 화면 픽셀 변환, 도형 목록, 맞춤(fit).
 //
-// 좌표계: 기본은 PLC X+ = 화면 오른쪽, PLC Y+ = 화면 위쪽. 현장 배치가 반대면 `flipX` / `flipY` 로 각각 뒤집는다.
+// 좌표계: 기본은 PLC X+ = 화면 오른쪽, PLC Y+ = 화면 위쪽. 현장 배치에 맞춰 화면을 시계 방향으로
+// 0·90·180·270° 돌리고(`rot`), 돌린 뒤의 화면 가로/세로를 각각 뒤집을 수 있다(`flipX` / `flipY`).
+// 변환 순서: 월드 (x, y) → 회전 (u, v) → 반전·배율·원점 → 화면 (sx, sy).
 // 도형은 모두 **중심점** = PLC Position[0..1] 에 놓인다 — 셀은 원(지름은 UI 에서 고른다), 스테이션은 정사각형.
 import type { Cell, Station, Target } from '../types'
 
@@ -29,15 +31,49 @@ export interface Bounds {
   maxY: number
 }
 
-/** 화면 변환 — `sx = ox + x * k`, `sy = oy ∓ y * k` (flipY 에 따라). */
+/** 화면 회전(시계 방향, 도). */
+export type Rotation = 0 | 90 | 180 | 270
+export const ROTATIONS: readonly Rotation[] = [0, 90, 180, 270]
+
+/** 화면 변환 — 회전 좌표 (u, v) 에 대해 `sx = ox ± u·k`, `sy = oy ∓ v·k`. */
 export interface View {
   k: number
   ox: number
   oy: number
-  /** PLC Y+ 가 화면 위쪽. */
+  /** 회전 후 v+ 가 화면 위쪽(기본). false 면 상하 반전. */
   flipY: boolean
-  /** PLC X+ 가 화면 왼쪽(현장 배치가 반대일 때). */
+  /** 회전 후 u+ 가 화면 왼쪽(좌우 반전). */
   flipX: boolean
+  /** 시계 방향 회전. 없으면 0. */
+  rot?: Rotation
+}
+
+/** 월드 (x, y) → 회전 좌표 (u, v): 화면에서 시계 방향으로 `rot` 만큼 돌린 좌표. */
+export function rotate(rot: Rotation | undefined, x: number, y: number): [number, number] {
+  switch (rot) {
+    case 90:
+      return [y, -x]
+    case 180:
+      return [-x, -y]
+    case 270:
+      return [-y, x]
+    default:
+      return [x, y]
+  }
+}
+
+/** 회전 좌표 (u, v) → 월드 (x, y). `rotate` 의 역. */
+export function unrotate(rot: Rotation | undefined, u: number, v: number): [number, number] {
+  switch (rot) {
+    case 90:
+      return [-v, u]
+    case 180:
+      return [-u, -v]
+    case 270:
+      return [v, -u]
+    default:
+      return [u, v]
+  }
 }
 
 export function shapesFrom(cells: readonly Cell[], stations: readonly Station[]): Shape[] {
@@ -98,45 +134,41 @@ export function boundsOf(shapes: readonly Shape[], pad = 0): Bounds | null {
   return { minX, minY, maxX, maxY }
 }
 
-/** 경계가 `w × h` 픽셀 안에 여백 `margin` 을 두고 들어가는 변환. 폭·높이가 0 이면 1 mm = 1 px 로 둔다. */
-export function fitView(
-  b: Bounds,
-  w: number,
-  h: number,
-  margin = 24,
-  flipY = true,
-  flipX = false,
-): View {
-  const bw = Math.max(b.maxX - b.minX, 1)
-  const bh = Math.max(b.maxY - b.minY, 1)
+/**
+ * 경계가 `w × h` 픽셀 안에 여백 `margin` 을 두고 들어가는 변환.
+ * 회전하면 돌린 뒤의 가로·세로 범위로 배율을 잡는다(90°/270° 에서는 폭과 높이가 바뀐다).
+ */
+export function fitView(b: Bounds, w: number, h: number, margin = 24, flipY = true, flipX = false, rot: Rotation = 0): View {
+  const corners = [rotate(rot, b.minX, b.minY), rotate(rot, b.maxX, b.minY), rotate(rot, b.minX, b.maxY), rotate(rot, b.maxX, b.maxY)]
+  const us = corners.map((c) => c[0])
+  const vs = corners.map((c) => c[1])
+  const minU = Math.min(...us)
+  const maxU = Math.max(...us)
+  const minV = Math.min(...vs)
+  const maxV = Math.max(...vs)
+  const bw = Math.max(maxU - minU, 1)
+  const bh = Math.max(maxV - minV, 1)
   const k = Math.max(Math.min((w - 2 * margin) / bw, (h - 2 * margin) / bh), 1e-6)
-  const cx = (b.minX + b.maxX) / 2
-  const cy = (b.minY + b.maxY) / 2
-  const ox = flipX ? w / 2 + cx * k : w / 2 - cx * k
-  const oy = flipY ? h / 2 + cy * k : h / 2 - cy * k
-  return { k, ox, oy, flipY, flipX }
+  const cu = (minU + maxU) / 2
+  const cv = (minV + maxV) / 2
+  const ox = flipX ? w / 2 + cu * k : w / 2 - cu * k
+  const oy = flipY ? h / 2 + cv * k : h / 2 - cv * k
+  return { k, ox, oy, flipY, flipX, rot }
 }
 
 export function toScreen(v: View, x: number, y: number): [number, number] {
-  return [v.flipX ? v.ox - x * v.k : v.ox + x * v.k, v.flipY ? v.oy - y * v.k : v.oy + y * v.k]
+  const [u, w] = rotate(v.rot, x, y)
+  return [v.flipX ? v.ox - u * v.k : v.ox + u * v.k, v.flipY ? v.oy - w * v.k : v.oy + w * v.k]
 }
 
 export function toWorld(v: View, sx: number, sy: number): [number, number] {
-  return [
-    v.flipX ? (v.ox - sx) / v.k : (sx - v.ox) / v.k,
-    v.flipY ? (v.oy - sy) / v.k : (sy - v.oy) / v.k,
-  ]
+  const u = v.flipX ? (v.ox - sx) / v.k : (sx - v.ox) / v.k
+  const w = v.flipY ? (v.oy - sy) / v.k : (sy - v.oy) / v.k
+  return unrotate(v.rot, u, w)
 }
 
 /** 화면 점 `(sx, sy)` 를 고정한 채 배율을 `factor` 배 한다. */
-export function zoomAt(
-  v: View,
-  sx: number,
-  sy: number,
-  factor: number,
-  min = 1e-4,
-  max = 10,
-): View {
+export function zoomAt(v: View, sx: number, sy: number, factor: number, min = 1e-4, max = 10): View {
   const k = Math.min(Math.max(v.k * factor, min), max)
   const f = k / v.k
   return { ...v, k, ox: sx - (sx - v.ox) * f, oy: sy - (sy - v.oy) * f }

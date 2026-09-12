@@ -45,14 +45,14 @@ export function isTerminal(state: TaskState): boolean {
 
 // ── 백엔드가 `Task`에 더 싣지만 공유 타입에는 아직 없는 필드 ───────────────────
 
-/** `LGR_Command_Header` — 제출 때 쓴 헤더(에코 대조 키). */
+/** `LGR_Command_Header` — 제출 때 쓴 헤더(에코 대조 키). PLC 미러라 필드명은 PLC 표기(PascalCase) 그대로. */
 export interface TaskHeader {
-  protocol: number
-  cmd_id: number
-  cmd: number
-  src: number
-  dst: number
-  seq: number
+  Protocol: number
+  CMD_ID: number
+  CMD: number
+  SRC: number
+  DST: number
+  SEQ: number
 }
 
 /** 백엔드 `LedgerEntry` 전체. `types.ts`의 `Task`에 `header`·`plc_name`이 없어 슬라이스 안에서만 넓힌다. */

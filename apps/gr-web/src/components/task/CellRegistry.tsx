@@ -58,10 +58,20 @@ const IO: RegistryIo<Cell> = {
 export interface CellRegistryProps {
   reg: Registry<Cell>
   q: string
+  /** 바깥(레이아웃 편집 맵)이 선택을 쥘 때. */
+  selectedId?: number | null
+  onSelect?: (id: number | null) => void
+  /** 좁은 사이드바 — 핵심 열만, 툴바 아이콘만. */
+  compact?: boolean
 }
 
-export function CellRegistry({ reg, q }: CellRegistryProps) {
-  const [selected, setSelected] = useState<number | null>(null)
+export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: CellRegistryProps) {
+  const [selLocal, setSelLocal] = useState<number | null>(null)
+  const selected = selectedId !== undefined ? selectedId : selLocal
+  const setSelected = (id: number | null) => {
+    if (selectedId === undefined) setSelLocal(id)
+    onSelect?.(id)
+  }
   const [form, setForm] = useState<{
     open: boolean
     editing: boolean
@@ -121,6 +131,9 @@ export function CellRegistry({ reg, q }: CellRegistryProps) {
     { key: 'wid', label: '폭', get: (c) => c.width, numeric: true, cell: (c) => f1(c.width) },
   ]
 
+  const COMPACT_KEYS = ['id', 'state', 'section', 'row', 'col', 'x', 'y', 'z']
+  const shown = compact ? columns.filter((c) => COMPACT_KEYS.includes(c.key)) : columns
+
   async function save(v: CellUpsert) {
     if (form.editing) await api.cellUpdate(v.id, v)
     else await api.cellCreate(v)
@@ -143,6 +156,7 @@ export function CellRegistry({ reg, q }: CellRegistryProps) {
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="cell-registry">
       <RegistryToolbar<Cell>
+        compact={compact}
         title="셀"
         icon={<Grid3x3 size={14} />}
         what="셀"
@@ -161,7 +175,7 @@ export function CellRegistry({ reg, q }: CellRegistryProps) {
         {reg.error ? <p className="p-2 text-xs text-red-600">{reg.error}</p> : null}
         <DataTable
           rows={rows}
-          columns={columns}
+          columns={shown}
           rowKey={(c) => String(c.id)}
           selected={selected === null ? null : String(selected)}
           onPick={(c) => setSelected(c.id === selected ? null : c.id)}

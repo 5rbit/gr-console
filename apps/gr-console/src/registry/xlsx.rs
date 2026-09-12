@@ -96,8 +96,13 @@ pub fn validate_cell(c: &CellInfo) -> Result<(), String> {
     if !(1..=3).contains(&c.section) {
         return Err(format!("section {} must be 1..3", c.section));
     }
-    if let Some((axis, v)) = ["X", "Y", "Z"].iter().zip(c.position).find(|(_, v)| *v <= 0.0 || v.is_nan()) {
-        return Err(format!("position {axis} = {v} must be > 0"));
+    // PLC: 셀 바닥 Z <= 0 이면 isValidTaskData 가 거부한다. 셀 X/Y 는 0 이상이면 된다(태스크 위치는 RangeMin..Max 로 검사).
+    let [x, y, z] = c.position;
+    if let Some((axis, v)) = [("X", x), ("Y", y)].into_iter().find(|(_, v)| *v < 0.0 || v.is_nan()) {
+        return Err(format!("position {axis} = {v} must be >= 0"));
+    }
+    if z <= 0.0 || z.is_nan() {
+        return Err(format!("position Z = {z} must be > 0 (PLC rejects a cell floor Z <= 0)"));
     }
     Ok(())
 }
@@ -755,7 +760,7 @@ mod tests {
                    ,,,,,,,,,,\n\
                    0,TRUE,FALSE,1,1,1,1,1,1,1,1\n\
                    8,TRUE,FALSE,5,1,1,1,1,1,1,1\n\
-                   9,TRUE,FALSE,2,1,1,1,1,1,0,1\n\
+                   9,TRUE,FALSE,2,1,1,1,1,1,-1,1\n\
                    abc,TRUE,FALSE,2,1,1,1,1,1,1,1\n";
         let t = parse_file("cells.csv", csv.as_bytes(), Want::Cells).unwrap();
         assert_eq!(t.cells.len(), 1);

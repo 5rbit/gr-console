@@ -28,7 +28,6 @@ import {
   remove,
   toRequest,
   toScenario,
-  toggleType,
   type PlanRow,
   type PlanStep,
 } from '../../lib/task/plan'
@@ -36,8 +35,8 @@ import { Button } from '../../lib/ui/Button'
 import { Card } from '../../lib/ui/Card'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { Input } from '../../lib/ui/Input'
+import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
-import { StatusBadge } from '../../lib/ui/StatusBadge'
 import { toast } from '../../lib/ui/toast'
 import { robots } from '../../lib/robots'
 import { useStore } from '../../lib/store'
@@ -162,43 +161,32 @@ export function PlanCard({
 
   return (
     <Card padded={false} className="flex flex-col" data-testid="plan-card">
-      <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-700">
+      <div className="flex h-10 flex-none items-center gap-2 border-b border-slate-200 px-3 dark:border-slate-700">
         <ListOrdered className="h-4 w-4 text-slate-500" />
         <span className="text-sm font-semibold">순차 계획</span>
         <span className="text-xs text-slate-400">
           {steps.length}스텝{warnCount ? ` · 경고 ${warnCount}` : ''}
         </span>
         <span className="flex-1" />
-        <div
-          className="inline-flex rounded-md border border-slate-300 p-0.5 text-[11px] dark:border-slate-600"
-          role="radiogroup"
-          aria-label="그립 기준"
-          title="Z 계산 기준: 타이어 중간(H/2) 또는 상부 비드 높이"
-        >
-          {(
-            [
-              ['mid', '타이어 중간'],
-              ['bead', '그립 비드'],
-            ] as [GripRef, string][]
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              role="radio"
-              aria-checked={gripRef === id}
-              className={cn(
-                'rounded px-1.5 py-0.5',
-                gripRef === id
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
-              )}
-              onClick={() => onGripRefChange(id)}
-              data-testid={`grip-${id}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          ariaLabel="그립 기준"
+          value={gripRef}
+          onChange={onGripRefChange}
+          options={[
+            {
+              id: 'mid',
+              label: '타이어 중간',
+              title: 'Z 의 그립 위치 = 타이어 높이 / 2',
+              testid: 'grip-mid',
+            },
+            {
+              id: 'bead',
+              label: '그립 비드',
+              title: 'Z 의 그립 위치 = 상부 비드 높이',
+              testid: 'grip-bead',
+            },
+          ]}
+        />
         <Button
           size="icon-sm"
           intent="ghost"
@@ -228,15 +216,13 @@ export function PlanCard({
         </Button>
       </div>
 
-      <div className="px-3 py-2 text-[11px] text-slate-500">
-        레이아웃에서 셀/스테이션을 누르면 <b>PICK → DROP → PICK …</b> 순으로 쌓입니다. 품목은 셀
-        재고(PICK) / 들고 있는 화물(DROP)에서 잇고, Z 는 재고로 계산합니다: PICK = 바닥 + H×(n−c) +
-        H/2, DROP = 바닥 + H×n + H/2.
+      <div className="px-3 py-1.5 text-[11px] text-slate-500">
+        레이아웃 클릭 = PICK/DROP 교대 · Z = 바닥 + H×재고 + 그립
       </div>
 
       <div className="max-h-[42vh] overflow-auto border-t border-slate-200 dark:border-slate-700">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-surface-panel text-slate-500">
+          <thead className="sticky top-0 bg-surface-panel whitespace-nowrap text-slate-500">
             <tr>
               <th className="w-5" />
               <th className="px-1 py-1 text-left">#</th>
@@ -247,7 +233,7 @@ export function PlanCard({
               <th className="px-1 text-right">수량</th>
               <th className="px-1 text-right">재고</th>
               <th className="px-1 text-right">Z</th>
-              <th className="px-1 text-left">경고</th>
+              <th className="px-1 text-center">경고</th>
               <th className="px-1" />
             </tr>
           </thead>
@@ -287,30 +273,22 @@ export function PlanCard({
                         )}
                       </button>
                     </td>
-                    <td className="px-1 py-0.5 font-mono tabular-nums">{r.no}</td>
+                    <td
+                      className={cn(
+                        'border-l-4 px-1 py-0.5 font-mono tabular-nums',
+                        r.type === 'PICK'
+                          ? 'border-l-indigo-600'
+                          : r.type === 'DROP'
+                            ? 'border-l-emerald-600'
+                            : 'border-l-slate-400',
+                      )}
+                    >
+                      {r.no}
+                    </td>
                     <td className="px-1">
-                      <button
-                        type="button"
-                        className={cn(
-                          'rounded px-1.5 py-0.5 text-[11px] font-bold text-white',
-                          r.type === 'PICK'
-                            ? 'bg-indigo-600'
-                            : r.type === 'DROP'
-                              ? 'bg-emerald-600'
-                              : 'bg-slate-600',
-                        )}
-                        title="클릭: PICK ↔ DROP"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onChange(toggleType(steps, r.id))
-                        }}
-                        data-testid={`plan-type-${r.no}`}
-                      >
-                        {r.type}
-                      </button>
                       <Select
                         dense
-                        className="ml-1 inline-block w-auto"
+                        className="w-auto"
                         value={r.type}
                         onValueChange={(v) => onChange(patch(steps, r.id, { type: v as TaskType }))}
                         aria-label="종류"
@@ -357,7 +335,7 @@ export function PlanCard({
                         <option value="">(없음)</option>
                         {items.map((it) => (
                           <option key={it.code} value={String(it.code)}>
-                            {it.code} {it.name}
+                            {it.code}
                           </option>
                         ))}
                       </Select>
@@ -369,7 +347,7 @@ export function PlanCard({
                         min={1}
                         max={20}
                         step="1"
-                        className="w-14"
+                        className="w-14 [&>input]:h-7 [&>input]:text-xs"
                         value={String(r.count)}
                         onValueChange={(s) =>
                           onChange(patch(steps, r.id, { count: Math.max(1, Number(s) || 1) }))
@@ -386,14 +364,14 @@ export function PlanCard({
                     >
                       {r.z === null ? <span className="text-slate-400">?</span> : r.z.toFixed(0)}
                     </td>
-                    <td className="px-1">
+                    <td className="px-1 text-center">
                       {r.warnings.length ? (
-                        <span className="flex flex-wrap gap-1">
-                          {r.warnings.map((w) => (
-                            <StatusBadge key={w} status="warn">
-                              {w}
-                            </StatusBadge>
-                          ))}
+                        <span
+                          className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200"
+                          title={r.warnings.join(' · ')}
+                          data-testid={`plan-warn-${r.no}`}
+                        >
+                          {r.warnings.length}
                         </span>
                       ) : null}
                     </td>

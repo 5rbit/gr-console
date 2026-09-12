@@ -300,12 +300,16 @@ export function DataGrid<T>({
   // non-cancelable), so composition is let through here and settled at
   // compositionend below.
   function editBeforeInput(e: React.InputEvent<HTMLInputElement>, col: DataGridColumn<T>, row: T) {
-    const ne = e.nativeEvent
+    // React synthesizes onBeforeInput from Chromium's `textInput` (a TextEvent): no `inputType`, no
+    // `dataTransfer` — only `data`. Treat a missing inputType as a text insert so the filter still runs
+    // (reading it unguarded threw on every keystroke and the filter never rejected anything).
+    const ne = e.nativeEvent as Partial<InputEvent>
     const filter = filterOf(col, row)
     if (!filter || ne.isComposing) return
-    if (!ne.inputType.startsWith('insert')) return // deletes / history always pass
+    const inputType = typeof ne.inputType === 'string' ? ne.inputType : 'insertText'
+    if (!inputType.startsWith('insert')) return // deletes / history always pass
     const el = e.currentTarget
-    const ins = ne.data ?? ne.dataTransfer?.getData('text/plain') ?? ''
+    const ins = e.data ?? ne.data ?? ne.dataTransfer?.getData('text/plain') ?? ''
     const next =
       el.value.slice(0, el.selectionStart ?? el.value.length) +
       ins +

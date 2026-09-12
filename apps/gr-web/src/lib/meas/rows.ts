@@ -85,7 +85,11 @@ export function flatten(entries: readonly MeasLogEntry[]): MeasRow[] {
 }
 
 /** 종류·코드 필터('' = 전체). */
-export function filt(rows: readonly MeasRow[], kind: string | number, code: string | number): MeasRow[] {
+export function filt(
+  rows: readonly MeasRow[],
+  kind: string | number,
+  code: string | number,
+): MeasRow[] {
   const k = Number(kind || 0)
   const c = Number(code || 0)
   return rows.filter((r) => (!k || r.kind === k) && (!c || r.code === c))
@@ -96,9 +100,9 @@ export function summary(r: MeasRow): string {
   const d = r.data
   switch (r.kind) {
     case 1:
-      return `내경 ${f1(d[1])} (토크 ${f1(d[7])} / In ${f1(d[10])} / Out ${f1(d[15])})  비드 ${f1(d[2])}  높이 ${f1(d[3])}`
+      return `내경 ${f1(d[1])} (토크 ${f1(d[7])} / Entry ${f1(d[10])} / Exit ${f1(d[15])})  비드 ${f1(d[2])}  높이 ${f1(d[3])}`
     case 2:
-      return `${d[17] ?? 0}단  단당 ${f1(d[18])}  스택 ${f1(d[19])}`
+      return `${d[17] ?? 0}단  단당 ${f1(d[18])}  전체 ${f1(d[19])}`
     case 3:
       return `바닥 ${f1(d[1])} (Z ${f1(d[2])}, FLD ${f1(d[3])})`
     case 4:

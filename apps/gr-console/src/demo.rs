@@ -91,8 +91,8 @@ fn sample_cell(id: u16, i: usize) -> CellInfo {
         blend_use: false,
         id,
         section: 2,
-        row: (i / 4 + 1) as u16,
-        col: (i % 4 + 1) as u16,
+        row: (i % 4 + 1) as u16,
+        col: (i / 4 + 1) as u16,
         length: 1200.0,
         width: 1200.0,
         position: [12000.0 + (i % 4) as f32 * 1300.0, 3000.0 + (i / 4) as f32 * 1300.0, 1500.0],
@@ -106,7 +106,7 @@ fn sample_station(id: u16, i: usize) -> StationPara {
         rotate_type: 1,
         group: 1,
         group_index: (i + 1) as u8,
-        info: CellInfo { use_: true, blend_use: false, id, section: 3, row: 1, col: (i + 1) as u16, length: 1500.0, width: 1500.0, position: [20000.0 + i as f32 * 2000.0, 1000.0, 1450.0] },
+        info: CellInfo { use_: true, blend_use: false, id, section: 3, row: (i + 1) as u16, col: 1, length: 1500.0, width: 1500.0, position: [20000.0 + i as f32 * 2000.0, 1000.0, 1450.0] },
         ..Default::default()
     }
 }
@@ -479,7 +479,7 @@ impl DemoWorld {
                 let th = zrel + h + n(g, 1.5);
                 let (ox, oy) = (n(g, 3.0), n(g, 3.0));
                 let rid = if ((in_id + out_id) / 2.0 - tq).abs() <= 10.0 { ((in_id + out_id) / 2.0 + tq) / 2.0 } else { tq };
-                data[..20].copy_from_slice(&[2.0, rid, bead, th, tq - 5.0, tq - 5.0, 0.0, tq, 0.35, 10.0, in_id, bead, th, ox, oy, out_id, bead, th, ox, oy]);
+                data[..20].copy_from_slice(&[2.0, rid, bead, th, 0.0, 0.0, 0.0, tq, 0.35, 0.0, in_id, bead, th, ox, oy, out_id, bead, th, ox, oy]);
                 delta = gr_proto::measure::Delta { inner_dia: rid - id, height: th - zrel - h, z: bead - zrel, offset: (ox * ox + oy * oy).sqrt(), count: 0.0 };
                 if g.rng.random::<f32>() < 0.1 {
                     status = 4;
@@ -494,8 +494,6 @@ impl DemoWorld {
                     data[2 * k] = (k - 1) as f32 * each + h - 20.0;
                 }
                 data[0] = 2.0;
-                data[15] = 1.0;
-                data[16] = 3.0;
                 data[17] = cnt as f32;
                 data[18] = each;
                 data[19] = cnt as f32 * each;

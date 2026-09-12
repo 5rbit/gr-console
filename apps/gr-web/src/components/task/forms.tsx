@@ -1,6 +1,6 @@
 // 레지스트리 편집 폼 — 품목·셀·스테이션을 `Modal` 안에서 만들고 고친다.
 //
-// 검증은 백엔드와 같은 규칙(셀 1..1000, 스테이션 2001..2999 & mod 100 ∈ 1..32, 위치 > 0, 구역 1..3)을
+// 검증은 백엔드와 같은 규칙(셀 1..1000, 스테이션 2001..2999 & mod 100 ∈ 1..32, 셀 X/Y ≥ 0·Z > 0, 스테이션 위치 > 0, 구역 1..3)을
 // 제출 전에 한 번 더 돈다 — 서버 400을 기다리지 않게. 저장 버튼은 폼 안에 두고 Modal의 기본 버튼은 닫기다.
 import type * as React from 'react'
 import { useState } from 'react'
@@ -133,16 +133,23 @@ function FormModal({
 
 // ── 검증(백엔드 규칙 그대로) ─────────────────────────────────────────────────
 
+/** 스테이션: PLC isValid_Station_Parameter 가 X/Y/Z ≤ 0 을 거부한다. */
 const positionErrors = (p: [number, number, number]): string[] =>
   (['X', 'Y', 'Z'] as const)
     .filter((_, i) => !(p[i] > 0))
     .map((a) => `위치 ${a}는 0보다 커야 합니다`)
 
+/** 셀: X/Y 는 0 이상이면 되고, 바닥 Z ≤ 0 은 PLC isValidTaskData 가 거부한다. */
+export const cellPositionErrors = (p: [number, number, number]): string[] => [
+  ...(['X', 'Y'] as const).filter((_, i) => !(p[i] >= 0)).map((a) => `위치 ${a}는 0 이상이어야 합니다`),
+  ...(p[2] > 0 ? [] : ['위치 Z(바닥)는 0보다 커야 합니다']),
+]
+
 export function validateCell(c: CellUpsert): string[] {
   const out: string[] = []
   if (!Number.isInteger(c.id) || c.id < 1 || c.id > 1000) out.push('셀 Id는 1..1000')
   if (![1, 2, 3].includes(c.section)) out.push('구역은 1..3')
-  out.push(...positionErrors(c.position))
+  out.push(...cellPositionErrors(c.position))
   return out
 }
 

@@ -119,3 +119,42 @@ describe('layoutModel flipX', () => {
     expect(wy).toBeCloseTo(250)
   })
 })
+
+describe('layoutModel rotation', () => {
+  it('round-trips and centres the bounds for every rotation and mirror', () => {
+    for (const rot of [0, 90, 180, 270] as const) {
+      for (const flipX of [false, true]) {
+        for (const flipY of [false, true]) {
+          const v = fitView({ minX: 0, minY: 0, maxX: 2000, maxY: 1000 }, 800, 600, 24, flipY, flipX, rot)
+          const [sx, sy] = toScreen(v, 1500, 250)
+          const [wx, wy] = toWorld(v, sx, sy)
+          expect(wx).toBeCloseTo(1500)
+          expect(wy).toBeCloseTo(250)
+          const [cx, cy] = toScreen(v, 1000, 500)
+          expect(cx).toBeCloseTo(400)
+          expect(cy).toBeCloseTo(300)
+        }
+      }
+    }
+  })
+
+  it('90 degrees clockwise: +X points down, +Y points right', () => {
+    const v = fitView({ minX: 0, minY: 0, maxX: 2000, maxY: 1000 }, 800, 600, 24, true, false, 90)
+    const [ox, oy] = toScreen(v, 0, 0)
+    const [xx, xy] = toScreen(v, 100, 0)
+    const [yx, yy] = toScreen(v, 0, 100)
+    expect(xy).toBeGreaterThan(oy)
+    expect(xx).toBeCloseTo(ox)
+    expect(yx).toBeGreaterThan(ox)
+    expect(yy).toBeCloseTo(oy)
+  })
+
+  it('fits the rotated extent (width and height swap at 90 degrees)', () => {
+    const b = { minX: 0, minY: 0, maxX: 4000, maxY: 1000 }
+    expect(fitView(b, 800, 800, 0, true, false, 0).k).toBeCloseTo(0.2)
+    expect(fitView(b, 800, 800, 0, true, false, 90).k).toBeCloseTo(0.2)
+    // 4000 mm now spans the 400 px height
+    expect(fitView(b, 800, 400, 0, true, false, 90).k).toBeCloseTo(0.1)
+    expect(fitView(b, 800, 400, 0, true, false, 0).k).toBeCloseTo(0.2)
+  })
+})

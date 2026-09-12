@@ -54,10 +54,26 @@ const IO: RegistryIo<Station> = {
 export interface StationRegistryProps {
   reg: Registry<Station>
   q: string
+  /** 바깥(레이아웃 편집 맵)이 선택을 쥘 때. */
+  selectedId?: number | null
+  onSelect?: (id: number | null) => void
+  /** 좁은 사이드바 — 핵심 열만, 툴바 아이콘만. */
+  compact?: boolean
 }
 
-export function StationRegistry({ reg, q }: StationRegistryProps) {
-  const [selected, setSelected] = useState<number | null>(null)
+export function StationRegistry({
+  reg,
+  q,
+  selectedId,
+  onSelect,
+  compact = false,
+}: StationRegistryProps) {
+  const [selLocal, setSelLocal] = useState<number | null>(null)
+  const selected = selectedId !== undefined ? selectedId : selLocal
+  const setSelected = (id: number | null) => {
+    if (selectedId === undefined) setSelLocal(id)
+    onSelect?.(id)
+  }
   const [form, setForm] = useState<{
     open: boolean
     editing: boolean
@@ -125,6 +141,9 @@ export function StationRegistry({ reg, q }: StationRegistryProps) {
     },
   ]
 
+  const COMPACT_KEYS = ['id', 'state', 'conv', 'grp', 'x', 'y', 'z']
+  const shown = compact ? columns.filter((c) => COMPACT_KEYS.includes(c.key)) : columns
+
   async function save(v: StationUpsert) {
     if (form.editing) await api.stationUpdate(v.id, v)
     else await api.stationCreate(v)
@@ -147,6 +166,7 @@ export function StationRegistry({ reg, q }: StationRegistryProps) {
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="station-registry">
       <RegistryToolbar<Station>
+        compact={compact}
         title="스테이션"
         icon={<Factory size={14} />}
         what="스테이션"
@@ -168,7 +188,7 @@ export function StationRegistry({ reg, q }: StationRegistryProps) {
         {reg.error ? <p className="p-2 text-xs text-red-600">{reg.error}</p> : null}
         <DataTable
           rows={rows}
-          columns={columns}
+          columns={shown}
           rowKey={(s) => String(s.id)}
           selected={selected === null ? null : String(selected)}
           onPick={(s) => setSelected(s.id === selected ? null : s.id)}

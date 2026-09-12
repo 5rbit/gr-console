@@ -29,6 +29,15 @@ body {
   font-size: 12px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  /* 모든 숫자 고정폭 — 표·배지·좌표의 자릿수가 맞는다 */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* SVG 맵 글자(재고 개수·눈금)도 같은 폰트와 고정폭 숫자 */
+svg text {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 /* 값·주소·시각의 숫자는 표에서 자리를 지켜야 한다 — tick·좌표·건수가 폴링마다 흔들리지 않게. */
@@ -61,3 +70,29 @@ body {
     ds-flash-bar var(--dur-flash) var(--ease-standard) 1;
 }
 
+
+/* 레이아웃 맵 선택 링 — 점선이 천천히 돌고 은은하게 숨 쉰다. 움직임 줄이기 설정이면 멈춘다. */
+@keyframes map-sel-march {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+@keyframes map-sel-breathe {
+  0%,
+  100% {
+    stroke-opacity: 1;
+  }
+  50% {
+    stroke-opacity: 0.45;
+  }
+}
+.map-sel {
+  animation:
+    map-sel-march 0.9s linear infinite,
+    map-sel-breathe 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-sel {
+    animation: none;
+  }
+}

@@ -293,12 +293,13 @@
   --color-danger-soft: #feecea;
 
   /* ── 타입 ────────────────────────────────────────────────────────────────
-     UI는 IBM Plex Sans(+KR), 값·주소·시각은 코딩용 한글 모노(한글이 라틴 2배 폭으로 고정돼
-     한글 섞인 값·경로·로그에서도 열이 흐트러지지 않는다). D2Coding이 깔린 PC는 그것이 먼저 잡힌다. */
+     UI는 Pretendard, 값·주소·좌표는 JetBrains Mono. 둘 다 npm 패키지로 번들된다(main.tsx import).
+     숫자는 body 전체에 tabular-nums 를 켜서 자릿수가 맞는다. 모노에 한글이 섞이면 D2Coding, Pretendard 로 떨어진다. */
   --font-sans:
-    'IBM Plex Sans', 'IBM Plex Sans KR', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo',
+    'Malgun Gothic', sans-serif;
   --font-mono:
-    'D2Coding', 'Nanum Gothic Coding', 'Sarasa Mono K', ui-monospace, SFMono-Regular, Menlo,
+    'JetBrains Mono Variable', 'JetBrains Mono', 'D2Coding', 'Pretendard Variable', ui-monospace,
     Consolas, monospace;
 
   /* 크기는 10·11·12·13·14px 다섯이 거의 전부다 — 조밀한 엔지니어링 화면의 정보 밀도가 그 이유다.

@@ -94,6 +94,11 @@ function Timeline({ history, now }: { history: TaskTransition[]; now: number }) 
   )
 }
 
+/** 숫자를 0x.. 로 — 값이 없으면(구버전 원장·외부 Task) 화면 전체가 죽지 않도록 '-'. */
+function hex(v: number | null | undefined): string {
+  return typeof v === 'number' ? `0x${v.toString(16).toUpperCase()}` : '-'
+}
+
 function paramItems(p: TaskParams | null, overrides?: Partial<TaskParams>): FieldItem[] {
   if (!p) return []
   return (Object.keys(PARAM_LABELS) as (keyof TaskParams)[]).map((k) => {
@@ -209,7 +214,10 @@ export default function TaskDetail({ id }: TaskDetailProps) {
         { label: '검증 코드', value: t.ack.code, mono: true },
         {
           label: '거부 비트',
-          value: `0b${t.ack.reject_bits.toString(2).padStart(8, '0')}`,
+          value:
+            typeof t.ack.reject_bits === 'number'
+              ? `0b${t.ack.reject_bits.toString(2).padStart(8, '0')}`
+              : null,
           mono: true,
           tooltip: 'X0 로봇번호 · X1 중복 · X2 태스크 무효 · X3 버퍼 풀 · X7 오프라인',
         },
@@ -219,10 +227,14 @@ export default function TaskDetail({ id }: TaskDetailProps) {
     : []
   const header: FieldItem[] = t.header
     ? [
-        { label: 'CMD_ID', value: t.header.cmd_id, mono: true },
-        { label: 'SEQ', value: t.header.seq, mono: true },
-        { label: 'CMD', value: `0x${t.header.cmd.toString(16).toUpperCase()}`, mono: true },
-        { label: 'SRC → DST', value: `${t.header.src} → ${t.header.dst}`, mono: true },
+        { label: 'CMD_ID', value: t.header.CMD_ID, mono: true },
+        { label: 'SEQ', value: t.header.SEQ, mono: true },
+        { label: 'CMD', value: hex(t.header.CMD), mono: true },
+        {
+          label: 'SRC → DST',
+          value: `${t.header.SRC ?? '-'} → ${t.header.DST ?? '-'}`,
+          mono: true,
+        },
       ]
     : []
   const plc: FieldItem[] = [
@@ -290,7 +302,7 @@ export default function TaskDetail({ id }: TaskDetailProps) {
     ? [
         {
           label: 'TaskType',
-          value: `0x${pt.TaskType.toString(16).toUpperCase()} ${typeName(pt.TaskType)}`,
+          value: `${hex(pt.TaskType)} ${typeName(pt.TaskType)}`,
           mono: true,
         },
         { label: 'Cell.Id', value: pt.Cell?.Id, mono: true },

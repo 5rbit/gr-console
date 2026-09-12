@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import type * as React from 'react'
 import { ChevronRight, Link as LinkIcon, RefreshCw, Rows2, Rows3 } from 'lucide-react'
 import { plcs } from '../lib/plcs'
-import { robots } from '../lib/robots'
+import { robotColor, robots } from '../lib/robots'
 import { robotTone } from './shared/RobotPicker'
 import { statusFeed } from '../lib/feeds'
 import { useSse } from '../lib/sse'
@@ -191,6 +191,11 @@ export function Sidebar() {
                     onClick={() => robots.select(r.id)}
                   >
                     <StatusDot status={robotTone(r)} size="sm" />
+                    <span
+                      className="h-2.5 w-2.5 flex-none rounded-sm"
+                      style={{ background: robotColor(r.id) }}
+                      title="맵에서 이 로봇의 작업 테두리 색"
+                    />
                     <span
                       className={`min-w-0 flex-1 truncate text-xs ${on ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'font-medium'}`}
                     >

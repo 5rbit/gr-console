@@ -38,10 +38,18 @@ export interface LayoutEditorProps {
   onPreview: (cells: CellUpsert[]) => void
   /** 적용 뒤 목록 다시 받기. */
   onApplied: () => void
-  onClose: () => void
+  onClose?: () => void
+  /** 우측 사이드바에 넣을 때 — 자체 머리줄·고정 폭·왼쪽 테두리를 뺀다. */
+  embedded?: boolean
 }
 
-export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEditorProps) {
+export function LayoutEditor({
+  cells,
+  onPreview,
+  onApplied,
+  onClose,
+  embedded = false,
+}: LayoutEditorProps) {
   const [rule, setRule] = useState<LayoutRule>(loadRule)
   const [replace, setReplace] = useState(true)
   const [area, setArea] = useState({ w: 10000, h: 4000 })
@@ -86,10 +94,16 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
 
   return (
     <div
-      className="flex h-full min-h-0 w-[330px] flex-none flex-col overflow-y-auto border-l border-slate-200 text-xs dark:border-slate-700"
+      className={
+        embedded
+          ? 'flex min-h-0 flex-col text-xs'
+          : 'flex h-full min-h-0 w-[330px] flex-none flex-col overflow-y-auto border-l border-slate-200 text-xs dark:border-slate-700'
+      }
       data-testid="layout-editor"
     >
-      <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-700">
+      <div
+        className={`${embedded ? 'hidden' : 'flex'} h-10 items-center gap-2 border-b border-slate-200 px-3 dark:border-slate-700`}
+      >
         <Wand2 className="h-4 w-4 text-slate-500" />
         <span className="text-sm font-semibold">레이아웃 생성 규칙</span>
         <span className="flex-1" />
@@ -97,10 +111,9 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
           닫기
         </Button>
       </div>
-      <div className="flex flex-col gap-2 px-3 py-2">
+      <div className="flex flex-col gap-3 px-3 py-3">
         <div className="flex flex-wrap items-end gap-2">
           <Select
-            dense
             label="구간"
             value={String(rule.section)}
             onValueChange={(v) => {
@@ -126,7 +139,6 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
             data-testid="rule-start"
           />
           <Select
-            dense
             label="패턴"
             value={rule.pattern}
             onValueChange={(v) => set({ pattern: v as LayoutRule['pattern'] })}
@@ -184,7 +196,7 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
             data-testid="rule-gap"
           />
           <Input
-            label="열"
+            label="열 수 (Y)"
             type="number"
             mono
             className="w-16"
@@ -193,7 +205,7 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
             data-testid="rule-cols"
           />
           <Input
-            label="행"
+            label="행 수 (X)"
             type="number"
             mono
             className="w-16"
@@ -204,11 +216,11 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
         </div>
         <div className="rounded border border-slate-200 p-2 dark:border-slate-700">
           <div className="mb-1 text-[11px] font-semibold text-slate-500">
-            영역에 맞춰 열·행 채우기
+            영역에 맞춰 행(X)·열(Y) 채우기
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <Input
-              label="폭 (mm)"
+              label="X 길이 (mm)"
               type="number"
               mono
               className="w-24"
@@ -216,7 +228,7 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
               onValueChange={(s) => setArea({ ...area, w: Number(s) })}
             />
             <Input
-              label="높이 (mm)"
+              label="Y 길이 (mm)"
               type="number"
               mono
               className="w-24"
@@ -224,7 +236,6 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
               onValueChange={(s) => setArea({ ...area, h: Number(s) })}
             />
             <Button
-              size="sm"
               onClick={() => {
                 const f = fitCount(area.w, area.h, rule.diameter, rule.gap, rule.pattern)
                 if (!f.cols || !f.rows) toast.warn('영역이 셀 하나보다 작습니다')
@@ -252,8 +263,7 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <Select
-            dense
-            label="X 진행"
+            label="행 진행 (X)"
             value={String(rule.dirX)}
             onValueChange={(v) => set({ dirX: Number(v) as 1 | -1 })}
           >
@@ -261,8 +271,7 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
             <option value="-1">X 감소</option>
           </Select>
           <Select
-            dense
-            label="Y 진행"
+            label="열 진행 (Y)"
             value={String(rule.dirY)}
             onValueChange={(v) => set({ dirY: Number(v) as 1 | -1 })}
           >
@@ -270,7 +279,6 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
             <option value="-1">Y 감소</option>
           </Select>
           <Select
-            dense
             label="번호"
             value={rule.order}
             onValueChange={(v) => set({ order: v as 'row' | 'col' })}

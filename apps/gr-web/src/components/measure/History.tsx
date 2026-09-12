@@ -9,13 +9,37 @@ import type { Column } from '../../lib/ui/table'
 import type { MeasLogSnapshot } from '../../lib/types'
 import { StatCards, TaskKv } from './helpers'
 
-const KIND_TONE: Record<number, string> = { 1: 'text-sky-600 dark:text-sky-400', 2: 'text-violet-600 dark:text-violet-400', 3: 'text-slate-500', 4: 'text-orange-600 dark:text-orange-400', 5: 'text-teal-600 dark:text-teal-400' }
+const KIND_TONE: Record<number, string> = {
+  1: 'text-sky-600 dark:text-sky-400',
+  2: 'text-violet-600 dark:text-violet-400',
+  3: 'text-slate-500',
+  4: 'text-orange-600 dark:text-orange-400',
+  5: 'text-teal-600 dark:text-teal-400',
+}
 
 const COLS: Column<MeasRow>[] = [
   { key: 'seq', label: 'Seq', get: (r) => r.seq, numeric: true },
   { key: 'time', label: '시각', get: (r) => r.time },
-  { key: 'kind', label: '종류', get: (r) => r.kindName, cell: (r) => <span className={KIND_TONE[r.kind] ?? ''}>{r.kindName}</span> },
-  { key: 'status', label: '상태', get: (r) => r.statusName, cell: (r) => <StatusBadge status={r.status === 2 ? 'ok' : r.status === 3 ? 'fault' : r.status === 4 ? 'warn' : 'neutral'}>{r.statusName}</StatusBadge> },
+  {
+    key: 'kind',
+    label: '종류',
+    get: (r) => r.kindName,
+    cell: (r) => <span className={KIND_TONE[r.kind] ?? ''}>{r.kindName}</span>,
+  },
+  {
+    key: 'status',
+    label: '상태',
+    get: (r) => r.statusName,
+    cell: (r) => (
+      <StatusBadge
+        status={
+          r.status === 2 ? 'ok' : r.status === 3 ? 'fault' : r.status === 4 ? 'warn' : 'neutral'
+        }
+      >
+        {r.statusName}
+      </StatusBadge>
+    ),
+  },
   { key: 'wt', label: 'Work/Task', get: (r) => `${r.workId}/${r.taskId} ${tt(r.taskType)}` },
   { key: 'cell', label: 'Cell', get: (r) => r.cellId, numeric: true },
   { key: 'code', label: 'Code', get: (r) => r.code, numeric: true },
@@ -30,20 +54,43 @@ const COLS: Column<MeasRow>[] = [
   { key: 'dOff', label: '편심', get: (r) => f2(r.dOffset), numeric: true },
 ]
 
-export function History({ rows, snap, selected, onSelect, allCount }: { rows: MeasRow[]; snap: MeasLogSnapshot | null; selected: number | null; onSelect: (seq: number | null) => void; allCount: number }) {
+export function History({
+  rows,
+  snap,
+  selected,
+  onSelect,
+  allCount,
+}: {
+  rows: MeasRow[]
+  snap: MeasLogSnapshot | null
+  selected: number | null
+  onSelect: (seq: number | null) => void
+  allCount: number
+}) {
   const sel = rows.find((r) => r.seq === selected) ?? null
   const cards = [
     { label: 'Total', value: snap?.total ?? '', hint: '누적 기록' },
     { label: 'Count', value: snap?.count ?? '', hint: `버퍼 ${snap?.capacity ?? 200}` },
     { label: '표시', value: rows.length, hint: `필터 적용 / 전체 ${allCount}` },
-    ...(snap?.stat ?? []).map((s, i) => ({ label: KIND[i + 1] ?? String(i + 1), value: s.Count, hint: `에러 ${s.ErrorCount}` })),
+    ...(snap?.stat ?? []).map((s, i) => ({
+      label: KIND[i + 1] ?? String(i + 1),
+      value: s.Count,
+      hint: `에러 ${s.ErrorCount}`,
+    })),
   ]
   return (
     <div>
       <StatCards items={cards} />
       <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
         <div className="max-h-[62vh] overflow-auto rounded border border-line-default">
-          <DataTable rows={rows} columns={COLS} rowKey={(r) => String(r.seq)} selected={selected === null ? null : String(selected)} onPick={(r) => onSelect(r.seq)} empty="측정 기록 없음" />
+          <DataTable
+            rows={rows}
+            columns={COLS}
+            rowKey={(r) => String(r.seq)}
+            selected={selected === null ? null : String(selected)}
+            onPick={(r) => onSelect(r.seq)}
+            empty="측정 기록 없음"
+          />
         </div>
         <div className="text-xs">
           {sel ? (
@@ -70,15 +117,18 @@ export function History({ rows, snap, selected, onSelect, allCount }: { rows: Me
                     return (
                       <tr key={i} className="border-t border-line-default">
                         <td>{i}</td>
-                        <td>{lab ?? '예비'}</td>
-                        <td className="text-right font-mono tabular-nums">{Number(v).toFixed(3)}</td>
+                        <td>{lab || '예비'}</td>
+                        <td className="text-right font-mono tabular-nums">
+                          {Number(v).toFixed(3)}
+                        </td>
                       </tr>
                     )
                   })}
                   <tr className="border-t border-line-default">
                     <td colSpan={2}>편차 내경 / 높이 / Z / 편심 / 단수</td>
                     <td className="text-right font-mono tabular-nums">
-                      {f2(sel.dInnerDia)} / {f2(sel.dHeight)} / {f2(sel.dZ)} / {f2(sel.dOffset)} / {f2(sel.dCount)}
+                      {f2(sel.dInnerDia)} / {f2(sel.dHeight)} / {f2(sel.dZ)} / {f2(sel.dOffset)} /{' '}
+                      {f2(sel.dCount)}
                     </td>
                   </tr>
                 </tbody>
