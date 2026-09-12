@@ -15,6 +15,8 @@ export interface SwitchProps {
   onCheckedChange?: (next: boolean) => void
   /** `onCheckedChange` 별칭 — Svelte 원본 계약 유지 */
   onchange?: (next: boolean) => void
+  /** `label` 을 스위치 오른쪽에 글자로도 그린다(툴바처럼 옆에 설명이 따로 없는 자리). */
+  inline?: boolean
 }
 
 export function Switch({
@@ -26,7 +28,25 @@ export function Switch({
   testid = '',
   onCheckedChange,
   onchange,
+  inline = false,
 }: SwitchProps) {
+  if (inline && label) {
+    return (
+      <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 text-xs text-slate-600 select-none dark:text-slate-300">
+        <Switch
+          checked={checked}
+          label={label}
+          disabled={disabled}
+          pending={pending}
+          title={title}
+          testid={testid}
+          onCheckedChange={onCheckedChange}
+          onchange={onchange}
+        />
+        {label}
+      </label>
+    )
+  }
   return (
     <button
       type="button"

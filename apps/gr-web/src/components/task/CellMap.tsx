@@ -246,6 +246,7 @@ export function CellMap({
           data-testid="map-size-input"
         />
         <Switch
+          inline
           label="X 오른쪽 +"
           checked={!flipX}
           onCheckedChange={(b) => {
@@ -254,6 +255,7 @@ export function CellMap({
           }}
         />
         <Switch
+          inline
           label="Y 위쪽 +"
           checked={flipY}
           onCheckedChange={(b) => {
@@ -261,8 +263,8 @@ export function CellMap({
             save(FLIP_KEY, b ? '1' : '0')
           }}
         />
-        <Switch label="슬롯 크기" checked={footprint} onCheckedChange={setFootprint} />
-        <Switch label="번호" checked={labels} onCheckedChange={setLabels} />
+        <Switch inline label="슬롯 크기" checked={footprint} onCheckedChange={setFootprint} />
+        <Switch inline label="번호" checked={labels} onCheckedChange={setLabels} />
         <span className="flex-1" />
         <span className="font-mono text-[11px] tabular-nums text-slate-500">
           {cursor ? `X ${cursor[0].toFixed(0)} · Y ${cursor[1].toFixed(0)}` : ''} · 눈금 {step} mm ·

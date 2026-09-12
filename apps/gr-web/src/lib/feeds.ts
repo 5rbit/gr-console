@@ -4,10 +4,10 @@ import { SseFeed } from './sse'
 import type { ScenarioRun, StatusEvent, StockEvent, TasksEvent } from './types'
 
 /** PLC 상태(WebMon) — 20Hz 안팎. */
-export const statusFeed = new SseFeed<StatusEvent>(STREAM_URL.status)
+export const statusFeed = new SseFeed<StatusEvent>(STREAM_URL.status, 'status')
 /** Task 상태 이벤트(스냅샷/갱신/삭제) — `lib/tasks.ts`가 Map에 적용한다. */
-export const tasksFeed = new SseFeed<TasksEvent>(STREAM_URL.tasks)
+export const tasksFeed = new SseFeed<TasksEvent>(STREAM_URL.tasks, 'tasks')
 /** 시나리오 실행 진행. */
-export const runsFeed = new SseFeed<ScenarioRun>(STREAM_URL.runs)
+export const runsFeed = new SseFeed<ScenarioRun>(STREAM_URL.runs, 'run')
 /** 셀 재고 이벤트(스냅샷/갱신/삭제) — `lib/stock.ts`가 Map에 적용한다. */
-export const stockFeed = new SseFeed<StockEvent>(STREAM_URL.stock)
+export const stockFeed = new SseFeed<StockEvent>(STREAM_URL.stock, 'stock')

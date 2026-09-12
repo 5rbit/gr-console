@@ -139,6 +139,7 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
         <div className="flex flex-wrap items-end gap-2">
           <Input
             label="원점 X"
+            data-testid="rule-origin-x"
             type="number"
             mono
             className="w-24"
@@ -147,6 +148,7 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
           />
           <Input
             label="원점 Y"
+            data-testid="rule-origin-y"
             type="number"
             mono
             className="w-24"
@@ -236,11 +238,13 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Switch
+            inline
             label="홀수 행 1칸 짧게"
             checked={rule.shortOddRows}
             onCheckedChange={(b) => set({ shortOddRows: b })}
           />
           <Switch
+            inline
             label="뱀 번호"
             checked={rule.serpentine}
             onCheckedChange={(b) => set({ serpentine: b })}
@@ -322,6 +326,7 @@ export function LayoutEditor({ cells, onPreview, onApplied, onClose }: LayoutEdi
           </div>
         ) : null}
         <Switch
+          inline
           label={`구간 ${rule.section} 기존 셀 ${inSection}칸 교체(삭제 후 생성)`}
           checked={replace}
           onCheckedChange={setReplace}

@@ -51,6 +51,9 @@ export function frameThrottle(fn: () => void): { (): void; cancel(): void } {
 
 export class SseFeed<T> extends Store {
   readonly url: string
+  /** 백엔드가 `event: <이름>` 으로 보내는 이벤트 이름. 이름 붙은 이벤트는 `onmessage` 로 오지 않으므로
+   *  반드시 `addEventListener(이름)` 으로 받아야 한다(없으면 이름 없는 `message` 만 받는다). */
+  readonly event: string | null
   #es: EventSource | null = null
   #refs = 0
   #data: T | null = null
@@ -61,9 +64,10 @@ export class SseFeed<T> extends Store {
   /** 프레임에 묶인 알림 — 메시지가 몰려도 렌더는 프레임당 한 번. */
   #flush = frameThrottle(() => this.notify())
 
-  constructor(url: string) {
+  constructor(url: string, event: string | null = null) {
     super()
     this.url = url
+    this.event = event
   }
 
   /** 마지막으로 받은 메시지(아직 없으면 `null`). */
@@ -129,7 +133,7 @@ export class SseFeed<T> extends Store {
       this.#error = '스트림 끊김 — 재연결 대기'
       this.#flush()
     }
-    es.onmessage = (e: MessageEvent<string>) => {
+    const onData = (e: MessageEvent<string>) => {
       let msg: T
       try {
         msg = JSON.parse(e.data) as T
@@ -142,6 +146,8 @@ export class SseFeed<T> extends Store {
       for (const h of this.#handlers) h(msg)
       this.#flush()
     }
+    es.onmessage = onData
+    if (this.event) es.addEventListener(this.event, onData as EventListener)
     this.#es = es
   }
 
