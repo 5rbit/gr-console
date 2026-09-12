@@ -68,13 +68,13 @@ const ACTOR_LABEL: Record<TaskTransition['by'], string> = {
 }
 
 function Timeline({ history, now }: { history: TaskTransition[]; now: number }) {
-  if (history.length === 0) return <p className="m-0 text-xs text-slate-400">이력 없음</p>
+  if (history.length === 0) return <p className="m-0 text-xs text-content-faint">이력 없음</p>
   return (
     <ol className="m-0 list-none space-y-1 p-0" data-testid="task-timeline">
       {history.map((h, i) => (
         <li key={i} className="flex items-baseline gap-2 text-xs">
           <span
-            className="w-20 shrink-0 font-mono text-2xs text-slate-400 tabular-nums"
+            className="w-20 shrink-0 font-mono text-2xs text-content-faint tabular-nums"
             title={h.at}
           >
             {fmtTime(h.at, now)}
@@ -82,9 +82,9 @@ function Timeline({ history, now }: { history: TaskTransition[]; now: number }) 
           <StatusBadge status={STATE_TONE[h.to]} dot={false}>
             {STATE_LABEL[h.to]}
           </StatusBadge>
-          <span className="text-2xs text-slate-400">{ACTOR_LABEL[h.by]}</span>
+          <span className="text-2xs text-content-faint">{ACTOR_LABEL[h.by]}</span>
           {h.note ? (
-            <span className="min-w-0 truncate text-slate-600 dark:text-slate-300" title={h.note}>
+            <span className="min-w-0 truncate text-content-tertiary" title={h.note}>
               {h.note}
             </span>
           ) : null}
@@ -333,7 +333,7 @@ export default function TaskDetail({ id }: TaskDetailProps) {
             PLC와 불일치
           </StatusBadge>
         ) : null}
-        <span className="text-xs text-slate-400">{ORIGIN_LABEL[t.origin]}</span>
+        <span className="text-xs text-content-faint">{ORIGIN_LABEL[t.origin]}</span>
       </div>
 
       <TaskActions
@@ -351,7 +351,7 @@ export default function TaskDetail({ id }: TaskDetailProps) {
         {ack.length ? (
           <FieldList items={ack} columns={2} dense labelWidth={72} />
         ) : (
-          <p className="m-0 text-xs text-slate-400">아직 PLC 응답 없음</p>
+          <p className="m-0 text-xs text-content-faint">아직 PLC 응답 없음</p>
         )}
       </Section>
 
@@ -369,7 +369,9 @@ export default function TaskDetail({ id }: TaskDetailProps) {
         {request.length ? (
           <FieldList items={request} columns={2} dense labelWidth={72} />
         ) : (
-          <p className="m-0 text-xs text-slate-400">콘솔 요청 없음 — PLC에서 처음 본 외부 Task</p>
+          <p className="m-0 text-xs text-content-faint">
+            콘솔 요청 없음 — PLC에서 처음 본 외부 Task
+          </p>
         )}
       </Section>
 
@@ -382,7 +384,7 @@ export default function TaskDetail({ id }: TaskDetailProps) {
             labelWidth={96}
           />
         ) : (
-          <p className="m-0 text-xs text-slate-400">없음</p>
+          <p className="m-0 text-xs text-content-faint">없음</p>
         )}
       </Section>
 
@@ -390,7 +392,7 @@ export default function TaskDetail({ id }: TaskDetailProps) {
         {plcTask.length ? (
           <FieldList items={plcTask} columns={2} dense labelWidth={72} />
         ) : (
-          <p className="m-0 text-xs text-slate-400">없음</p>
+          <p className="m-0 text-xs text-content-faint">없음</p>
         )}
       </Section>
 

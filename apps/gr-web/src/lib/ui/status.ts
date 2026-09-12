@@ -144,10 +144,7 @@ export function cellTone(state: CellState): { bg: string; text: string } {
       // 상태 여섯을 빌리지 않는 유일한 자리 — 저하(주황)가 아니라 **보라**다.
       // 재시작해야 반영되는 값은 나쁜 상태가 아니라 '아직 살아 있지 않은' 시간축 표식이라,
       // 판정색으로 칠하면 고장·저하와 한 덩어리로 읽힌다.
-      return {
-        bg: 'bg-violet-50 dark:bg-violet-500/15',
-        text: 'text-violet-700 dark:text-violet-300 font-semibold',
-      }
+      return { bg: 'bg-pending-soft', text: 'text-pending-fg font-semibold' }
     default:
       return { bg: '', text: '' }
   }

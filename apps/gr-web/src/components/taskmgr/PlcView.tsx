@@ -118,7 +118,7 @@ export function PlcView({ onPickKey, highlight = null }: PlcViewProps) {
 
   if (!data) {
     return (
-      <div className="p-3 text-xs text-slate-400" data-testid="plc-view">
+      <div className="p-3 text-xs text-content-faint" data-testid="plc-view">
         {error ?? 'PLC 뷰 읽는 중…'}
       </div>
     )
@@ -184,11 +184,7 @@ export function PlcView({ onPickKey, highlight = null }: PlcViewProps) {
 
   return (
     <div className="space-y-3 p-3" data-testid="plc-view">
-      {error ? (
-        <p className="m-0 text-2xs text-amber-600 dark:text-amber-400">
-          마지막 읽기 실패 — {error}
-        </p>
-      ) : null}
+      {error ? <p className="m-0 text-2xs text-warn-fg">마지막 읽기 실패 — {error}</p> : null}
       <div>
         <div className="mb-1 text-2xs font-semibold tracking-wide text-content-muted uppercase">
           Task.Status

@@ -161,10 +161,10 @@ export function PlanCard({
 
   return (
     <Card padded={false} className="flex flex-col" data-testid="plan-card">
-      <div className="flex h-10 flex-none items-center gap-2 border-b border-slate-200 px-3 dark:border-slate-700">
-        <ListOrdered className="h-4 w-4 text-slate-500" />
+      <div className="flex h-10 flex-none items-center gap-2 border-b border-line-default px-3">
+        <ListOrdered className="h-4 w-4 text-content-muted" />
         <span className="text-sm font-semibold">순차 계획</span>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-content-faint">
           {steps.length}스텝{warnCount ? ` · 경고 ${warnCount}` : ''}
         </span>
         <span className="flex-1" />
@@ -216,13 +216,13 @@ export function PlanCard({
         </Button>
       </div>
 
-      <div className="px-3 py-1.5 text-2xs text-slate-500">
+      <div className="px-3 py-1.5 text-2xs text-content-muted">
         레이아웃 클릭 = PICK/DROP 교대 · Z = 바닥 + H×재고 + 그립
       </div>
 
-      <div className="max-h-[42vh] overflow-auto border-t border-slate-200 dark:border-slate-700">
+      <div className="max-h-[42vh] overflow-auto border-t border-line-default">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-surface-panel whitespace-nowrap text-slate-500">
+          <thead className="sticky top-0 bg-surface-panel whitespace-nowrap text-content-muted">
             <tr>
               <th className="w-5" />
               <th className="px-1 py-1 text-left">#</th>
@@ -240,7 +240,7 @@ export function PlanCard({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-2 py-4 text-center text-slate-400">
+                <td colSpan={11} className="px-2 py-4 text-center text-content-faint">
                   계획이 비어 있습니다 — 레이아웃에서 셀을 누르세요
                 </td>
               </tr>
@@ -249,8 +249,8 @@ export function PlanCard({
                 <Fragment key={r.id}>
                   <tr
                     className={cn(
-                      'border-t border-slate-100 dark:border-slate-800',
-                      focus === r.id && 'bg-indigo-50 dark:bg-indigo-950',
+                      'border-t border-line-subtle',
+                      focus === r.id && 'bg-accent-soft',
                     )}
                     onClick={() => pick(r.id)}
                     data-testid={`plan-row-${r.no}`}
@@ -258,7 +258,7 @@ export function PlanCard({
                     <td className="px-0.5">
                       <button
                         type="button"
-                        className="rounded p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="rounded p-0.5 hover:bg-surface-inset"
                         title="PLC 구조(LGR_Task_Data) 보기"
                         onClick={(e) => {
                           e.stopPropagation()
@@ -355,19 +355,23 @@ export function PlanCard({
                         aria-label="수량"
                       />
                     </td>
-                    <td className="px-1 text-right font-mono tabular-nums text-slate-500">
+                    <td className="px-1 text-right font-mono tabular-nums text-content-muted">
                       {r.stockBefore === null ? '-' : `${r.stockBefore}→${r.stockAfter}`}
                     </td>
                     <td
                       className="px-1 text-right font-mono tabular-nums"
                       title={r.height !== null ? `바닥 ${r.floor} · H ${r.height}` : ''}
                     >
-                      {r.z === null ? <span className="text-slate-400">?</span> : r.z.toFixed(0)}
+                      {r.z === null ? (
+                        <span className="text-content-faint">?</span>
+                      ) : (
+                        r.z.toFixed(0)
+                      )}
                     </td>
                     <td className="px-1 text-center">
                       {r.warnings.length ? (
                         <span
-                          className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-amber-100 px-1 text-3xs font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200"
+                          className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-warn-soft px-1 text-3xs font-semibold text-warn-fg"
                           title={r.warnings.join(' · ')}
                           data-testid={`plan-warn-${r.no}`}
                         >
@@ -412,7 +416,7 @@ export function PlanCard({
                     </td>
                   </tr>
                   {open === r.id ? (
-                    <tr className="bg-slate-50 dark:bg-slate-900/40">
+                    <tr className="bg-surface-app">
                       <td colSpan={11} className="px-2 py-2">
                         {preview?.id === r.id && preview.p ? (
                           <>
@@ -421,15 +425,15 @@ export function PlanCard({
                               rows={taskDataRows(preview.p.task)}
                             />
                             {preview.p.warnings.length ? (
-                              <div className="mt-1 text-2xs text-amber-700 dark:text-amber-300">
+                              <div className="mt-1 text-2xs text-warn-fg">
                                 경고: {preview.p.warnings.join(' · ')}
                               </div>
                             ) : null}
                           </>
                         ) : preview?.id === r.id && preview.err ? (
-                          <span className="text-red-600">{preview.err}</span>
+                          <span className="text-fault-fg">{preview.err}</span>
                         ) : (
-                          <span className="text-slate-400">compose 중…</span>
+                          <span className="text-content-faint">compose 중…</span>
                         )}
                       </td>
                     </tr>
@@ -441,7 +445,7 @@ export function PlanCard({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2 border-t border-slate-200 px-3 py-2 dark:border-slate-700">
+      <div className="flex flex-wrap items-end gap-2 border-t border-line-default px-3 py-2">
         <Input
           label="시나리오 이름"
           className="min-w-40 flex-1"

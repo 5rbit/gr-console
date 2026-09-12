@@ -98,14 +98,14 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
       key: 'use',
       label: '사용',
       get: (c) => (c.use ? 1 : 0),
-      cell: (c) => (c.use ? 'Y' : <span className="text-slate-400">N</span>),
+      cell: (c) => (c.use ? 'Y' : <span className="text-content-faint">N</span>),
       priority: 2,
     },
     {
       key: 'blend',
       label: '블렌드',
       get: (c) => (c.blend_use ? 1 : 0),
-      cell: (c) => (c.blend_use ? 'Y' : <span className="text-slate-400">N</span>),
+      cell: (c) => (c.blend_use ? 'Y' : <span className="text-content-faint">N</span>),
       priority: 3,
     },
     { key: 'section', label: '구역', get: (c) => c.section, numeric: true, priority: 2 },
@@ -194,7 +194,7 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
         onDelete={() => setDel(true)}
       />
       <div className="min-h-0 flex-1 overflow-auto">
-        {reg.error ? <p className="p-2 text-xs text-red-600">{reg.error}</p> : null}
+        {reg.error ? <p className="p-2 text-xs text-fault-fg">{reg.error}</p> : null}
         <DataTable
           rows={rows}
           columns={shown}
@@ -233,7 +233,7 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
         <p className="text-sm">
           로컬 셀 <b>#{sel?.id}</b>을 지웁니다. PLC 테이블은 다음 <b>PLC 쓰기</b> 때 바뀝니다.
         </p>
-        {sel ? <p className="mt-1 text-xs text-slate-500">{cellSummary(sel)}</p> : null}
+        {sel ? <p className="mt-1 text-xs text-content-muted">{cellSummary(sel)}</p> : null}
       </ConfirmDialog>
     </div>
   )

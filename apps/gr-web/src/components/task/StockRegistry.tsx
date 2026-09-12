@@ -98,7 +98,7 @@ export function StockEditDialog({
             onValueChange={(s) => setV({ ...v, count: Number(s) })}
             data-testid="stock-count"
           />
-          <p className="text-2xs text-slate-500">
+          <p className="text-2xs text-content-muted">
             개수 0 이면 품목도 비웁니다. PICK/DROP 완료 시 백엔드가 자동으로 ±수량 합니다.
           </p>
           <div className="flex justify-end gap-2">
@@ -188,7 +188,7 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
         r.stock?.count ? (
           <b className="tabular-nums">{r.stock.count}</b>
         ) : (
-          <span className="text-slate-400">0</span>
+          <span className="text-content-faint">0</span>
         ),
       priority: 1,
     },
@@ -200,7 +200,7 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
         r.stock?.item_code ? (
           `${r.stock.item_code} ${itemOf(r.stock.item_code)?.name ?? ''}`
         ) : (
-          <span className="text-slate-400">-</span>
+          <span className="text-content-faint">-</span>
         ),
       priority: 2,
     },
@@ -214,7 +214,7 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
         return it && r.stock?.count ? (
           `${(it.height * r.stock.count).toFixed(0)} mm`
         ) : (
-          <span className="text-slate-400">-</span>
+          <span className="text-content-faint">-</span>
         )
       },
       priority: 3,
@@ -224,7 +224,7 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
       label: '갱신',
       get: (r) => r.stock?.updated_at ?? '',
       cell: (r) => (
-        <span className="text-2xs text-slate-500">
+        <span className="text-2xs text-content-muted">
           {r.stock?.updated_at?.slice(5, 19).replace('T', ' ') ?? ''}
         </span>
       ),

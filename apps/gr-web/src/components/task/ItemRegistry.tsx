@@ -110,7 +110,7 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
       priority: 3,
     },
     { key: 'df', label: '처짐', get: (i) => i.deflection_factor, numeric: true, priority: 3 },
-    { key: 'note', label: '비고', get: (i) => i.note, class: 'text-slate-500', priority: 3 },
+    { key: 'note', label: '비고', get: (i) => i.note, class: 'text-content-muted', priority: 3 },
   ]
 
   async function save(v: ItemUpsert) {
@@ -150,7 +150,7 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
         onDelete={() => setDel(true)}
       />
       <div className="min-h-0 flex-1 overflow-auto">
-        {reg.error ? <p className="p-2 text-xs text-red-600">{reg.error}</p> : null}
+        {reg.error ? <p className="p-2 text-xs text-fault-fg">{reg.error}</p> : null}
         <DataTable
           rows={rows}
           columns={columns}

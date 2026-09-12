@@ -62,4 +62,8 @@
 | ![](40_theme_light.png) | **기본은 화이트톤** — 색은 전부 시맨틱 토큰에서 나온다 |
 | ![](41_theme_dark.png) | 다크는 토큰 한 층(`[data-theme='dark']`) — 킷·셸에 `dark:` 짝이 0개다 |
 | ![](43_theme_dark_triage.png) | 다크 · 데이터 3분할 — 상태 배지·점이 두 테마에서 같은 뜻으로 읽힌다 |
+| ![](44_dark_task.png) | 다크 · 작업 명령 — 셀 맵의 판정색(`var(--color-fault/ok)`)과 스테이션 hue가 토큰·데이터로 갈려 있다 |
+| ![](45_dark_taskmgr.png) | 다크 · Task 관리 — 표·배지·필터 칩이 전부 토큰이라 화면 코드에 `dark:`가 없다 |
+| ![](46_dark_measure.png) | 다크 · 측정 모니터 — 상태 칩 soft 900 틴트가 panel과 갈린다(1.25~1.73) |
+| ![](47_dark_scenario.png) | 다크 · 시나리오 — 인스펙터 머리띠(control-header)와 위험 버튼(danger)도 토큰 |
 | ![](42_view_menu_fixed.png) | `보기` 메뉴 — 라벨이 줄어들지 않고 힌트가 먼저 잘린다(예전에는 `명령 중 / 심`으로 끊겼다) |

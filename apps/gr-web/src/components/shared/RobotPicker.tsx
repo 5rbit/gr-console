@@ -19,7 +19,7 @@ export function RobotPicker({ compact = false }: { compact?: boolean }) {
   const sel = robots.selected
   if (!list.length)
     return (
-      <span className="text-2xs text-slate-400">
+      <span className="text-2xs text-content-faint">
         {robots.error ? '로봇 목록 없음' : '로봇…'}
       </span>
     )
@@ -29,9 +29,9 @@ export function RobotPicker({ compact = false }: { compact?: boolean }) {
       data-testid="robot-picker"
       title="명령을 보낼 로봇"
     >
-      {!compact ? <Bot className="h-3.5 w-3.5 text-slate-500" /> : null}
+      {!compact ? <Bot className="h-3.5 w-3.5 text-content-muted" /> : null}
       <div
-        className="inline-flex rounded-md border border-slate-300 p-0.5 dark:border-slate-600"
+        className="inline-flex rounded-md border border-line-strong p-0.5"
         role="radiogroup"
         aria-label="로봇"
       >
@@ -46,8 +46,8 @@ export function RobotPicker({ compact = false }: { compact?: boolean }) {
               className={cn(
                 'flex items-center gap-1 rounded px-2 py-0.5 text-xs',
                 on
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+                  ? 'bg-accent text-content-on-accent'
+                  : 'text-content-tertiary hover:bg-surface-inset',
               )}
               onClick={() => robots.select(r.id)}
               data-testid={`robot-${r.id}`}
@@ -56,7 +56,9 @@ export function RobotPicker({ compact = false }: { compact?: boolean }) {
               <StatusDot status={robotTone(r)} />
               {r.name}
               {r.active_tasks ? (
-                <span className={cn('font-mono text-3xs', on ? 'opacity-80' : 'text-slate-400')}>
+                <span
+                  className={cn('font-mono text-3xs', on ? 'opacity-80' : 'text-content-faint')}
+                >
                   {r.active_tasks}
                 </span>
               ) : null}

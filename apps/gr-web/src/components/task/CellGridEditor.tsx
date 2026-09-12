@@ -172,10 +172,10 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
       text: stateLabel,
       cellClass: (r) =>
         r.state === 'added'
-          ? 'font-semibold text-emerald-700 dark:text-emerald-300'
+          ? 'font-semibold text-ok-fg'
           : r.state === 'changed'
-            ? 'font-semibold text-amber-700 dark:text-amber-300'
-            : 'text-slate-400',
+            ? 'font-semibold text-warn-fg'
+            : 'text-content-faint',
     },
     num('id', 'Id', (c) => c.id, {
       width: '3.25rem',
@@ -279,7 +279,7 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
         onDelete={removeSelected}
         reload={reg.reload}
       />
-      <div className="flex h-10 flex-none items-center gap-1 border-b border-slate-200 px-2 dark:border-slate-700">
+      <div className="flex h-10 flex-none items-center gap-1 border-b border-line-default px-2">
         <Button
           size="sm"
           intent="ghost"
@@ -300,15 +300,13 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
           행 삭제
         </Button>
         <span
-          className="min-w-0 flex-1 truncate px-1 text-2xs text-slate-500 tabular-nums"
+          className="min-w-0 flex-1 truncate px-1 text-2xs text-content-muted tabular-nums"
           data-testid="grid-status"
         >
           {pending
             ? `수정 ${diff.changed} · 신규 ${diff.added} · 삭제 ${diff.deletes.length}`
             : '칸을 바로 고치거나 엑셀에서 붙여넣기'}
-          {errorCount ? (
-            <span className="ml-1 text-red-600 dark:text-red-400">· 오류 {errorCount}</span>
-          ) : null}
+          {errorCount ? <span className="ml-1 text-fault-fg">· 오류 {errorCount}</span> : null}
         </span>
         <Button
           size="sm"
@@ -333,7 +331,7 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
         </Button>
       </div>
       {stale ? (
-        <div className="flex h-8 flex-none items-center border-b border-amber-200 bg-amber-50 px-3 text-2xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+        <div className="flex h-8 flex-none items-center border-b border-warn bg-warn-soft px-3 text-2xs text-warn-fg">
           저장본이 바뀌었습니다(PLC 읽기·가져오기). 편집을 적용하거나 되돌리기로 새로 받으세요.
         </div>
       ) : null}
@@ -347,7 +345,7 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
           zebra
           maxHeight="calc(100vh - 15rem)"
           empty="셀이 없습니다 — 행 추가 또는 엑셀에서 붙여넣기"
-          rowClass={(r) => (r.key === selKey ? 'bg-indigo-50 dark:bg-indigo-950/50' : '')}
+          rowClass={(r) => (r.key === selKey ? 'bg-accent-soft' : '')}
           onrowclick={(r) => {
             setSelKey(r.key)
             onSelect(r.value.id)

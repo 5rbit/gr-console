@@ -264,17 +264,17 @@ export default function TaskIssue() {
         ]}
         trailing={
           <span
-            className="text-xs text-slate-500"
+            className="text-xs text-content-muted"
             data-testid="task-robot"
             title="사이드바 로봇 목록에서 바꿉니다"
           >
-            로봇 <b className="text-slate-800 dark:text-slate-100">{robots.current?.name ?? '…'}</b>
+            로봇 <b className="text-content-primary">{robots.current?.name ?? '…'}</b>
           </span>
         }
       />
       <div className="flex min-h-0 flex-1">
         <section
-          className="flex min-h-0 min-w-0 flex-[3] flex-col border-r border-slate-200 dark:border-slate-700"
+          className="flex min-h-0 min-w-0 flex-[3] flex-col border-r border-line-default"
           aria-label="레지스트리"
         >
           <RegistryRail

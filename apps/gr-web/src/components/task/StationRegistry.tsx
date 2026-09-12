@@ -111,7 +111,7 @@ export function StationRegistry({
       key: 'use',
       label: '사용',
       get: (s) => (s.info.use ? 1 : 0),
-      cell: (s) => (s.info.use ? 'Y' : <span className="text-slate-400">N</span>),
+      cell: (s) => (s.info.use ? 'Y' : <span className="text-content-faint">N</span>),
       priority: 2,
     },
     { key: 'sec', label: '구역', get: (s) => s.info.section, numeric: true, priority: 3 },
@@ -145,7 +145,7 @@ export function StationRegistry({
       label: '센서',
       get: (s) =>
         `${s.sensor.io_link_master_module}/${s.sensor.io_link_master_port_l}/${s.sensor.io_link_master_port_r}`,
-      class: 'font-mono text-slate-500',
+      class: 'font-mono text-content-muted',
       priority: 3,
     },
   ]
@@ -194,7 +194,7 @@ export function StationRegistry({
         onDelete={() => setDel(true)}
       />
       <div className="min-h-0 flex-1 overflow-auto">
-        {reg.error ? <p className="p-2 text-xs text-red-600">{reg.error}</p> : null}
+        {reg.error ? <p className="p-2 text-xs text-fault-fg">{reg.error}</p> : null}
         <DataTable
           rows={rows}
           columns={shown}

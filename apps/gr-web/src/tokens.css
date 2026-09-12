@@ -292,6 +292,10 @@
   --color-neutral-dot: #9a9a94;
   --color-neutral-fg: #77776f;
   --color-neutral-soft: #ebebe8;
+  /* 대기(pending) — 상태 여섯 밖의 단 하나. 재시작해야 반영되는 값처럼 '아직 살아 있지 않은'
+     시간축 표식이라 판정색(주황·빨강)과 갈라야 한다. 쓰는 곳은 `status.ts`의 cellTone 하나뿐. */
+  --color-pending-fg: #6636bf;
+  --color-pending-soft: #f2eefc;
 
   --color-danger: #b42318;
   --color-danger-hover: #d92d20;
@@ -302,8 +306,8 @@
      UI는 Pretendard, 값·주소·좌표는 JetBrains Mono. 둘 다 npm 패키지로 번들된다(main.tsx import).
      숫자는 body 전체에 tabular-nums 를 켜서 자릿수가 맞는다. 모노에 한글이 섞이면 D2Coding, Pretendard 로 떨어진다. */
   --font-sans:
-    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo',
-    'Malgun Gothic', sans-serif;
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui,
+    'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   --font-mono:
     'JetBrains Mono Variable', 'JetBrains Mono', 'D2Coding', 'Pretendard Variable', ui-monospace,
     Consolas, monospace;
@@ -345,7 +349,6 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -420,6 +423,8 @@
   --color-neutral-dot: #77776f;
   --color-neutral-fg: #c6c6c1;
   --color-neutral-soft: #42423c;
+  --color-pending-fg: #b39aec;
+  --color-pending-soft: #2d1555;
 
   --color-danger: #b42318;
   --color-danger-hover: #d92d20;

@@ -39,10 +39,10 @@ const RULES = [
     why: '색값을 직접 쓰지 않는다 — `tokens.css`의 토큰(시맨틱 우선)으로 부른다. 팔레트가 바뀌면 이 자리만 남는다',
     ext: ['.tsx', '.ts'],
     skip: ['src/tokens.css', 'src/lib/robots.ts', 'src/lib/ui/viz/'],
-    test: (l) => [
-      ...l.matchAll(/#[0-9a-fA-F]{3,8}\b/g),
-      ...l.matchAll(/\b(?:rgba?|hsla?)\(/g),
-    ].map((m) => m[0]),
+    test: (l) =>
+      [...l.matchAll(/#[0-9a-fA-F]{3,8}\b/g), ...l.matchAll(/\b(?:rgba?|hsla?)\(/g)].map(
+        (m) => m[0],
+      ),
   },
   {
     id: 'no-opacity-surface',
@@ -60,9 +60,9 @@ const RULES = [
      * (백드롭 `bg-black/…`은 면이 아니라 가림막이라 예외).
      */
     test: (l) =>
-      [
-        ...l.matchAll(/\bbg-(?:white|slate|neutral|gray)(?:-\d{2,3})?\/\d{1,3}\b/g),
-      ].map((m) => m[0]),
+      [...l.matchAll(/\bbg-(?:white|slate|neutral|gray)(?:-\d{2,3})?\/\d{1,3}\b/g)].map(
+        (m) => m[0],
+      ),
   },
   {
     id: 'no-arbitrary-value',
@@ -91,8 +91,14 @@ const RULES = [
     why: '컨트롤 높이를 숫자로 박으면 전역 밀도가 그 컴포넌트만 건너뛴다 — `h-control-sm/md`·`h-screen-header`·`h-menubar`를 쓴다',
     ext: ['.tsx'],
     // 킷과 셸 크롬에만 건다(화면 내부는 기준선으로 잠근다).
-    only: ['src/lib/ui/', 'src/components/workspace/', 'src/components/panes/', 'src/App.tsx',
-      'src/components/StatusBar.tsx', 'src/components/Sidebar.tsx'],
+    only: [
+      'src/lib/ui/',
+      'src/components/workspace/',
+      'src/components/panes/',
+      'src/App.tsx',
+      'src/components/StatusBar.tsx',
+      'src/components/Sidebar.tsx',
+    ],
     test: (l) => [...l.matchAll(/\b(?:min-)?h-(?:7|8|9)\b/g)].map((m) => m[0]),
   },
   {
@@ -103,25 +109,16 @@ const RULES = [
   },
   {
     id: 'no-dark-variant',
-    why: '킷·셸에서는 `dark:` 짝을 쓰지 않는다 — 색을 시맨틱 토큰으로 부르면 `tokens.css`의 다크 층이 알아서 따라온다',
-    ext: ['.tsx'],
-    /**
-     * 킷과 셸 크롬만 본다. 이 영역은 `dark:`가 **0개**인 상태로 정리됐고(면·글자·상태·accent 전부
-     * 토큰), 이 규칙은 그 상태가 되돌아가지 못하게 잠그는 자리다. 화면 안(`components/<page>/`)은
-     * 아직 `dark:`가 남아 기준선이 든다 — 그 화면 담당이 토큰으로 옮길 때 함께 줄어든다.
-     */
-    only: ['src/lib/ui/', 'src/components/workspace/', 'src/components/panes/', 'src/App.tsx',
-      'src/components/StatusBar.tsx', 'src/components/Sidebar.tsx', 'src/components/PanelHost.tsx',
-      'src/components/CommandPalette.tsx'],
+    why: '`dark:` 짝을 쓰지 않는다 — 색을 시맨틱 토큰으로 부르면 `tokens.css`의 다크 층이 알아서 따라온다',
+    ext: ['.tsx', '.ts'],
+    // 프런트 전체. 킷·셸·화면 넷이 모두 `dark:` 0개로 정리됐고, 이 규칙은 그 상태가 되돌아가지
+    // 못하게 잠그는 자리다(기준선 0 — 하나라도 생기면 실패).
     test: (l) => [...l.matchAll(/\bdark:[a-z-]+/g)].map((m) => m[0]),
   },
   {
     id: 'no-raw-palette',
-    why: '킷·셸에서는 원시 색 스케일(`bg-slate-100`·`text-indigo-600`)을 부르지 않는다 — 뜻으로 부른다(`bg-surface-inset`·`text-accent-text`)',
-    ext: ['.tsx'],
-    only: ['src/lib/ui/', 'src/components/workspace/', 'src/components/panes/', 'src/App.tsx',
-      'src/components/StatusBar.tsx', 'src/components/Sidebar.tsx', 'src/components/PanelHost.tsx',
-      'src/components/CommandPalette.tsx'],
+    why: '원시 색 스케일(`bg-slate-100`·`text-indigo-600`)을 부르지 않는다 — 뜻으로 부른다(`bg-surface-inset`·`text-accent-text`)',
+    ext: ['.tsx', '.ts'],
     test: (l) =>
       [
         ...l.matchAll(
@@ -133,10 +130,13 @@ const RULES = [
     id: 'no-decoration',
     why: '그라디언트·블러·이모지는 쓰지 않는다 — 값이 알람인 화면에서 장식은 알람과 경쟁한다',
     ext: ['.tsx', '.ts', '.css'],
-    test: (l) => [
-      ...l.matchAll(/\bbg-gradient-|\bbackdrop-blur\b|\bblur-(?:sm|md|lg|xl)\b|linear-gradient\(/g),
-      ...l.matchAll(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu),
-    ].map((m) => m[0]),
+    test: (l) =>
+      [
+        ...l.matchAll(
+          /\bbg-gradient-|\bbackdrop-blur\b|\bblur-(?:sm|md|lg|xl)\b|linear-gradient\(/g,
+        ),
+        ...l.matchAll(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu),
+      ].map((m) => m[0]),
   },
 ]
 
@@ -156,20 +156,40 @@ function stripComments(lines) {
     while (i < raw.length) {
       const two = raw.slice(i, i + 2)
       if (inBlock) {
-        if (two === '*/') { inBlock = false; i += 2 } else i += 1
+        if (two === '*/') {
+          inBlock = false
+          i += 2
+        } else i += 1
         out += ' '
         continue
       }
       if (q) {
         out += raw[i]
-        if (raw[i] === '\\') { out += raw[i + 1] ?? ''; i += 2; continue }
+        if (raw[i] === '\\') {
+          out += raw[i + 1] ?? ''
+          i += 2
+          continue
+        }
         if (raw[i] === q) q = null
         i += 1
         continue
       }
-      if (raw[i] === '\'' || raw[i] === '"' || raw[i] === '`') { q = raw[i]; out += raw[i]; i += 1; continue }
-      if (two === '/*') { inBlock = true; i += 2; out += '  '; continue }
-      if (two === '//') { out += ' '.repeat(raw.length - i); break }
+      if (raw[i] === "'" || raw[i] === '"' || raw[i] === '`') {
+        q = raw[i]
+        out += raw[i]
+        i += 1
+        continue
+      }
+      if (two === '/*') {
+        inBlock = true
+        i += 2
+        out += '  '
+        continue
+      }
+      if (two === '//') {
+        out += ' '.repeat(raw.length - i)
+        break
+      }
       out += raw[i]
       i += 1
     }
@@ -256,7 +276,9 @@ let base = {}
 try {
   base = JSON.parse(readFileSync(BASELINE, 'utf8'))
 } catch {
-  console.error(`기준선 파일이 없다: ${relative(ROOT, BASELINE)} — \`node tools/design-lint.mjs --update\``)
+  console.error(
+    `기준선 파일이 없다: ${relative(ROOT, BASELINE)} — \`node tools/design-lint.mjs --update\``,
+  )
   process.exit(2)
 }
 
@@ -285,7 +307,9 @@ if (news.length > 0) {
     console.error('')
   }
   console.error('고치거나, 정말 필요하면 그 줄에 이유를 적어 예외로 둔다:')
-  console.error('  // design-lint-allow: no-raw-color — 파형 채널 색표는 VSCode 확장과 공유하는 계약이다\n')
+  console.error(
+    '  // design-lint-allow: no-raw-color — 파형 채널 색표는 VSCode 확장과 공유하는 계약이다\n',
+  )
   process.exit(1)
 }
 

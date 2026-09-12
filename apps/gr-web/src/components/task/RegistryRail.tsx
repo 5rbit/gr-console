@@ -69,7 +69,7 @@ export function RegistryRail({
   }
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="registry-rail">
-      <div className="flex h-10 flex-none items-center gap-2 border-b border-slate-200 px-2 dark:border-slate-700">
+      <div className="flex h-10 flex-none items-center gap-2 border-b border-line-default px-2">
         <Segmented
           ariaLabel="레지스트리"
           value={tab}
@@ -83,9 +83,9 @@ export function RegistryRail({
         />
         {tab !== 'layout' ? (
           <label className="relative ml-auto flex items-center">
-            <Search className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-content-faint" />
             <input
-              className="h-7 w-44 rounded-md border border-slate-300 bg-transparent pr-2 pl-7 text-xs focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none dark:border-slate-600"
+              className="h-7 w-44 rounded-md border border-line-strong bg-transparent pr-2 pl-7 text-xs focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
               placeholder={
                 tab === 'item'
                   ? '코드·이름'

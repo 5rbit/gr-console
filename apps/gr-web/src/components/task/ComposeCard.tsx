@@ -167,8 +167,8 @@ export function ComposeCard({
   return (
     <Card padded={false} className="flex flex-col" data-testid="compose-card">
       <div ref={cardRef} />
-      <div className="flex h-10 items-center gap-2 border-b border-slate-200 px-3 dark:border-slate-700">
-        <Send className="h-4 w-4 text-slate-500" />
+      <div className="flex h-10 items-center gap-2 border-b border-line-default px-3">
+        <Send className="h-4 w-4 text-content-muted" />
         <span className="text-sm font-semibold">작업 작성</span>
         <span className="flex-1" />
         <Button
@@ -242,11 +242,13 @@ export function ComposeCard({
             allowNone={!itemRequired(draft.type)}
           />
           {!targetRequired(draft.type) ? (
-            <span className="pb-2 text-xs text-slate-400">UP은 대상 없이 제출할 수 있습니다</span>
+            <span className="pb-2 text-xs text-content-faint">
+              UP은 대상 없이 제출할 수 있습니다
+            </span>
           ) : null}
         </div>
 
-        <div className="rounded-md border border-slate-200 dark:border-slate-700">
+        <div className="rounded-md border border-line-default">
           <button
             type="button"
             className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs font-medium"
@@ -260,7 +262,7 @@ export function ComposeCard({
               <ChevronRight className="h-3.5 w-3.5" />
             )}
             파라미터 덮어쓰기
-            <span className="font-normal text-slate-400">
+            <span className="font-normal text-content-faint">
               {overrideCount ? `${overrideCount}개 덮어씀` : '모두 기본값 사용'} · 기본값 = 공통 ←{' '}
               {draft.type}·{kind === 'cell' ? '셀' : '스테이션'}
             </span>
@@ -279,8 +281,8 @@ export function ComposeCard({
             ) : null}
           </button>
           {showParams ? (
-            <div className="border-t border-slate-200 px-2 py-2 dark:border-slate-700">
-              <p className="mb-2 text-2xs text-slate-500">
+            <div className="border-t border-line-default px-2 py-2">
+              <p className="mb-2 text-2xs text-content-muted">
                 체크를 끄면 그 항목은 기본값을 씁니다(흐린 값). 켠 항목만 이 작업에 실립니다.
               </p>
               <TaskParamFields
@@ -293,10 +295,10 @@ export function ComposeCard({
           ) : null}
         </div>
 
-        <div className="rounded-md border border-slate-200 px-2 py-2 dark:border-slate-700">
-          <div className="mb-1 text-2xs font-semibold text-slate-500">위치 미리보기</div>
+        <div className="rounded-md border border-line-default px-2 py-2">
+          <div className="mb-1 text-2xs font-semibold text-content-muted">위치 미리보기</div>
           {problems.length ? (
-            <ul className="list-disc pl-4 text-xs text-slate-400" data-testid="draft-problems">
+            <ul className="list-disc pl-4 text-xs text-content-faint" data-testid="draft-problems">
               {problems.map((p) => (
                 <li key={p}>{p}</li>
               ))}
@@ -348,17 +350,15 @@ export function ComposeCard({
             {draft.item_code !== null ? ` · 품목 ${draft.item_code} × ${draft.count}` : ''}
           </p>
           {preview ? (
-            <p className="font-mono text-slate-500">
+            <p className="font-mono text-content-muted">
               X {preview.task.Position[0]} · Y {preview.task.Position[1]} · Z{' '}
               {preview.task.Position[2]} · G {preview.task.Position[3]}
             </p>
           ) : null}
           {preview && preview.warnings.length ? (
-            <p className="text-amber-700 dark:text-amber-300">
-              경고 {preview.warnings.length}건 — 미리보기를 확인하세요
-            </p>
+            <p className="text-warn-fg">경고 {preview.warnings.length}건 — 미리보기를 확인하세요</p>
           ) : null}
-          <p className="text-slate-500">
+          <p className="text-content-muted">
             GRM OPC UA를 거쳐 GR2에 명령이 갑니다. 로봇이 실제로 움직입니다.
           </p>
         </div>

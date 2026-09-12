@@ -33,15 +33,43 @@ export function RunDialog({ open, scenario, dirty, onOpenChange, onRun }: RunDia
     <Modal open={open} onOpenChange={onOpenChange} title={`실행 — ${scenario?.name ?? ''}`}>
       {scenario ? (
         <div className="flex flex-col gap-3" data-testid="run-dialog">
-          {dirty ? <p className="m-0 rounded bg-amber-50 px-2 py-1 text-xs text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">저장되지 않은 변경은 이번 실행에 반영되지 않습니다 — 먼저 저장하세요.</p> : null}
+          {dirty ? (
+            <p className="m-0 rounded bg-warn-soft px-2 py-1 text-xs text-warn-fg">
+              저장되지 않은 변경은 이번 실행에 반영되지 않습니다 — 먼저 저장하세요.
+            </p>
+          ) : null}
           <div className="flex items-end gap-3">
-            <Input label="반복 횟수" className="w-28" type="number" mono min={1} value={infinite ? '' : String(repeat)} placeholder={infinite ? '∞' : ''} disabled={infinite} onValueChange={(v) => { const n = Math.trunc(Number(v)); if (Number.isFinite(n) && n >= 1) setRepeat(n) }} data-testid="run-repeat" />
+            <Input
+              label="반복 횟수"
+              className="w-28"
+              type="number"
+              mono
+              min={1}
+              value={infinite ? '' : String(repeat)}
+              placeholder={infinite ? '∞' : ''}
+              disabled={infinite}
+              onValueChange={(v) => {
+                const n = Math.trunc(Number(v))
+                if (Number.isFinite(n) && n >= 1) setRepeat(n)
+              }}
+              data-testid="run-repeat"
+            />
             <label className="flex h-8 items-center gap-2 text-xs">
-              <Switch checked={infinite} label="무한 반복" testid="run-infinite" onCheckedChange={setInfinite} />
+              <Switch
+                checked={infinite}
+                label="무한 반복"
+                testid="run-infinite"
+                onCheckedChange={setInfinite}
+              />
               무한 (정지할 때까지)
             </label>
           </div>
-          <Select label="시작 스텝 (첫 회차만)" value={String(start)} onValueChange={(v) => setStart(Number(v))} data-testid="run-start-step">
+          <Select
+            label="시작 스텝 (첫 회차만)"
+            value={String(start)}
+            onValueChange={(v) => setStart(Number(v))}
+            data-testid="run-start-step"
+          >
             {scenario.steps.map((s, i) => (
               <option key={s.id} value={String(i)}>
                 {i + 1}. {s.label || stepSummary(s)}
@@ -49,7 +77,13 @@ export function RunDialog({ open, scenario, dirty, onOpenChange, onRun }: RunDia
             ))}
           </Select>
           <div className="flex justify-end">
-            <Button intent="primary" icon={<Play size={14} />} disabled={scenario.steps.length === 0} onClick={() => onRun({ repeat: infinite ? 0 : repeat, start_step: start })} data-testid="run-confirm">
+            <Button
+              intent="primary"
+              icon={<Play size={14} />}
+              disabled={scenario.steps.length === 0}
+              onClick={() => onRun({ repeat: infinite ? 0 : repeat, start_step: start })}
+              data-testid="run-confirm"
+            >
               실행
             </Button>
           </div>

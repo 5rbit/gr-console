@@ -55,7 +55,7 @@ function Bool({
   onChange: (b: boolean) => void
 }) {
   return (
-    <label className="flex items-center justify-between gap-2 rounded-md border border-slate-200 px-2 py-1.5 text-xs dark:border-slate-700">
+    <label className="flex items-center justify-between gap-2 rounded-md border border-line-default px-2 py-1.5 text-xs">
       <span>{label}</span>
       <Switch checked={value} label={label} onCheckedChange={onChange} />
     </label>
@@ -65,7 +65,7 @@ function Bool({
 function Errors({ list }: { list: string[] }) {
   if (list.length === 0) return null
   return (
-    <ul className="list-disc rounded-md border border-red-200 bg-red-50 py-1 pr-2 pl-6 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300">
+    <ul className="list-disc rounded-md border border-fault bg-fault-soft py-1 pr-2 pl-6 text-xs text-fault-fg">
       {list.map((e) => (
         <li key={e}>{e}</li>
       ))}
@@ -76,7 +76,7 @@ function Errors({ list }: { list: string[] }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="mb-1 text-2xs font-semibold text-slate-500">{title}</legend>
+      <legend className="mb-1 text-2xs font-semibold text-content-muted">{title}</legend>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{children}</div>
     </fieldset>
   )
@@ -141,7 +141,9 @@ const positionErrors = (p: [number, number, number]): string[] =>
 
 /** 셀: X/Y 는 0 이상이면 되고, 바닥 Z ≤ 0 은 PLC isValidTaskData 가 거부한다. */
 export const cellPositionErrors = (p: [number, number, number]): string[] => [
-  ...(['X', 'Y'] as const).filter((_, i) => !(p[i] >= 0)).map((a) => `위치 ${a}는 0 이상이어야 합니다`),
+  ...(['X', 'Y'] as const)
+    .filter((_, i) => !(p[i] >= 0))
+    .map((a) => `위치 ${a}는 0 이상이어야 합니다`),
   ...(p[2] > 0 ? [] : ['위치 Z(바닥)는 0보다 커야 합니다']),
 ]
 

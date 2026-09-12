@@ -101,7 +101,7 @@ export function TaskParamFields({
     <div className="flex flex-col gap-3" data-testid="task-params">
       {PARAM_GROUPS.map((g) => (
         <fieldset key={g.label} className="flex flex-col gap-1.5">
-          <legend className="mb-1 text-2xs font-semibold text-slate-500">{g.label}</legend>
+          <legend className="mb-1 text-2xs font-semibold text-content-muted">{g.label}</legend>
           <div className="grid grid-cols-1 gap-x-3 gap-y-1.5 sm:grid-cols-2">
             {g.keys.map((k) => {
               const active = !partial || has(k)

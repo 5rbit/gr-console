@@ -101,11 +101,11 @@ export function TaskHistory({ selected, onPick, refreshKey, now }: TaskHistoryPr
       cell: (t) => {
         const r = t.error ?? (t.ack && !t.ack.accepted ? t.ack.reason : '')
         return r ? (
-          <span className="block max-w-64 truncate text-slate-500" title={r}>
+          <span className="block max-w-64 truncate text-content-muted" title={r}>
             {r}
           </span>
         ) : (
-          <span className="text-slate-300">—</span>
+          <span className="text-content-disabled">—</span>
         )
       },
     },
@@ -114,14 +114,12 @@ export function TaskHistory({ selected, onPick, refreshKey, now }: TaskHistoryPr
   return (
     <Card padded={false} className="flex min-h-0 flex-col">
       <div
-        className="flex items-center gap-2 border-b border-slate-200 px-3 py-1.5 dark:border-slate-700"
+        className="flex items-center gap-2 border-b border-line-default px-3 py-1.5"
         data-testid="task-history"
       >
-        <History size={14} className="text-slate-400" />
+        <History size={14} className="text-content-faint" />
         <span className="text-xs font-semibold">종결 이력</span>
-        {error ? (
-          <span className="truncate text-2xs text-red-600 dark:text-red-400">{error}</span>
-        ) : null}
+        {error ? <span className="truncate text-2xs text-fault-fg">{error}</span> : null}
         <span className="flex-1" />
         <Button
           size="icon-sm"
@@ -148,7 +146,7 @@ export function TaskHistory({ selected, onPick, refreshKey, now }: TaskHistoryPr
         />
       </div>
       {page && page.total > 0 ? (
-        <div className="border-t border-slate-200 px-3 py-1.5 dark:border-slate-700">
+        <div className="border-t border-line-default px-3 py-1.5">
           <Pagination
             total={page.total}
             limit={LIMIT}

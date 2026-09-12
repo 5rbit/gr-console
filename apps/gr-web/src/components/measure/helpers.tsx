@@ -10,7 +10,17 @@ import type { PlcTask, Trend } from '../../lib/types'
 export { KIND, STATUS }
 
 /** 불리언 필드 칩 묶음(켜진 것만 강조). */
-export function Chips({ obj, keys, bad = [], warn = [] }: { obj: Record<string, unknown> | null | undefined; keys: readonly string[]; bad?: readonly string[]; warn?: readonly string[] }) {
+export function Chips({
+  obj,
+  keys,
+  bad = [],
+  warn = [],
+}: {
+  obj: Record<string, unknown> | null | undefined
+  keys: readonly string[]
+  bad?: readonly string[]
+  warn?: readonly string[]
+}) {
   if (!obj) return <span className="text-content-muted">-</span>
   return (
     <div className="flex flex-wrap gap-1">
@@ -30,7 +40,13 @@ export function Chips({ obj, keys, bad = [], warn = [] }: { obj: Record<string, 
 }
 
 /** 라벨/값 2열 표(PLC 블록처럼 8줄 안팎의 짧은 목록). */
-export function KvTable({ rows, className = '' }: { rows: readonly [ReactNode, ReactNode][]; className?: string }) {
+export function KvTable({
+  rows,
+  className = '',
+}: {
+  rows: readonly [ReactNode, ReactNode][]
+  className?: string
+}) {
   return (
     <table className={`w-full text-xs ${className}`}>
       <tbody>
@@ -61,16 +77,20 @@ export function StatCards({ items }: { items: readonly StatCardItem[] }) {
           key={i}
           className={`min-w-28 rounded-md border px-3 py-1.5 ${
             x.tone === 'ok'
-              ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/30'
+              ? 'border-ok bg-ok-soft'
               : x.tone === 'bad'
-                ? 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/30'
+                ? 'border-fault bg-fault-soft'
                 : x.tone === 'warn'
-                  ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/30'
+                  ? 'border-warn bg-warn-soft'
                   : 'border-line-default bg-surface-panel'
           }`}
         >
           <div className="text-2xs text-content-muted">{x.label}</div>
-          <div className={`font-mono tabular-nums ${x.big ? 'text-xl' : 'text-base'} font-semibold`}>{x.value}</div>
+          <div
+            className={`font-mono tabular-nums ${x.big ? 'text-xl' : 'text-base'} font-semibold`}
+          >
+            {x.value}
+          </div>
           {x.hint ? <div className="text-2xs text-content-muted">{x.hint}</div> : null}
         </div>
       ))}
@@ -103,16 +123,37 @@ export function TaskKv({ t }: { t: PlcTask | null | undefined }) {
     <KvTable
       rows={[
         ['Work / Task', `${t.WorkId ?? ''} / ${t.TaskId ?? ''}`],
-        ['Type', `${tt(t.TaskType)} (0x${Number(t.TaskType ?? 0).toString(16).toUpperCase().padStart(2, '0')})`],
+        [
+          'Type',
+          `${tt(t.TaskType)} (0x${Number(t.TaskType ?? 0)
+            .toString(16)
+            .toUpperCase()
+            .padStart(2, '0')})`,
+        ],
         ['Cell', `${c.Id ?? ''}  (Sec ${c.Section ?? ''} Row ${c.Row ?? ''} Col ${c.Col ?? ''})`],
-        ['Item', `Code ${it.Code ?? ''} / ${it.Count ?? ''}단 / ID ${f1(it.InnerDiameter)} / OD ${f1(it.OuterDiameter)} / H ${f1(it.Height)}`],
+        [
+          'Item',
+          `Code ${it.Code ?? ''} / ${it.Count ?? ''}단 / ID ${f1(it.InnerDiameter)} / OD ${f1(it.OuterDiameter)} / H ${f1(it.Height)}`,
+        ],
         ['Position', `X ${f0(p[0])} Y ${f0(p[1])} Z ${f0(p[2])} G ${f0(p[3])}`],
-        ['Cell 위치', `X ${f0(cp[0])} Y ${f0(cp[1])} Z ${f0(cp[2])}  (명령 Z rel ${f1((p[2] ?? 0) - (cp[2] ?? 0))})`],
+        [
+          'Cell 위치',
+          `X ${f0(cp[0])} Y ${f0(cp[1])} Z ${f0(cp[2])}  (명령 Z rel ${f1((p[2] ?? 0) - (cp[2] ?? 0))})`,
+        ],
         ['플래그', flagStr(t)],
-        ['Grip', `H ${t.GripHeight ?? ''} / PreGrip ${t.PreGripDelta ?? ''} / GripBack ${t.GripBackDelta ?? ''}`],
-        ['Lift', `Up ${t.LiftUpHeight ?? ''} / Creep ↑${t.LiftUpCreepDistance ?? ''} ↓${t.LiftDownCreepDistance ?? ''} / Partial ${t.LiftUpPartial ? 'Y' : 'N'}`],
+        [
+          'Grip',
+          `H ${t.GripHeight ?? ''} / PreGrip ${t.PreGripDelta ?? ''} / GripBack ${t.GripBackDelta ?? ''}`,
+        ],
+        [
+          'Lift',
+          `Up ${t.LiftUpHeight ?? ''} / Creep ↑${t.LiftUpCreepDistance ?? ''} ↓${t.LiftDownCreepDistance ?? ''} / Partial ${t.LiftUpPartial ? 'Y' : 'N'}`,
+        ],
         ['Blend', `↑${t.BlendUpDistance ?? ''} ↓${t.BlendDownDistance ?? ''}`],
-        ['Drag', `Out ${t.UseDragOut ? `${t.DragOutHeight}/${t.DragOutDist}/dir${t.DragOutDir}` : '-'}  In ${t.UseDragIn ? `${t.DragInHeight}/${t.DragInDist}/dir${t.DragInDir}` : '-'}`],
+        [
+          'Drag',
+          `Out ${t.UseDragOut ? `${t.DragOutHeight}/${t.DragOutDist}/dir${t.DragOutDir}` : '-'}  In ${t.UseDragIn ? `${t.DragInHeight}/${t.DragInDist}/dir${t.DragInDir}` : '-'}`,
+        ],
       ]}
     />
   )
@@ -137,7 +178,20 @@ const TASK_COLS: Column<PlcTask>[] = [
 ]
 
 /** PLC 작업 배열 표(비어 있는 항목은 뺀다). */
-export function TaskTableMini({ list, empty = '없음' }: { list: readonly PlcTask[] | undefined; empty?: string }) {
+export function TaskTableMini({
+  list,
+  empty = '없음',
+}: {
+  list: readonly PlcTask[] | undefined
+  empty?: string
+}) {
   const rows = (list ?? []).filter((t) => t && (t.WorkId || t.TaskId))
-  return <DataTable rows={rows} columns={TASK_COLS} rowKey={(t) => `${t.WorkId}-${t.TaskId}`} empty={empty} />
+  return (
+    <DataTable
+      rows={rows}
+      columns={TASK_COLS}
+      rowKey={(t) => `${t.WorkId}-${t.TaskId}`}
+      empty={empty}
+    />
+  )
 }

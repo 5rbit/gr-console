@@ -306,8 +306,8 @@ MANUAL`). 회색 문장으로 풀어 쓰면 필요한 항목 하나를 뽑으려
 | `no-arbitrary-value` | **스케일이 있는 속성**의 임의값(`text-[13px]` · `gap-[7px]` · `p-[5px]`) |
 | `no-control-height` | 킷·셸에서 `h-7/8/9` — 밀도가 건너뛰는 컴포넌트를 만들지 않는다 |
 | `no-font-bold` | `font-bold` 이상 |
-| `no-dark-variant` | 킷·셸의 `dark:` 짝 — 색을 뜻으로 부르면 다크가 따라온다 |
-| `no-raw-palette` | 킷·셸의 원시 스케일(`bg-slate-100`·`text-indigo-600`) — 뜻으로 부른다 |
+| `no-dark-variant` | `dark:` 짝 — 색을 뜻으로 부르면 다크가 따라온다(프런트 전체) |
+| `no-raw-palette` | 원시 스케일(`bg-slate-100`·`text-indigo-600`) — 뜻으로 부른다(프런트 전체) |
 | `no-decoration` | 그라디언트 · 블러 · 이모지 |
 
 **규칙은 과녁이 좁아야 산다.** 첫 판은 폭·높이·위치·z까지 임의값으로 걸었는데, 남은 것이
@@ -321,8 +321,8 @@ MANUAL`). 회색 문장으로 풀어 쓰면 필요한 항목 하나를 뽑으려
 실패**한다. 줄이면 기준선을 낮추라고 알려 준다(`--update`) — 한 번 고친 자리는 되돌아갈 수 없다.
 기준선을 **올리는 커밋은 리뷰에서 막는다**(그게 이 장치의 전부다).
 
-지금 기준선은 **11건**이다(처음 169 → 규칙 정밀화 54 → 실제 정리 11). 남은 것은 전부 화면 안이고
-(`CellMap` 7 · `ByCode`·`LayoutTab`·`PlanCard` 각 1), 그 화면 담당이 갚거나 이유를 적을 자리다.
+지금 기준선은 **0건**이다(처음 169 → 규칙 정밀화 54 → 실제 정리 11 → 화면 넷까지 옮겨 0). 여덟 규칙이
+프런트 전체에 걸려 있고 예외는 이유를 적은 자리뿐이다 — 새 위반은 하나라도 `npm run check`를 떨어뜨린다.
 
 예외가 필요하면 코드에 이유를 적는다. 이유 없는 예외는 통과하지 않는다:
 
@@ -395,7 +395,7 @@ MANUAL`). 회색 문장으로 풀어 쓰면 필요한 항목 하나를 뽑으려
 것은 "이 면이 무엇이냐"다. 그래서 규칙은 하나로 줄어든다:
 
 > **색은 뜻으로 부른다.** `bg-surface-panel` · `text-content-muted` · `bg-warn-soft` · `text-accent-text`.
-> `dark:` 짝을 손으로 달지 않는다 — 킷·셸에서는 린터가 막는다(`no-dark-variant` · `no-raw-palette`).
+> `dark:` 짝을 손으로 달지 않는다 — 프런트 전체에서 린터가 막는다(`no-dark-variant` · `no-raw-palette`).
 
 킷(`lib/ui/**`)과 셸(`App` · `StatusBar` · `Sidebar` · `PanelHost` · `CommandPalette` ·
 `components/workspace/*` · `components/panes/*`)은 `dark:`가 **0개**다. 화면 안

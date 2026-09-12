@@ -68,10 +68,10 @@ export function StateCell({ task, area }: { task: Task; area: PlcTaskArea | null
 
 export function AckCell({ task }: { task: Task }) {
   const a = task.ack
-  if (!a) return <span className="text-slate-400">—</span>
+  if (!a) return <span className="text-content-faint">—</span>
   return (
     <span
-      className={`tabular-nums ${a.accepted ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+      className={`tabular-nums ${a.accepted ? 'text-ok-fg' : 'text-fault-fg'}`}
       title={a.reason}
     >
       {a.code}

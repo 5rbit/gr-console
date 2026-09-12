@@ -9,12 +9,14 @@ import type { Column } from '../../lib/ui/table'
 import type { MeasLogSnapshot } from '../../lib/types'
 import { StatCards, TaskKv } from './helpers'
 
+// 측정 종류 다섯을 **구분**하는 색 — 상태(판정)가 아니라 종류 축이라 상태 여섯의 fg 토큰을 빌려
+// 쓰되 뜻(ok·warn)으로 읽히지 않게 dot이 아닌 fg만 쓴다. 다크 대비는 토큰 층이 맡는다.
 const KIND_TONE: Record<number, string> = {
-  1: 'text-sky-600 dark:text-sky-400',
-  2: 'text-violet-600 dark:text-violet-400',
-  3: 'text-slate-500',
-  4: 'text-orange-600 dark:text-orange-400',
-  5: 'text-teal-600 dark:text-teal-400',
+  1: 'text-info-fg',
+  2: 'text-pending-fg',
+  3: 'text-content-muted',
+  4: 'text-degraded-fg',
+  5: 'text-ok-fg',
 }
 
 // `priority` — 열 열여섯인 표라 좁은 존에서는 가로 스크롤이 아니라 접기로 간다. 측정 이력에서

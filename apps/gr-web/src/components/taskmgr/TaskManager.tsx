@@ -161,15 +161,15 @@ export default function TaskManager() {
         <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-auto p-3">
           <Card padded={false}>
             <div
-              className="flex items-center gap-2 border-b border-slate-200 px-3 py-1.5 dark:border-slate-700"
+              className="flex items-center gap-2 border-b border-line-default px-3 py-1.5"
               data-testid="task-active"
             >
               <span className="text-xs font-semibold">Task 목록</span>
-              <span className="text-2xs text-slate-400 tabular-nums">
+              <span className="text-2xs text-content-faint tabular-nums">
                 {rows.length}건{rows.length !== list.length ? ` / 전체 ${list.length}건` : ''}
               </span>
               {filter.states.length === 0 && !filter.includeTerminal ? (
-                <span className="text-2xs text-slate-400">
+                <span className="text-2xs text-content-faint">
                   진행 중만 — 종결은 아래 이력 또는 '종결 포함'
                 </span>
               ) : null}

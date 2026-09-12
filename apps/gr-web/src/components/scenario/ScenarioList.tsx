@@ -28,7 +28,16 @@ function fmtTime(s: string): string {
   return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-export function ScenarioList({ items, loading, selectedId, runningId, onSelect, onNew, onDuplicate, onDelete }: ScenarioListProps) {
+export function ScenarioList({
+  items,
+  loading,
+  selectedId,
+  runningId,
+  onSelect,
+  onNew,
+  onDuplicate,
+  onDelete,
+}: ScenarioListProps) {
   const [confirm, setConfirm] = useState<Scenario | null>(null)
   const selected = items.find((s) => s.id === selectedId) ?? null
 
@@ -57,7 +66,7 @@ export function ScenarioList({ items, loading, selectedId, runningId, onSelect, 
       key: 'updated',
       label: '갱신',
       get: (s) => s.updated_at,
-      cell: (s) => <span className="text-slate-500">{fmtTime(s.updated_at)}</span>,
+      cell: (s) => <span className="text-content-muted">{fmtTime(s.updated_at)}</span>,
       priority: 2,
     },
   ]
@@ -65,13 +74,32 @@ export function ScenarioList({ items, loading, selectedId, runningId, onSelect, 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="scenario-list">
       <Toolbar title="시나리오" meta={`${items.length}건`} dense>
-        <Button size="sm" intent="primary" icon={<Plus size={13} />} onClick={onNew} data-testid="scenario-new">
+        <Button
+          size="sm"
+          intent="primary"
+          icon={<Plus size={13} />}
+          onClick={onNew}
+          data-testid="scenario-new"
+        >
           새로 만들기
         </Button>
-        <Button size="sm" icon={<Copy size={13} />} disabled={!selected} title="선택한 시나리오를 복제해 편집" onClick={() => selected && onDuplicate(selected)}>
+        <Button
+          size="sm"
+          icon={<Copy size={13} />}
+          disabled={!selected}
+          title="선택한 시나리오를 복제해 편집"
+          onClick={() => selected && onDuplicate(selected)}
+        >
           복제
         </Button>
-        <Button size="sm" intent="ghost" icon={<Trash2 size={13} />} disabled={!selected} onClick={() => selected && setConfirm(selected)} data-testid="scenario-delete">
+        <Button
+          size="sm"
+          intent="ghost"
+          icon={<Trash2 size={13} />}
+          disabled={!selected}
+          onClick={() => selected && setConfirm(selected)}
+          data-testid="scenario-delete"
+        >
           삭제
         </Button>
       </Toolbar>
@@ -88,9 +116,18 @@ export function ScenarioList({ items, loading, selectedId, runningId, onSelect, 
           testid="scenario-table"
         />
       </div>
-      <ConfirmDialog open={confirm !== null} onOpenChange={(o) => !o && setConfirm(null)} scope="single" title="시나리오 삭제" danger confirmLabel="삭제" onConfirm={() => confirm && onDelete(confirm)}>
+      <ConfirmDialog
+        open={confirm !== null}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        scope="single"
+        title="시나리오 삭제"
+        danger
+        confirmLabel="삭제"
+        onConfirm={() => confirm && onDelete(confirm)}
+      >
         <p className="m-0">
-          <b>{confirm?.name}</b> (스텝 {confirm?.steps.length ?? 0}개)를 삭제합니다. 되돌릴 수 없습니다.
+          <b>{confirm?.name}</b> (스텝 {confirm?.steps.length ?? 0}개)를 삭제합니다. 되돌릴 수
+          없습니다.
         </p>
       </ConfirmDialog>
     </div>
