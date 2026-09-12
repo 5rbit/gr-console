@@ -3,3 +3,4 @@
 /apps/gr-web/node_modules
 /apps/gr-web/dist
 *.log
+bench-report.json

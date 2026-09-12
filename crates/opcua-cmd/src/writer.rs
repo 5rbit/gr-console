@@ -73,7 +73,9 @@ struct Inner {
 impl Inner {
     fn set_state(&self, s: OpcState) {
         tracing::debug!(state = ?s, "opcua state");
-        let _ = self.state_tx.send(s);
+        // `send` drops the value when every receiver is gone (the console keeps only the writer), which froze
+        // `state()` at `Disconnected` and blocked every submission. `send_replace` always stores it.
+        self.state_tx.send_replace(s);
     }
 
     fn session(&self) -> Result<Arc<Session>, OpcError> {

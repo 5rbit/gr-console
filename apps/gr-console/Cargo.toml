@@ -31,6 +31,8 @@ calamine = { workspace = true }
 rust_xlsxwriter = { workspace = true }
 csv = { workspace = true }
 rand = "0.9"
+# server feature: in-process GRM OPC UA server for --demo-opcua (sim_opcua.rs)
+async-opcua = { version = "0.19", default-features = false, features = ["client", "server"] }
 
 [lints]
 workspace = true

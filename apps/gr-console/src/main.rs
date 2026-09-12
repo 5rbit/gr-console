@@ -11,6 +11,7 @@ mod plc;
 mod registry;
 mod routes;
 mod scenario;
+mod sim_opcua;
 mod spa;
 mod sse;
 mod state;
@@ -40,6 +41,9 @@ struct Cli {
     /// Run against in-process fake PLCs
     #[arg(long)]
     demo: bool,
+    /// Demo with the command path over OPC UA: in-process GRM OPC UA server generated from the contract
+    #[arg(long)]
+    demo_opcua: bool,
     /// Override bind address, e.g. 0.0.0.0:8090
     #[arg(long)]
     bind: Option<String>,
@@ -57,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
     }
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,opcua=warn,async_opcua=warn".into())).init();
     let mut cfg = Config::load(&cli.config)?;
-    if cli.demo {
+    if cli.demo || cli.demo_opcua {
         cfg.demo = true;
     }
     if let Some(b) = cli.bind {
@@ -93,6 +97,18 @@ async fn main() -> anyhow::Result<()> {
     };
     let cfg = Arc::new(cfg);
 
+    // --demo-opcua: GRM OPC UA server generated from the contract, fed into the demo world
+    let sim_opcua = match (&demo_world, cli.demo_opcua) {
+        (Some(w), true) => {
+            let grm = contracts.get("GRM_PLC").cloned().ok_or_else(|| anyhow::anyhow!("--demo-opcua needs GRM_PLC contract"))?;
+            let roots: Vec<String> = cfg.robots_effective().into_iter().map(|r| r.opcua_root.clone()).collect();
+            let s = sim_opcua::start(w.clone(), &grm, &roots, cfg.paths.data_dir.join("sim-opcua-pki")).await?;
+            tracing::info!(endpoint = %s.endpoint, leaves = s.leaves, ns = s.ns, "sim GRM OPC UA server started");
+            Some(s)
+        }
+        _ => None,
+    };
+
     // S7 sources
     let mut plcs = HashMap::new();
     for p in &cfg.plcs {
@@ -118,9 +134,20 @@ async fn main() -> anyhow::Result<()> {
     for r in cfg.robots_effective() {
         let rcfg = config::CmdCfg { dst: r.dst, status_plc: r.plc.clone(), ..cfg.cmd.clone() };
         let cmd = match &demo_world {
-            Some(w) => CommandPort::Demo { world: w.clone(), cfg: rcfg, last: Mutex::new(None) },
-            None => {
-                let o = &cfg.opcua;
+            Some(w) if sim_opcua.is_none() => CommandPort::Demo { world: w.clone(), cfg: rcfg, last: Mutex::new(None) },
+            _ => {
+                let mut o = cfg.opcua.clone();
+                if let Some(s) = &sim_opcua {
+                    o.endpoint = s.endpoint.clone();
+                    o.security_policy = "None".into();
+                    o.security_mode = "None".into();
+                    o.user = String::new();
+                    o.ns_hint = s.ns;
+                    o.node_cache = None;
+                    o.pki_dir = Some(cfg.paths.data_dir.join("sim-opcua-client-pki"));
+                    o.trust_server_cert = true;
+                }
+                let o = &o;
                 let ocfg = opcua_cmd::OpcUaConfig {
                     endpoint: o.endpoint.clone(),
                     security_policy: o.security_policy.clone(),

@@ -55,6 +55,12 @@ struct Inner {
     axis: [f32; 4],
     target: [f32; 4],
     rng: StdRng,
+    /// JSON pointer of the GRM `GR[n].CMD` a relayed OPC UA command came from (cleared after the echo).
+    relay_root: Option<String>,
+    /// Zeroed `GR[n].CMD` subtree used to clear Header/TaskData/Data like GRM does.
+    cmd_zero: Json,
+    /// Bytes last encoded per (store, DB number) for S7-writable tables; a difference means a client wrote them.
+    encoded: HashMap<(u8, u16), Vec<u8>>,
     op_echo: Option<(TaskOp, u32, u32)>,
 }
 
@@ -85,7 +91,7 @@ fn get_f(j: &Json, ptr: &str) -> f64 {
     j.pointer(ptr).and_then(|v| v.as_f64()).unwrap_or(0.0)
 }
 
-fn sample_cell(id: u16, i: usize) -> CellInfo {
+pub(crate) fn sample_cell(id: u16, i: usize) -> CellInfo {
     CellInfo {
         use_: true,
         blend_use: false,
@@ -135,6 +141,9 @@ impl DemoWorld {
             target: [12000.0, 3000.0, 2500.0, 300.0],
             rng: StdRng::seed_from_u64(7),
             op_echo: None,
+            relay_root: None,
+            cmd_zero: Json::Null,
+            encoded: HashMap::new(),
         };
         // zero models from the contract, then seed constants / registries
         for db in ["OPCUA", "TASK", "CELL", "STATION", "PARA", "ALARM", "Interface_GRM", "WEBMON", "MEASLOG", "MEASLOG_HIST"] {
@@ -153,6 +162,7 @@ impl DemoWorld {
         set(inner.gr2.get_mut("PARA").unwrap(), "/Machine/ID", json!(2));
         set(inner.grm.get_mut("OPCUA").unwrap(), "/GR/1/STAT/ComponentID", json!(4002));
         set(inner.grm.get_mut("MACHINE").unwrap(), "/Communication/NextCmdID", json!(1));
+        inner.cmd_zero = inner.grm["OPCUA"].pointer("/GR/1/CMD").cloned().unwrap_or(Json::Null);
         // registries
         let cells: Vec<CellInfo> = (0..12).map(|i| sample_cell(101 + i as u16, i)).collect();
         for (store, contract_name) in [(&mut inner.gr2, "GR2"), (&mut inner.grm, "GRM")] {
@@ -196,7 +206,7 @@ impl DemoWorld {
                 t.position = [t.cell.position[0], t.cell.position[1], 1500.0 + 480.0, 300.0];
                 world.push_measure(&mut g, &t);
             }
-            world.encode_all(&g);
+            world.encode_all(&mut g);
         }
         let w = world.clone();
         tokio::spawn(async move {
@@ -242,6 +252,54 @@ impl DemoWorld {
     pub fn clear_header(&self) {
         let mut g = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
         g.pending = None;
+    }
+
+    /// Value at a JSON pointer of the GR2 `OPCUA` model (bench / tests).
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn gr2_get(&self, ptr: &str) -> Json {
+        let g = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
+        g.gr2.get("OPCUA").and_then(|d| d.pointer(ptr)).cloned().unwrap_or(Json::Null)
+    }
+
+    /// OPC UA read of the GRM `OPCUA` model (sim server).
+    pub fn grm_opcua_get(&self, ptr: &str) -> Json {
+        let g = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
+        g.grm.get("OPCUA").and_then(|d| d.pointer(ptr)).cloned().unwrap_or(Json::Null)
+    }
+
+    /// OPC UA write into GRM `"OPCUA".GR[n].CMD` (sim server), emulating GRM: the value lands in the DB the
+    /// console reads over S7; a Header whose six fields are all non-zero (completed by the SEQ write) is
+    /// relayed to GR2 with the TaskData currently in CMD; a Complete/Delete TaskId write with a non-zero
+    /// WorkId becomes a task op, `(0,0)` re-arms.
+    pub fn grm_opcua_write(&self, path: &str, ptr: &str, value: Json) {
+        let mut g = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
+        let written = value.as_u64().unwrap_or(0) as u32;
+        if let Some(d) = g.grm.get_mut("OPCUA") {
+            set(d, ptr, value);
+        }
+        let Some(i) = ptr.find("/CMD/") else { return };
+        let root = ptr[..i + 4].to_string();
+        let opc = &g.grm["OPCUA"];
+        if path.ends_with(".Header.SEQ") {
+            let header: Header = opc.pointer(&format!("{root}/Header")).and_then(|h| serde_json::from_value(h.clone()).ok()).unwrap_or_default();
+            let fields = [u32::from(header.protocol), u32::from(header.cmd_id), u32::from(header.cmd), u32::from(header.src), u32::from(header.dst), u32::from(header.seq)];
+            if fields.iter().all(|v| *v != 0) {
+                let task = opc.pointer(&format!("{root}/TaskData")).and_then(|t| TaskData::from_json(t).ok()).unwrap_or_default();
+                g.pending = Some((header, task));
+                g.relay_root = Some(root);
+            }
+        } else {
+            let op = if path.ends_with(".Command.Task.Complete.TaskId") {
+                TaskOp::Complete
+            } else if path.ends_with(".Command.Task.Delete.TaskId") {
+                TaskOp::Delete
+            } else {
+                return;
+            };
+            let base = if op == TaskOp::Complete { "Complete" } else { "Delete" };
+            let work_id = opc.pointer(&format!("{root}/Command/Task/{base}/WorkId")).and_then(Json::as_u64).unwrap_or(0) as u32;
+            g.op_echo = if work_id == 0 { None } else { Some((op, work_id, written)) };
+        }
     }
 
     fn tick(&self) {
@@ -298,6 +356,16 @@ impl DemoWorld {
                 g.queue.push(task);
             } else {
                 ring_push(&mut g.rejected, task);
+            }
+        }
+        // ---- GRM clears CMD Header/TaskData/Data once RES.Header == CMD.Header (OPC UA relay only)
+        if let Some(root) = g.relay_root.take() {
+            let zero = g.cmd_zero.clone();
+            let opc = g.grm.get_mut("OPCUA").unwrap();
+            for part in ["Header", "TaskData", "Data"] {
+                if let Some(z) = zero.get(part) {
+                    set(opc, &format!("{root}/{part}"), z.clone());
+                }
             }
         }
         // ---- task ops
@@ -451,7 +519,7 @@ impl DemoWorld {
             set(w, "/MeasLog/Total", json!(meas_total));
             set(w, "/MeasLog/Count", json!(meas_count));
         }
-        self.encode_all(&g);
+        self.encode_all(&mut g);
     }
 
     /// Appends a MEASLOG_HIST entry for a finished task and updates MEASLOG counters / stats.
@@ -601,22 +669,31 @@ impl DemoWorld {
         }
     }
 
-    fn encode_all(&self, g: &Inner) {
-        let mut gr2 = self.gr2_store.lock().unwrap_or_else(PoisonError::into_inner);
-        for (db, json) in &g.gr2 {
-            let (Some(n), Ok(size)) = (self.gr2.db_number(db), self.gr2.size_of_db(db)) else { continue };
-            let buf = gr2.entry(n).or_insert_with(|| vec![0u8; size as usize]);
-            if let Err(e) = self.gr2.encode_db(db, json, buf) {
-                tracing::error!(db, "demo encode: {e}");
-            }
-        }
-        drop(gr2);
-        let mut grm = self.grm_store.lock().unwrap_or_else(PoisonError::into_inner);
-        for (db, json) in &g.grm {
-            let (Some(n), Ok(size)) = (self.grm.db_number(db), self.grm.size_of_db(db)) else { continue };
-            let buf = grm.entry(n).or_insert_with(|| vec![0u8; size as usize]);
-            if let Err(e) = self.grm.encode_db(db, json, buf) {
-                tracing::error!(db, "demo encode: {e}");
+    /// Writes every model DB into the fake S7 stores. Tables a client may write over S7 (`CELL`, `STATION`) are
+    /// absorbed first: if their bytes changed since the last encode (a push from the console), the model is
+    /// re-decoded from them, like a real PLC keeping the written values. Check and encode run under the store
+    /// lock, so a concurrent S7 write cannot slip between them.
+    fn encode_all(&self, g: &mut Inner) {
+        const ABSORB: [&str; 2] = ["CELL", "STATION"];
+        for (side, store, contract) in [(0u8, &self.gr2_store, &self.gr2), (1u8, &self.grm_store, &self.grm)] {
+            let mut bytes = store.lock().unwrap_or_else(PoisonError::into_inner);
+            let models = if side == 0 { &mut g.gr2 } else { &mut g.grm };
+            for (db, json) in models.iter_mut() {
+                let (Some(n), Ok(size)) = (contract.db_number(db), contract.size_of_db(db)) else { continue };
+                let buf = bytes.entry(n).or_insert_with(|| vec![0u8; size as usize]);
+                let absorb = ABSORB.contains(&db.as_str());
+                if absorb && g.encoded.get(&(side, n)).is_some_and(|last| last != buf) {
+                    match contract.decode_db(db, buf) {
+                        Ok(j) => *json = j,
+                        Err(e) => tracing::error!(db, "demo absorb: {e}"),
+                    }
+                }
+                if let Err(e) = contract.encode_db(db, json, buf) {
+                    tracing::error!(db, "demo encode: {e}");
+                }
+                if absorb {
+                    g.encoded.insert((side, n), buf.clone());
+                }
             }
         }
     }

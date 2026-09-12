@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use gr_proto::{Header, MemberValue, TaskData, WireValue, command_zero_members};
+use gr_proto::{Header, MemberValue, TaskData, WireValue};
 use serde::Serialize;
 use serde_json::{Value as Json, json};
 
@@ -36,7 +36,7 @@ pub enum CommandPort {
     Demo { world: Arc<DemoWorld>, cfg: CmdCfg, last: Mutex<Option<Header>> },
 }
 
-fn to_opc(m: &MemberValue) -> opcua_cmd::MemberValue {
+pub(crate) fn to_opc(m: &MemberValue) -> opcua_cmd::MemberValue {
     let value = match m.value {
         WireValue::Bool(b) => opcua_cmd::PlcValue::Bool(b),
         WireValue::U8(v) => opcua_cmd::PlcValue::U8(v),
@@ -118,8 +118,9 @@ impl CommandPort {
     pub async fn write_task(&self, task: &TaskData) -> Result<Header, ApiError> {
         let cmd_code = task.task_type;
         let cfg = self.cfg();
-        let mut members = task.to_members();
-        members.extend(command_zero_members());
+        // `Command.*` and `Data[]` zeros come from the browsed node map inside `CmdWriter::write_task`: on the PLC the
+        // Command bytes are Bool bit structs (`Command.Stop.Normal`, ...), so a fixed byte list names nodes that do not exist.
+        let members = task.to_members();
         let h = match self {
             CommandPort::Opc { writer, .. } => {
                 let m: Vec<opcua_cmd::MemberValue> = members.iter().map(to_opc).collect();

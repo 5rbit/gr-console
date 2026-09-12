@@ -939,6 +939,7 @@ name = "gr-console"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-opcua",
  "axum",
  "calamine",
  "clap",
