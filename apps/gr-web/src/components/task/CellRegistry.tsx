@@ -83,35 +83,41 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
   const sel = reg.items.find((c) => c.id === selected) ?? null
   const dirty = reg.items.filter((c) => c.dirty).length
 
+  // `priority` — 좁은 존에서 남을 순서(`docs/DESIGN.md` 4절). 셀 목록을 훑는 이유는 **어느 셀이
+  // 어떤 상태인가**라 Id·상태가 1, 자리(구역·행·열)와 사용 여부가 2, 좌표·치수가 3이다.
   const columns: Column<Cell>[] = [
-    { key: 'id', label: 'Id', get: (c) => c.id, numeric: true, class: 'font-mono' },
+    { key: 'id', label: 'Id', get: (c) => c.id, numeric: true, class: 'font-mono', priority: 1 },
     {
       key: 'state',
       label: '상태',
       get: (c) => (c.dirty ? 1 : c.source === 'plc' ? 0 : 2),
       cell: (c) => <RowBadge source={c.source} dirty={c.dirty} />,
+      priority: 1,
     },
     {
       key: 'use',
       label: '사용',
       get: (c) => (c.use ? 1 : 0),
       cell: (c) => (c.use ? 'Y' : <span className="text-slate-400">N</span>),
+      priority: 2,
     },
     {
       key: 'blend',
       label: '블렌드',
       get: (c) => (c.blend_use ? 1 : 0),
       cell: (c) => (c.blend_use ? 'Y' : <span className="text-slate-400">N</span>),
+      priority: 3,
     },
-    { key: 'section', label: '구역', get: (c) => c.section, numeric: true },
-    { key: 'row', label: '행', get: (c) => c.row, numeric: true },
-    { key: 'col', label: '열', get: (c) => c.col, numeric: true },
+    { key: 'section', label: '구역', get: (c) => c.section, numeric: true, priority: 2 },
+    { key: 'row', label: '행', get: (c) => c.row, numeric: true, priority: 2 },
+    { key: 'col', label: '열', get: (c) => c.col, numeric: true, priority: 2 },
     {
       key: 'x',
       label: 'X',
       get: (c) => c.position[0],
       numeric: true,
       cell: (c) => f1(c.position[0]),
+      priority: 3,
     },
     {
       key: 'y',
@@ -119,6 +125,7 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
       get: (c) => c.position[1],
       numeric: true,
       cell: (c) => f1(c.position[1]),
+      priority: 3,
     },
     {
       key: 'z',
@@ -126,9 +133,24 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
       get: (c) => c.position[2],
       numeric: true,
       cell: (c) => f1(c.position[2]),
+      priority: 3,
     },
-    { key: 'len', label: '길이', get: (c) => c.length, numeric: true, cell: (c) => f1(c.length) },
-    { key: 'wid', label: '폭', get: (c) => c.width, numeric: true, cell: (c) => f1(c.width) },
+    {
+      key: 'len',
+      label: '길이',
+      get: (c) => c.length,
+      numeric: true,
+      cell: (c) => f1(c.length),
+      priority: 3,
+    },
+    {
+      key: 'wid',
+      label: '폭',
+      get: (c) => c.width,
+      numeric: true,
+      cell: (c) => f1(c.width),
+      priority: 3,
+    },
   ]
 
   const COMPACT_KEYS = ['id', 'state', 'section', 'row', 'col', 'x', 'y', 'z']

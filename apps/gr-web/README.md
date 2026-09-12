@@ -3,15 +3,18 @@
 React 19 + Vite 8 + Tailwind v4 + TypeScript. 라우터·상태 라이브러리 없음(`lib/store.ts`의 `Store` +
 `useSyncExternalStore`). sh4w-web의 셸·UI 킷을 옮겨 왔다.
 
-**UI를 만지기 전에 `docs/DESIGN.md`를 읽는다** — 셸 골격·도킹 불변식·데이터 뷰 규칙·색·밀도·테마·
-접근성·체크리스트가 거기 있다. 규칙과 코드가 어긋나면 문서가 진실원이고 코드가 버그다.
+**UI를 만지기 전에 `docs/DESIGN.md`를 읽는다** — 셸 골격·도킹 불변식·데이터 뷰 규칙·자리와 절제
+예산·일관성 다섯 축·색·밀도·테마·접근성·체크리스트가 거기 있다. 규칙과 코드가 어긋나면 문서가
+진실원이고 코드가 버그다. 셀 수 있는 예산은 `npm run check`의 디자인 린트가 막는다(기준선 방식 —
+위반이 늘면 실패한다).
 
 ## 실행
 
 ```
 npm install
 npm run dev          # http://localhost:5173 — /api 는 GR_BACKEND(기본 http://127.0.0.1:8090)로 프록시
-npm run check        # tsc (app + node)
+npm run check        # tsc(app + node) + 디자인 린트 — 이 하나가 통과해야 한다
+npm run lint:design  # 디자인 시스템 예산만 검사 (tools/design-lint.mjs, --list 로 규칙 설명)
 npm run test:unit    # vitest — src/**/*.test.ts 순수 모듈만(컴포넌트 테스트 없음)
                      # TZ=Asia/Seoul 을 붙인다 — lib/task/state.test.ts 의 endedToday 가 로컬 시간대에 매여 있다
 npm run build        # dist/

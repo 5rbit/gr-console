@@ -99,13 +99,34 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
     { key: 'state', label: '상태', sortable: false, cell: (r) => <StatusBadge status={STATE_TONE[r.state]} dot={false}>{STATE_LABEL[r.state]}</StatusBadge> },
     { key: 'task', label: 'Task', sortable: false, cell: (r) => (r.task_id ? <span className="inline-flex items-center gap-0.5 font-mono text-accent-text">{shortId(r.task_id)}<ExternalLink size={10} /></span> : <span className="text-slate-400" title={r.error ?? ''}>—</span>) },
   ]
+  // 실행 이력을 훑는 이유는 **무엇이 언제 돌았고 왜 멈췄나**다: 시나리오·상태·오류가 1, 시작 시각과
+  // 회차가 2, 결과 건수가 3이다(`docs/DESIGN.md` 4절). 위 `logColumns`는 열 넷이라 접지 않는다.
   const histColumns: Column<ScenarioRun>[] = [
-    { key: 'started', label: '시작', get: (r) => r.started_at, cell: (r) => r.started_at.replace('T', ' ').slice(0, 19) },
-    { key: 'name', label: '시나리오', get: (r) => r.scenario_name },
-    { key: 'state', label: '상태', get: (r) => r.state, cell: (r) => <StatusBadge status={RUN_TONE[r.state]}>{RUN_STATE_LABEL[r.state]}</StatusBadge> },
-    { key: 'iter', label: '회차', get: (r) => r.iteration, numeric: true, cell: (r) => `${r.iteration}/${r.total_iterations ?? '∞'}` },
-    { key: 'n', label: '결과', get: (r) => r.results.length, numeric: true },
-    { key: 'err', label: '오류', get: (r) => r.error ?? '', class: 'max-w-64 truncate' },
+    {
+      key: 'started',
+      label: '시작',
+      get: (r) => r.started_at,
+      cell: (r) => r.started_at.replace('T', ' ').slice(0, 19),
+      priority: 2,
+    },
+    { key: 'name', label: '시나리오', get: (r) => r.scenario_name, priority: 1 },
+    {
+      key: 'state',
+      label: '상태',
+      get: (r) => r.state,
+      cell: (r) => <StatusBadge status={RUN_TONE[r.state]}>{RUN_STATE_LABEL[r.state]}</StatusBadge>,
+      priority: 1,
+    },
+    {
+      key: 'iter',
+      label: '회차',
+      get: (r) => r.iteration,
+      numeric: true,
+      cell: (r) => `${r.iteration}/${r.total_iterations ?? '∞'}`,
+      priority: 2,
+    },
+    { key: 'n', label: '결과', get: (r) => r.results.length, numeric: true, priority: 3 },
+    { key: 'err', label: '오류', get: (r) => r.error ?? '', class: 'max-w-64 truncate', priority: 1 },
   ]
 
   const iterMax = run?.total_iterations ?? null

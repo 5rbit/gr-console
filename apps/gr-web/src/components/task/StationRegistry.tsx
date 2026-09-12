@@ -85,37 +85,43 @@ export function StationRegistry({
   const sel = reg.items.find((s) => s.id === selected) ?? null
   const dirty = reg.items.filter((s) => s.dirty).length
 
+  // `priority` — 스테이션은 **어디가 무슨 작업을 하나**로 훑는다: Id·상태가 1, 작업·컨베이어·사용이
+  // 2, 그룹·회전·연결·구역·좌표·IO·센서가 3이다.
   const columns: Column<Station>[] = [
-    { key: 'id', label: 'Id', get: (s) => s.id, numeric: true, class: 'font-mono' },
+    { key: 'id', label: 'Id', get: (s) => s.id, numeric: true, class: 'font-mono', priority: 1 },
     {
       key: 'state',
       label: '상태',
       get: (s) => (s.dirty ? 1 : s.source === 'plc' ? 0 : 2),
       cell: (s) => <RowBadge source={s.source} dirty={s.dirty} />,
+      priority: 1,
     },
-    { key: 'conv', label: '컨베이어', get: (s) => s.conv_no, numeric: true },
-    { key: 'type', label: '작업', get: (s) => s.task_type, numeric: true },
-    { key: 'rot', label: '회전', get: (s) => s.rotate_type, numeric: true },
-    { key: 'grp', label: '그룹', get: (s) => `${s.group}-${s.group_index}` },
+    { key: 'conv', label: '컨베이어', get: (s) => s.conv_no, numeric: true, priority: 2 },
+    { key: 'type', label: '작업', get: (s) => s.task_type, numeric: true, priority: 2 },
+    { key: 'rot', label: '회전', get: (s) => s.rotate_type, numeric: true, priority: 3 },
+    { key: 'grp', label: '그룹', get: (s) => `${s.group}-${s.group_index}`, priority: 3 },
     {
       key: 'conn',
       label: '연결',
       get: (s) => `${s.connection_prev}→${s.connection_next}`,
       class: 'font-mono',
+      priority: 3,
     },
     {
       key: 'use',
       label: '사용',
       get: (s) => (s.info.use ? 1 : 0),
       cell: (s) => (s.info.use ? 'Y' : <span className="text-slate-400">N</span>),
+      priority: 2,
     },
-    { key: 'sec', label: '구역', get: (s) => s.info.section, numeric: true },
+    { key: 'sec', label: '구역', get: (s) => s.info.section, numeric: true, priority: 3 },
     {
       key: 'x',
       label: 'X',
       get: (s) => s.info.position[0],
       numeric: true,
       cell: (s) => f1(s.info.position[0]),
+      priority: 3,
     },
     {
       key: 'y',
@@ -123,6 +129,7 @@ export function StationRegistry({
       get: (s) => s.info.position[1],
       numeric: true,
       cell: (s) => f1(s.info.position[1]),
+      priority: 3,
     },
     {
       key: 'z',
@@ -130,14 +137,16 @@ export function StationRegistry({
       get: (s) => s.info.position[2],
       numeric: true,
       cell: (s) => f1(s.info.position[2]),
+      priority: 3,
     },
-    { key: 'io', label: 'IO블록', get: (s) => s.io_block_no, numeric: true },
+    { key: 'io', label: 'IO블록', get: (s) => s.io_block_no, numeric: true, priority: 3 },
     {
       key: 'sensor',
       label: '센서',
       get: (s) =>
         `${s.sensor.io_link_master_module}/${s.sensor.io_link_master_port_l}/${s.sensor.io_link_master_port_r}`,
       class: 'font-mono text-slate-500',
+      priority: 3,
     },
   ]
 

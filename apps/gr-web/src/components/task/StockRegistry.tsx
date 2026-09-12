@@ -162,12 +162,22 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
   const openEdit = (r: Row) =>
     setEdit({ cell: r.cell, item: r.stock?.item_code || null, count: r.stock?.count ?? 0 })
 
+  // `priority` — 재고 표를 훑는 이유는 **어느 셀에 몇 개 있나**다: 셀·수량이 1, 품목과 갱신
+  // 시각이 2, 좌표·높이·출처가 3이다(`docs/DESIGN.md` 4절).
   const columns: Column<Row>[] = [
-    { key: 'id', label: '셀', get: (r) => r.cell.id, numeric: true, class: 'font-mono' },
+    {
+      key: 'id',
+      label: '셀',
+      get: (r) => r.cell.id,
+      numeric: true,
+      class: 'font-mono',
+      priority: 1,
+    },
     {
       key: 'pos',
       label: '구역/행/열',
       get: (r) => `S${r.cell.section} R${r.cell.row} C${r.cell.col}`,
+      priority: 3,
     },
     {
       key: 'count',
@@ -180,6 +190,7 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
         ) : (
           <span className="text-slate-400">0</span>
         ),
+      priority: 1,
     },
     {
       key: 'item',
@@ -191,6 +202,7 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
         ) : (
           <span className="text-slate-400">-</span>
         ),
+      priority: 2,
     },
     {
       key: 'h',
@@ -205,6 +217,7 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
           <span className="text-slate-400">-</span>
         )
       },
+      priority: 3,
     },
     {
       key: 'at',
@@ -215,12 +228,14 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
           {r.stock?.updated_at?.slice(5, 19).replace('T', ' ') ?? ''}
         </span>
       ),
+      priority: 2,
     },
     {
       key: 'src',
       label: '',
       get: () => '',
       cell: (r) => (r.cell.dirty ? <StatusBadge status="warn">셀 로컬 수정</StatusBadge> : null),
+      priority: 3,
     },
   ]
 

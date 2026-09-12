@@ -118,20 +118,22 @@ export function TaskKv({ t }: { t: PlcTask | null | undefined }) {
   )
 }
 
+// `priority` — PLC Task 표는 **어느 작업인가**로 훑는다: Work/Task가 1, 종류·Cell·Code가 2,
+// 단·치수·좌표·플래그가 3이다(`docs/DESIGN.md` 4절).
 const TASK_COLS: Column<PlcTask>[] = [
-  { key: 'w', label: 'Work', get: (t) => t.WorkId, numeric: true },
-  { key: 't', label: 'Task', get: (t) => t.TaskId, numeric: true },
-  { key: 'ty', label: 'Type', get: (t) => tt(t.TaskType) },
-  { key: 'cell', label: 'Cell', get: (t) => t.Cell?.Id, numeric: true },
-  { key: 'code', label: 'Code', get: (t) => t.Item?.Code, numeric: true },
-  { key: 'cnt', label: '단', get: (t) => t.Item?.Count, numeric: true },
-  { key: 'id', label: 'ID', get: (t) => f1(t.Item?.InnerDiameter), numeric: true },
-  { key: 'h', label: 'H', get: (t) => f1(t.Item?.Height), numeric: true },
-  { key: 'x', label: 'X', get: (t) => f0(t.Position?.[0]), numeric: true },
-  { key: 'y', label: 'Y', get: (t) => f0(t.Position?.[1]), numeric: true },
-  { key: 'z', label: 'Z', get: (t) => f0(t.Position?.[2]), numeric: true },
-  { key: 'g', label: 'G', get: (t) => f0(t.Position?.[3]), numeric: true },
-  { key: 'flags', label: '플래그', get: (t) => flagStr(t) },
+  { key: 'w', label: 'Work', get: (t) => t.WorkId, numeric: true, priority: 1 },
+  { key: 't', label: 'Task', get: (t) => t.TaskId, numeric: true, priority: 1 },
+  { key: 'ty', label: 'Type', get: (t) => tt(t.TaskType), priority: 2 },
+  { key: 'cell', label: 'Cell', get: (t) => t.Cell?.Id, numeric: true, priority: 2 },
+  { key: 'code', label: 'Code', get: (t) => t.Item?.Code, numeric: true, priority: 2 },
+  { key: 'cnt', label: '단', get: (t) => t.Item?.Count, numeric: true, priority: 3 },
+  { key: 'id', label: 'ID', get: (t) => f1(t.Item?.InnerDiameter), numeric: true, priority: 3 },
+  { key: 'h', label: 'H', get: (t) => f1(t.Item?.Height), numeric: true, priority: 3 },
+  { key: 'x', label: 'X', get: (t) => f0(t.Position?.[0]), numeric: true, priority: 3 },
+  { key: 'y', label: 'Y', get: (t) => f0(t.Position?.[1]), numeric: true, priority: 3 },
+  { key: 'z', label: 'Z', get: (t) => f0(t.Position?.[2]), numeric: true, priority: 3 },
+  { key: 'g', label: 'G', get: (t) => f0(t.Position?.[3]), numeric: true, priority: 3 },
+  { key: 'flags', label: '플래그', get: (t) => flagStr(t), priority: 3 },
 ]
 
 /** PLC 작업 배열 표(비어 있는 항목은 뺀다). */

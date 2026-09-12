@@ -21,6 +21,10 @@ description: GR 콘솔 프런트엔드(apps/gr-web)의 디자인·UX 규칙. gr-
    `paneRegistry.tsx`는 리드 소유다. 필요한 타입·엔드포인트·패널 등록이 없으면 리드에게 요청한다.
 4. 고친 뒤 `docs/DESIGN.md` 10절 체크리스트로 자기 diff를 훑는다.
 5. 검증: `cd apps/gr-web && npm run check && TZ=Asia/Seoul npm run test:unit && npm run build`.
+   `check`에 **디자인 린트**가 들어 있다 — 색값 하드코드·임의값(`text-[13px]`)·투명도 면·굵기 700·
+   그라디언트/블러/이모지·킷의 `h-8`을 막는다. 규칙 설명은 `npm run lint:design -- --list`.
+   기준선(`tools/design-lint.baseline.json`)을 **올려서 통과시키지 않는다** — 고치거나, 그 줄에
+   `// design-lint-allow: <규칙> — 이유`를 적는다(이유 없는 예외는 통과하지 않는다).
    (`TZ`가 필요한 이유는 `docs/DESIGN.md`와 플랜에 적혀 있다 — `state.test.ts`가 로컬 시간대에
    매여 있다.)
 

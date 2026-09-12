@@ -13,9 +13,13 @@ docs/              DESIGN.md(UI 규칙) · ui-ux-plan.md(결정 기록) · scree
 
 ## UI를 만지면 `docs/DESIGN.md`를 먼저 읽는다
 
-프런트의 디자인·UX 규칙은 전부 거기 있다(셸 골격 · 도킹 불변식 · 데이터 뷰 규칙 · 색·밀도·테마 ·
-접근성 · 체크리스트). 규칙과 코드가 어긋나면 **문서가 진실원이고 코드가 버그다**.
-`.claude/skills/gr-design`이 UI 작업에서 이 문서를 가리킨다.
+프런트의 디자인·UX 규칙은 전부 거기 있다(셸 골격 · 도킹 불변식 · 데이터 뷰 규칙 · 자리와 절제 예산 ·
+일관성 다섯 축 · 색·밀도·테마 · 접근성 · 체크리스트). 규칙과 코드가 어긋나면 **문서가 진실원이고
+코드가 버그다**. `.claude/skills/gr-design`이 UI 작업에서 이 문서를 가리킨다.
+
+예산 중 **셀 수 있는 것은 `npm run check`가 막는다**(색값 하드코드 · 임의값 · 투명도 면 · 굵기 700 ·
+그라디언트/블러/이모지 · 킷의 컨트롤 높이). 기준선 방식이라 **늘어나면 실패**한다 —
+기준선을 올리는 커밋은 리뷰에서 막는다.
 
 ## 자주 쓰는 명령
 
@@ -28,7 +32,8 @@ cargo fmt
 cd apps/gr-web
 npm install
 npm run dev               # http://localhost:5173 — /api 는 GR_BACKEND(기본 127.0.0.1:8090)로 프록시
-npm run check             # tsc (app + node)
+npm run check             # tsc(app + node) + 디자인 린트
+npm run lint:design       # 디자인 시스템 예산 검사(tools/design-lint.mjs)
 TZ=Asia/Seoul npm run test:unit   # vitest — 순수 모듈만
 npm run build
 ```

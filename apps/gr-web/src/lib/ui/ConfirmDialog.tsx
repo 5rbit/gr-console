@@ -84,7 +84,7 @@ export function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={close}></div>
+      <div className="absolute inset-0 bg-black/40" onClick={close}></div>
       {/* 포커스 트랩 — 첫 포커스는 **취소**(안전한 쪽)다. 확인에 주면 Enter 연타로 파괴적 조작이 통과한다. */}
       <div
         ref={box}
