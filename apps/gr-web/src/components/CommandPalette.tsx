@@ -22,7 +22,7 @@ import { useFocusTrap } from '../lib/ui/focusTrap'
 import { ZONE_IDS, ZONE_LABEL } from '../lib/workspace/model'
 import { PRESETS, DEFAULT_PRESET } from '../lib/workspace/presets'
 import { workspace } from '../lib/workspace/store'
-import { PANES } from './workspace/paneRegistry'
+import { PANES, paneDef } from './workspace/paneRegistry'
 
 /**
  * 지금 상태로 명령 목록을 만든다 — 그룹 순서가 팔레트를 그냥 열었을 때의 목차다.
@@ -122,9 +122,11 @@ function buildCommands(): Command[] {
     const s = l.zones[z]
     out.push({
       id: `zone.${z}`,
+      // 라벨을 뒤집지 않고 **체크로 상태를 말한다** — 메뉴의 `보기 > 존`과 같은 관용구다.
+      // 같은 항목이 자리마다 다른 이름("펼치기"/"접기")으로 나오면 두 개를 배우게 된다.
       group: '존',
-      label: `${ZONE_LABEL[z]} 존 ${s.collapsed ? '펼치기' : '접기'}`,
-      keywords: 'zone dock 사이드바 패널',
+      label: `${ZONE_LABEL[z]} 존`,
+      keywords: 'zone dock 사이드바 패널 접기 펼치기',
       checked: !s.collapsed,
       disabled: s.panes.length === 0 ? '이 존에는 패널이 없습니다' : undefined,
       run: () => workspace.toggleZone(z),
@@ -132,15 +134,23 @@ function buildCommands(): Command[] {
   }
 
   // ── 창(최대화·모드) ──
-  const center = l.zones.center.active
+  //
+  // 대상은 **활성 패널**이다(중앙의 활성 탭이 아니라) — 오른쪽 상태 패널을 보다가 최대화를 눌렀는데
+  // 중앙이 커지면, 누른 것과 반응한 것이 다르다.
+  const target = workspace.focused
+  const targetLabel = target ? paneDef(target)?.label : null
   out.push({
     id: 'window.maximize',
     group: '창',
-    label: l.maximized ? '최대화 해제' : '활성 패널 최대화',
+    label: l.maximized
+      ? '최대화 해제'
+      : targetLabel
+        ? `'${targetLabel}' 최대화`
+        : '활성 패널 최대화',
     keywords: 'maximize zen 전체',
     hint: 'Alt+Enter',
     disabled: ws ? undefined : '워크스페이스 모드에서만',
-    run: () => workspace.maximize(l.maximized ? null : center),
+    run: () => workspace.maximize(l.maximized ? null : target),
   })
   out.push({
     id: 'window.mode',
@@ -206,10 +216,10 @@ export function CommandPalette() {
         setAt(0)
         return
       }
-      // Alt+Enter — 활성 패널 최대화(Unity의 창 최대화 단축키와 같은 감각).
+      // Alt+Enter — **활성 패널** 최대화(Unity의 창 최대화 단축키와 같은 감각).
       if (e.altKey && e.key === 'Enter' && workspace.enabled) {
         e.preventDefault()
-        workspace.maximize(workspace.layout.maximized ? null : workspace.layout.zones.center.active)
+        workspace.maximize(workspace.layout.maximized ? null : workspace.focused)
       }
     }
     addEventListener('keydown', onKey)

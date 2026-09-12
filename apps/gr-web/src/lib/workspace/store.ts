@@ -84,6 +84,14 @@ class Workspace extends Store {
   /** 워크스페이스(도킹) 모드인가. 끄면 지금까지의 단일 화면 셸이다. */
   #ws = read(LS_MODE) === 'ws'
   #drag: DragState | null = null
+  /**
+   * **활성 패널** — 마지막으로 만진 패널. 최대화·창 명령이 이것을 대상으로 삼는다.
+   *
+   * 없으면 안 되는 이유: 예전에는 `Alt+Enter`가 늘 중앙의 활성 탭을 최대화했다. 오른쪽 상태 패널을
+   * 보다가 최대화를 누르면 **엉뚱한 면이 전체로 커진다** — 눌렀는데 다른 것이 반응하는 것은
+   * 조작이 아니라 사고다. 화면에도 표시된다(활성 존의 탭 띠가 밝고 활성 탭에 accent 밑줄).
+   */
+  #focused: string | null = null
   /** 마지막으로 적용한 프리셋 id(메뉴 체크 표시용). 사용자가 배치를 고치면 `null`. */
   #preset: string | null = DEFAULT_PRESET
 
@@ -110,6 +118,17 @@ class Workspace extends Store {
   }
   get presetId(): string | null {
     return this.#preset
+  }
+  /** 활성 패널 — 닫혔거나 아직 없으면 중앙의 활성 탭으로 떨어진다(항상 대상이 하나는 있다). */
+  get focused(): string | null {
+    const f = this.#focused
+    if (f && findZone(this.#layout, f)) return f
+    return this.#layout.zones.center.active
+  }
+  /** 이 존이 활성인가 — 껍데기가 면을 밝히는 데 쓴다. */
+  isFocusedZone(zone: ZoneId): boolean {
+    const f = this.focused
+    return f !== null && findZone(this.#layout, f) === zone
   }
   /** 지금 그려지는 패널 — 비활성 탭은 마운트하지 않는다. */
   get rendered(): string[] {
@@ -144,10 +163,12 @@ class Workspace extends Store {
 
   // ── 레이아웃 조작(전부 순수 함수를 지난다) ────────────────────────────────
   open(pane: string, zone: ZoneId = 'center'): void {
+    this.#focused = pane
     this.#apply(openPane(this.#layout, pane, zone))
   }
   /** 열려 있으면 활성화, 없으면 기본 존에 연다 — 명령 팔레트·다른 화면의 유일한 진입점. */
   reveal(pane: string, zone: ZoneId = 'center'): void {
+    this.#focused = pane
     this.#apply(
       findZone(this.#layout, pane)
         ? activatePane(this.#layout, pane)
@@ -155,12 +176,20 @@ class Workspace extends Store {
     )
   }
   activate(pane: string): void {
+    this.#focused = pane
     this.#apply(activatePane(this.#layout, pane))
+  }
+  /** 만진 패널을 활성으로 — 탭 클릭·패널 안 클릭·포커스가 부른다. 바뀔 때만 알린다(클릭마다 전체 재렌더 금지). */
+  focus(pane: string | null): void {
+    if (pane === null || this.#focused === pane || !findZone(this.#layout, pane)) return
+    this.#focused = pane
+    this.notify()
   }
   close(pane: string): void {
     this.#apply(closePane(this.#layout, pane))
   }
   move(pane: string, to: ZoneId, index?: number): void {
+    this.#focused = pane
     this.#apply(movePane(this.#layout, pane, to, index))
   }
   toggleZone(zone: ZoneId, next?: boolean): void {
@@ -169,7 +198,10 @@ class Workspace extends Store {
   resize(zone: ZoneId, size: number): void {
     this.#apply(resizeZone(this.#layout, zone, size))
   }
-  /** 최대화 토글 — 최대화하면 그 패널을 활성 탭으로도 올린다(껍데기가 그 존 하나만 그린다). */
+  /**
+   * 최대화 토글 — 최대화하면 그 패널을 활성 탭으로도 올린다(껍데기가 그 존 하나만 그린다).
+   * 대상 기본값은 **활성 패널**이다(`focused`) — 호출부가 매번 무엇을 최대화할지 고르지 않게.
+   */
   maximize(pane: string | null): void {
     const next = toggleMaximize(this.#layout, pane)
     this.#apply(next.maximized && pane ? activatePane(next, pane) : next)

@@ -103,10 +103,14 @@ export function Splitter({
       onPointerCancel={up}
       onKeyDown={key}
     >
+      {/* 선은 **항상 보인다.** 투명하게 두면 "여기를 끌 수 있다"가 화면에 없고, 존 경계도 1px 보더
+          하나로만 남아 면이 어디서 갈리는지 읽히지 않는다. 손을 얹으면 두꺼워지며 초록으로 바뀐다. */}
       <span
         className={
-          (axis === 'col' ? 'absolute inset-y-0 left-[3px] w-px' : 'absolute inset-x-0 top-[3px] h-px') +
-          ' bg-transparent transition-colors group-hover:bg-indigo-400 group-focus-visible:bg-focus'
+          (axis === 'col'
+            ? 'absolute inset-y-0 left-[3px] w-px group-hover:-mx-px group-hover:w-[3px]'
+            : 'absolute inset-x-0 top-[3px] h-px group-hover:-my-px group-hover:h-[3px]') +
+          ' bg-slate-300 transition-colors group-hover:bg-indigo-500 group-focus-visible:bg-focus dark:bg-slate-600'
         }
       />
     </div>

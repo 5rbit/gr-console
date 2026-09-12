@@ -61,12 +61,15 @@ export function WorkspaceShell() {
   const left = l.zones.left
   const right = l.zones.right
   const bottom = l.zones.bottom
+  /** 끌고 있는 동안에는 **빈 존도** 레일로 나타난다 — 놓을 자리가 화면에 없으면 도킹을 못 배운다. */
+  const dragging = workspace.drag !== null
+  const railed = (z: { panes: string[] }): boolean => z.panes.length > 0 || dragging
 
   return (
     <div className="flex min-h-0 flex-1" data-testid="workspace">
       {/* 왼쪽 */}
       {left.collapsed ? (
-        left.panes.length > 0 ? (
+        railed(left) ? (
           <ZoneRail zone="left" />
         ) : null
       ) : (
@@ -89,7 +92,7 @@ export function WorkspaceShell() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <DockZone zone="center" />
         {bottom.collapsed ? (
-          bottom.panes.length > 0 ? (
+          railed(bottom) ? (
             <ZoneRail zone="bottom" />
           ) : null
         ) : (
@@ -115,7 +118,7 @@ export function WorkspaceShell() {
 
       {/* 오른쪽 */}
       {right.collapsed ? (
-        right.panes.length > 0 ? (
+        railed(right) ? (
           <ZoneRail zone="right" />
         ) : null
       ) : (
