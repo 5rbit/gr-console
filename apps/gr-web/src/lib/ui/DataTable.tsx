@@ -118,12 +118,16 @@ export function DataTable<T>({
   // fit: 열은 `w-px`(내용 폭으로 줄어든다)이고 마지막 빈 열이 남은 폭을 먹는다 — 표 자체는 `w-full`이라
   // 행 구분선이 카드 끝까지 간다(표를 `w-auto`로 두면 선이 값 끝에서 끊겨 행이 잘린 것처럼 보인다).
   const cellW = fit ? 'w-px' : ''
+  // fit 표는 열이 내용 폭이라 값이 열을 거의 채운다 — 가운데 정렬이 머리글과 값을 한 축에 세운다
+  // (펼친 표의 왼쪽 정렬은 빈 폭 속에서 값의 시작점을 맞추는 규칙이고, 여기서는 빈 폭이 없다).
+  const align = (numeric: boolean | undefined) =>
+    fit ? 'text-center' : numeric ? 'text-right' : ''
 
   return (
     <div className="overflow-x-auto" ref={box}>
       <table className="w-full text-xs" data-testid={testid}>
         <thead>
-          <tr className="text-left text-content-tertiary">
+          <tr className={cn('text-content-tertiary', fit ? 'text-center' : 'text-left')}>
             {hidden.length > 0 ? (
               <th className="w-5 px-1 py-1">
                 <span className="sr-only">접힌 열 펼치기</span>
@@ -138,7 +142,7 @@ export function DataTable<T>({
                     'px-2 py-1 font-medium whitespace-nowrap',
                     cellW,
                     c.class ?? '',
-                    c.numeric && 'text-right',
+                    align(c.numeric),
                   )}
                 >
                   {can ? (
@@ -211,14 +215,19 @@ export function DataTable<T>({
                         'px-2 py-1 whitespace-nowrap',
                         cellW,
                         c.class ?? '',
-                        c.numeric && 'tabular-nums text-right',
+                        c.numeric && 'tabular-nums',
+                        align(c.numeric),
                       )}
                       onClick={() => onPick?.(row)}
                     >
                       {c.cell ? c.cell(row) : (c.get?.(row) ?? '—')}
                     </td>
                   ))}
-                  {actions && <td className={cn('px-2 py-1 text-right', cellW)}>{actions(row)}</td>}
+                  {actions && (
+                    <td className={cn('px-2 py-1', fit ? 'text-center' : 'text-right', cellW)}>
+                      {actions(row)}
+                    </td>
+                  )}
                   {/* 채움 칸 — 남은 폭을 먹고, 행 클릭(드릴다운)은 여기서도 통한다. */}
                   {fit ? <td aria-hidden="true" onClick={() => onPick?.(row)} /> : null}
                 </tr>
