@@ -44,9 +44,22 @@ export function ScenarioList({ items, loading, selectedId, runningId, onSelect, 
         </span>
       ),
     },
-    { key: 'steps', label: '스텝', get: (s) => s.steps.length, numeric: true },
-    { key: 'repeat', label: '반복', get: (s) => s.repeat, cell: (s) => (s.repeat === 0 ? '∞' : String(s.repeat)), numeric: true },
-    { key: 'updated', label: '갱신', get: (s) => s.updated_at, cell: (s) => <span className="text-slate-500">{fmtTime(s.updated_at)}</span> },
+    { key: 'steps', label: '스텝', get: (s) => s.steps.length, numeric: true, priority: 2 },
+    {
+      key: 'repeat',
+      label: '반복',
+      get: (s) => s.repeat,
+      cell: (s) => (s.repeat === 0 ? '∞' : String(s.repeat)),
+      numeric: true,
+      priority: 3,
+    },
+    {
+      key: 'updated',
+      label: '갱신',
+      get: (s) => s.updated_at,
+      cell: (s) => <span className="text-slate-500">{fmtTime(s.updated_at)}</span>,
+      priority: 2,
+    },
   ]
 
   return (

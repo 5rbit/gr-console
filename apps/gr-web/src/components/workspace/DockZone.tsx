@@ -7,6 +7,7 @@
 //    드래그를 못 쓰는 사람에게는 이것이 유일한 이동 수단이라 메뉴가 드래그의 장식이 아니다.
 // ③ **비활성 탭은 마운트하지 않는다.** 화면 넷이 동시에 살면 SSE·폴이 넷 다 돌고 보이지도 않는 표가
 //    초당 여러 번 그려진다(`renderedPanes`가 같은 규칙을 계산한다).
+import type * as React from 'react'
 import { ChevronsDownUp, Minimize2, MoreVertical, PanelsTopLeft, X } from 'lucide-react'
 import { ctxMenu, type MenuItem } from '../../lib/ui/menu'
 import { EmptyState } from '../../lib/ui/EmptyState'
@@ -45,9 +46,17 @@ export function paneMenu(pane: string): MenuItem[] {
   ]
 }
 
-/** 버튼 좌표에서 메뉴를 연다 — `ctxMenu`는 우클릭 좌표를 받으므로 버튼의 왼쪽 아래를 넘긴다. */
-function menuAt(el: HTMLElement, items: MenuItem[]): void {
-  const r = el.getBoundingClientRect()
+/**
+ * 버튼 좌표에서 창 메뉴를 연다 — `ctxMenu`는 우클릭 좌표를 받으므로 버튼의 왼쪽 아래를 넘긴다.
+ *
+ * **여는 클릭을 여기서 멈춰야 한다.** `ContextMenuHost`는 바깥 클릭을 window에서 듣는데, 버튼을
+ * 누른 그 클릭이 계속 올라가면 열자마자 그 리스너가 닫는다 — 메뉴가 한 프레임도 안 보였다.
+ * (우클릭 경로는 `ctxMenu.show`가 contextmenu 이벤트를 멈추므로 멀쩡했고, 그래서 이 버그가
+ * 버튼에서만 났다.)
+ */
+function openPaneMenu(e: React.MouseEvent<HTMLElement>, items: MenuItem[]): void {
+  e.stopPropagation()
+  const r = e.currentTarget.getBoundingClientRect()
   ctxMenu.show(
     {
       clientX: r.left,
@@ -114,7 +123,9 @@ export function DockZone({ zone }: DockZoneProps) {
       <div
         className={
           'flex h-control-sm shrink-0 items-stretch overflow-x-auto border-b border-slate-200 dark:border-slate-700 ' +
-          (focused ? 'bg-slate-200/70 dark:bg-slate-800' : 'bg-slate-100/70 dark:bg-slate-800/50')
+          // 면은 스케일에서 고른다 — `/70` 같은 투명도로 5층을 만들지 않는다(`docs/DESIGN.md` 5절).
+          // 활성 존은 raised(200/700), 비활성은 inset(100/800).
+          (focused ? 'bg-slate-200 dark:bg-slate-700' : 'bg-slate-100 dark:bg-slate-800')
         }
         data-testid={`tabs-${zone}`}
         onDragOver={(e) => {
@@ -218,7 +229,7 @@ export function DockZone({ zone }: DockZoneProps) {
             aria-label="창 메뉴"
             title="창 메뉴 — 최대화 · 존 이동 · 닫기"
             data-testid={`zone-menu-${zone}`}
-            onClick={(e) => menuAt(e.currentTarget, paneMenu(active))}
+            onClick={(e) => openPaneMenu(e, paneMenu(active))}
           >
             <MoreVertical className="h-3.5 w-3.5" />
           </button>
@@ -301,7 +312,7 @@ export function ZoneRail({ zone }: DockZoneProps) {
         (zone === 'left' ? ' border-r' : zone === 'right' ? ' border-l' : ' border-t') +
         (empty && drag
           ? ' border-dashed border-indigo-400 bg-indigo-500/10'
-          : ' bg-slate-100/70 dark:bg-slate-800/50')
+          : ' bg-slate-100 dark:bg-slate-800')
       }
       title={empty ? `${ZONE_LABEL[zone]} 존 — 탭을 여기에 놓으면 도킹된다` : undefined}
       data-testid={`rail-${zone}`}

@@ -97,32 +97,56 @@ export function TaskTable({
 }: TaskTableProps) {
   const columns = useMemo<Column<Task>[]>(
     () => [
-      { key: 'seq', label: '#', get: (t) => t.seq, numeric: true, class: 'w-12' },
+      // `priority` — 좁은 존(오른쪽 인스펙터·하단)에 이 표가 들어갈 수 있다. 1은 **행을 알아보는 데
+      // 필요한 것**(번호·상태·대상), 2는 맥락(어느 로봇·무슨 종류·얼마나 됐나), 3은 세부다.
+      // 접힌 열은 행을 펼치면 라벨+값 짝으로 나온다(`DataTable`).
+      { key: 'seq', label: '#', get: (t) => t.seq, numeric: true, class: 'w-12', priority: 1 },
       {
         key: 'state',
         label: '상태',
         get: (t) => t.state,
         cell: (t) => <StateCell task={t} area={area} />,
+        priority: 1,
       },
-      { key: 'robot', label: '로봇', get: (t) => t.plc_name ?? '', class: 'font-mono' },
-      { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType) },
-      { key: 'target', label: '대상', get: (t) => targetLabel(t) },
-      { key: 'item', label: '품목', get: (t) => t.plc_task?.Item?.Code || null, numeric: true },
-      { key: 'count', label: '수량', get: (t) => t.plc_task?.Item?.Count ?? null, numeric: true },
+      {
+        key: 'robot',
+        label: '로봇',
+        get: (t) => t.plc_name ?? '',
+        class: 'font-mono',
+        priority: 2,
+      },
+      { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType), priority: 2 },
+      { key: 'target', label: '대상', get: (t) => targetLabel(t), priority: 1 },
+      {
+        key: 'item',
+        label: '품목',
+        get: (t) => t.plc_task?.Item?.Code || null,
+        numeric: true,
+        priority: 3,
+      },
+      {
+        key: 'count',
+        label: '수량',
+        get: (t) => t.plc_task?.Item?.Count ?? null,
+        numeric: true,
+        priority: 3,
+      },
       {
         key: 'ack',
         label: 'Ack',
         get: (t) => t.ack?.code ?? null,
         cell: (t) => <AckCell task={t} />,
         numeric: true,
+        priority: 3,
       },
-      { key: 'step', label: 'PLC', get: (t) => plcStep(t), class: 'font-mono' },
-      { key: 'origin', label: '출처', get: (t) => ORIGIN_LABEL[t.origin] },
+      { key: 'step', label: 'PLC', get: (t) => plcStep(t), class: 'font-mono', priority: 3 },
+      { key: 'origin', label: '출처', get: (t) => ORIGIN_LABEL[t.origin], priority: 3 },
       {
         key: 'created',
         label: '생성',
         get: (t) => t.created_at,
         cell: (t) => <span className="tabular-nums">{fmtTime(t.created_at, now)}</span>,
+        priority: 3,
       },
       {
         key: 'elapsed',
@@ -130,6 +154,7 @@ export function TaskTable({
         get: (t) => elapsed(t, now),
         cell: (t) => <span className="tabular-nums">{fmtElapsed(elapsed(t, now))}</span>,
         numeric: true,
+        priority: 2,
       },
     ],
     [area, now],

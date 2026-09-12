@@ -32,11 +32,10 @@
 | ![](12_history_item.png) | 측정 이력 — MeasureItem Data 배치 |
 | ![](13_history_sku.png) | 측정 이력 — MeasureSku Data 배치 |
 
-## 셸 — 워크스페이스(도킹)·명령 팔레트·밀도
+## 셸 — 워크스페이스(도킹)·명령 팔레트·밀도·표 접기
 
-`vite preview`(백엔드 없음)로 띄운 화면을 헤드리스 Chromium(playwright)으로 캡처했다. 백엔드가 없어
-목록은 비어 있고 일부 카드에 `502`가 뜬다 — **셸의 구성**을 보는 캡처라 그대로 남겼다. 규칙은
-`docs/DESIGN.md`, 결정 이유는 `docs/ui-ux-plan.md`.
+`gr-console --demo`(가짜 PLC)로 띄운 화면을 헤드리스 Chromium(playwright)으로 캡처했다. Task 여섯
+건을 넣은 상태다. 규칙은 `docs/DESIGN.md`, 결정 이유는 `docs/ui-ux-plan.md`.
 
 | 파일 | 내용 |
 |---|---|
@@ -57,3 +56,6 @@
 | ![](34_after_reload.png) | 새로고침 후 — 배치·모드·밀도·저장한 배치가 그대로 복원된다 |
 | ![](35_focused_zone_right.png) | 활성 패널 — 오른쪽 존을 만지면 그 탭 띠가 밝아지고 accent 밑줄을 받는다(다른 존은 회색). `Alt+Enter`의 대상이 이것이다 |
 | ![](36_empty_zone_rail.png) | 드래그 중에는 **빈 존도** 점선 레일로 뜬다(오른쪽 끝) — 놓을 자리가 화면에서 사라지지 않는다 |
+| ![](37_table_narrow_zone.png) | 273px 존에 들어간 Task 표 — 열 열둘이 `#·상태·대상` 셋으로 접힌다(가로 스크롤이 아니라) |
+| ![](38_table_wide_after_maximize.png) | 같은 표, 최대화(1574px) — 열 열둘이 전부 돌아온다 |
+| ![](39_table_row_expanded.png) | 접힌 열은 버리지 않는다 — 행을 펼치면 아홉 열이 라벨+값 짝으로 나온다 |
