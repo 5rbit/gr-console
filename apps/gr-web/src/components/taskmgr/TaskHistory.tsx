@@ -7,10 +7,8 @@ import { Button } from '../../lib/ui/Button'
 import { Card } from '../../lib/ui/Card'
 import { DataTable } from '../../lib/ui/DataTable'
 import { Pagination } from '../../lib/ui/Pagination'
-import type { Column } from '../../lib/ui/table'
-import { ORIGIN_LABEL, elapsed, fmtElapsed, fmtTime, typeName } from '../../lib/task/state'
 import type { Task, TaskPage } from '../../lib/types'
-import { AckCell, StateCell, targetLabel } from './TaskTable'
+import { taskColumns } from './TaskTable'
 
 const LIMIT = 50
 
@@ -49,67 +47,8 @@ export function TaskHistory({ selected, onPick, refreshKey, now }: TaskHistoryPr
     if (offset === 0) void load(0)
   }, [refreshKey, load, offset])
 
-  // `priority` — 좁은 존에서 남을 순서. 종결 이력에서 먼저 읽는 것은 **무엇이 어떻게 끝났나**다:
-  // 번호·상태·사유가 1이고, 대상·종결 시각이 2, 나머지 세부가 3이다(접힌 열은 행을 펼치면 나온다).
-  const columns: Column<Task>[] = [
-    { key: 'seq', label: '#', get: (t) => t.seq, numeric: true, class: 'w-12', priority: 1 },
-    {
-      key: 'state',
-      label: '상태',
-      get: (t) => t.state,
-      cell: (t) => <StateCell task={t} area={null} />,
-      priority: 1,
-    },
-    { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType), priority: 3 },
-    { key: 'target', label: '대상', get: (t) => targetLabel(t), priority: 2 },
-    {
-      key: 'item',
-      label: '품목',
-      get: (t) => t.plc_task?.Item?.Code || null,
-      numeric: true,
-      priority: 3,
-    },
-    {
-      key: 'ack',
-      label: 'Ack',
-      get: (t) => t.ack?.code ?? null,
-      cell: (t) => <AckCell task={t} />,
-      numeric: true,
-      priority: 3,
-    },
-    { key: 'origin', label: '출처', get: (t) => ORIGIN_LABEL[t.origin], priority: 3 },
-    {
-      key: 'ended',
-      label: '종결',
-      get: (t) => t.ended_at,
-      cell: (t) => <span className="tabular-nums">{fmtTime(t.ended_at, now)}</span>,
-      priority: 2,
-    },
-    {
-      key: 'elapsed',
-      label: '소요',
-      get: (t) => elapsed(t, now),
-      cell: (t) => <span className="tabular-nums">{fmtElapsed(elapsed(t, now))}</span>,
-      numeric: true,
-      priority: 3,
-    },
-    {
-      key: 'reason',
-      label: '사유',
-      priority: 1,
-      get: (t) => t.error ?? (t.ack && !t.ack.accepted ? t.ack.reason : null),
-      cell: (t) => {
-        const r = t.error ?? (t.ack && !t.ack.accepted ? t.ack.reason : '')
-        return r ? (
-          <span className="block max-w-64 truncate text-content-muted" title={r}>
-            {r}
-          </span>
-        ) : (
-          <span className="text-content-disabled">—</span>
-        )
-      },
-    },
-  ]
+  // 위 목록과 **같은 열**이다(`taskColumns`) — 종결 뒤에도 같은 자리에서 같은 값을 읽는다.
+  const columns = taskColumns(null, now)
 
   return (
     <Card padded={false} className="flex min-h-0 flex-col">
@@ -143,6 +82,7 @@ export function TaskHistory({ selected, onPick, refreshKey, now }: TaskHistoryPr
           empty="종결된 Task 없음"
           emptyHint="완료·취소·거부·실패한 Task가 여기에 쌓입니다."
           testid="history-table"
+          fit
         />
       </div>
       {page && page.total > 0 ? (

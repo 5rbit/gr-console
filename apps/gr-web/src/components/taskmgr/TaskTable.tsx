@@ -13,8 +13,6 @@ import {
   STATE_LABEL,
   STATE_TONE,
   deriveState,
-  elapsed,
-  fmtElapsed,
   fmtTime,
   dimsLabel,
   targetLabel,
@@ -79,6 +77,90 @@ export function AckCell({ task }: { task: Task }) {
   )
 }
 
+/**
+ * Task 표의 열 — **목록과 종결 이력이 같은 열**을 쓴다. 두 표가 열이 다르면 같은 Task가 위아래에서
+ * 다른 모양으로 보이고, 종결 뒤에 "어디 갔지"를 찾게 된다. `area`는 대조용 PLC 스냅샷(이력은 null).
+ */
+export function taskColumns(area: PlcTaskArea | null, now: number): Column<Task>[] {
+  return [
+    // 열의 순서와 구성은 현장 요구 그대로다: WorkId · TaskId · 로봇 · 셀 · 종류 · 품목 · 명령시간 ·
+    // 완료시각 · 상태 · 조작. `priority` — 좁은 존에서는 셀·종류·상태(1)가 남고, 로봇·품목·완료시각(2),
+    // Id·명령시간(3) 순으로 접힌다(접힌 값은 행 펼치기로).
+    {
+      key: 'work',
+      label: 'WorkId',
+      get: (t) => (t.work_id ? String(t.work_id) : ''),
+      class: 'font-mono',
+      priority: 3,
+    },
+    {
+      key: 'task',
+      label: 'TaskId',
+      get: (t) => (t.work_id ? t.task_id : null),
+      numeric: true,
+      priority: 3,
+    },
+    {
+      key: 'robot',
+      label: '로봇',
+      get: (t) => t.plc_name ?? '',
+      class: 'font-mono',
+      priority: 2,
+    },
+    { key: 'target', label: '셀', get: (t) => targetLabel(t), priority: 1 },
+    { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType), priority: 1 },
+    {
+      key: 'item',
+      label: '품목',
+      get: (t) => t.plc_task?.Item?.Code || null,
+      cell: (t) => {
+        const i = t.plc_task?.Item
+        if (!i?.Code) return <span className="text-content-faint">—</span>
+        return (
+          <span
+            className="tabular-nums"
+            title={dimsLabel(t) ? `ID/OD/H ${dimsLabel(t)}` : undefined}
+          >
+            {i.Code}
+            {i.Count > 1 ? <span className="text-content-faint"> ×{i.Count}</span> : null}
+          </span>
+        )
+      },
+      numeric: true,
+      priority: 2,
+    },
+    {
+      key: 'issued',
+      label: '명령시간',
+      get: (t) => t.submitted_at ?? t.created_at,
+      cell: (t) => (
+        <span className="tabular-nums">{fmtTime(t.submitted_at ?? t.created_at, now)}</span>
+      ),
+      priority: 3,
+    },
+    {
+      key: 'ended',
+      label: '완료시각',
+      get: (t) => t.ended_at ?? '',
+      // 끝나지 않은 행은 비워 둔다 — 경과 시간은 상세가 든다. 끝난 시각이 "언제 끝났나"를 바로 말한다.
+      cell: (t) =>
+        t.ended_at ? (
+          <span className="tabular-nums">{fmtTime(t.ended_at, now)}</span>
+        ) : (
+          <span className="text-content-faint">—</span>
+        ),
+      priority: 2,
+    },
+    {
+      key: 'state',
+      label: '상태',
+      get: (t) => t.state,
+      cell: (t) => <StateCell task={t} area={area} />,
+      priority: 1,
+    },
+  ]
+}
+
 export function TaskTable({
   rows,
   area,
@@ -91,81 +173,7 @@ export function TaskTable({
   testid = 'task-table',
   rowActions = false,
 }: TaskTableProps) {
-  const columns = useMemo<Column<Task>[]>(
-    () => [
-      // 열의 순서와 구성은 현장 요구 그대로다: WorkId · TaskId · 로봇 · 셀 · 종류 · 품목 · 명령시간 ·
-      // 처리시간 · 상태 · 조작. `priority` — 좁은 존에서는 셀·종류·상태(1)가 남고, 로봇·품목·처리시간(2),
-      // Id·명령시간(3) 순으로 접힌다(접힌 값은 행 펼치기로).
-      {
-        key: 'work',
-        label: 'WorkId',
-        get: (t) => (t.work_id ? String(t.work_id) : ''),
-        class: 'font-mono',
-        priority: 3,
-      },
-      {
-        key: 'task',
-        label: 'TaskId',
-        get: (t) => (t.work_id ? t.task_id : null),
-        numeric: true,
-        priority: 3,
-      },
-      {
-        key: 'robot',
-        label: '로봇',
-        get: (t) => t.plc_name ?? '',
-        class: 'font-mono',
-        priority: 2,
-      },
-      { key: 'target', label: '셀', get: (t) => targetLabel(t), priority: 1 },
-      { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType), priority: 1 },
-      {
-        key: 'item',
-        label: '품목',
-        get: (t) => t.plc_task?.Item?.Code || null,
-        cell: (t) => {
-          const i = t.plc_task?.Item
-          if (!i?.Code) return <span className="text-content-faint">—</span>
-          return (
-            <span
-              className="tabular-nums"
-              title={dimsLabel(t) ? `ID/OD/H ${dimsLabel(t)}` : undefined}
-            >
-              {i.Code}
-              {i.Count > 1 ? <span className="text-content-faint"> ×{i.Count}</span> : null}
-            </span>
-          )
-        },
-        numeric: true,
-        priority: 2,
-      },
-      {
-        key: 'issued',
-        label: '명령시간',
-        get: (t) => t.submitted_at ?? t.created_at,
-        cell: (t) => (
-          <span className="tabular-nums">{fmtTime(t.submitted_at ?? t.created_at, now)}</span>
-        ),
-        priority: 3,
-      },
-      {
-        key: 'elapsed',
-        label: '처리시간',
-        get: (t) => elapsed(t, now),
-        cell: (t) => <span className="tabular-nums">{fmtElapsed(elapsed(t, now))}</span>,
-        numeric: true,
-        priority: 2,
-      },
-      {
-        key: 'state',
-        label: '상태',
-        get: (t) => t.state,
-        cell: (t) => <StateCell task={t} area={area} />,
-        priority: 1,
-      },
-    ],
-    [area, now],
-  )
+  const columns = useMemo(() => taskColumns(area, now), [area, now])
   return (
     <DataTable
       rows={rows}
@@ -177,6 +185,7 @@ export function TaskTable({
       empty={empty}
       emptyHint={emptyHint}
       testid={testid}
+      fit
       actions={
         rowActions
           ? (t) => <TaskActions task={t} only={ROW_ACTIONS} iconOnly testid="row-action" />

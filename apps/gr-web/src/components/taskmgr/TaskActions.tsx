@@ -127,7 +127,11 @@ export function TaskActions({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1" data-testid="task-actions">
+      {/* 아이콘만일 때는 줄바꿈하지 않는다 — 폭이 내용에 맞는 표 셀(`fit`)에서 둘이 세로로 쌓인다. */}
+      <div
+        className={iconOnly ? 'flex items-center gap-1' : 'flex flex-wrap items-center gap-1'}
+        data-testid="task-actions"
+      >
         {actions.map((a) => (
           <Button
             key={a}
