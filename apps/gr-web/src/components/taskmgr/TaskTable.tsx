@@ -10,7 +10,6 @@ import { StatusBadge } from '../../lib/ui/StatusBadge'
 import { StatusDot } from '../../lib/ui/StatusDot'
 import type { Column } from '../../lib/ui/table'
 import {
-  ORIGIN_LABEL,
   STATE_LABEL,
   STATE_TONE,
   deriveState,
@@ -45,15 +44,6 @@ const ROW_ACTIONS = ['cancel', 'complete'] as const
 
 // 라벨 도우미는 `lib/task/state.ts`에 있다(순수 · 테스트 가능). 여기서는 이력 표가 쓰던 이름을 그대로 낸다.
 export { targetLabel }
-
-/** PLC 자리 — 실행 중이면 스텝, 대기면 큐 슬롯. */
-function plcStep(task: Task): string {
-  const p = task.plc
-  if (!p) return ''
-  if (task.state === 'running') return String(p.step)
-  if (task.state === 'queued' && p.queue_index !== null) return `Q${p.queue_index}`
-  return ''
-}
 
 export function StateCell({ task, area }: { task: Task; area: PlcTaskArea | null }) {
   const d = deriveState(task, area)
@@ -103,53 +93,9 @@ export function TaskTable({
 }: TaskTableProps) {
   const columns = useMemo<Column<Task>[]>(
     () => [
-      // `priority` — 좁은 존(오른쪽 인스펙터·하단)에 이 표가 들어갈 수 있다. 1은 **행을 알아보는 데
-      // 필요한 것**(번호·상태·대상), 2는 맥락(어느 로봇·무슨 종류·얼마나 됐나), 3은 세부다.
-      // 접힌 열은 행을 펼치면 라벨+값 짝으로 나온다(`DataTable`).
-      { key: 'seq', label: '#', get: (t) => t.seq, numeric: true, class: 'w-12', priority: 1 },
-      {
-        key: 'state',
-        label: '상태',
-        get: (t) => t.state,
-        cell: (t) => <StateCell task={t} area={area} />,
-        priority: 1,
-      },
-      {
-        key: 'robot',
-        label: '로봇',
-        get: (t) => t.plc_name ?? '',
-        class: 'font-mono',
-        priority: 2,
-      },
-      { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType), priority: 2 },
-      { key: 'target', label: '대상', get: (t) => targetLabel(t), priority: 1 },
-      {
-        key: 'item',
-        label: '품목',
-        get: (t) => t.plc_task?.Item?.Code || null,
-        numeric: true,
-        priority: 3,
-      },
-      {
-        key: 'count',
-        label: '수량',
-        get: (t) => t.plc_task?.Item?.Count ?? null,
-        numeric: true,
-        priority: 3,
-      },
-      { key: 'dims', label: 'ID/OD/H', get: (t) => dimsLabel(t), class: 'font-mono', priority: 3 },
-      {
-        key: 'note',
-        label: '메모',
-        get: (t) => t.request?.note ?? '',
-        // 메모는 작업자가 적은 "이 작업의 뜻"이라 번호보다 먼저 알아본다 — 2순위. 길면 자른다.
-        cell: (t) => (
-          <span className="block max-w-48 truncate" title={t.request?.note ?? undefined}>
-            {t.request?.note ?? ''}
-          </span>
-        ),
-        priority: 2,
-      },
+      // 열의 순서와 구성은 현장 요구 그대로다: WorkId · TaskId · 로봇 · 셀 · 종류 · 품목 · 명령시간 ·
+      // 처리시간 · 상태 · 조작. `priority` — 좁은 존에서는 셀·종류·상태(1)가 남고, 로봇·품목·처리시간(2),
+      // Id·명령시간(3) 순으로 접힌다(접힌 값은 행 펼치기로).
       {
         key: 'work',
         label: 'WorkId',
@@ -158,29 +104,64 @@ export function TaskTable({
         priority: 3,
       },
       {
-        key: 'ack',
-        label: 'Ack',
-        get: (t) => t.ack?.code ?? null,
-        cell: (t) => <AckCell task={t} />,
+        key: 'task',
+        label: 'TaskId',
+        get: (t) => (t.work_id ? t.task_id : null),
         numeric: true,
         priority: 3,
       },
-      { key: 'step', label: 'PLC', get: (t) => plcStep(t), class: 'font-mono', priority: 3 },
-      { key: 'origin', label: '출처', get: (t) => ORIGIN_LABEL[t.origin], priority: 3 },
       {
-        key: 'created',
-        label: '생성',
-        get: (t) => t.created_at,
-        cell: (t) => <span className="tabular-nums">{fmtTime(t.created_at, now)}</span>,
+        key: 'robot',
+        label: '로봇',
+        get: (t) => t.plc_name ?? '',
+        class: 'font-mono',
+        priority: 2,
+      },
+      { key: 'target', label: '셀', get: (t) => targetLabel(t), priority: 1 },
+      { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType), priority: 1 },
+      {
+        key: 'item',
+        label: '품목',
+        get: (t) => t.plc_task?.Item?.Code || null,
+        cell: (t) => {
+          const i = t.plc_task?.Item
+          if (!i?.Code) return <span className="text-content-faint">—</span>
+          return (
+            <span
+              className="tabular-nums"
+              title={dimsLabel(t) ? `ID/OD/H ${dimsLabel(t)}` : undefined}
+            >
+              {i.Code}
+              {i.Count > 1 ? <span className="text-content-faint"> ×{i.Count}</span> : null}
+            </span>
+          )
+        },
+        numeric: true,
+        priority: 2,
+      },
+      {
+        key: 'issued',
+        label: '명령시간',
+        get: (t) => t.submitted_at ?? t.created_at,
+        cell: (t) => (
+          <span className="tabular-nums">{fmtTime(t.submitted_at ?? t.created_at, now)}</span>
+        ),
         priority: 3,
       },
       {
         key: 'elapsed',
-        label: '경과',
+        label: '처리시간',
         get: (t) => elapsed(t, now),
         cell: (t) => <span className="tabular-nums">{fmtElapsed(elapsed(t, now))}</span>,
         numeric: true,
         priority: 2,
+      },
+      {
+        key: 'state',
+        label: '상태',
+        get: (t) => t.state,
+        cell: (t) => <StateCell task={t} area={area} />,
+        priority: 1,
       },
     ],
     [area, now],
@@ -198,7 +179,7 @@ export function TaskTable({
       testid={testid}
       actions={
         rowActions
-          ? (t) => <TaskActions task={t} only={ROW_ACTIONS} icons={false} testid="row-action" />
+          ? (t) => <TaskActions task={t} only={ROW_ACTIONS} iconOnly testid="row-action" />
           : undefined
       }
     />

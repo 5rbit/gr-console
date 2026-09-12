@@ -26,8 +26,10 @@ export interface TaskActionsProps {
   size?: 'sm' | 'md'
   /** 이 조작만 그린다(상태가 허용하는 것과 교집합). 표의 행 액션은 취소·완료 둘만 싣는다. */
   only?: readonly TaskAction[]
-  /** 아이콘 없이 글자만 — 표 셀 안에는 아이콘을 두지 않는다(DESIGN.md 5절 예산). */
+  /** 아이콘 없이 글자만. */
   icons?: boolean
+  /** 아이콘만(행 액션 열) — 라벨은 `aria-label`·`title`로 남는다. 표 셀의 유일한 아이콘 예외다. */
+  iconOnly?: boolean
   /** `data-testid` 접두 — 상세(`action-*`)와 행(`row-action-*`)이 한 화면에 같이 선다. */
   testid?: string
 }
@@ -103,6 +105,7 @@ export function TaskActions({
   size = 'sm',
   only,
   icons = true,
+  iconOnly = false,
   testid = 'action',
 }: TaskActionsProps) {
   const [pending, setPending] = useState<TaskAction | null>(null)
@@ -128,17 +131,19 @@ export function TaskActions({
         {actions.map((a) => (
           <Button
             key={a}
-            size={size}
+            size={iconOnly ? 'icon-sm' : size}
             intent={
               DANGER.has(a) ? 'outline' : a === 'submit' || a === 'resubmit' ? 'primary' : 'neutral'
             }
-            icon={icons ? ICON[a] : undefined}
+            icon={icons || iconOnly ? ICON[a] : undefined}
             loading={busy === a}
             disabled={busy !== null}
+            aria-label={iconOnly ? ACTION_LABEL[a] : undefined}
+            title={iconOnly ? ACTION_LABEL[a] : undefined}
             data-testid={`${testid}-${a}`}
             onClick={() => setPending(a)}
           >
-            {ACTION_LABEL[a]}
+            {iconOnly ? null : ACTION_LABEL[a]}
           </Button>
         ))}
       </div>
