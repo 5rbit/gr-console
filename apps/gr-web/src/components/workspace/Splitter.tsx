@@ -90,12 +90,11 @@ export function Splitter({
       aria-valuemin={min}
       aria-valuemax={max}
       data-testid={`splitter-${label}`}
+      // 기하(7px 잡을 면 · 1px 선 · hover 3px)는 `app.css`의 `.ds-splitter*`가 든다 — 임의값을
+      // 여기 뿌리지 않는다. 이 컴포넌트는 **동작**만 안다(포인터·키보드·값 계산).
       className={
-        // 손잡이는 2px 선 위에 6px 잡을 면을 덮는다 — 선을 굵게 하면 격자가 지저분해진다.
-        (axis === 'col'
-          ? 'relative z-10 -mx-[3px] w-[7px] shrink-0 cursor-col-resize'
-          : 'relative z-10 -my-[3px] h-[7px] shrink-0 cursor-row-resize') +
-        ' group focus-visible:outline-none'
+        (axis === 'col' ? 'ds-splitter ds-splitter-col' : 'ds-splitter ds-splitter-row') +
+        ' focus-visible:outline-none'
       }
       onPointerDown={down}
       onPointerMove={move}
@@ -105,14 +104,7 @@ export function Splitter({
     >
       {/* 선은 **항상 보인다.** 투명하게 두면 "여기를 끌 수 있다"가 화면에 없고, 존 경계도 1px 보더
           하나로만 남아 면이 어디서 갈리는지 읽히지 않는다. 손을 얹으면 두꺼워지며 초록으로 바뀐다. */}
-      <span
-        className={
-          (axis === 'col'
-            ? 'absolute inset-y-0 left-[3px] w-px group-hover:-mx-px group-hover:w-[3px]'
-            : 'absolute inset-x-0 top-[3px] h-px group-hover:-my-px group-hover:h-[3px]') +
-          ' bg-slate-300 transition-colors group-hover:bg-indigo-500 group-focus-visible:bg-focus dark:bg-slate-600'
-        }
-      />
+      <span className="ds-splitter-line" />
     </div>
   )
 }

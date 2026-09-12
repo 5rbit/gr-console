@@ -19,7 +19,7 @@ export function RobotPicker({ compact = false }: { compact?: boolean }) {
   const sel = robots.selected
   if (!list.length)
     return (
-      <span className="text-[11px] text-slate-400">
+      <span className="text-2xs text-slate-400">
         {robots.error ? '로봇 목록 없음' : '로봇…'}
       </span>
     )
@@ -56,7 +56,7 @@ export function RobotPicker({ compact = false }: { compact?: boolean }) {
               <StatusDot status={robotTone(r)} />
               {r.name}
               {r.active_tasks ? (
-                <span className={cn('font-mono text-[10px]', on ? 'opacity-80' : 'text-slate-400')}>
+                <span className={cn('font-mono text-3xs', on ? 'opacity-80' : 'text-slate-400')}>
                   {r.active_tasks}
                 </span>
               ) : null}

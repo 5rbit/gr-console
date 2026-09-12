@@ -98,7 +98,7 @@ export function StockEditDialog({
             onValueChange={(s) => setV({ ...v, count: Number(s) })}
             data-testid="stock-count"
           />
-          <p className="text-[11px] text-slate-500">
+          <p className="text-2xs text-slate-500">
             개수 0 이면 품목도 비웁니다. PICK/DROP 완료 시 백엔드가 자동으로 ±수량 합니다.
           </p>
           <div className="flex justify-end gap-2">
@@ -224,7 +224,7 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
       label: '갱신',
       get: (r) => r.stock?.updated_at ?? '',
       cell: (r) => (
-        <span className="text-[11px] text-slate-500">
+        <span className="text-2xs text-slate-500">
           {r.stock?.updated_at?.slice(5, 19).replace('T', ' ') ?? ''}
         </span>
       ),

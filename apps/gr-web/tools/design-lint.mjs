@@ -46,20 +46,43 @@ const RULES = [
   },
   {
     id: 'no-opacity-surface',
-    why: '배경에 투명도를 섞어 새 면(5층)을 만들지 않는다 — 면은 4층(app·panel·inset·raised)이고 스케일 값으로 고른다',
+    why: '중립색 배경에 투명도를 섞어 새 면(5층)을 만들지 않는다 — 면은 4층(app·panel·inset·raised)이고 스케일 값으로 고른다',
     ext: ['.tsx'],
-    // 오버레이 백드롭(`bg-black/30`)은 면이 아니라 가림막이라 예외다.
+    /**
+     * **중립색(white·slate·neutral·gray)만 본다.**
+     *
+     * 첫 판은 색을 가리지 않아서 `dark:bg-amber-500/15` 같은 것까지 46건을 잡았는데, 그건 면이
+     * 아니라 **상태 soft 배경**이다(라이트의 `bg-amber-50`에 대응하는 다크 값). 다크 팔레트에
+     * soft 토큰이 없어서 생긴 것이고, 그 사실은 `docs/DESIGN.md` 6절이 "알고 쓰는 절충"으로
+     * 이미 기록해 뒀다 — 린터가 그걸 매일 다시 보고할 이유가 없다.
+     *
+     * 겨냥하는 것은 `bg-slate-200/70`·`bg-white/95`처럼 **면을 투명도로 한 층 더 만드는 것**이다
+     * (백드롭 `bg-black/…`은 면이 아니라 가림막이라 예외).
+     */
     test: (l) =>
-      [...l.matchAll(/\bbg-(?!black\/)[a-z]+-\d{2,3}\/\d{1,3}\b/g)].map((m) => m[0]),
+      [
+        ...l.matchAll(/\bbg-(?:white|slate|neutral|gray)(?:-\d{2,3})?\/\d{1,3}\b/g),
+      ].map((m) => m[0]),
   },
   {
     id: 'no-arbitrary-value',
-    why: '임의값(`text-[11px]`·`h-[7px]`)을 쓰지 않는다 — 크기·간격·라운딩은 토큰 스케일에서 고른다',
+    why: '임의값(`text-[13px]`·`gap-[7px]`)을 쓰지 않는다 — 글자 크기·라운딩·간격은 토큰 스케일에서 고른다',
     ext: ['.tsx'],
+    /**
+     * **스케일이 실제로 있는 속성만 본다**(글자 크기 · 라운딩 · 간격).
+     *
+     * 첫 판에서는 폭·높이·위치·z·shadow까지 걸었는데, 남은 위반이 `w-[620px]`(대화상자 폭) ·
+     * `max-h-[70vh]`(뷰포트 상한) · `max-w-[calc(100%-6rem)]` 같은 **스케일이 있을 수 없는 것들**
+     * 이었다. 그것까지 막으면 `--spacing-dialog-620` 같은 가짜 토큰이 생기거나(더 나쁘다) 예외
+     * 주석이 스물이 된다 — 예외가 스물인 린터는 아무도 켜 두지 않는다.
+     *
+     * 기하가 반복되면 임의값을 뿌리지 말고 **CSS 유틸리티로 모은다**(`app.css`의 `.ds-splitter*`가
+     * 그렇게 나왔다). 그건 규칙이 아니라 관용이고, 리뷰가 본다.
+     */
     test: (l) =>
       [
         ...l.matchAll(
-          /\b(?:text|h|w|min-h|max-h|min-w|max-w|p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap|rounded|top|bottom|left|right|z|shadow)-\[[^\]]+\]/g,
+          /\b(?:text|rounded|gap|gap-x|gap-y|p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|space-x|space-y)-\[[^\]]+\]/g,
         ),
       ].map((m) => m[0]),
   },
@@ -142,10 +165,23 @@ const files = walk(SRC)
   .sort()
 
 // ── 검사 ────────────────────────────────────────────────────────────────────
-/** `design-lint-allow: <rule> — 이유` 가 이 줄이나 윗줄에 있나(이유 없는 예외는 안 받는다). */
+/**
+ * `design-lint-allow: <rule> — 이유` 가 이 줄이나 **바로 위 주석 블록**에 있나.
+ *
+ * 윗줄 하나만 보면 안 된다: 이유를 제대로 적으면 주석이 두 줄이 되고, 그러면 표식은 두 줄 위로
+ * 밀려 예외가 먹지 않는다(첫 판에서 실제로 그렇게 놓쳤다). 그래서 위로 주석인 줄만 세 줄까지
+ * 훑는다 — 코드 줄을 만나면 멈추므로 남의 예외가 이 줄까지 내려오지 않는다.
+ * 이유(` — `)가 없는 표식은 예외로 받지 않는다.
+ */
 function allowed(rule, lines, i) {
   const re = new RegExp(`design-lint-allow:\\s*${rule}\\b[^\\n]*—`)
-  return re.test(lines[i] ?? '') || re.test(lines[i - 1] ?? '')
+  if (re.test(lines[i] ?? '')) return true
+  for (let k = i - 1; k >= 0 && i - k <= 3; k--) {
+    const up = (lines[k] ?? '').trim()
+    if (!up.startsWith('//') && !up.startsWith('*') && !up.startsWith('/*')) break
+    if (re.test(up)) return true
+  }
+  return false
 }
 
 const found = {} // { "rule": { "path": [ {line, text} ] } }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '../utils'
 
 export const mapIconBtn =
-  'flex h-control-md w-control-md items-center justify-center rounded-md border border-slate-200 bg-white/95 text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+  'flex h-control-md w-control-md items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
 
 export interface MapIconButtonProps {
   icon: ReactNode
@@ -101,7 +101,7 @@ export function IconPopover({
                 : 'top-10 left-0',
           )}
         >
-          <div className="mb-2 text-[11px] font-semibold text-slate-500">{title}</div>
+          <div className="mb-2 text-2xs font-semibold text-slate-500">{title}</div>
           {children}
         </div>
       ) : null}

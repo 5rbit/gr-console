@@ -120,7 +120,7 @@ export function TaskHistory({ selected, onPick, refreshKey, now }: TaskHistoryPr
         <History size={14} className="text-slate-400" />
         <span className="text-xs font-semibold">종결 이력</span>
         {error ? (
-          <span className="truncate text-[11px] text-red-600 dark:text-red-400">{error}</span>
+          <span className="truncate text-2xs text-red-600 dark:text-red-400">{error}</span>
         ) : null}
         <span className="flex-1" />
         <Button

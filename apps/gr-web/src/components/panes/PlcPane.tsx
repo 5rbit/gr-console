@@ -83,7 +83,7 @@ export default function PlcPane() {
   return (
     <ul className="min-h-0 flex-1 overflow-y-auto" data-testid="plc-list">
       {plcs.list.length === 0 ? (
-        <li className="px-2 py-2 text-[11px] text-slate-400">
+        <li className="px-2 py-2 text-2xs text-slate-400">
           {plcs.error ? `PLC 목록 조회 실패 — ${plcs.error}` : 'PLC 목록 없음'}
         </li>
       ) : null}
@@ -108,7 +108,7 @@ export default function PlcPane() {
             >
               <StatusDot status={plcDot(p)} size="sm" />
               <span className="min-w-0 flex-1 truncate text-xs font-medium">{p.label}</span>
-              <span className="font-mono text-[10px] tabular-nums text-slate-400">
+              <span className="font-mono text-3xs tabular-nums text-slate-400">
                 {p.rtt_ms !== null ? `${Math.round(p.rtt_ms)}ms` : '—'}
               </span>
               <StatusBadge status={lb.status}>{lb.label}</StatusBadge>

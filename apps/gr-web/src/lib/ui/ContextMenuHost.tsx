@@ -49,7 +49,7 @@ export function ContextMenuHost({ className }: ContextMenuHostProps = {}) {
         !it.run ? (
           <div
             key={it.label + i}
-            className="truncate px-2.5 py-1 font-mono text-[10px] text-slate-400"
+            className="truncate px-2.5 py-1 font-mono text-3xs text-slate-400"
           >
             {it.label}
           </div>
@@ -70,7 +70,7 @@ export function ContextMenuHost({ className }: ContextMenuHostProps = {}) {
             }}
           >
             <span className="flex-1">{it.label}</span>
-            {it.hint && <kbd className="font-mono text-[10px] text-slate-400">{it.hint}</kbd>}
+            {it.hint && <kbd className="font-mono text-3xs text-slate-400">{it.hint}</kbd>}
           </button>
         ),
       )}

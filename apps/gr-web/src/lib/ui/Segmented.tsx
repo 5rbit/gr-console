@@ -66,7 +66,7 @@ export function Segmented<T extends string>({
             {showLabel ? <span>{o.label}</span> : null}
             {hasBadge ? (
               <span
-                className={cn('text-[10px] tabular-nums', on ? 'opacity-80' : 'text-slate-400')}
+                className={cn('text-3xs tabular-nums', on ? 'opacity-80' : 'text-slate-400')}
               >
                 {o.badge}
               </span>

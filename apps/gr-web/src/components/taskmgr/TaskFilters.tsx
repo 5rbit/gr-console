@@ -62,7 +62,7 @@ export function TaskFilters({ value, onChange, counts = {} }: TaskFiltersProps) 
               title={`${STATE_LABEL[s]} ${n}건`}
               onClick={() => toggle(s)}
               className={cn(
-                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap transition-colors',
+                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium whitespace-nowrap transition-colors',
                 on
                   ? `${tone.soft} ${tone.text} ${tone.border}`
                   : 'border-transparent text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800',
@@ -119,7 +119,7 @@ export function TaskFilters({ value, onChange, counts = {} }: TaskFiltersProps) 
         />
       </div>
 
-      <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+      <span className="inline-flex items-center gap-1.5 text-2xs text-slate-500 dark:text-slate-400">
         <Switch
           label="종결 포함"
           checked={value.includeTerminal}

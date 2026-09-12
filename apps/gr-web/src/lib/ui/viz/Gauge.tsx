@@ -29,7 +29,7 @@ export function Gauge({
         />
       </div>
       {label ? (
-        <span className="w-12 text-right text-[10px] text-slate-500 tabular-nums dark:text-slate-400">
+        <span className="w-12 text-right text-3xs text-slate-500 tabular-nums dark:text-slate-400">
           {label}
         </span>
       ) : null}

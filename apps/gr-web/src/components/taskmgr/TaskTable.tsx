@@ -76,7 +76,7 @@ export function AckCell({ task }: { task: Task }) {
     >
       {a.code}
       {a.reject_bits ? (
-        <span className="ml-1 text-[10px] opacity-70">
+        <span className="ml-1 text-3xs opacity-70">
           b{a.reject_bits.toString(2).padStart(4, '0')}
         </span>
       ) : null}

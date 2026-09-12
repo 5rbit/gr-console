@@ -47,7 +47,7 @@ import { ErrorBoundary } from './lib/ui/ErrorBoundary'
 
 function groupCls(active: boolean, open: boolean): string {
   return (
-    'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[13px] transition-colors ' +
+    'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded px-2 py-1 text-sm-tight transition-colors ' +
     (open
       ? 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-100'
       : active
@@ -72,12 +72,12 @@ function Screen({ tab }: { tab: Tab }) {
 }
 
 const menuRowCls =
-  'flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[13px] text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent dark:text-slate-300 dark:hover:bg-slate-700'
+  'flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm-tight text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent dark:text-slate-300 dark:hover:bg-slate-700'
 
 /** 메뉴 구분 머리줄 — 항목이 스물 가까이 되면 묶음 이름 없이는 훑을 수 없다. */
 function MenuLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold tracking-wide text-slate-400">
+    <div className="px-2.5 pt-1.5 pb-0.5 text-3xs font-semibold tracking-wide text-slate-400">
       {children}
     </div>
   )
@@ -114,7 +114,7 @@ function MenuRow({
         {checked ? <Check className="h-3 w-3" /> : null}
       </span>
       <span className="flex-1">{label}</span>
-      {hint ? <kbd className="font-mono text-[10px] text-slate-400">{hint}</kbd> : null}
+      {hint ? <kbd className="font-mono text-3xs text-slate-400">{hint}</kbd> : null}
     </button>
   )
 }
@@ -379,8 +379,8 @@ export function App() {
         >
           <Menu className="h-4 w-4" />
         </button>
-        <h1 className="flex items-center gap-1.5 pr-1 text-[13px] font-semibold">
-          <span className="grid h-5 w-5 place-items-center rounded bg-indigo-600 text-[10px] text-white">
+        <h1 className="flex items-center gap-1.5 pr-1 text-sm-tight font-semibold">
+          <span className="grid h-5 w-5 place-items-center rounded bg-indigo-600 text-3xs text-white">
             GR
           </span>
           <span className="hidden sm:inline">
@@ -425,7 +425,7 @@ export function App() {
                         <button
                           key={t.id}
                           type="button"
-                          className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[13px] ${
+                          className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm-tight ${
                             nav.tab === t.id
                               ? 'bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300'
                               : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
@@ -441,7 +441,7 @@ export function App() {
                           <Icon className="h-4 w-4 shrink-0 opacity-70" />
                           <span className="flex-1">{t.label}</span>
                           {hotkey(t) ? (
-                            <kbd className="font-mono text-[10px] text-slate-400">{hotkey(t)}</kbd>
+                            <kbd className="font-mono text-3xs text-slate-400">{hotkey(t)}</kbd>
                           ) : null}
                         </button>
                       )
@@ -475,7 +475,7 @@ export function App() {
 
         <button
           type="button"
-          className="ml-auto flex items-center gap-1.5 rounded border border-slate-200 px-2 py-0.5 text-[11px] text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          className="ml-auto flex items-center gap-1.5 rounded border border-slate-200 px-2 py-0.5 text-2xs text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
           aria-label="명령 팔레트 열기"
           title="명령 팔레트 — 패널 · 배치 · 존 · 설정을 이름으로"
           data-testid="open-palette"
@@ -483,7 +483,7 @@ export function App() {
         >
           <Search className="h-3 w-3" />
           <span className="hidden sm:inline">명령</span>
-          <kbd className="font-mono text-[10px]">{chord('K')}</kbd>
+          <kbd className="font-mono text-3xs">{chord('K')}</kbd>
         </button>
 
         <button

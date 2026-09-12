@@ -97,7 +97,7 @@ export function ConfirmDialog({
           {title}
           {/* 영향 범위 배지 — "무엇을 확인하는가"만큼 "몇 대에 적용되는가"가 중요하다. */}
           <span
-            className={`ml-auto rounded px-1.5 py-0.5 text-[11px] font-normal ${SCOPE_TONE[scope]}`}
+            className={`ml-auto rounded px-1.5 py-0.5 text-2xs font-normal ${SCOPE_TONE[scope]}`}
             data-testid="confirm-scope"
           >
             {SCOPE_LABEL[scope]}

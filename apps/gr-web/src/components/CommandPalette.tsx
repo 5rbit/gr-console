@@ -303,6 +303,8 @@ export function CommandPalette() {
   let row = -1
 
   return (
+    // design-lint-allow: no-arbitrary-value — 팔레트는 화면 높이의 12%에서 시작한다(VSCode와 같은
+    // 자리). 뷰포트 비율이라 간격 스케일에 있을 수 없는 값이다.
     <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-[12vh]">
       <button
         className="absolute inset-0 bg-black/30"
@@ -322,7 +324,7 @@ export function CommandPalette() {
         {asking ? (
           // 두 번째 걸음 — 이름 받기. 무엇을 적는지 라벨로 말하고 Enter로 끝낸다.
           <label className="flex flex-col gap-1 p-3">
-            <span className="text-[11px] font-medium text-slate-500">{asking.prompt?.label}</span>
+            <span className="text-2xs font-medium text-slate-500">{asking.prompt?.label}</span>
             <input
               autoFocus
               value={text}
@@ -331,7 +333,7 @@ export function CommandPalette() {
               data-testid="palette-prompt"
               onChange={(e) => setText(e.target.value)}
             />
-            <span className="text-[10px] text-slate-400">
+            <span className="text-3xs text-slate-400">
               Enter 저장 · Escape 취소 — 저장한 배치는 이 브라우저에 남습니다
             </span>
           </label>
@@ -351,18 +353,18 @@ export function CommandPalette() {
                   setAt(0)
                 }}
               />
-              <kbd className="shrink-0 font-mono text-[10px] text-slate-400">{chord('K')}</kbd>
+              <kbd className="shrink-0 font-mono text-3xs text-slate-400">{chord('K')}</kbd>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto py-1" role="listbox">
               {flat.length === 0 ? (
-                <p className="px-3 py-4 text-center text-[11px] text-slate-400">
+                <p className="px-3 py-4 text-center text-2xs text-slate-400">
                   '{query}'에 맞는 명령이 없습니다
                 </p>
               ) : null}
               {groups.map((g) => (
                 <div key={`${g.group}-${g.hits[0].command.id}`}>
-                  <div className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold tracking-wide text-slate-400">
+                  <div className="px-3 pt-1.5 pb-0.5 text-3xs font-semibold tracking-wide text-slate-400">
                     {g.group}
                   </div>
                   {g.hits.map((h) => {
@@ -375,7 +377,7 @@ export function CommandPalette() {
                         type="button"
                         role="option"
                         aria-selected={on}
-                        className={`flex w-full items-center gap-2 px-3 py-1 text-left text-[13px] ${
+                        className={`flex w-full items-center gap-2 px-3 py-1 text-left text-sm-tight ${
                           on
                             ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-200'
                             : 'text-slate-700 dark:text-slate-200'
@@ -390,7 +392,7 @@ export function CommandPalette() {
                         </span>
                         <span className="min-w-0 flex-1 truncate">{c.label}</span>
                         {c.hint ? (
-                          <kbd className="shrink-0 font-mono text-[10px] text-slate-400">
+                          <kbd className="shrink-0 font-mono text-3xs text-slate-400">
                             {c.hint}
                           </kbd>
                         ) : null}
@@ -401,7 +403,7 @@ export function CommandPalette() {
               ))}
             </div>
 
-            <div className="flex shrink-0 items-center gap-3 border-t border-slate-200 px-3 py-1 text-[10px] text-slate-400 dark:border-slate-700">
+            <div className="flex shrink-0 items-center gap-3 border-t border-slate-200 px-3 py-1 text-3xs text-slate-400 dark:border-slate-700">
               <span>↑↓ 이동</span>
               <span>Enter 실행</span>
               <span>Escape 닫기</span>

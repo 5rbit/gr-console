@@ -300,7 +300,7 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
           행 삭제
         </Button>
         <span
-          className="min-w-0 flex-1 truncate px-1 text-[11px] text-slate-500 tabular-nums"
+          className="min-w-0 flex-1 truncate px-1 text-2xs text-slate-500 tabular-nums"
           data-testid="grid-status"
         >
           {pending
@@ -333,7 +333,7 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
         </Button>
       </div>
       {stale ? (
-        <div className="flex h-8 flex-none items-center border-b border-amber-200 bg-amber-50 px-3 text-[11px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+        <div className="flex h-8 flex-none items-center border-b border-amber-200 bg-amber-50 px-3 text-2xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           저장본이 바뀌었습니다(PLC 읽기·가져오기). 편집을 적용하거나 되돌리기로 새로 받으세요.
         </div>
       ) : null}

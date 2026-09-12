@@ -45,7 +45,7 @@ export function StatusBar({ tab }: StatusBarProps) {
 
   return (
     <footer
-      className="flex h-6 shrink-0 items-center gap-3 border-t border-slate-200 bg-slate-100/70 px-2 text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400"
+      className="flex h-6 shrink-0 items-center gap-3 border-t border-slate-200 bg-slate-100 px-2 text-2xs text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
       data-testid="statusbar"
     >
       {workspace.enabled ? (

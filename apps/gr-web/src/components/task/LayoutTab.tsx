@@ -242,7 +242,7 @@ export function LayoutTab({
               </span>
               {infoWork ? (
                 <span
-                  className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                  className="rounded px-1.5 py-0.5 text-3xs font-semibold text-white"
                   style={{ background: infoWork.color }}
                 >
                   {infoWork.label}
@@ -348,7 +348,7 @@ export function LayoutTab({
               ) : null}
               {infoCell || infoStation ? (
                 <details>
-                  <summary className="cursor-pointer text-[11px] font-semibold text-slate-500">
+                  <summary className="cursor-pointer text-2xs font-semibold text-slate-500">
                     LGR_Cell_Info
                   </summary>
                   <div className="mt-1">

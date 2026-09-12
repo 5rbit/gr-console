@@ -29,7 +29,7 @@ export default function RobotsPane() {
       aria-label="명령을 보낼 로봇"
     >
       {robots.list.length === 0 ? (
-        <li className="px-2 py-2 text-[11px] text-slate-400">
+        <li className="px-2 py-2 text-2xs text-slate-400">
           {robots.error ? `로봇 목록 조회 실패 — ${robots.error}` : '로봇 목록 없음'}
         </li>
       ) : null}
@@ -58,7 +58,7 @@ export default function RobotsPane() {
                 {r.name}
               </span>
               {r.active_tasks ? (
-                <span className="font-mono text-[10px] text-slate-400" title="진행 중 Task">
+                <span className="font-mono text-3xs text-slate-400" title="진행 중 Task">
                   {r.active_tasks}
                 </span>
               ) : null}

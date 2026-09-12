@@ -589,8 +589,8 @@ export function DataGrid<T>({
               <tr
                 key={rowId(row)}
                 className={`border-b border-slate-100 dark:border-slate-800 ${
-                  zebra && r % 2 === 1 ? 'bg-slate-50/60 dark:bg-slate-800/40' : ''
-                } ${rowClass?.(row) ?? ''} ${onrowclick ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60' : ''}`}
+                  zebra && r % 2 === 1 ? 'bg-slate-50 dark:bg-slate-800' : ''
+                } ${rowClass?.(row) ?? ''} ${onrowclick ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800' : ''}`}
                 onClick={onrowclick ? () => onrowclick(row, r) : undefined}
               >
                 {columns.map((col, c) => {

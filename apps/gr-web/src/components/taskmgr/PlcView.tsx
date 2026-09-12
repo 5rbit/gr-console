@@ -47,7 +47,7 @@ function Ring({
           {filled}/{rows.length}
         </span>
       </div>
-      <table className="w-full text-[11px]" data-testid={`plc-ring-${title.toLowerCase()}`}>
+      <table className="w-full text-2xs" data-testid={`plc-ring-${title.toLowerCase()}`}>
         <thead>
           <tr className="text-left text-content-faint">
             <th className="w-6 px-1 py-0.5 font-medium">#</th>
@@ -185,7 +185,7 @@ export function PlcView({ onPickKey, highlight = null }: PlcViewProps) {
   return (
     <div className="space-y-3 p-3" data-testid="plc-view">
       {error ? (
-        <p className="m-0 text-[11px] text-amber-600 dark:text-amber-400">
+        <p className="m-0 text-2xs text-amber-600 dark:text-amber-400">
           마지막 읽기 실패 — {error}
         </p>
       ) : null}

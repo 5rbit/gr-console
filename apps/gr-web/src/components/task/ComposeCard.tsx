@@ -280,7 +280,7 @@ export function ComposeCard({
           </button>
           {showParams ? (
             <div className="border-t border-slate-200 px-2 py-2 dark:border-slate-700">
-              <p className="mb-2 text-[11px] text-slate-500">
+              <p className="mb-2 text-2xs text-slate-500">
                 체크를 끄면 그 항목은 기본값을 씁니다(흐린 값). 켠 항목만 이 작업에 실립니다.
               </p>
               <TaskParamFields
@@ -294,7 +294,7 @@ export function ComposeCard({
         </div>
 
         <div className="rounded-md border border-slate-200 px-2 py-2 dark:border-slate-700">
-          <div className="mb-1 text-[11px] font-semibold text-slate-500">위치 미리보기</div>
+          <div className="mb-1 text-2xs font-semibold text-slate-500">위치 미리보기</div>
           {problems.length ? (
             <ul className="list-disc pl-4 text-xs text-slate-400" data-testid="draft-problems">
               {problems.map((p) => (

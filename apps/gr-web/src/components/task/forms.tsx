@@ -76,7 +76,7 @@ function Errors({ list }: { list: string[] }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="mb-1 text-[11px] font-semibold text-slate-500">{title}</legend>
+      <legend className="mb-1 text-2xs font-semibold text-slate-500">{title}</legend>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{children}</div>
     </fieldset>
   )

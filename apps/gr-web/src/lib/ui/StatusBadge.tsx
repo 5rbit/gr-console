@@ -20,7 +20,7 @@ export function StatusBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${t.soft} ${t.text}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-medium whitespace-nowrap ${t.soft} ${t.text}`}
       {...rest}
     >
       {dot && <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />}

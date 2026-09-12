@@ -216,7 +216,7 @@ export function PlanCard({
         </Button>
       </div>
 
-      <div className="px-3 py-1.5 text-[11px] text-slate-500">
+      <div className="px-3 py-1.5 text-2xs text-slate-500">
         레이아웃 클릭 = PICK/DROP 교대 · Z = 바닥 + H×재고 + 그립
       </div>
 
@@ -367,7 +367,7 @@ export function PlanCard({
                     <td className="px-1 text-center">
                       {r.warnings.length ? (
                         <span
-                          className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200"
+                          className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-amber-100 px-1 text-3xs font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200"
                           title={r.warnings.join(' · ')}
                           data-testid={`plan-warn-${r.no}`}
                         >
@@ -421,7 +421,7 @@ export function PlanCard({
                               rows={taskDataRows(preview.p.task)}
                             />
                             {preview.p.warnings.length ? (
-                              <div className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                              <div className="mt-1 text-2xs text-amber-700 dark:text-amber-300">
                                 경고: {preview.p.warnings.join(' · ')}
                               </div>
                             ) : null}

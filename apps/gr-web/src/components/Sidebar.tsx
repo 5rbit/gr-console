@@ -29,7 +29,7 @@ function readWidth(): number {
 const headCls =
   'flex shrink-0 items-center gap-1.5 border-b border-slate-200 px-2 py-1.5 dark:border-slate-700'
 const countCls =
-  'rounded-full bg-slate-200 px-1.5 text-[11px] tabular-nums text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+  'rounded-full bg-slate-200 px-1.5 text-2xs tabular-nums text-slate-600 dark:bg-slate-700 dark:text-slate-300'
 const iconCls =
   'rounded p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-800 dark:hover:bg-slate-700 dark:hover:text-slate-100'
 

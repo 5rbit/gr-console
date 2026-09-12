@@ -35,7 +35,7 @@ export function Select({
   return (
     <label className={`flex flex-col gap-1 ${className}`}>
       {label && (
-        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</span>
+        <span className="text-2xs font-medium text-slate-500 dark:text-slate-400">{label}</span>
       )}
       <select
         value={value}
@@ -48,7 +48,7 @@ export function Select({
       >
         {children}
       </select>
-      {hint && <span className="text-[10px] text-slate-400">{hint}</span>}
+      {hint && <span className="text-3xs text-slate-400">{hint}</span>}
     </label>
   )
 }

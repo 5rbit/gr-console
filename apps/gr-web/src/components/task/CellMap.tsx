@@ -327,7 +327,7 @@ export function CellMap({
           return (
             <g key={`${axis}${val}`}>
               {g.vertical ? <line x1={g.at} y1={0} x2={g.at} y2={dim.h} className={cls} strokeWidth={1} /> : <line x1={0} y1={g.at} x2={dim.w} y2={g.at} className={cls} strokeWidth={1} />}
-              <text x={g.vertical ? g.at + 2 : 3} y={g.vertical ? dim.h - 3 : g.at - 2} className="fill-slate-400 text-[9px]">
+              <text x={g.vertical ? g.at + 2 : 3} y={g.vertical ? dim.h - 3 : g.at - 2} className="fill-slate-400 text-3xs">
                 {axis.toUpperCase()}
                 {val}
               </text>
@@ -573,7 +573,7 @@ export function CellMap({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <span className="text-[11px] text-slate-500">회전 (시계 방향)</span>
+              <span className="text-2xs text-slate-500">회전 (시계 방향)</span>
               <Segmented<RotId>
                 ariaLabel="회전"
                 value={String(rot) as RotId}
@@ -603,8 +603,8 @@ export function CellMap({
           </div>
         </IconPopover>
         <IconPopover icon={<Info size={15} />} title="범례" testid="map-legend" width={240}>
-          <ul className="flex flex-col gap-1.5 text-[11px] text-slate-600 dark:text-slate-300">
-            <LegendRow swatch={<span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky-500 text-[9px] font-bold text-white">3</span>} text="셀 · 재고 있음 (숫자 = 개수, 색 = 구역)" />
+          <ul className="flex flex-col gap-1.5 text-2xs text-slate-600 dark:text-slate-300">
+            <LegendRow swatch={<span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky-500 text-3xs font-bold text-white">3</span>} text="셀 · 재고 있음 (숫자 = 개수, 색 = 구역)" />
             <LegendRow swatch={<span className="h-4 w-4 rounded-full border border-slate-300 bg-slate-200 dark:bg-slate-700" />} text="셀 · 재고 없음" />
             <LegendRow swatch={<span className="h-4 w-4 rounded-sm bg-amber-300" />} text="스테이션" />
             <LegendRow swatch={<span className="h-4 w-4 rounded-full border-2 border-dashed border-orange-500 bg-orange-200" />} text="생성 예정 셀" />
@@ -613,10 +613,10 @@ export function CellMap({
             {robotLegend.map((rb) => (
               <LegendRow key={rb.name} swatch={<span className="h-4 w-4 rounded-full border-[3px]" style={{ borderColor: rb.color }} />} text={`${rb.name} 작업 중 (점선 = 대기)`} />
             ))}
-            <LegendRow swatch={<span className="rounded bg-indigo-600 px-1 text-[9px] font-bold text-white">1P</span>} text="계획 순번 (P = PICK, D = DROP)" />
+            <LegendRow swatch={<span className="rounded bg-indigo-600 px-1 text-3xs font-bold text-white">1P</span>} text="계획 순번 (P = PICK, D = DROP)" />
             <LegendRow
               swatch={
-                <span className="text-[9px] font-bold">
+                <span className="text-3xs font-bold">
                   <span className="text-red-600">X</span>
                   <span className="text-green-600">Y</span>
                 </span>
@@ -630,7 +630,7 @@ export function CellMap({
       {children}
 
       <div
-        className="pointer-events-none absolute bottom-2 left-2 z-10 max-w-[calc(100%-6rem)] truncate rounded-md border border-slate-200 bg-white/90 px-2 py-1 font-mono text-[11px] text-slate-600 tabular-nums dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300"
+        className="pointer-events-none absolute bottom-2 left-2 z-10 max-w-[calc(100%-6rem)] truncate rounded-md border border-slate-200 bg-white/90 px-2 py-1 font-mono text-2xs text-slate-600 tabular-nums dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300"
         data-testid="map-status"
       >
         {statusText}

@@ -144,7 +144,7 @@ export function DiffDialog<T>({
       get: (r) => (r.local ? summarize(r.local) : null),
       cell: (r) =>
         r.local ? (
-          <span className="font-mono text-[11px]">{summarize(r.local)}</span>
+          <span className="font-mono text-2xs">{summarize(r.local)}</span>
         ) : (
           <span className="text-slate-400">—</span>
         ),
@@ -155,7 +155,7 @@ export function DiffDialog<T>({
       get: (r) => (r.plc ? summarize(r.plc) : null),
       cell: (r) =>
         r.plc ? (
-          <span className="font-mono text-[11px]">{summarize(r.plc)}</span>
+          <span className="font-mono text-2xs">{summarize(r.plc)}</span>
         ) : (
           <span className="text-slate-400">—</span>
         ),
@@ -245,7 +245,7 @@ export function ImportDialog({
                 key={String(l)}
                 className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-700"
               >
-                <div className="text-[10px] text-slate-400">{l}</div>
+                <div className="text-3xs text-slate-400">{l}</div>
                 <div className="text-base font-semibold tabular-nums">{v}</div>
               </div>
             ))}

@@ -215,7 +215,7 @@ export function LayoutEditor({
           />
         </div>
         <div className="rounded border border-slate-200 p-2 dark:border-slate-700">
-          <div className="mb-1 text-[11px] font-semibold text-slate-500">
+          <div className="mb-1 text-2xs font-semibold text-slate-500">
             영역에 맞춰 행(X)·열(Y) 채우기
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -297,7 +297,7 @@ export function LayoutEditor({
         </div>
 
         <div
-          className="rounded border border-slate-200 p-2 font-mono text-[11px] tabular-nums dark:border-slate-700"
+          className="rounded border border-slate-200 p-2 font-mono text-2xs tabular-nums dark:border-slate-700"
           data-testid="rule-summary"
         >
           <div>
@@ -350,7 +350,7 @@ export function LayoutEditor({
             레지스트리에 적용
           </Button>
         </div>
-        <p className="text-[11px] text-slate-500">
+        <p className="text-2xs text-slate-500">
           적용하면 로컬 사본(점선 = PLC 미반영)이 됩니다. 확정하려면 셀 탭에서 <b>PLC 쓰기</b>.
         </p>
       </div>

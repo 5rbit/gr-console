@@ -74,7 +74,7 @@ function Timeline({ history, now }: { history: TaskTransition[]; now: number }) 
       {history.map((h, i) => (
         <li key={i} className="flex items-baseline gap-2 text-xs">
           <span
-            className="w-20 shrink-0 font-mono text-[11px] text-slate-400 tabular-nums"
+            className="w-20 shrink-0 font-mono text-2xs text-slate-400 tabular-nums"
             title={h.at}
           >
             {fmtTime(h.at, now)}
@@ -82,7 +82,7 @@ function Timeline({ history, now }: { history: TaskTransition[]; now: number }) 
           <StatusBadge status={STATE_TONE[h.to]} dot={false}>
             {STATE_LABEL[h.to]}
           </StatusBadge>
-          <span className="text-[11px] text-slate-400">{ACTOR_LABEL[h.by]}</span>
+          <span className="text-2xs text-slate-400">{ACTOR_LABEL[h.by]}</span>
           {h.note ? (
             <span className="min-w-0 truncate text-slate-600 dark:text-slate-300" title={h.note}>
               {h.note}

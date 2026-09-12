@@ -13,11 +13,11 @@ export function PlcStructView({
   return (
     <div className="rounded border border-slate-200 dark:border-slate-700" data-testid="plc-struct">
       {title ? (
-        <div className="border-b border-slate-200 bg-surface-panel px-2 py-1 font-mono text-[11px] font-semibold dark:border-slate-700">
+        <div className="border-b border-slate-200 bg-surface-panel px-2 py-1 font-mono text-2xs font-semibold dark:border-slate-700">
           {title}
         </div>
       ) : null}
-      <table className={dense ? 'w-full text-[11px]' : 'w-full text-xs'}>
+      <table className={dense ? 'w-full text-2xs' : 'w-full text-xs'}>
         <tbody>
           {rows.map((r) => (
             <tr

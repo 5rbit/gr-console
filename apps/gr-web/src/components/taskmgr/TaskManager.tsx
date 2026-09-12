@@ -165,11 +165,11 @@ export default function TaskManager() {
               data-testid="task-active"
             >
               <span className="text-xs font-semibold">Task 목록</span>
-              <span className="text-[11px] text-slate-400 tabular-nums">
+              <span className="text-2xs text-slate-400 tabular-nums">
                 {rows.length}건{rows.length !== list.length ? ` / 전체 ${list.length}건` : ''}
               </span>
               {filter.states.length === 0 && !filter.includeTerminal ? (
-                <span className="text-[11px] text-slate-400">
+                <span className="text-2xs text-slate-400">
                   진행 중만 — 종결은 아래 이력 또는 '종결 포함'
                 </span>
               ) : null}

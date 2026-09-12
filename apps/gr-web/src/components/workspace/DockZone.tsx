@@ -80,7 +80,7 @@ const PANE_TITLED = { titled: true }
  * 탭을 죽이는 것과 같은 이유).
  */
 const tabCls = (active: boolean, inFocusedZone: boolean): string =>
-  'group/tab flex max-w-[14rem] shrink-0 items-center gap-1.5 border-r border-slate-200 px-2 py-1 text-[11px] transition-colors dark:border-slate-700 ' +
+  'group/tab flex max-w-[14rem] shrink-0 items-center gap-1.5 border-r border-slate-200 px-2 py-1 text-2xs transition-colors dark:border-slate-700 ' +
   (active
     ? 'bg-white font-medium text-slate-900 dark:bg-slate-900 dark:text-slate-100 ' +
       (inFocusedZone
@@ -177,7 +177,7 @@ export function DockZone({ zone }: DockZoneProps) {
               <Icon className="h-3 w-3 shrink-0 opacity-70" />
               <span className="truncate">{d.label}</span>
               {on && Summary ? (
-                <span className="shrink-0 text-[10px] text-slate-400">
+                <span className="shrink-0 text-3xs text-slate-400">
                   <Summary />
                 </span>
               ) : null}
@@ -212,7 +212,7 @@ export function DockZone({ zone }: DockZoneProps) {
           // 최대화 중에는 **나가는 길이 보여야 한다.** 단축키와 창 메뉴만 두면 갇힌 것처럼 느껴진다.
           <button
             type="button"
-            className="flex shrink-0 items-center gap-1 px-1.5 text-[10px] text-slate-500 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700"
+            className="flex shrink-0 items-center gap-1 px-1.5 text-3xs text-slate-500 hover:bg-slate-200 hover:text-slate-900 dark:hover:bg-slate-700"
             aria-label="최대화 해제"
             title="최대화 해제 — Alt+Enter"
             data-testid="zone-unmaximize"
@@ -279,7 +279,7 @@ export function DockZone({ zone }: DockZoneProps) {
               dropAt()
             }}
           >
-            <span className="m-1 inline-block rounded bg-indigo-600 px-1.5 py-0.5 text-[10px] text-white">
+            <span className="m-1 inline-block rounded bg-indigo-600 px-1.5 py-0.5 text-3xs text-white">
               {ZONE_LABEL[zone]}에 도킹
             </span>
           </div>
@@ -326,7 +326,7 @@ export function ZoneRail({ zone }: DockZoneProps) {
       }}
     >
       {empty ? (
-        <span className="grid flex-1 place-items-center text-[10px] text-indigo-700 dark:text-indigo-300">
+        <span className="grid flex-1 place-items-center text-3xs text-indigo-700 dark:text-indigo-300">
           <PanelsTopLeft className="h-4 w-4" />
         </span>
       ) : null}
