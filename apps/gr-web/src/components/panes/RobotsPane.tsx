@@ -11,7 +11,6 @@ import { useEffect } from 'react'
 import { robotColor, robots } from '../../lib/robots'
 import { density } from '../../lib/density'
 import { useStore } from '../../lib/store'
-import { StatusBadge } from '../../lib/ui/StatusBadge'
 import { StatusDot } from '../../lib/ui/StatusDot'
 import { robotTone } from '../shared/RobotPicker'
 
@@ -62,7 +61,6 @@ export default function RobotsPane() {
                   {r.active_tasks}
                 </span>
               ) : null}
-              {on ? <StatusBadge status="info">선택</StatusBadge> : null}
             </button>
           </li>
         )

@@ -8,7 +8,6 @@ import { plcs } from '../../lib/plcs'
 import { useStore } from '../../lib/store'
 import { Button } from '../../lib/ui/Button'
 import { JsonView } from '../../lib/ui/JsonView'
-import { StatusBadge } from '../../lib/ui/StatusBadge'
 import { StatusDot } from '../../lib/ui/StatusDot'
 import type { PlcId, PlcStatus } from '../../lib/types'
 import type { Status } from '../../lib/ui/status'
@@ -19,10 +18,10 @@ export function plcDot(p: PlcStatus): Status {
   return p.last_error || p.last_ok_at ? 'fault' : 'neutral'
 }
 
-/** 레이아웃 검사 → 배지. */
-export function layoutBadge(p: PlcStatus): { status: Status; label: string } {
+/** 레이아웃 검사 → 점 상태 + 글자. */
+export function layoutMark(p: PlcStatus): { status: Status; label: string } {
   if (p.layout.ok === true) return { status: 'ok', label: '레이아웃 OK' }
-  if (p.layout.ok === false) return { status: 'fault', label: '불일치' }
+  if (p.layout.ok === false) return { status: 'fault', label: '레이아웃 불일치' }
   return { status: 'neutral', label: '미검사' }
 }
 
@@ -32,12 +31,12 @@ export function PlcDetail({ id }: { id: PlcId }) {
   const p = plcs.byId(id)
   const [busy, setBusy] = useState<'check' | 'reconnect' | null>(null)
   if (!p) return <p className="text-sm text-content-muted">PLC `{id}`가 목록에 없습니다.</p>
-  const lb = layoutBadge(p)
+  const lb = layoutMark(p)
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <StatusDot status={plcDot(p)} label={p.connected ? '연결됨' : '미연결'} />
-        <StatusBadge status={lb.status}>{lb.label}</StatusBadge>
+        <StatusDot status={lb.status} label={lb.label} />
         <span className="font-mono text-xs text-content-faint">{p.endpoint}</span>
         <span className="flex-1" />
         <Button
@@ -88,7 +87,7 @@ export default function PlcPane() {
         </li>
       ) : null}
       {plcs.list.map((p) => {
-        const lb = layoutBadge(p)
+        const lb = layoutMark(p)
         return (
           <li key={p.id}>
             <button
@@ -111,7 +110,10 @@ export default function PlcPane() {
               <span className="font-mono text-3xs tabular-nums text-content-faint">
                 {p.rtt_ms !== null ? `${Math.round(p.rtt_ms)}ms` : '—'}
               </span>
-              <StatusBadge status={lb.status}>{lb.label}</StatusBadge>
+              {/* 정상은 침묵한다 — 고정폭 자리에 점만 두어 이름·RTT의 x가 행마다 같다. */}
+              <span className="inline-flex w-2.5 shrink-0 justify-center" title={lb.label}>
+                {lb.status === 'ok' ? null : <StatusDot status={lb.status} size="sm" />}
+              </span>
             </button>
           </li>
         )

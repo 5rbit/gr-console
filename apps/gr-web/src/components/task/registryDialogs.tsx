@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
 import { Modal } from '../../lib/ui/Modal'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
+import { StatusDot } from '../../lib/ui/StatusDot'
 import type { Column } from '../../lib/ui/table'
 import type { Status } from '../../lib/ui/status'
 import type { DiffRow } from '../../lib/types'
@@ -103,6 +104,7 @@ const DIFF_LABEL: Record<DiffRow<unknown>['status'], { text: string; tone: Statu
 
 export function DiffBadge({ status }: { status: DiffRow<unknown>['status'] }) {
   const l = DIFF_LABEL[status]
+  if (status === 'same') return <span className="text-2xs text-content-faint">{l.text}</span>
   return <StatusBadge status={l.tone}>{l.text}</StatusBadge>
 }
 
@@ -167,7 +169,7 @@ export function DiffDialog<T>({
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {(['same', 'changed', 'local_only', 'plc_only'] as const).map((s) => (
             <span key={s} className="inline-flex items-center gap-1">
-              <DiffBadge status={s} />
+              <StatusDot status={DIFF_LABEL[s].tone} size="sm" label={DIFF_LABEL[s].text} />
               <span className="tabular-nums text-content-muted">{counts[s] ?? 0}</span>
             </span>
           ))}

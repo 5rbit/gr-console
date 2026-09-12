@@ -4,7 +4,7 @@ import { Copy, Plus, Trash2 } from 'lucide-react'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
-import { StatusBadge } from '../../lib/ui/StatusBadge'
+import { StatusDot } from '../../lib/ui/StatusDot'
 import { Toolbar } from '../../lib/ui/Toolbar'
 import type { Column } from '../../lib/ui/table'
 import type { Scenario } from '../../lib/types'
@@ -48,8 +48,11 @@ export function ScenarioList({
       get: (s) => s.name,
       cell: (s) => (
         <span className="flex min-w-0 items-center gap-1.5">
+          {/* 점 자리는 항상 잡아 둔다 — 실행 중인 행만 이름이 밀리면 세로로 훑을 수 없다. */}
+          <span className="inline-flex w-2.5 shrink-0 justify-center">
+            {s.id === runningId ? <StatusDot status="ok" size="sm" title="실행 중" /> : null}
+          </span>
           <span className="truncate">{s.name}</span>
-          {s.id === runningId ? <StatusBadge status="ok">실행 중</StatusBadge> : null}
         </span>
       ),
     },

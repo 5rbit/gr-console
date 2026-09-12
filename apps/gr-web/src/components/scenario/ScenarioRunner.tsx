@@ -11,6 +11,7 @@ import { FieldList } from '../../lib/ui/FieldList'
 import { Modal } from '../../lib/ui/Modal'
 import { OpsPanel } from '../../lib/ui/OpsPanel'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
+import { StatusDot } from '../../lib/ui/StatusDot'
 import { Gauge } from '../../lib/ui/viz/Gauge'
 import { toast } from '../../lib/ui/toast'
 import type { Column } from '../../lib/ui/table'
@@ -259,7 +260,7 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
         >
           <div className="flex items-center justify-between text-3xs text-content-muted">
             <span>회차</span>
-            <StatusBadge status={RUN_TONE[state]}>{RUN_STATE_LABEL[state]}</StatusBadge>
+            <StatusDot status={RUN_TONE[state]} size="sm" label={RUN_STATE_LABEL[state]} />
           </div>
           <Gauge
             value={iterProgress}

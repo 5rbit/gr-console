@@ -62,7 +62,7 @@ export function TaskFilters({ value, onChange, counts = {} }: TaskFiltersProps) 
               title={`${STATE_LABEL[s]} ${n}건`}
               onClick={() => toggle(s)}
               className={cn(
-                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium whitespace-nowrap transition-colors',
+                'inline-flex items-center gap-1 rounded border px-2 py-0.5 text-2xs font-medium whitespace-nowrap transition-colors',
                 on
                   ? `${tone.soft} ${tone.text} ${tone.border}`
                   : 'border-transparent text-content-muted hover:bg-surface-inset',

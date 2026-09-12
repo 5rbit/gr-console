@@ -138,6 +138,13 @@ const RULES = [
         ...l.matchAll(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu),
       ].map((m) => m[0]),
   },
+  {
+    id: 'no-pill',
+    why: '알약(`rounded-full` + 가로 패딩)은 쓰지 않는다 — 글자를 담는 면은 4px 캡슐이고, 알약 모양은 점 하나뿐이다',
+    ext: ['.tsx'],
+    // 같은 줄에 `rounded-full`과 `px-`가 함께 있으면 글자를 담는 알약이다. 점(`h-1.5 w-1.5`)은 패딩이 없다.
+    test: (l) => (/\brounded-full\b/.test(l) && /\bpx-\d/.test(l) ? ['rounded-full+px'] : []),
+  },
 ]
 
 /**

@@ -86,7 +86,6 @@ svg text {
     ds-flash-bar var(--dur-flash) var(--ease-standard) 1;
 }
 
-
 /* 존 사이의 크기 손잡이 — **기하를 한 곳에 모은다.**
    7px 잡을 면 위에 1px 선이 서고(경계는 늘 보인다), 손을 얹으면 3px로 굵어지며 초록이 된다.
    7px·3px는 Tailwind 스케일에 없는 값이라 유틸리티로 만든다 — 임의값(`w-[7px]`)을 컴포넌트에
@@ -163,4 +162,12 @@ svg text {
   .map-sel {
     animation: none;
   }
+}
+
+/* 비트 격자 — 불리언 묶음을 고정 열로 편다(DESIGN.md 4절 ④). 폭이 줄면 열 수만 준다. */
+.ds-bitgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  column-gap: 0.75rem;
+  row-gap: 0.125rem;
 }

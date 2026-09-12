@@ -17,6 +17,7 @@ import { FieldList, type FieldItem } from '../../lib/ui/FieldList'
 import { JsonView } from '../../lib/ui/JsonView'
 import { Skeleton } from '../../lib/ui/Skeleton'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
+import { StatusDot } from '../../lib/ui/StatusDot'
 import {
   ORIGIN_LABEL,
   STATE_LABEL,
@@ -79,9 +80,10 @@ function Timeline({ history, now }: { history: TaskTransition[]; now: number }) 
           >
             {fmtTime(h.at, now)}
           </span>
-          <StatusBadge status={STATE_TONE[h.to]} dot={false}>
-            {STATE_LABEL[h.to]}
-          </StatusBadge>
+          {/* 고정폭 — 상태 글자 길이가 달라도 행위자·메모의 x가 줄마다 같다. */}
+          <span className="w-14 shrink-0">
+            <StatusDot status={STATE_TONE[h.to]} size="sm" label={STATE_LABEL[h.to]} />
+          </span>
           <span className="text-2xs text-content-faint">{ACTOR_LABEL[h.by]}</span>
           {h.note ? (
             <span className="min-w-0 truncate text-content-tertiary" title={h.note}>
@@ -329,9 +331,7 @@ export default function TaskDetail({ id }: TaskDetailProps) {
           {STATE_LABEL[t.state]}
         </StatusBadge>
         {derived?.mismatch ? (
-          <StatusBadge status="warn" title={derived.reason ?? undefined}>
-            PLC와 불일치
-          </StatusBadge>
+          <StatusDot status="warn" label="PLC와 불일치" title={derived.reason ?? undefined} />
         ) : null}
         <span className="text-xs text-content-faint">{ORIGIN_LABEL[t.origin]}</span>
       </div>

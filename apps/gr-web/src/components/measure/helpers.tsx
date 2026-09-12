@@ -3,14 +3,19 @@ import type { ReactNode } from 'react'
 import { KIND, STATUS } from '../../lib/gr/const'
 import { f0, f1, f2, flagStr, tt } from '../../lib/meas/format'
 import { DataTable } from '../../lib/ui/DataTable'
-import { StatusBadge } from '../../lib/ui/StatusBadge'
+import { StatusDot } from '../../lib/ui/StatusDot'
+import { statusTone } from '../../lib/ui/status'
 import type { Column } from '../../lib/ui/table'
 import type { PlcTask, Trend } from '../../lib/types'
 
 export { KIND, STATUS }
 
-/** 불리언 필드 칩 묶음(켜진 것만 강조). */
-export function Chips({
+/**
+ * 불리언 비트 묶음 — **고정 격자**의 점+이름. 칩 구름이었을 때는 켜진 비트가 줄바꿈 자리에 따라
+ * 매번 다른 x에 떠서 "무엇이 켜졌나"를 훑을 수 없었다. 자리를 고정하고 켜진 것만 색을 받으면
+ * 꺼진 비트도 같은 자리에 흐리게 남아 "무엇이 꺼졌나"까지 읽힌다.
+ */
+export function Bits({
   obj,
   keys,
   bad = [],
@@ -23,19 +28,20 @@ export function Chips({
 }) {
   if (!obj) return <span className="text-content-muted">-</span>
   return (
-    <div className="flex flex-wrap gap-1">
+    <ul className="ds-bitgrid m-0 list-none p-0">
       {keys
         .filter((k) => k in obj)
         .map((k) => {
           const on = Boolean(obj[k])
           const tone = bad.includes(k) ? 'fault' : warn.includes(k) ? 'warn' : 'ok'
           return (
-            <StatusBadge key={k} status={on ? tone : 'neutral'} dot={on}>
-              {k}
-            </StatusBadge>
+            <li key={k} className="flex items-center gap-1.5 text-2xs whitespace-nowrap">
+              <StatusDot status={on ? tone : 'neutral'} size="sm" />
+              <span className={on ? statusTone(tone).text : 'text-content-faint'}>{k}</span>
+            </li>
           )
         })}
-    </div>
+    </ul>
   )
 }
 

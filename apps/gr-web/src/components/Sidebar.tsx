@@ -26,10 +26,9 @@ function readWidth(): number {
   return Number.isFinite(v) && v >= MIN_W && v <= MAX_W ? v : 240
 }
 
-const headCls =
-  'flex shrink-0 items-center gap-1.5 border-b border-line-default px-2 py-1.5'
-const countCls =
-  'rounded-full bg-surface-active px-1.5 text-2xs tabular-nums text-content-tertiary'
+const headCls = 'flex shrink-0 items-center gap-1.5 border-b border-line-default px-2 py-1.5'
+// 개수는 알약이 아니라 숫자다 — 제목 옆 같은 자리에 같은 크기로 서야 세 섹션을 훑을 수 있다.
+const countCls = 'text-2xs tabular-nums text-content-tertiary'
 const iconCls =
   'rounded p-1 text-content-faint transition-colors hover:bg-surface-active hover:text-content-primary'
 

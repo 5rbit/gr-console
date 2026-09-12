@@ -6,6 +6,7 @@
 import { useMemo } from 'react'
 import { DataTable } from '../../lib/ui/DataTable'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
+import { StatusDot } from '../../lib/ui/StatusDot'
 import type { Column } from '../../lib/ui/table'
 import {
   ORIGIN_LABEL,
@@ -58,9 +59,9 @@ export function StateCell({ task, area }: { task: Task; area: PlcTaskArea | null
         {STATE_LABEL[task.state]}
       </StatusBadge>
       {d.mismatch ? (
-        <StatusBadge status="warn" title={d.reason ?? undefined} data-testid="task-mismatch">
-          PLC와 불일치
-        </StatusBadge>
+        <span data-testid="task-mismatch">
+          <StatusDot status="warn" size="sm" title={`PLC와 불일치 — ${d.reason ?? ''}`} />
+        </span>
       ) : null}
     </span>
   )

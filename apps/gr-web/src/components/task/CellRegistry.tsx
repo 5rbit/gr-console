@@ -15,9 +15,9 @@ import { RegistryToolbar, type RegistryIo } from './RegistryToolbar'
 
 /** 행 출처 배지 — 로컬 사본이 PLC와 어떤 관계인지. */
 export function RowBadge({ source, dirty }: { source: 'plc' | 'local'; dirty: boolean }) {
+  // 정상은 침묵한다 — 행마다 초록 캡슐이면 '로컬 수정' 하나가 사라진다.
   if (dirty) return <StatusBadge status="warn">로컬 수정</StatusBadge>
-  if (source === 'plc') return <StatusBadge status="ok">PLC 동일</StatusBadge>
-  return <StatusBadge status="info">로컬</StatusBadge>
+  return <span className="text-2xs text-content-faint">{source === 'plc' ? 'PLC' : '로컬'}</span>
 }
 
 const f1 = (n: number) => (Math.round(n * 10) / 10).toString()
