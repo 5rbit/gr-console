@@ -98,7 +98,7 @@ export function StockEditDialog({
             onValueChange={(s) => setV({ ...v, count: Number(s) })}
             data-testid="stock-count"
           />
-          <p className="text-[11px] text-slate-500">
+          <p className="text-2xs text-content-muted">
             개수 0 이면 품목도 비웁니다. PICK/DROP 완료 시 백엔드가 자동으로 ±수량 합니다.
           </p>
           <div className="flex justify-end gap-2">
@@ -162,12 +162,22 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
   const openEdit = (r: Row) =>
     setEdit({ cell: r.cell, item: r.stock?.item_code || null, count: r.stock?.count ?? 0 })
 
+  // `priority` — 재고 표를 훑는 이유는 **어느 셀에 몇 개 있나**다: 셀·수량이 1, 품목과 갱신
+  // 시각이 2, 좌표·높이·출처가 3이다(`docs/DESIGN.md` 4절).
   const columns: Column<Row>[] = [
-    { key: 'id', label: '셀', get: (r) => r.cell.id, numeric: true, class: 'font-mono' },
+    {
+      key: 'id',
+      label: '셀',
+      get: (r) => r.cell.id,
+      numeric: true,
+      class: 'font-mono',
+      priority: 1,
+    },
     {
       key: 'pos',
       label: '구역/행/열',
       get: (r) => `S${r.cell.section} R${r.cell.row} C${r.cell.col}`,
+      priority: 3,
     },
     {
       key: 'count',
@@ -178,8 +188,9 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
         r.stock?.count ? (
           <b className="tabular-nums">{r.stock.count}</b>
         ) : (
-          <span className="text-slate-400">0</span>
+          <span className="text-content-faint">0</span>
         ),
+      priority: 1,
     },
     {
       key: 'item',
@@ -189,8 +200,9 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
         r.stock?.item_code ? (
           `${r.stock.item_code} ${itemOf(r.stock.item_code)?.name ?? ''}`
         ) : (
-          <span className="text-slate-400">-</span>
+          <span className="text-content-faint">-</span>
         ),
+      priority: 2,
     },
     {
       key: 'h',
@@ -202,25 +214,28 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
         return it && r.stock?.count ? (
           `${(it.height * r.stock.count).toFixed(0)} mm`
         ) : (
-          <span className="text-slate-400">-</span>
+          <span className="text-content-faint">-</span>
         )
       },
+      priority: 3,
     },
     {
       key: 'at',
       label: '갱신',
       get: (r) => r.stock?.updated_at ?? '',
       cell: (r) => (
-        <span className="text-[11px] text-slate-500">
+        <span className="text-2xs text-content-muted">
           {r.stock?.updated_at?.slice(5, 19).replace('T', ' ') ?? ''}
         </span>
       ),
+      priority: 2,
     },
     {
       key: 'src',
       label: '',
       get: () => '',
       cell: (r) => (r.cell.dirty ? <StatusBadge status="warn">셀 로컬 수정</StatusBadge> : null),
+      priority: 3,
     },
   ]
 

@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json",
-    "test:unit": "vitest run"
+    "check": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json && npm run lint:design",
+    "test:unit": "vitest run",
+    "lint:design": "node tools/design-lint.mjs"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

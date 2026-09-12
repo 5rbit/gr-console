@@ -28,7 +28,7 @@ export function HelpTip({ text = '', title = '', align = 'left' }: HelpTipProps)
         type="button"
         aria-label={`${title || '항목'} 설명`}
         aria-expanded={open}
-        className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-slate-300 text-[9px] leading-none font-semibold text-slate-400 transition-colors hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none dark:border-slate-600 dark:text-slate-500"
+        className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-line-strong text-3xs leading-none font-semibold text-content-faint transition-colors hover:border-accent hover:text-accent focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none"
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onFocus={() => setHovered(true)}
@@ -46,12 +46,12 @@ export function HelpTip({ text = '', title = '', align = 'left' }: HelpTipProps)
       {open && (
         <span
           role="tooltip"
-          className={`absolute top-5 z-50 w-64 rounded-md border border-slate-200 bg-white p-2 text-left text-[11px] leading-relaxed font-normal whitespace-normal text-slate-600 shadow-lg dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 ${
+          className={`absolute top-5 z-50 w-64 rounded-md border border-line-default bg-surface-panel p-2 text-left text-2xs leading-relaxed font-normal whitespace-normal text-content-tertiary shadow-lg ${
             align === 'right' ? 'right-0' : 'left-0'
           }`}
         >
           {title && (
-            <span className="mb-0.5 block font-mono text-[10px] text-slate-400">{title}</span>
+            <span className="mb-0.5 block font-mono text-3xs text-content-faint">{title}</span>
           )}
           {text}
         </span>

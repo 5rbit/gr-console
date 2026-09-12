@@ -12,7 +12,15 @@
 //!    explicit "ring overflow" note.
 //! 3. `Now` / `Queue[i]` positions → `Running{step}` / `Queued{slot}`; keys unknown to the ledger
 //!    become `Origin::External` entries; `Lost` entries that reappear are re-promoted.
+//!    `Task.Status.Complete` / `.Canceled` raised for the `Now` task end it **before** the ring
+//!    catches up — the PLC clears `Now` and pushes the ring on a later cycle, and without the bits
+//!    the console could only wait (and, past `lost_grace_ms`, wrongly call the task `Lost`).
 //! 4. active entries that are on no PLC array for longer than `lost_grace_ms` → `Lost`.
+//!
+//! A cancel/complete the console asked for (`ops::cancel` / `ops::force_complete`) leaves a
+//! `"delete requested"` / `"complete requested"` note in the history; the terminal transition that
+//! follows is still recorded by the PLC (it is the one that ended the task) but the note says it was
+//! on request, so the timeline distinguishes "operator canceled" from "PLC canceled on its own".
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -180,6 +188,24 @@ fn ring_keys(v: &[TaskData]) -> Vec<TaskKey> {
     v.iter().filter(|t| !t.is_zero()).map(|t| t.key()).collect()
 }
 
+pub const DELETE_REQUESTED: &str = "delete requested";
+pub const COMPLETE_REQUESTED: &str = "complete requested";
+
+/// The last history line is a pending console request (`delete requested` / `complete requested`).
+fn last_request(e: &LedgerEntry) -> Option<&str> {
+    // a cascade note is `"delete requested (cascade from task N)"` — same request, same attribution
+    e.history.iter().rev().find(|t| t.from == Some(t.to)).and_then(|t| t.note.as_deref()).and_then(|n| [DELETE_REQUESTED, COMPLETE_REQUESTED].into_iter().find(|k| n.starts_with(k)))
+}
+
+/// Note for a PLC-side terminal transition, attributing it to the console request that asked for it.
+fn terminal_note(e: &LedgerEntry, state: TaskState, plc_note: &str) -> String {
+    match (state, last_request(e)) {
+        (TaskState::Canceled, Some(DELETE_REQUESTED)) => format!("{plc_note} (console request)"),
+        (TaskState::Completed, Some(COMPLETE_REQUESTED)) => format!("{plc_note} (console request)"),
+        _ => plc_note.to_string(),
+    }
+}
+
 fn synth_ack(accepted: bool, reason: &str) -> TaskAck {
     TaskAck { accepted, code: if accepted { gr_proto::VALID_TASK_DATA } else { 0 }, reason: reason.into(), reject_bits: 0, at: crate::util::now_str() }
 }
@@ -241,12 +267,13 @@ pub fn apply(ledger: &Ledger, view: &StatusView, st: &mut SyncState) -> Result<(
             tracing::debug!(key = ?k, to = state.as_str(), entry = ?found.as_ref().map(|e| (e.seq, e.state)), "ledger sync: ring entry");
             match found {
                 Some(e) if !e.state.is_terminal() => {
+                    let note = terminal_note(&e, state, note);
                     let mut e2 = e;
                     if state == TaskState::Rejected && e2.ack.is_none() {
                         // the echo was missed but the PLC did answer: keep the (synthesised) verdict
                         e2.ack = Some(synth_ack(false, "rejected (seen in Rejected ring)"));
                     }
-                    ledger.transition(e2, state, Actor::Plc, Some(note.into()))?;
+                    ledger.transition(e2, state, Actor::Plc, Some(note))?;
                 }
                 Some(_) => {}
                 None => {
@@ -269,7 +296,25 @@ pub fn apply(ledger: &Ledger, view: &StatusView, st: &mut SyncState) -> Result<(
             Some(e) => e,
             None => ledger.create_external(&view.task.now, TaskState::Running)?,
         };
-        if !e.state.is_terminal() {
+        // `Task.Status.Canceled` / `.Complete` describe the `Now` task: the PLC raises the bit first and
+        // moves the task to the ring on a later cycle. Ending the entry here (not after the ring) is
+        // what makes a console-requested Delete/Complete visibly *answered* within one snapshot.
+        let bits = &view.task.status;
+        let ended = if bits.canceled {
+            Some((TaskState::Canceled, "Task.Status.Canceled"))
+        } else if bits.complete && !bits.inprogress {
+            Some((TaskState::Completed, "Task.Status.Complete"))
+        } else {
+            None
+        };
+        if let Some((state, plc_note)) = ended
+            && !e.state.is_terminal()
+        {
+            let note = terminal_note(&e, state, plc_note);
+            let mut e2 = e.clone();
+            e2.plc = Some(PlcSeen { step: view.task.status.step, queue_index: Some(0), last_seen_at: now.clone() });
+            ledger.transition(e2, state, Actor::Plc, Some(note))?;
+        } else if !e.state.is_terminal() {
             let mut e2 = e.clone();
             e2.plc = Some(PlcSeen { step: view.task.status.step, queue_index: Some(0), last_seen_at: now.clone() });
             if e2.state != TaskState::Running {
@@ -315,10 +360,12 @@ pub fn apply(ledger: &Ledger, view: &StatusView, st: &mut SyncState) -> Result<(
         match loc {
             TaskLocation::Now | TaskLocation::Queue(_) => {}
             TaskLocation::Completed(_) => {
-                ledger.transition(e, TaskState::Completed, Actor::Plc, Some("found in Completed ring".into()))?;
+                let note = terminal_note(&e, TaskState::Completed, "found in Completed ring");
+                ledger.transition(e, TaskState::Completed, Actor::Plc, Some(note))?;
             }
             TaskLocation::Canceled(_) => {
-                ledger.transition(e, TaskState::Canceled, Actor::Plc, Some("found in Canceled ring".into()))?;
+                let note = terminal_note(&e, TaskState::Canceled, "found in Canceled ring");
+                ledger.transition(e, TaskState::Canceled, Actor::Plc, Some(note))?;
             }
             TaskLocation::Rejected(_) => {
                 let mut e2 = e;
@@ -589,6 +636,94 @@ mod tests {
         push_ring(&mut v.task.canceled, task(key(5, 1)));
         apply(&ledger, &v, &mut st).unwrap();
         assert_eq!(ledger.get(&e.id).unwrap().state, TaskState::Canceled);
+    }
+
+    /// Pushes a console request note the way `ops::cancel` / `ops::force_complete` do.
+    fn request(ledger: &Ledger, id: &str, note: &str) {
+        let mut e = ledger.get(id).unwrap();
+        e.history.push(crate::ledger::Transition { from: Some(e.state), to: e.state, at: crate::util::now_str(), by: Actor::Ui, note: Some(note.into()) });
+        ledger.upsert(e).unwrap();
+    }
+
+    #[test]
+    fn status_canceled_bit_ends_the_now_task_before_the_ring() {
+        let (_db, ledger, mut st) = fresh();
+        st.lost_grace_ms = 60_000;
+        let mut v = view();
+        apply(&ledger, &v, &mut st).unwrap();
+        v.task.now = task(key(8, 1));
+        v.task.status.inprogress = true;
+        apply(&ledger, &v, &mut st).unwrap();
+        let e = ledger.find_by_key(key(8, 1)).unwrap();
+        assert_eq!(e.state, TaskState::Running);
+        // the console asked for a Delete; the PLC answers with the bit while Now still holds the task
+        request(&ledger, &e.id, DELETE_REQUESTED);
+        v.task.status.inprogress = false;
+        v.task.status.canceled = true;
+        apply(&ledger, &v, &mut st).unwrap();
+        let e1 = ledger.get(&e.id).unwrap();
+        assert_eq!(e1.state, TaskState::Canceled);
+        assert_eq!(e1.history.last().unwrap().by, Actor::Plc);
+        assert_eq!(e1.history.last().unwrap().note.as_deref(), Some("Task.Status.Canceled (console request)"));
+        // the ring catching up later neither re-transitions nor duplicates history
+        let n = e1.history.len();
+        v.task.now = TaskData::default();
+        v.task.status.canceled = false;
+        push_ring(&mut v.task.canceled, task(key(8, 1)));
+        apply(&ledger, &v, &mut st).unwrap();
+        let e2 = ledger.get(&e.id).unwrap();
+        assert_eq!(e2.state, TaskState::Canceled);
+        assert_eq!(e2.history.len(), n);
+    }
+
+    #[test]
+    fn status_complete_bit_ends_the_now_task_and_plc_cancel_is_not_attributed() {
+        let (_db, ledger, mut st) = fresh();
+        let mut v = view();
+        apply(&ledger, &v, &mut st).unwrap();
+        v.task.now = task(key(8, 2));
+        v.task.status.inprogress = true;
+        apply(&ledger, &v, &mut st).unwrap();
+        let e = ledger.find_by_key(key(8, 2)).unwrap();
+        // Complete while Inprogress is still up is not an end (bits mid-update): stays Running
+        v.task.status.complete = true;
+        apply(&ledger, &v, &mut st).unwrap();
+        assert_eq!(ledger.get(&e.id).unwrap().state, TaskState::Running);
+        v.task.status.inprogress = false;
+        apply(&ledger, &v, &mut st).unwrap();
+        let e1 = ledger.get(&e.id).unwrap();
+        assert_eq!(e1.state, TaskState::Completed);
+        assert_eq!(e1.history.last().unwrap().note.as_deref(), Some("Task.Status.Complete"));
+
+        // a PLC-side cancel without a console request keeps the plain note
+        v.task.now = task(key(8, 3));
+        v.task.status.complete = false;
+        v.task.status.inprogress = true;
+        apply(&ledger, &v, &mut st).unwrap();
+        v.task.now = TaskData::default();
+        v.task.status.inprogress = false;
+        push_ring(&mut v.task.canceled, task(key(8, 3)));
+        apply(&ledger, &v, &mut st).unwrap();
+        let c = ledger.find_by_key(key(8, 3)).unwrap();
+        assert_eq!(c.state, TaskState::Canceled);
+        assert_eq!(c.history.last().unwrap().note.as_deref(), Some("canceled on PLC"));
+    }
+
+    #[test]
+    fn ring_cancel_after_console_request_is_attributed() {
+        let (_db, ledger, mut st) = fresh();
+        let mut v = view();
+        apply(&ledger, &v, &mut st).unwrap();
+        v.task.queue[0] = task(key(8, 4));
+        apply(&ledger, &v, &mut st).unwrap();
+        let e = ledger.find_by_key(key(8, 4)).unwrap();
+        request(&ledger, &e.id, DELETE_REQUESTED);
+        v.task.queue[0] = TaskData::default();
+        push_ring(&mut v.task.canceled, task(key(8, 4)));
+        apply(&ledger, &v, &mut st).unwrap();
+        let e1 = ledger.get(&e.id).unwrap();
+        assert_eq!(e1.state, TaskState::Canceled);
+        assert_eq!(e1.history.last().unwrap().note.as_deref(), Some("canceled on PLC (console request)"));
     }
 
     #[test]

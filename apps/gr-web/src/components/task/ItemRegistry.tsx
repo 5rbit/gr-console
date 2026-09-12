@@ -56,16 +56,26 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
   const rows = useMemo(() => reg.items.filter((i) => matchItem(i, q)), [reg.items, q])
   const sel = reg.items.find((i) => i.code === selected) ?? null
 
+  // `priority` — 품목은 **무엇이 몇 개 있고 치수가 얼마인가**로 훑는다: 코드·이름이 1, 수량과
+  // 명령에 직접 쓰는 내경·높이가 2, 나머지 치수와 비고가 3이다.
   const columns: Column<Item>[] = [
-    { key: 'code', label: '코드', get: (i) => i.code, numeric: true, class: 'font-mono' },
-    { key: 'name', label: '이름', get: (i) => i.name },
-    { key: 'count', label: '수량', get: (i) => i.count, numeric: true },
+    {
+      key: 'code',
+      label: '코드',
+      get: (i) => i.code,
+      numeric: true,
+      class: 'font-mono',
+      priority: 1,
+    },
+    { key: 'name', label: '이름', get: (i) => i.name, priority: 1 },
+    { key: 'count', label: '수량', get: (i) => i.count, numeric: true, priority: 2 },
     {
       key: 'id',
       label: '내경',
       get: (i) => i.inner_diameter,
       numeric: true,
       cell: (i) => f1(i.inner_diameter),
+      priority: 2,
     },
     {
       key: 'od',
@@ -73,14 +83,23 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
       get: (i) => i.outer_diameter,
       numeric: true,
       cell: (i) => f1(i.outer_diameter),
+      priority: 3,
     },
-    { key: 'h', label: '높이', get: (i) => i.height, numeric: true, cell: (i) => f1(i.height) },
+    {
+      key: 'h',
+      label: '높이',
+      get: (i) => i.height,
+      numeric: true,
+      cell: (i) => f1(i.height),
+      priority: 2,
+    },
     {
       key: 'lb',
       label: '하부 비드',
       get: (i) => i.lower_bead_height,
       numeric: true,
       cell: (i) => f1(i.lower_bead_height),
+      priority: 3,
     },
     {
       key: 'ub',
@@ -88,9 +107,10 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
       get: (i) => i.upper_bead_height,
       numeric: true,
       cell: (i) => f1(i.upper_bead_height),
+      priority: 3,
     },
-    { key: 'df', label: '처짐', get: (i) => i.deflection_factor, numeric: true },
-    { key: 'note', label: '비고', get: (i) => i.note, class: 'text-slate-500' },
+    { key: 'df', label: '처짐', get: (i) => i.deflection_factor, numeric: true, priority: 3 },
+    { key: 'note', label: '비고', get: (i) => i.note, class: 'text-content-muted', priority: 3 },
   ]
 
   async function save(v: ItemUpsert) {
@@ -130,7 +150,7 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
         onDelete={() => setDel(true)}
       />
       <div className="min-h-0 flex-1 overflow-auto">
-        {reg.error ? <p className="p-2 text-xs text-red-600">{reg.error}</p> : null}
+        {reg.error ? <p className="p-2 text-xs text-fault-fg">{reg.error}</p> : null}
         <DataTable
           rows={rows}
           columns={columns}

@@ -1,23 +1,42 @@
-// 셸 — 메뉴바(그룹 드롭다운) · 사이드바 · 화면 · 상태바. **리드 소유** — 화면(`components/<page>/`)은
-// 각 담당 에이전트가 갈고, 여기서는 탭 스위치만 그것을 가리킨다.
+// 셸 — 메뉴바(그룹 드롭다운 · 보기) · 본문(단일 화면 또는 워크스페이스) · 상태바 · 명령 팔레트.
+// **리드 소유** — 화면(`components/<page>/`)은 각 담당 에이전트가 갈고, 여기서는 그것을 어디에
+// 앉힐지만 정한다.
 //
-// sh4w-web의 App에서 떼어 낸 창(`?panel=`)·플랫폼/로봇 선택·배너·명령 팔레트·토큰 프롬프트를
-// 걷어 냈다 — GR 콘솔은 PLC 한 세트를 보는 단일 문맥이라 선택 축이 없다.
+// 본문이 두 모양인 이유(유니티·VSCode 리서치 결과 — `docs/ui-ux-plan.md`):
+//   · **단일 화면 모드** — 사이드바 + 화면 하나. 처음 오는 사람이 길을 잃지 않는 바닥이다.
+//   · **워크스페이스 모드** — 존 넷에 패널을 도킹하고(`components/workspace/`) 배치를 저장한다.
+//     명령을 내면서 결과를 보고 값을 파는 일이 한 화면에서 끝난다.
+// 진실원은 `workspace.enabled` 하나고, 두 모양이 **같은 패널 컴포넌트**를 쓴다(`paneRegistry`).
+//
+// 명령 팔레트는 다시 들어왔다(sh4w에서 걷어 냈던 것) — 도킹·프리셋·존·밀도까지 조작이 늘어나면
+// 메뉴만으로는 닿지 않는다. 규칙은 VSCode와 같다: **메뉴에 있는 것은 팔레트에도 있다**.
+//
+// 셸·패널·표·색·밀도의 규칙은 `docs/DESIGN.md`가 진실원이다. 이 파일을 고치기 전에 그것을 읽는다.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronDown, Menu, Moon, Sun } from 'lucide-react'
+import type * as React from 'react'
+import { Check, ChevronDown, Columns3, Menu, Moon, Search, Sun } from 'lucide-react'
 
 import { nav, type Tab } from './lib/nav'
 import { ALL_TABS, TAB_GROUPS, type TabDef, type TabGroupId } from './lib/tabs'
 import { theme } from './lib/theme'
 import { api } from './lib/api'
+import { density } from './lib/density'
+import { palette } from './lib/palette'
 import { panels } from './lib/panels'
+import { chord } from './lib/keys'
 import { toast } from './lib/ui/toast'
 import { useStore } from './lib/store'
 import type { ConsoleInfo } from './lib/types'
+import { ZONE_IDS, ZONE_LABEL } from './lib/workspace/model'
+import { PRESETS, DEFAULT_PRESET } from './lib/workspace/presets'
+import { workspace } from './lib/workspace/store'
 
 import { Sidebar } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { PanelHost } from './components/PanelHost'
+import { CommandPalette } from './components/CommandPalette'
+import { WorkspaceShell } from './components/workspace/WorkspaceShell'
+import { PANES } from './components/workspace/paneRegistry'
 import TaskIssue from './components/task/TaskIssue'
 import TaskManager from './components/taskmgr/TaskManager'
 import MeasureMonitor from './components/measure/MeasureMonitor'
@@ -28,12 +47,12 @@ import { ErrorBoundary } from './lib/ui/ErrorBoundary'
 
 function groupCls(active: boolean, open: boolean): string {
   return (
-    'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded px-2 py-1 text-[13px] transition-colors ' +
+    'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded px-2 py-1 text-sm-tight transition-colors ' +
     (open
-      ? 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-100'
+      ? 'bg-surface-active text-content-primary'
       : active
-        ? 'font-medium text-indigo-700 dark:text-indigo-300'
-        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-100')
+        ? 'font-medium text-accent-text'
+        : 'text-content-muted hover:bg-surface-inset hover:text-content-primary')
   )
 }
 
@@ -52,14 +71,182 @@ function Screen({ tab }: { tab: Tab }) {
   }
 }
 
+const menuRowCls =
+  'flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm-tight text-content-tertiary hover:bg-surface-inset disabled:opacity-40 disabled:hover:bg-transparent'
+
+/** 메뉴 구분 머리줄 — 항목이 스물 가까이 되면 묶음 이름 없이는 훑을 수 없다. */
+function MenuLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-2.5 pt-1.5 pb-0.5 text-3xs font-semibold tracking-wide text-content-faint">
+      {children}
+    </div>
+  )
+}
+
+/** 체크 자리를 늘 비워 두는 메뉴 항목 — 켜짐/꺼짐 항목이 섞여도 글자 시작이 안 흔들린다. */
+function MenuRow({
+  label,
+  hint,
+  checked = false,
+  disabled,
+  testid,
+  onPick,
+}: {
+  label: string
+  hint?: string
+  checked?: boolean
+  disabled?: string
+  testid?: string
+  onPick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className={menuRowCls}
+      disabled={!!disabled}
+      title={disabled}
+      data-testid={testid}
+      aria-checked={checked}
+      onClick={onPick}
+    >
+      <span className="w-3 shrink-0 text-accent-text">
+        {checked ? <Check className="h-3 w-3" /> : null}
+      </span>
+      {/* **라벨이 먼저다.** 예전에는 라벨이 `flex-1`이라 긴 힌트에 밀려 `명령 중 / 심`처럼 글자마다
+          끊겼다 — 가이드 4절 ②가 금지하는 그것을 메뉴가 하고 있었다. 라벨은 줄어들지 않고, 남는
+          폭을 힌트가 가져가며 모자라면 **힌트가 먼저** 잘린다. */}
+      <span className="shrink-0 whitespace-nowrap">{label}</span>
+      {hint ? (
+        <kbd className="min-w-0 flex-1 truncate text-right font-mono text-3xs text-content-faint">
+          {hint}
+        </kbd>
+      ) : (
+        <span className="flex-1" />
+      )}
+    </button>
+  )
+}
+
+/**
+ * 보기 메뉴 — 셸의 모양을 정하는 것들만 든다(Unity의 `Window > Layouts` + VSCode의 `View`).
+ *
+ * 여기 있는 모든 항목은 명령 팔레트에도 같은 이름으로 있다. 메뉴는 **자주 쓰는 길**이고 팔레트는
+ * 전부를 담는 길이라, 둘이 갈리면 사용자가 배운 이름이 한쪽에서 통하지 않는다.
+ */
+function ViewMenu({ onDone }: { onDone: () => void }) {
+  const ws = workspace.enabled
+  const l = workspace.layout
+  const pick = (run: () => void) => () => {
+    run()
+    onDone()
+  }
+
+  return (
+    <div
+      className="absolute top-full left-0 z-50 mt-0.5 max-h-[70vh] min-w-80 overflow-y-auto rounded-md border border-line-default bg-surface-panel py-1 shadow-lg"
+      role="menu"
+      tabIndex={-1}
+      data-testid="view-menu"
+    >
+      <MenuRow
+        label="워크스페이스(도킹) 모드"
+        checked={ws}
+        testid="view-ws-mode"
+        onPick={pick(() => workspace.toggleEnabled())}
+      />
+      <MenuRow
+        label="명령 팔레트…"
+        hint={chord('K')}
+        testid="view-palette"
+        onPick={pick(() => palette.show())}
+      />
+
+      <MenuLabel>배치</MenuLabel>
+      {PRESETS.map((pr) => (
+        <MenuRow
+          key={pr.id}
+          label={pr.label}
+          hint={pr.hint}
+          checked={ws && workspace.presetId === pr.id}
+          testid={`view-preset-${pr.id}`}
+          onPick={pick(() => {
+            workspace.setEnabled(true)
+            workspace.applyPreset(pr.id)
+          })}
+        />
+      ))}
+      <MenuRow
+        label="현재 배치 저장…"
+        disabled={ws ? undefined : '워크스페이스 모드에서만'}
+        testid="view-save-layout"
+        onPick={pick(() => palette.ask('layout.save'))}
+      />
+      {workspace.saved.map((sv) => (
+        <MenuRow
+          key={sv.name}
+          label={sv.name}
+          testid={`view-saved-${sv.name}`}
+          onPick={pick(() => {
+            workspace.setEnabled(true)
+            workspace.load(sv.name)
+          })}
+        />
+      ))}
+      <MenuRow
+        label="배치 초기화"
+        testid="view-reset-layout"
+        onPick={pick(() => {
+          workspace.applyPreset(DEFAULT_PRESET)
+          toast.info('기본 배치로 되돌렸습니다')
+        })}
+      />
+
+      <MenuLabel>존</MenuLabel>
+      {ZONE_IDS.filter((z) => z !== 'center').map((z) => {
+        const zs = l.zones[z]
+        return (
+          <MenuRow
+            key={z}
+            label={`${ZONE_LABEL[z]} 존`}
+            checked={!zs.collapsed}
+            disabled={
+              !ws ? '워크스페이스 모드에서만' : zs.panes.length === 0 ? '패널이 없습니다' : undefined
+            }
+            testid={`view-zone-${z}`}
+            onPick={pick(() => workspace.toggleZone(z))}
+          />
+        )
+      })}
+
+      <MenuLabel>표시</MenuLabel>
+      <MenuRow
+        label="조밀하게"
+        checked={density.isCompact}
+        testid="view-density"
+        onPick={pick(() => density.toggle())}
+      />
+      <MenuRow
+        label="다크 테마"
+        checked={theme.isDark}
+        testid="view-theme"
+        onPick={pick(() => theme.toggle())}
+      />
+    </div>
+  )
+}
+
+/** 메뉴바에 열리는 서랍 — 탭 그룹들 + 보기(`view`). 보기는 탭이 아니라 **셸 조작**이라 따로 둔다. */
+type MenuId = TabGroupId | 'view'
+
 export function App() {
-  useStore(nav, theme, panels)
+  useStore(nav, theme, panels, workspace, density)
 
   const [sidebarOpen, setSidebarOpen] = useState(false) // 좁은 화면 사이드바 토글.
   // 콘솔 앱 Profile(`/api/console/info`) — 백엔드가 선언한 탭만 노출. 조회 실패면 `null`이라 전 탭 폴백.
   const [info, setInfo] = useState<ConsoleInfo | null>(null)
   // 맥 메뉴바 관용구: 하나가 열려 있으면 다른 그룹은 **hover만으로** 전환된다.
-  const [openGroup, setOpenGroup] = useState<TabGroupId | null>(null)
+  const [openGroup, setOpenGroup] = useState<MenuId | null>(null)
   /** 초기 URL 반영 전에는 되쓰기 금지(기본값이 URL을 덮어쓰지 않게). */
   const urlApplied = useRef(false)
 
@@ -130,12 +317,18 @@ export function App() {
     [openGroup, tabs],
   )
 
-  // 셸 부팅 — Profile 조회 · 딥링크 1회 반영 · popstate.
+  // 셸 부팅 — 밀도 반영 · Profile 조회 · 딥링크 1회 반영 · popstate.
   useEffect(() => {
+    density.start()
     void api
       .consoleInfo()
       .then((i) => {
         setInfo(i)
+        // 백엔드가 안 내는 화면의 **탭이 레이아웃에 남지 않게** 한 번 걷어 낸다(보조 패널은 늘 있다).
+        workspace.setAvailable(
+          PANES.filter((p) => p.kind === 'aux' || i.tabs.includes(p.id)).map((p) => p.id),
+          i.default_tab,
+        )
         // 백엔드 기본 탭은 **URL이 없을 때만** 적용한다(공유 링크가 이겨야 한다).
         if (
           !new URLSearchParams(location.search).get('tab') &&
@@ -184,25 +377,25 @@ export function App() {
   }, [info, tabs, nav.tab])
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+    <div className="flex h-screen flex-col bg-surface-app text-content-primary">
       {/* 메뉴바 — 맥 스타일의 얇은 한 줄. 네비게이션만 남기고 상태·단축키는 하단 StatusBar가 맡는다. */}
-      <header className="flex h-9 shrink-0 items-center gap-1 border-b border-slate-200 px-2 dark:border-slate-700">
+      <header className="flex h-menubar shrink-0 items-center gap-1 border-b border-line-default px-2">
         <button
           type="button"
-          className="rounded p-1 text-slate-500 hover:bg-slate-100 md:hidden dark:hover:bg-slate-800"
+          className="rounded p-1 text-content-muted hover:bg-surface-inset md:hidden"
           aria-label="사이드바 토글"
           onClick={() => setSidebarOpen(!sidebarOpen)}
         >
           <Menu className="h-4 w-4" />
         </button>
-        <h1 className="flex items-center gap-1.5 pr-1 text-[13px] font-semibold">
-          <span className="grid h-5 w-5 place-items-center rounded bg-indigo-600 text-[10px] text-white">
+        <h1 className="flex items-center gap-1.5 pr-1 text-sm-tight font-semibold">
+          <span className="grid h-5 w-5 place-items-center rounded bg-accent text-3xs text-content-on-accent">
             GR
           </span>
           <span className="hidden sm:inline">
             GR 콘솔
             {info?.app_name ? (
-              <span className="font-normal text-slate-400"> · {info.app_name}</span>
+              <span className="font-normal text-content-faint"> · {info.app_name}</span>
             ) : null}
           </span>
         </h1>
@@ -231,7 +424,7 @@ export function App() {
                 </button>
                 {openGroup === g.id ? (
                   <div
-                    className="absolute top-full left-0 z-50 mt-0.5 min-w-48 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
+                    className="absolute top-full left-0 z-50 mt-0.5 min-w-48 overflow-hidden rounded-md border border-line-default bg-surface-panel py-1 shadow-lg"
                     role="menu"
                     tabIndex={-1}
                   >
@@ -241,10 +434,10 @@ export function App() {
                         <button
                           key={t.id}
                           type="button"
-                          className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[13px] ${
+                          className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm-tight ${
                             nav.tab === t.id
-                              ? 'bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300'
-                              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
+                              ? 'bg-accent-soft font-medium text-accent-text'
+                              : 'text-content-tertiary hover:bg-surface-inset'
                           }`}
                           role="menuitem"
                           data-testid={`tab-${t.id}`}
@@ -257,7 +450,7 @@ export function App() {
                           <Icon className="h-4 w-4 shrink-0 opacity-70" />
                           <span className="flex-1">{t.label}</span>
                           {hotkey(t) ? (
-                            <kbd className="font-mono text-[10px] text-slate-400">{hotkey(t)}</kbd>
+                            <kbd className="font-mono text-3xs text-content-faint">{hotkey(t)}</kbd>
                           ) : null}
                         </button>
                       )
@@ -267,11 +460,44 @@ export function App() {
               </div>
             )
           })}
+
+          {/* 보기 — 탭이 아니라 셸의 모양(도킹·배치·존·밀도). 탭 그룹과 같은 관용구로 열린다. */}
+          <div className="relative">
+            <button
+              type="button"
+              className={groupCls(false, openGroup === 'view')}
+              data-testid="menu-view"
+              aria-haspopup="menu"
+              aria-expanded={openGroup === 'view'}
+              onClick={() => setOpenGroup(openGroup === 'view' ? null : 'view')}
+              onMouseEnter={() => {
+                if (openGroup !== null) setOpenGroup('view')
+              }}
+            >
+              <Columns3 className="h-3.5 w-3.5 opacity-60" />
+              보기
+              <ChevronDown className="h-3 w-3 opacity-50" />
+            </button>
+            {openGroup === 'view' ? <ViewMenu onDone={() => setOpenGroup(null)} /> : null}
+          </div>
         </nav>
 
         <button
           type="button"
-          className="ml-auto rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+          className="ml-auto flex items-center gap-1.5 rounded border border-line-default px-2 py-0.5 text-2xs text-content-faint hover:bg-surface-inset hover:text-content-secondary"
+          aria-label="명령 팔레트 열기"
+          title="명령 팔레트 — 패널 · 배치 · 존 · 설정을 이름으로"
+          data-testid="open-palette"
+          onClick={() => palette.show()}
+        >
+          <Search className="h-3 w-3" />
+          <span className="hidden sm:inline">명령</span>
+          <kbd className="font-mono text-3xs">{chord('K')}</kbd>
+        </button>
+
+        <button
+          type="button"
+          className="rounded p-1 text-content-muted hover:bg-surface-inset"
           aria-label="테마 전환"
           title="라이트/다크 전환"
           onClick={() => theme.toggle()}
@@ -280,20 +506,23 @@ export function App() {
         </button>
       </header>
 
-      {/* 본문 */}
+      {/* 본문 — 워크스페이스 모드면 도킹 격자 하나, 아니면 사이드바 + 화면. */}
+      {workspace.enabled ? (
+        <WorkspaceShell />
+      ) : (
       <div className="flex min-h-0 flex-1">
         {sidebarOpen ? (
           // 모바일 사이드바 backdrop — 바깥 클릭으로 닫기(모달 어포던스).
           <button
             type="button"
-            className="fixed inset-x-0 top-9 bottom-0 z-30 bg-black/30 md:hidden"
+            className="fixed inset-x-0 top-menubar bottom-0 z-30 bg-black/30 md:hidden"
             aria-label="사이드바 닫기"
             onClick={() => setSidebarOpen(false)}
           />
         ) : null}
         <aside
-          className={`shrink-0 border-r border-slate-200 dark:border-slate-700 ${
-            sidebarOpen ? 'absolute inset-y-0 top-9 z-40 bg-slate-50 dark:bg-slate-900' : 'hidden'
+          className={`shrink-0 border-r border-line-default ${
+            sidebarOpen ? 'absolute inset-y-0 top-menubar z-40 bg-surface-app' : 'hidden'
           } md:relative md:top-0 md:block`}
         >
           <Sidebar />
@@ -304,12 +533,14 @@ export function App() {
           </ErrorBoundary>
         </main>
       </div>
+      )}
 
       <StatusBar tab={activeTab?.label ?? nav.tab} />
 
       <ContextMenuHost />
       <Toaster />
       <PanelHost />
+      <CommandPalette />
     </div>
   )
 }

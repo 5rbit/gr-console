@@ -543,13 +543,13 @@ export function DataGrid<T>({
           role="grid"
         >
           <thead
-            className={`bg-slate-50 dark:bg-slate-900 ${stickyHeader ? 'sticky top-0 z-20 shadow-sm' : ''}`}
+            className={`bg-surface-app ${stickyHeader ? 'sticky top-0 z-20 shadow-sm' : ''}`}
           >
-            <tr className="border-b border-slate-200 text-slate-400 dark:border-slate-700">
+            <tr className="border-b border-line-default text-content-faint">
               {columns.map((col, c) => (
                 <th
                   key={col.id}
-                  className={`relative px-2 py-1.5 font-medium ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.nowrap ? 'whitespace-nowrap' : ''} ${col.sticky ? 'sticky z-30 bg-slate-50 dark:bg-slate-900' : ''} ${col.sortable ? 'cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-200' : ''}`}
+                  className={`relative px-2 py-1.5 font-medium ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.nowrap ? 'whitespace-nowrap' : ''} ${col.sticky ? 'sticky z-30 bg-surface-app' : ''} ${col.sortable ? 'cursor-pointer select-none hover:text-content-secondary' : ''}`}
                   style={thStyle(col, c)}
                   aria-sort={
                     sortCol === col.id ? (sortDir === 1 ? 'ascending' : 'descending') : undefined
@@ -557,9 +557,9 @@ export function DataGrid<T>({
                   onClick={() => toggleSort(col)}
                 >
                   {col.header ?? ''}
-                  {col.headerSub ? <span className="text-slate-400"> {col.headerSub}</span> : null}
+                  {col.headerSub ? <span className="text-content-faint"> {col.headerSub}</span> : null}
                   {sortCol === col.id ? (
-                    <span className="text-indigo-500"> {sortDir === 1 ? '▲' : '▼'}</span>
+                    <span className="text-accent-text"> {sortDir === 1 ? '▲' : '▼'}</span>
                   ) : null}
                   {col.resizable !== false ? (
                     <span
@@ -570,7 +570,7 @@ export function DataGrid<T>({
                       onPointerDown={(e) => startResize(col, e)}
                       onDoubleClick={(e) => clearResize(col, e)}
                     >
-                      <span className="absolute top-1 right-0 bottom-1 w-px bg-slate-300 group-hover:bg-indigo-500 dark:bg-slate-600" />
+                      <span className="absolute top-1 right-0 bottom-1 w-px bg-line-strong group-hover:bg-accent" />
                     </span>
                   ) : null}
                 </th>
@@ -580,7 +580,7 @@ export function DataGrid<T>({
           <tbody>
             {viewRows.length === 0 ? (
               <tr>
-                <td className="px-3 py-3 text-center text-slate-400" colSpan={columns.length}>
+                <td className="px-3 py-3 text-center text-content-faint" colSpan={columns.length}>
                   {empty}
                 </td>
               </tr>
@@ -588,9 +588,9 @@ export function DataGrid<T>({
             {viewRows.map((row, r) => (
               <tr
                 key={rowId(row)}
-                className={`border-b border-slate-100 dark:border-slate-800 ${
-                  zebra && r % 2 === 1 ? 'bg-slate-50/60 dark:bg-slate-800/40' : ''
-                } ${rowClass?.(row) ?? ''} ${onrowclick ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60' : ''}`}
+                className={`border-b border-line-subtle ${
+                  zebra && r % 2 === 1 ? 'bg-surface-app' : ''
+                } ${rowClass?.(row) ?? ''} ${onrowclick ? 'cursor-pointer hover:bg-surface-app' : ''}`}
                 onClick={onrowclick ? () => onrowclick(row, r) : undefined}
               >
                 {columns.map((col, c) => {
@@ -610,10 +610,10 @@ export function DataGrid<T>({
                       aria-selected={sel}
                       aria-readonly={!editable}
                       className={`px-0 py-0 relative align-middle select-none ${col.cellClass?.(row) ?? ''}
-                        ${gridFocused && sel ? 'ring-1 ring-indigo-400/60 ring-inset' : ''}
-                        ${gridFocused && active ? 'ring-2 ring-indigo-500 ring-inset' : ''}
+                        ${gridFocused && sel ? 'ring-1 ring-accent/60 ring-inset' : ''}
+                        ${gridFocused && active ? 'ring-2 ring-accent ring-inset' : ''}
                         ${err ? '-outline-offset-1 outline outline-1 outline-red-500' : ''}
-                        ${col.sticky ? 'sticky z-10 bg-white dark:bg-slate-900' : ''}`}
+                        ${col.sticky ? 'sticky z-10 bg-surface-panel' : ''}`}
                       style={tdStyle(col, c)}
                       onPointerDown={(e) => cellPointerDown(e, r, c)}
                       onDoubleClick={(e) => cellDblClick(e, r, c)}
@@ -640,7 +640,7 @@ export function DataGrid<T>({
                             onKeyDown={ctrl.onInputKeydown}
                             onBlur={ctrl.onBlur}
                             ref={autofocus}
-                            className="w-full border border-indigo-500 bg-white px-2 py-1 font-mono outline-none dark:bg-slate-900"
+                            className="w-full border border-accent bg-surface-panel px-2 py-1 font-mono outline-none"
                           >
                             {optionsOf(col, row).map((opt) => (
                               <option key={opt} value={String(opt)}>
@@ -660,7 +660,7 @@ export function DataGrid<T>({
                             onKeyDown={ctrl.onInputKeydown}
                             onBlur={ctrl.onBlur}
                             ref={autofocus}
-                            className={`w-full border border-indigo-500 bg-white px-2 py-1 font-mono outline-none dark:bg-slate-900 ${
+                            className={`w-full border border-accent bg-surface-panel px-2 py-1 font-mono outline-none ${
                               col.align === 'right' ? 'text-right' : ''
                             }`}
                           />

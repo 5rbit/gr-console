@@ -97,14 +97,14 @@ export function LayoutEditor({
       className={
         embedded
           ? 'flex min-h-0 flex-col text-xs'
-          : 'flex h-full min-h-0 w-[330px] flex-none flex-col overflow-y-auto border-l border-slate-200 text-xs dark:border-slate-700'
+          : 'flex h-full min-h-0 w-[330px] flex-none flex-col overflow-y-auto border-l border-line-default text-xs'
       }
       data-testid="layout-editor"
     >
       <div
-        className={`${embedded ? 'hidden' : 'flex'} h-10 items-center gap-2 border-b border-slate-200 px-3 dark:border-slate-700`}
+        className={`${embedded ? 'hidden' : 'flex'} h-10 items-center gap-2 border-b border-line-default px-3`}
       >
-        <Wand2 className="h-4 w-4 text-slate-500" />
+        <Wand2 className="h-4 w-4 text-content-muted" />
         <span className="text-sm font-semibold">레이아웃 생성 규칙</span>
         <span className="flex-1" />
         <Button size="sm" intent="ghost" onClick={onClose}>
@@ -214,8 +214,8 @@ export function LayoutEditor({
             data-testid="rule-rows"
           />
         </div>
-        <div className="rounded border border-slate-200 p-2 dark:border-slate-700">
-          <div className="mb-1 text-[11px] font-semibold text-slate-500">
+        <div className="rounded border border-line-default p-2">
+          <div className="mb-1 text-2xs font-semibold text-content-muted">
             영역에 맞춰 행(X)·열(Y) 채우기
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -297,7 +297,7 @@ export function LayoutEditor({
         </div>
 
         <div
-          className="rounded border border-slate-200 p-2 font-mono text-[11px] tabular-nums dark:border-slate-700"
+          className="rounded border border-line-default p-2 font-mono text-2xs tabular-nums"
           data-testid="rule-summary"
         >
           <div>
@@ -316,14 +316,14 @@ export function LayoutEditor({
           </div>
         </div>
         {problems.length ? (
-          <ul className="list-disc pl-4 text-red-600">
+          <ul className="list-disc pl-4 text-fault-fg">
             {problems.map((p) => (
               <li key={p}>{p}</li>
             ))}
           </ul>
         ) : null}
         {conf.length ? (
-          <div className="rounded border border-amber-300 bg-amber-50 p-2 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+          <div className="rounded border border-warn bg-warn-soft p-2 text-warn-fg">
             <b>충돌 {conf.length}건</b>
             <ul className="list-disc pl-4">
               {conf.slice(0, 6).map((c, i) => (
@@ -350,7 +350,7 @@ export function LayoutEditor({
             레지스트리에 적용
           </Button>
         </div>
-        <p className="text-[11px] text-slate-500">
+        <p className="text-2xs text-content-muted">
           적용하면 로컬 사본(점선 = PLC 미반영)이 됩니다. 확정하려면 셀 탭에서 <b>PLC 쓰기</b>.
         </p>
       </div>

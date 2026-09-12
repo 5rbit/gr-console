@@ -133,14 +133,14 @@ function PickList({
   const needle = q.trim().toLowerCase()
   const shown = needle ? options.filter((o) => o.text.toLowerCase().includes(needle)) : options
   const rowCls = (active: boolean) =>
-    `block w-full truncate rounded px-2 py-1 text-left text-xs hover:bg-slate-100 dark:hover:bg-slate-700 ${
-      active ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' : ''
+    `block w-full truncate rounded px-2 py-1 text-left text-xs hover:bg-surface-inset ${
+      active ? 'bg-accent-soft text-accent-text' : ''
     }`
   return (
-    <div className="absolute top-0 left-0 z-40 w-72 rounded-md border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+    <div className="absolute top-0 left-0 z-40 w-72 rounded-md border border-line-default bg-surface-panel p-1 shadow-lg">
       <input
         tabIndex={0}
-        className="mb-1 h-7 w-full rounded border border-slate-300 bg-transparent px-2 text-xs outline-none focus:border-focus dark:border-slate-600"
+        className="mb-1 h-7 w-full rounded border border-line-strong bg-transparent px-2 text-xs outline-none focus:border-focus"
         placeholder="검색 — Enter로 첫 항목 선택"
         value={q}
         onChange={(e) => setQ(e.currentTarget.value)}
@@ -153,11 +153,18 @@ function PickList({
       />
       <div className="max-h-56 overflow-auto">
         {allowNone ? (
-          <button type="button" className={rowCls(value === '')} onMouseDown={(e) => e.preventDefault()} onClick={() => onPick('')}>
+          <button
+            type="button"
+            className={rowCls(value === '')}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onPick('')}
+          >
             (없음)
           </button>
         ) : null}
-        {shown.length === 0 ? <div className="px-2 py-1 text-xs text-slate-400">해당 없음</div> : null}
+        {shown.length === 0 ? (
+          <div className="px-2 py-1 text-xs text-content-faint">해당 없음</div>
+        ) : null}
         {shown.slice(0, 300).map((o) => (
           <button
             key={o.value}
@@ -174,23 +181,61 @@ function PickList({
   )
 }
 
-export function StepGrid({ steps, cells, stations, items, issues, selectedId, onSelect, onChange, onEditParams, disabled = false }: StepGridProps) {
+export function StepGrid({
+  steps,
+  cells,
+  stations,
+  items,
+  issues,
+  selectedId,
+  onSelect,
+  onChange,
+  onEditParams,
+  disabled = false,
+}: StepGridProps) {
   const index = useMemo(() => new Map(steps.map((s, i) => [s.id, i])), [steps])
   const idx = (s: ScenarioStep): number => index.get(s.id) ?? -1
-  const err = (s: ScenarioStep, field: string): string | null => issues.get(`${idx(s)}:${field}`) ?? null
+  const err = (s: ScenarioStep, field: string): string | null =>
+    issues.get(`${idx(s)}:${field}`) ?? null
 
-  const cellOptions = useMemo<PickOption[]>(() => cells.map((c) => ({ value: String(c.id), text: cellText(c) })), [cells])
-  const stationOptions = useMemo<PickOption[]>(() => stations.map((s) => ({ value: String(s.id), text: stationText(s) })), [stations])
-  const itemOptions = useMemo<PickOption[]>(() => items.map((i) => ({ value: String(i.code), text: `${i.code} · ${i.name}` })), [items])
+  const cellOptions = useMemo<PickOption[]>(
+    () => cells.map((c) => ({ value: String(c.id), text: cellText(c) })),
+    [cells],
+  )
+  const stationOptions = useMemo<PickOption[]>(
+    () => stations.map((s) => ({ value: String(s.id), text: stationText(s) })),
+    [stations],
+  )
+  const itemOptions = useMemo<PickOption[]>(
+    () => items.map((i) => ({ value: String(i.code), text: `${i.code} · ${i.name}` })),
+    [items],
+  )
   const cellById = useMemo(() => new Map(cells.map((c) => [c.id, c])), [cells])
   const stationById = useMemo(() => new Map(stations.map((s) => [s.id, s])), [stations])
   const itemByCode = useMemo(() => new Map(items.map((i) => [i.code, i])), [items])
 
   const columns = useMemo<DataGridColumn<ScenarioStep>[]>(
     () => [
-      { id: '#', header: '#', width: '2.5rem', align: 'right', editor: 'none', text: (s) => String(idx(s) + 1), sortValue: (s) => idx(s) },
+      {
+        id: '#',
+        header: '#',
+        width: '2.5rem',
+        align: 'right',
+        editor: 'none',
+        text: (s) => String(idx(s) + 1),
+        sortValue: (s) => idx(s),
+      },
       { id: 'label', header: '라벨', width: '9rem', editor: 'text', text: (s) => s.label },
-      { id: 'type', header: '종류', width: '6.5rem', editor: 'select', options: TASK_TYPES, text: (s) => s.type, invalid: (s) => err(s, 'type'), coercePaste: (v) => typeOf(v) },
+      {
+        id: 'type',
+        header: '종류',
+        width: '6.5rem',
+        editor: 'select',
+        options: TASK_TYPES,
+        text: (s) => s.type,
+        invalid: (s) => err(s, 'type'),
+        coercePaste: (v) => typeOf(v),
+      },
       {
         id: 'target_kind',
         header: '대상 종류',
@@ -227,15 +272,63 @@ export function StepGrid({ steps, cells, stations, items, issues, selectedId, on
         editor: 'picker',
         nowrap: true,
         text: (s) => (s.item_code === null ? '' : String(s.item_code)),
-        title: (s) => (s.item_code === null ? '' : (itemByCode.get(s.item_code)?.name ?? `품목 ${s.item_code} (레지스트리에 없음)`)),
+        title: (s) =>
+          s.item_code === null
+            ? ''
+            : (itemByCode.get(s.item_code)?.name ?? `품목 ${s.item_code} (레지스트리에 없음)`),
         invalid: (s) => err(s, 'item_code'),
         coercePaste: (v) => (v.trim() === '' ? '' : intOf(v) === null ? null : String(intOf(v))),
       },
-      { id: 'count', header: '수량', width: '4rem', align: 'right', editor: 'number', decimals: 0, text: (s) => String(s.count), invalid: (s) => err(s, 'count'), coercePaste: (v) => (intOf(v) === null ? null : String(intOf(v))) },
-      { id: 'wait_for', header: '대기 조건', width: '5.5rem', editor: 'select', options: WAIT_OPTIONS, text: (s) => WAIT_FOR_LABEL[s.wait_for], coercePaste: (v) => (waitOf(v) ? WAIT_FOR_LABEL[waitOf(v)!] : null) },
-      { id: 'wait_after_ms', header: '후 대기', headerSub: 'ms', width: '5.5rem', align: 'right', editor: 'number', decimals: 0, text: (s) => String(s.wait_after_ms), invalid: (s) => err(s, 'wait_after_ms'), coercePaste: (v) => (intOf(v) === null ? null : String(intOf(v))) },
-      { id: 'on_failure', header: '실패 시', width: '5.5rem', editor: 'select', options: FAIL_OPTIONS, text: (s) => ON_FAILURE_LABEL[s.on_failure], coercePaste: (v) => (failOf(v) ? ON_FAILURE_LABEL[failOf(v)!] : null) },
-      { id: 'params', header: '파라미터', width: '7rem', editor: 'none', text: (s) => paramsToKv(s.params), title: (s) => paramsToKv(s.params) || '기본값 사용', invalid: (s) => err(s, 'params') },
+      {
+        id: 'count',
+        header: '수량',
+        width: '4rem',
+        align: 'right',
+        editor: 'number',
+        decimals: 0,
+        text: (s) => String(s.count),
+        invalid: (s) => err(s, 'count'),
+        coercePaste: (v) => (intOf(v) === null ? null : String(intOf(v))),
+      },
+      {
+        id: 'wait_for',
+        header: '대기 조건',
+        width: '5.5rem',
+        editor: 'select',
+        options: WAIT_OPTIONS,
+        text: (s) => WAIT_FOR_LABEL[s.wait_for],
+        coercePaste: (v) => (waitOf(v) ? WAIT_FOR_LABEL[waitOf(v)!] : null),
+      },
+      {
+        id: 'wait_after_ms',
+        header: '후 대기',
+        headerSub: 'ms',
+        width: '5.5rem',
+        align: 'right',
+        editor: 'number',
+        decimals: 0,
+        text: (s) => String(s.wait_after_ms),
+        invalid: (s) => err(s, 'wait_after_ms'),
+        coercePaste: (v) => (intOf(v) === null ? null : String(intOf(v))),
+      },
+      {
+        id: 'on_failure',
+        header: '실패 시',
+        width: '5.5rem',
+        editor: 'select',
+        options: FAIL_OPTIONS,
+        text: (s) => ON_FAILURE_LABEL[s.on_failure],
+        coercePaste: (v) => (failOf(v) ? ON_FAILURE_LABEL[failOf(v)!] : null),
+      },
+      {
+        id: 'params',
+        header: '파라미터',
+        width: '7rem',
+        editor: 'none',
+        text: (s) => paramsToKv(s.params),
+        title: (s) => paramsToKv(s.params) || '기본값 사용',
+        invalid: (s) => err(s, 'params'),
+      },
       { id: 'note', header: '메모', width: '12rem', editor: 'text', text: (s) => s.note },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- idx/err는 index/issues에서만 파생
@@ -275,7 +368,7 @@ export function StepGrid({ steps, cells, stations, items, issues, selectedId, on
       readOnlyAll={disabled}
       empty="스텝이 없습니다 — '행 추가'로 시작하세요"
       layoutFixed
-      rowClass={(s) => (s.id === selectedId ? 'bg-indigo-50/70 dark:bg-indigo-950/40' : '')}
+      rowClass={(s) => (s.id === selectedId ? 'bg-accent-soft' : '')}
       onrowclick={(s) => onSelect(s.id)}
       onrowdblclick={(s) => onEditParams(s)}
       onedit={edit}
@@ -299,7 +392,9 @@ export function StepGrid({ steps, cells, stations, items, issues, selectedId, on
           return (
             <span className="min-w-0 truncate" title={col.title?.(row)}>
               <span className="font-mono">{row.target.id}</span>
-              <span className="ml-1 text-slate-400">{col.title?.(row)?.replace(/^#\d+ · /, '')}</span>
+              <span className="ml-1 text-content-faint">
+                {col.title?.(row)?.replace(/^#\d+ · /, '')}
+              </span>
             </span>
           )
         }
@@ -308,16 +403,28 @@ export function StepGrid({ steps, cells, stations, items, issues, selectedId, on
           return (
             <span className="min-w-0 truncate">
               <span className="font-mono">{row.item_code}</span>
-              {it ? <span className="ml-1 text-slate-400">{it.name}</span> : null}
+              {it ? <span className="ml-1 text-content-faint">{it.name}</span> : null}
             </span>
           )
         }
-        return <span className={`min-w-0 ${col.nowrap ? 'truncate' : 'break-all'}`}>{col.text(row) || ' '}</span>
+        return (
+          <span className={`min-w-0 ${col.nowrap ? 'truncate' : 'break-all'}`}>
+            {col.text(row) || ' '}
+          </span>
+        )
       }}
       picker={({ row, col, value, choose }) => {
-        if (col.id === 'item_code') return <PickList options={itemOptions} value={value} allowNone onPick={choose} />
+        if (col.id === 'item_code')
+          return <PickList options={itemOptions} value={value} allowNone onPick={choose} />
         const kind = row.target?.kind ?? 'cell'
-        return <PickList options={kind === 'cell' ? cellOptions : stationOptions} value={value} allowNone onPick={choose} />
+        return (
+          <PickList
+            options={kind === 'cell' ? cellOptions : stationOptions}
+            value={value}
+            allowNone
+            onPick={choose}
+          />
+        )
       }}
     />
   )

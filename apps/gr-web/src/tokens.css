@@ -234,7 +234,9 @@
   --color-surface-raised: #ffffff;
   --color-surface-inset: #ebebe8;
   --color-surface-hover: #f5f5f3;
-  --color-surface-active: #ebebe8;
+  /* active(눌린·선택된 면)는 inset보다 **한 단계 더** 짙어야 한다 — 예전에는 inset과 같은
+     `#ebebe8`이라 "선택된 탭 띠"를 그릴 토큰이 없었고, 그래서 화면이 원시 `slate-200`을 불렀다. */
+  --color-surface-active: #dededa;
 
   /* 경계 — 평상시 구분은 그림자가 아니라 1px 보더가 맡는다. */
   --color-line-subtle: #ebebe8;
@@ -244,8 +246,12 @@
   /* 글자 */
   --color-content-primary: #1a1a16;
   --color-content-secondary: #42423c;
+  /* 글자 다섯 층 — 코드가 이미 쓰고 있던 층을 토큰으로 세웠다(`slate-600`·`slate-300`).
+     층이 없어서 원시 스케일을 부르면 그 자리는 다크를 따라오지 못한다. */
+  --color-content-tertiary: #5a5a53;
   --color-content-muted: #77776f;
   --color-content-faint: #9a9a94;
+  --color-content-disabled: #c6c6c1;
   --color-content-on-accent: #ffffff;
 
   /* accent = **브랜드 그린**. 선택·활성·primary 조작 — 화면당 하나로 아낀다.
@@ -286,6 +292,10 @@
   --color-neutral-dot: #9a9a94;
   --color-neutral-fg: #77776f;
   --color-neutral-soft: #ebebe8;
+  /* 대기(pending) — 상태 여섯 밖의 단 하나. 재시작해야 반영되는 값처럼 '아직 살아 있지 않은'
+     시간축 표식이라 판정색(주황·빨강)과 갈라야 한다. 쓰는 곳은 `status.ts`의 cellTone 하나뿐. */
+  --color-pending-fg: #6636bf;
+  --color-pending-soft: #f2eefc;
 
   --color-danger: #b42318;
   --color-danger-hover: #d92d20;
@@ -296,8 +306,8 @@
      UI는 Pretendard, 값·주소·좌표는 JetBrains Mono. 둘 다 npm 패키지로 번들된다(main.tsx import).
      숫자는 body 전체에 tabular-nums 를 켜서 자릿수가 맞는다. 모노에 한글이 섞이면 D2Coding, Pretendard 로 떨어진다. */
   --font-sans:
-    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo',
-    'Malgun Gothic', sans-serif;
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui,
+    'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   --font-mono:
     'JetBrains Mono Variable', 'JetBrains Mono', 'D2Coding', 'Pretendard Variable', ui-monospace,
     Consolas, monospace;
@@ -339,7 +349,91 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   다크 — **시맨틱 토큰만** 갈아 끼운다.
+
+   기본은 화이트톤이다. 다크는 현장의 야간 근무·벽 모니터를 위한 **두 번째 층**이고, 기본이 아니다.
+   그래서 라이트 값은 위 `@theme`에 그대로 남고 여기서는 뜻(surface·line·content·status)만 다시
+   정의한다 — 원시 스케일(`slate-800` 같은 이름)은 건드리지 않는다. 스케일은 스케일이고, 다크에서
+   달라져야 하는 것은 "이 면이 무엇이냐"다.
+
+   이 블록이 생기기 전에는 화면마다 `dark:bg-slate-800` 쌍을 손으로 달아야 했고, 상태 배지의 다크
+   배경은 `dark:bg-amber-500/15`처럼 **투명도로** 만들었다(면이 한 층 더 생겼다). 이제 시맨틱
+   토큰을 쓰면 두 테마가 저절로 따라온다.
+
+   값은 눈대중이 아니라 **대비 계산으로** 골랐다(WCAG AA: 본문 4.5 · UI·큰 글자 3.0):
+     · 글자   primary 16.0 · secondary 12.9 · muted 6.2 · faint 3.9 (faint는 "있다"만 말하는 자리)
+     · accent 채운 버튼 위 흰 글자 4.6 · 글자용 accent-text 6.5
+     · 상태   fg/soft 5.5~7.5 · soft/panel 1.25~1.73 (배지가 **모양으로도** 보인다)
+   soft에 950 틴트를 쓰면 panel과 1.0~1.1로 갈리지 않아 배지가 사라진다 — 그래서 900 틴트다.
+   ══════════════════════════════════════════════════════════════════════════════ */
+:root[data-theme='dark'] {
+  /* 면 4층 — 인접 층은 1.24~1.39로 갈린다. 950↔900은 1.10이라 보더가 그 몫을 한다. */
+  --color-surface-app: #0f0f0d;
+  --color-surface-panel: #1a1a16;
+  --color-surface-inset: #2c2c27;
+  --color-surface-raised: #2c2c27;
+  --color-surface-hover: #2c2c27;
+  --color-surface-active: #42423c;
+
+  --color-line-subtle: #2c2c27;
+  --color-line-default: #42423c;
+  --color-line-strong: #5a5a53;
+
+  --color-content-primary: #f5f5f3;
+  --color-content-secondary: #dededa;
+  --color-content-tertiary: #c6c6c1;
+  --color-content-muted: #9a9a94;
+  --color-content-faint: #77776f;
+  --color-content-disabled: #5a5a53;
+  --color-content-on-accent: #ffffff;
+
+  /* accent — 채운 면은 green-600(흰 글자 4.6), **글자용은 green-400**이다. 라이트의 accent-text
+     (#006b35)를 다크에 그대로 쓰면 2.1로 읽히지 않는다. */
+  --color-accent: #008742;
+  --color-accent-hover: #009b4d;
+  --color-accent-text: #35b373;
+  --color-accent-soft: #00381c;
+
+  /* 포커스 링은 여전히 파랑 단색 — 다크에서는 한 단계 밝게(7.9). */
+  --color-focus: #7fb2f2;
+
+  --color-control-header: #0b2c56;
+  --color-control-border: #12488f;
+  --color-control-text: #7fb2f2;
+
+  /* 상태 6종 — 점(채움)은 한 단계 밝게, 글자는 300계, 배경은 900계. */
+  --color-ok: #35b373;
+  --color-ok-fg: #6bcb99;
+  --color-ok-soft: #00381c;
+  --color-warn: #f5b92e;
+  --color-warn-fg: #f7c95c;
+  --color-warn-soft: #4d3400;
+  --color-degraded: #f27f42;
+  --color-degraded-fg: #fba873;
+  --color-degraded-soft: #5c2108;
+  --color-fault: #e75f50;
+  --color-fault-fg: #f28d82;
+  --color-fault-soft: #611510;
+  --color-info: #4f97ea;
+  --color-info-fg: #7fb2f2;
+  --color-info-soft: #0b2c56;
+  --color-neutral-dot: #77776f;
+  --color-neutral-fg: #c6c6c1;
+  --color-neutral-soft: #42423c;
+  --color-pending-fg: #b39aec;
+  --color-pending-soft: #2d1555;
+
+  --color-danger: #b42318;
+  --color-danger-hover: #d92d20;
+  --color-danger-text: #f28d82;
+  --color-danger-soft: #611510;
+}
+
+/* 라이트로 되돌리는 자리는 없다 — 위 `@theme`가 곧 라이트다(기본이 화이트톤이라는 뜻). */
+@theme static {
   /* ── 모션 ────────────────────────────────────────────────────────────────
      색 전환 150ms가 거의 전부다. 값이 1초에 여러 번 갱신되는 화면이라 위치·크기 애니메이션을
      쓰지 않는다 — 움직임은 '변화'라는 신호를 태워야 하고, 장식이면 알람과 경쟁한다. */

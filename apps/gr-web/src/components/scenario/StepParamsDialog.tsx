@@ -33,12 +33,25 @@ export function StepParamsDialog({ step, onOpenChange, onChange }: StepParamsDia
   }, [step?.id]) // eslint-disable-line react-hooks/exhaustive-deps -- 스텝이 바뀔 때만 다시 받는다
 
   return (
-    <Modal open={step !== null} onOpenChange={onOpenChange} title={step ? `파라미터 덮어쓰기 — ${step.label || stepSummary(step)}` : ''} wide>
+    <Modal
+      open={step !== null}
+      onOpenChange={onOpenChange}
+      title={step ? `파라미터 덮어쓰기 — ${step.label || stepSummary(step)}` : ''}
+      wide
+    >
       {step ? (
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>체크한 항목만 기본값 대신 보낸다. 나머지는 기본 파라미터(PICK/DROP × 셀/스테이션 프로필 포함)를 따른다.</span>
-            <Button size="sm" intent="ghost" disabled={Object.keys(step.params).length === 0} onClick={() => onChange({})}>
+          <div className="flex items-center justify-between text-xs text-content-muted">
+            <span>
+              체크한 항목만 기본값 대신 보낸다. 나머지는 기본 파라미터(PICK/DROP × 셀/스테이션
+              프로필 포함)를 따른다.
+            </span>
+            <Button
+              size="sm"
+              intent="ghost"
+              disabled={Object.keys(step.params).length === 0}
+              onClick={() => onChange({})}
+            >
               모두 해제
             </Button>
           </div>

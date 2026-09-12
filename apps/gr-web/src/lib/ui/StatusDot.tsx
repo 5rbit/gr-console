@@ -51,7 +51,7 @@ export function StatusDot({
   const edge = statusTone(outline ?? status)
   // 8px에서는 테두리·중앙 점이 뭉개진다 — 두 축을 싣는 이상 최소 10px가 필요하다.
   const dim = size === 'sm' ? 'h-2.5 w-2.5' : 'h-3 w-3'
-  const round = shape === 'circle' ? 'rounded-full' : 'rounded-[2px]'
+  const round = shape === 'circle' ? 'rounded-full' : 'rounded-mark'
 
   return (
     <span className="inline-flex items-center gap-1.5">

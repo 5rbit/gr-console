@@ -23,6 +23,22 @@ html {
   color-scheme: light;
 }
 
+/* 표시 밀도(`lib/density.ts`가 `data-density`를 세팅) — VSCode의 `Customize Layout > Compact`.
+
+   **컨트롤 높이 토큰만** 갈아 끼운다. 그래서 밀도가 닿는 범위는 정확히 "그 토큰으로 높이를 부른
+   컴포넌트"다 — UI 킷(Button·Input·Select·Switch·Segmented·IconPopover·ScreenHeader·Toolbar)과
+   셸 크롬(메뉴바·탭 띠)이 그렇게 부른다. 새 컴포넌트는 `h-8` 대신 `h-control-md`를 쓴다. 안 쓰면
+   밀도를 켜도 그 컴포넌트만 제 높이로 남아 줄이 어긋난다.
+
+   글자 크기는 건드리지 않는다 — 11px 아래로 내려가면 값을 잘못 읽고, 그건 밀도로 벌 이득이 아니다.
+   상태바(24px)도 건드리지 않는다: 더 줄이면 알람 점과 집계가 눌린다. */
+:root[data-density='compact'] {
+  --spacing-control-sm: 24px;
+  --spacing-control-md: 28px;
+  --spacing-screen-header: 30px;
+  --spacing-menubar: 30px;
+}
+
 /* 셸의 타입 바닥 — 폰트·본문 크기를 한 자리에서 정한다. 조밀한 엔지니어링 화면이라 12px가 기본이다. */
 body {
   font-family: var(--font-sans);
@@ -70,6 +86,57 @@ svg text {
     ds-flash-bar var(--dur-flash) var(--ease-standard) 1;
 }
 
+/* 존 사이의 크기 손잡이 — **기하를 한 곳에 모은다.**
+   7px 잡을 면 위에 1px 선이 서고(경계는 늘 보인다), 손을 얹으면 3px로 굵어지며 초록이 된다.
+   7px·3px는 Tailwind 스케일에 없는 값이라 유틸리티로 만든다 — 임의값(`w-[7px]`)을 컴포넌트에
+   뿌리면 손잡이를 손볼 때마다 여러 곳을 고쳐야 하고, 디자인 린트도 그것을 막는다. */
+.ds-splitter {
+  position: relative;
+  z-index: 10;
+  flex: none;
+}
+.ds-splitter-col {
+  width: 7px;
+  margin-inline: -3px;
+  cursor: col-resize;
+}
+.ds-splitter-row {
+  height: 7px;
+  margin-block: -3px;
+  cursor: row-resize;
+}
+.ds-splitter-line {
+  position: absolute;
+  background: var(--color-slate-300);
+  transition: background-color 150ms var(--ease-standard);
+}
+:root[data-theme='dark'] .ds-splitter-line {
+  background: var(--color-slate-600);
+}
+.ds-splitter-col .ds-splitter-line {
+  inset-block: 0;
+  left: 3px;
+  width: 1px;
+}
+.ds-splitter-row .ds-splitter-line {
+  inset-inline: 0;
+  top: 3px;
+  height: 1px;
+}
+.ds-splitter-col:hover .ds-splitter-line {
+  width: 3px;
+  margin-inline: -1px;
+}
+.ds-splitter-row:hover .ds-splitter-line {
+  height: 3px;
+  margin-block: -1px;
+}
+.ds-splitter:hover .ds-splitter-line {
+  background: var(--color-indigo-500);
+}
+.ds-splitter:focus-visible .ds-splitter-line {
+  background: var(--color-focus);
+}
 
 /* 레이아웃 맵 선택 링 — 점선이 천천히 돌고 은은하게 숨 쉰다. 움직임 줄이기 설정이면 멈춘다. */
 @keyframes map-sel-march {
@@ -95,4 +162,12 @@ svg text {
   .map-sel {
     animation: none;
   }
+}
+
+/* 비트 격자 — 불리언 묶음을 고정 열로 편다(DESIGN.md 4절 ④). 폭이 줄면 열 수만 준다. */
+.ds-bitgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  column-gap: 0.75rem;
+  row-gap: 0.125rem;
 }

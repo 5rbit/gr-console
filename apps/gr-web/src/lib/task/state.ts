@@ -101,6 +101,28 @@ export function allowedActions(state: TaskState): TaskAction[] {
   }
 }
 
+/**
+ * 같은 WorkId의 **뒤** Task 중 살아 있는 것 — 취소가 함께 데려간다(백엔드 `ops::cascade_after`와
+ * 같은 규칙). 한 작업(WorkId)은 TaskId 순서로 도는 조각들이라, 가운데를 취소하고 뒤를 두면 앞이
+ * 만들지 않은 상태 위에서 뒤가 돈다. 확인 대화상자가 이 목록을 보여 준 뒤 묻는다.
+ */
+export function cascadeAfter(
+  tasks: readonly Pick<Task, 'id' | 'seq' | 'work_id' | 'task_id' | 'state'>[],
+  task: Pick<Task, 'id' | 'work_id' | 'task_id'>,
+): Pick<Task, 'id' | 'seq' | 'work_id' | 'task_id' | 'state'>[] {
+  if (!task.work_id) return []
+  return tasks
+    .filter(
+      (t) =>
+        t.id !== task.id &&
+        t.work_id === task.work_id &&
+        t.task_id > task.task_id &&
+        t.state !== 'draft' &&
+        !TERMINAL.includes(t.state),
+    )
+    .sort((a, b) => a.task_id - b.task_id)
+}
+
 /** 실장비에 물리적 결과가 있는 조작 — ConfirmDialog scope `single-robot`. */
 export function isRobotAction(a: TaskAction): boolean {
   return a === 'cancel' || a === 'complete'
@@ -261,6 +283,20 @@ export function targetOf(
   const id = task.plc_task?.Cell?.Id ?? 0
   if (!id) return null
   return { kind: isStationId(id) ? 'station' : 'cell', id }
+}
+
+/** 대상 표시 — 표·대화상자가 같은 말을 쓴다(`셀 104` · `ST 2001`). */
+export function targetLabel(task: Pick<Task, 'request' | 'plc_task'>): string {
+  const t = targetOf(task)
+  if (!t) return ''
+  return `${t.kind === 'station' ? 'ST' : '셀'} ${t.id}`
+}
+
+/** 타이어 치수 `ID/OD/H` — 품목 코드만으로는 현장에서 어떤 타이어인지 모른다. 없으면 빈 문자열. */
+export function dimsLabel(task: Pick<Task, 'plc_task'>): string {
+  const i = task.plc_task?.Item
+  if (!i || (!i.InnerDiameter && !i.OuterDiameter && !i.Height)) return ''
+  return `${Math.round(i.InnerDiameter)}/${Math.round(i.OuterDiameter)}/${Math.round(i.Height)}`
 }
 
 /** 스테이션 Id 규칙 — 백엔드 `gr_proto::is_station_id`: 2001..2999 이고 `id MOD 100 ∈ 1..32`. */

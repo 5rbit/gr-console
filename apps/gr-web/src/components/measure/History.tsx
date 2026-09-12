@@ -9,26 +9,33 @@ import type { Column } from '../../lib/ui/table'
 import type { MeasLogSnapshot } from '../../lib/types'
 import { StatCards, TaskKv } from './helpers'
 
+// 측정 종류 다섯을 **구분**하는 색 — 상태(판정)가 아니라 종류 축이라 상태 여섯의 fg 토큰을 빌려
+// 쓰되 뜻(ok·warn)으로 읽히지 않게 dot이 아닌 fg만 쓴다. 다크 대비는 토큰 층이 맡는다.
 const KIND_TONE: Record<number, string> = {
-  1: 'text-sky-600 dark:text-sky-400',
-  2: 'text-violet-600 dark:text-violet-400',
-  3: 'text-slate-500',
-  4: 'text-orange-600 dark:text-orange-400',
-  5: 'text-teal-600 dark:text-teal-400',
+  1: 'text-info-fg',
+  2: 'text-pending-fg',
+  3: 'text-content-muted',
+  4: 'text-degraded-fg',
+  5: 'text-ok-fg',
 }
 
+// `priority` — 열 열여섯인 표라 좁은 존에서는 가로 스크롤이 아니라 접기로 간다. 측정 이력에서
+// 먼저 읽는 것은 **언제·무엇이 어떻게 나왔나**다: Seq·시각·상태가 1, 종류·Work/Task·Cell·Code가 2,
+// 명령 값과 Δ들이 3이다(접힌 열은 행을 펼치면 라벨+값 짝으로 나온다).
 const COLS: Column<MeasRow>[] = [
-  { key: 'seq', label: 'Seq', get: (r) => r.seq, numeric: true },
-  { key: 'time', label: '시각', get: (r) => r.time },
+  { key: 'seq', label: 'Seq', get: (r) => r.seq, numeric: true, priority: 1 },
+  { key: 'time', label: '시각', get: (r) => r.time, priority: 1 },
   {
     key: 'kind',
     label: '종류',
     get: (r) => r.kindName,
     cell: (r) => <span className={KIND_TONE[r.kind] ?? ''}>{r.kindName}</span>,
+    priority: 2,
   },
   {
     key: 'status',
     label: '상태',
+    priority: 1,
     get: (r) => r.statusName,
     cell: (r) => (
       <StatusBadge
@@ -40,18 +47,23 @@ const COLS: Column<MeasRow>[] = [
       </StatusBadge>
     ),
   },
-  { key: 'wt', label: 'Work/Task', get: (r) => `${r.workId}/${r.taskId} ${tt(r.taskType)}` },
-  { key: 'cell', label: 'Cell', get: (r) => r.cellId, numeric: true },
-  { key: 'code', label: 'Code', get: (r) => r.code, numeric: true },
-  { key: 'cmdId', label: '명령 ID', get: (r) => f1(r.cmdId), numeric: true },
-  { key: 'cmdH', label: '명령 H', get: (r) => f1(r.cmdHeight), numeric: true },
-  { key: 'cnt', label: '단', get: (r) => r.cmdCount, numeric: true },
-  { key: 'zrel', label: '명령 Z(rel)', get: (r) => f1(r.cmdZRel), numeric: true },
-  { key: 'sum', label: '측정 요약', get: (r) => summary(r) },
-  { key: 'dId', label: 'Δ내경', get: (r) => f2(r.dInnerDia), numeric: true },
-  { key: 'dH', label: 'Δ높이', get: (r) => f2(r.dHeight), numeric: true },
-  { key: 'dZ', label: 'ΔZ', get: (r) => f2(r.dZ), numeric: true },
-  { key: 'dOff', label: '편심', get: (r) => f2(r.dOffset), numeric: true },
+  {
+    key: 'wt',
+    label: 'Work/Task',
+    get: (r) => `${r.workId}/${r.taskId} ${tt(r.taskType)}`,
+    priority: 2,
+  },
+  { key: 'cell', label: 'Cell', get: (r) => r.cellId, numeric: true, priority: 2 },
+  { key: 'code', label: 'Code', get: (r) => r.code, numeric: true, priority: 2 },
+  { key: 'cmdId', label: '명령 ID', get: (r) => f1(r.cmdId), numeric: true, priority: 3 },
+  { key: 'cmdH', label: '명령 H', get: (r) => f1(r.cmdHeight), numeric: true, priority: 3 },
+  { key: 'cnt', label: '단', get: (r) => r.cmdCount, numeric: true, priority: 3 },
+  { key: 'zrel', label: '명령 Z(rel)', get: (r) => f1(r.cmdZRel), numeric: true, priority: 3 },
+  { key: 'sum', label: '측정 요약', get: (r) => summary(r), priority: 2 },
+  { key: 'dId', label: 'Δ내경', get: (r) => f2(r.dInnerDia), numeric: true, priority: 3 },
+  { key: 'dH', label: 'Δ높이', get: (r) => f2(r.dHeight), numeric: true, priority: 3 },
+  { key: 'dZ', label: 'ΔZ', get: (r) => f2(r.dZ), numeric: true, priority: 3 },
+  { key: 'dOff', label: '편심', get: (r) => f2(r.dOffset), numeric: true, priority: 3 },
 ]
 
 export function History({

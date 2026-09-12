@@ -38,12 +38,21 @@
   crate 전역 dead_code(`cmd::clear_header`, `config::plc`, `db::open_memory/with_mut`, `plc::Tier::OnDemand`,
   `PlcHandle::write`, `state.db` 등)로 실패한다. ledger 파일만 보면 깨끗하다(`--no-deps`, ledger/ 경로 0건).
 
-## 7. 데모 월드 관찰 (`demo.rs`, 리드 소유 — 수정 안 함)
+## 7. ~~데모 월드 관찰~~ (닫힘 — `demo.rs`가 고쳐졌다)
 
-- 실행 중인 Task를 `Now`와 `Queue[0]`에 **동시에** 두고 있어서 `Delete`가 큐와 Now에서 각각 빼며
-  Canceled 링에 **같은 키를 두 번** 밀어 넣는다(`[key, key]`). 동기 엔진은 두 번째를 "이미 종결"로
-  건너뛰므로 원장에는 영향이 없지만, 실 PLC 와 다른 모양이라 링 오버플로 깊이 계산이 1칸 손해 본다.
-  제안: `Running` 으로 옮길 때 큐에서 제거하거나, Delete 시 `removed`를 키로 dedup.
+- Delete 시 `removed`를 키로 dedup해 Canceled 링에 같은 키가 두 번 들어가지 않는다. 함께, 끝난
+  Task는 한 틱 동안 `Now`에 남아 `Task.Status.Complete`/`Canceled` 비트를 올린 뒤 링으로 간다 —
+  실 PLC의 순서이고, 동기 엔진이 그 비트로 먼저 종결하는 경로(`sync.rs` 3단계)가 데모에서 돈다.
+
+## 9. 취소·완료 연동 (닫힘)
+
+- `sync::apply` 3단계가 `Task.Status.Canceled`/`Complete`(Now 태스크의 비트)로 종결한다 — 링보다
+  먼저. 콘솔이 요청한 것(`delete requested`/`complete requested` 이력 줄)은 종결 노트에
+  `(console request)`가 붙어 PLC 자발 취소와 갈린다.
+- `ops::cancel`이 `STAT.RES.Data[6]`(Delete 허용)을 `force_complete`의 Data[5]와 대칭으로 본다.
+- Delete/Complete 뒤 `OP_ANSWER_MS`(5 s) 안에 원장이 안 움직이면 `System` 이력 줄
+  `"Delete not answered by PLC within 5000 ms"`가 남는다 — 무시된 명령과 진행 중인 명령이 같은
+  모양이던 것을 끊는다. 프런트 토스트도 돌아온 상태가 종결이 아니면 "요청 보냄 — PLC 응답 대기"다.
 
 ## 8. 검증 방법 메모
 

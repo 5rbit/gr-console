@@ -1,4 +1,5 @@
-// 세그먼트 토글 — 도구 막대 높이 규칙(h-7)을 한 곳에서 지킨다.
+// 세그먼트 토글 — 도구 막대 높이 규칙(`--spacing-control-sm`)을 한 곳에서 지킨다.
+// 높이를 토큰으로 부르는 이유: 전역 밀도(`lib/density.ts`)가 그 토큰을 갈아 끼운다(`docs/DESIGN.md` 6절).
 // 레일 탭·작성 방식·그립 기준·맵 모드·편집 목록이 모두 같은 모양과 높이를 쓴다.
 import type { ReactNode } from 'react'
 import { cn } from '../utils'
@@ -36,7 +37,7 @@ export function Segmented<T extends string>({
       role="tablist"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex h-7 flex-none items-stretch rounded-md border border-slate-300 bg-white p-0.5 dark:border-slate-600 dark:bg-slate-900',
+        'inline-flex h-control-sm flex-none items-stretch rounded-md border border-line-strong bg-surface-panel p-0.5',
         className,
       )}
     >
@@ -56,8 +57,8 @@ export function Segmented<T extends string>({
             className={cn(
               'flex items-center gap-1 rounded px-2 text-xs whitespace-nowrap transition-colors',
               on
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+                ? 'bg-accent text-content-on-accent'
+                : 'text-content-tertiary hover:bg-surface-inset',
             )}
             onClick={() => onChange(o.id)}
           >
@@ -65,7 +66,7 @@ export function Segmented<T extends string>({
             {showLabel ? <span>{o.label}</span> : null}
             {hasBadge ? (
               <span
-                className={cn('text-[10px] tabular-nums', on ? 'opacity-80' : 'text-slate-400')}
+                className={cn('text-3xs tabular-nums', on ? 'opacity-80' : 'text-content-faint')}
               >
                 {o.badge}
               </span>

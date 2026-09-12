@@ -7,7 +7,7 @@ import { Card } from '../../lib/ui/Card'
 import { Select } from '../../lib/ui/Select'
 import { SeriesChart } from '../../lib/ui/viz/LineChart'
 import type { WebMon } from '../../lib/types'
-import { Chips, KvTable } from './helpers'
+import { Bits, KvTable } from './helpers'
 
 export function Axes({ wm, axisHist }: { wm: WebMon; axisHist: readonly (readonly number[])[] }) {
   const [sel, setSel] = useState(2)
@@ -40,7 +40,10 @@ export function Axes({ wm, axisHist }: { wm: WebMon; axisHist: readonly (readonl
                 <td className="text-right font-mono tabular-nums">{f1(a.Torque)}</td>
                 <td className="text-right font-mono tabular-nums">{f2(a.LagError)}</td>
                 <td className="pl-3">
-                  <Chips obj={a as unknown as Record<string, unknown>} keys={['Ready', 'Enabled', 'Running', 'StandStill']} />
+                  <Bits
+                    obj={a as unknown as Record<string, unknown>}
+                    keys={['Ready', 'Enabled', 'Running', 'StandStill']}
+                  />
                 </td>
                 <td className="text-right font-mono tabular-nums">
                   {a.MainCode}/{a.SubCode}
@@ -63,7 +66,9 @@ export function Axes({ wm, axisHist }: { wm: WebMon; axisHist: readonly (readonl
           />
         </Card>
         <Card>
-          <h3 className="mb-1 text-xs font-semibold text-content-muted">OPCUA Drive (STAT.Drive)</h3>
+          <h3 className="mb-1 text-xs font-semibold text-content-muted">
+            OPCUA Drive (STAT.Drive)
+          </h3>
           <table className="w-full text-xs">
             <thead>
               <tr className="text-content-muted">
@@ -103,9 +108,15 @@ export function Axes({ wm, axisHist }: { wm: WebMon; axisHist: readonly (readonl
               </option>
             ))}
           </Select>
-          <span className="text-2xs text-content-muted">최근 {AXIS_HIST} 샘플 (브라우저 메모리)</span>
+          <span className="text-2xs text-content-muted">
+            최근 {AXIS_HIST} 샘플 (브라우저 메모리)
+          </span>
         </div>
-        <SeriesChart values={axisHist[sel] ?? []} capacity={AXIS_HIST} label={`${AXIS[sel]} 위치 (mm)`} />
+        <SeriesChart
+          values={axisHist[sel] ?? []}
+          capacity={AXIS_HIST}
+          label={`${AXIS[sel]} 위치 (mm)`}
+        />
       </Card>
     </div>
   )

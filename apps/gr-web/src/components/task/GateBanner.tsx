@@ -41,7 +41,7 @@ export function GateBanner({ gate, error }: { gate: Gate | null; error: string |
   if (error) {
     return (
       <div
-        className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+        className="flex items-start gap-2 rounded-md border border-warn bg-warn-soft px-3 py-2 text-xs text-warn-fg"
         data-testid="gate-banner"
         data-state="error"
       >
@@ -52,7 +52,7 @@ export function GateBanner({ gate, error }: { gate: Gate | null; error: string |
   }
   if (!gate) {
     return (
-      <div className="rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-400 dark:border-slate-700">
+      <div className="rounded-md border border-line-default px-3 py-2 text-xs text-content-faint">
         게이트 확인 중…
       </div>
     )
@@ -60,7 +60,7 @@ export function GateBanner({ gate, error }: { gate: Gate | null; error: string |
   if (gate.can_submit) {
     return (
       <div
-        className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+        className="flex items-center gap-2 rounded-md border border-ok bg-ok-soft px-3 py-1.5 text-xs text-ok-fg"
         data-testid="gate-banner"
         data-state="open"
       >
@@ -71,7 +71,7 @@ export function GateBanner({ gate, error }: { gate: Gate | null; error: string |
   }
   return (
     <div
-      className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
+      className="flex items-start gap-2 rounded-md border border-fault bg-fault-soft px-3 py-2 text-xs text-fault-fg"
       data-testid="gate-banner"
       data-state="closed"
     >

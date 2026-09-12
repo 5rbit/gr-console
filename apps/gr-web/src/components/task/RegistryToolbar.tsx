@@ -231,7 +231,7 @@ export function RegistryToolbar<T>({
         )}
         {io.plc ? (
           <>
-            <span className="mx-1 h-4 w-px bg-slate-300 dark:bg-slate-600" />
+            <span className="mx-1 h-4 w-px bg-line-strong" />
             <Select
               dense
               value={plc}
@@ -279,11 +279,11 @@ export function RegistryToolbar<T>({
             </Button>
           </>
         ) : null}
-        <span className="mx-1 h-4 w-px bg-slate-300 dark:bg-slate-600" />
+        <span className="mx-1 h-4 w-px bg-line-strong" />
         <a
           href={io.exportUrl}
           download
-          className="inline-flex h-7 items-center gap-1.5 rounded-md bg-slate-100 px-2 text-xs font-medium text-slate-800 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+          className="inline-flex h-7 items-center gap-1.5 rounded-md bg-surface-inset px-2 text-xs font-medium text-content-primary hover:bg-surface-active"
           data-testid="reg-export"
           title="Excel 내보내기"
         >

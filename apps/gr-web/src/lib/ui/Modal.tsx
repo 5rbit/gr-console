@@ -43,23 +43,23 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={close}></div>
+      <div className="absolute inset-0 bg-black/40" onClick={close}></div>
       <div
         ref={box}
         className={`relative w-full ${
           wide ? 'max-w-3xl' : 'max-w-md'
-        } rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800`}
+        } rounded-lg border border-line-default bg-surface-panel shadow-xl`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
-        <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 font-semibold dark:border-slate-700">
+        <div className="flex items-center gap-2 border-b border-line-subtle px-4 py-3 font-semibold">
           {title}
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+        <div className="max-h-[70vh] overflow-y-auto px-4 py-3 text-sm text-content-tertiary">
           {children}
         </div>
-        <div className="flex justify-end border-t border-slate-100 px-4 py-3 dark:border-slate-700">
+        <div className="flex justify-end border-t border-line-subtle px-4 py-3">
           <Button data-autofocus intent="ghost" onClick={close}>
             {closeLabel}
           </Button>

@@ -11,16 +11,10 @@ import type { Task, TaskState, TasksEvent } from './types'
 
 /** PLC가 아직 들고 있는(끝나지 않은) 상태. */
 export const ACTIVE_STATES: readonly TaskState[] = ['submitted', 'accepted', 'queued', 'running']
-/** 끝난 상태. */
-export const TERMINAL_STATES: readonly TaskState[] = [
-  'rejected',
-  'completed',
-  'canceled',
-  'failed',
-  'lost',
-]
+/** 끝난 상태 — 백엔드 `is_terminal()`·`task/state.ts`와 같은 넷. `lost`는 끝이 아니다(재출현하면 되살아난다). */
+export const TERMINAL_STATES: readonly TaskState[] = ['rejected', 'completed', 'canceled', 'failed']
 
-const ALL_STATES: readonly TaskState[] = ['draft', ...ACTIVE_STATES, ...TERMINAL_STATES]
+const ALL_STATES: readonly TaskState[] = ['draft', ...ACTIVE_STATES, 'lost', ...TERMINAL_STATES]
 
 export type TaskCounts = Record<TaskState, number> & { active: number; total: number }
 
@@ -102,14 +96,23 @@ class Tasks extends Store {
     }
   }
 
-  async #act(label: string, run: () => Promise<Task>): Promise<Task | null> {
+  /**
+   * 조작 하나 — `robot`이면 PLC에 명령을 보내는 조작이라 응답이 **원장 상태로** 온다. 돌아온 Task가
+   * 아직 끝나지 않았으면 "취소" 대신 "취소 요청 보냄"이라고 말한다: PLC가 무시한 Delete는 그 뒤로도
+   * 아무 일이 없고, 그때 "취소 완료" 토스트는 거짓이다(이력에 System 줄이 뜨는 것이 그 다음 신호다).
+   */
+  async #act(label: string, run: () => Promise<Task>, robot = false): Promise<Task | null> {
     const tid = toast.pending(`${label} 중…`)
     try {
       const t = await run()
       this.#map.set(t.id, t)
       this.#sorted = null
       this.notify()
-      toast.resolve(tid, 'ok', `#${t.seq} ${label}`)
+      if (robot && !TERMINAL_STATES.includes(t.state)) {
+        toast.resolve(tid, 'info', `#${t.seq} ${label} 요청 보냄 — PLC 응답 대기`)
+      } else {
+        toast.resolve(tid, 'ok', `#${t.seq} ${label}`)
+      }
       return t
     } catch (e) {
       toast.resolve(tid, 'error', `${label} 실패 — ${e instanceof Error ? e.message : String(e)}`)
@@ -118,10 +121,10 @@ class Tasks extends Store {
   }
 
   cancel(id: string): Promise<Task | null> {
-    return this.#act('취소', () => api.taskCancel(id))
+    return this.#act('취소', () => api.taskCancel(id), true)
   }
   complete(id: string): Promise<Task | null> {
-    return this.#act('완료 처리', () => api.taskComplete(id))
+    return this.#act('완료 처리', () => api.taskComplete(id), true)
   }
   resubmit(id: string): Promise<Task | null> {
     return this.#act('재제출', () => api.taskResubmit(id))

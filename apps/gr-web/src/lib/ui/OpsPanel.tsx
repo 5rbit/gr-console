@@ -80,7 +80,7 @@ export function OpsPanel({
                     'h-control-sm min-w-0 flex-1 truncate px-1 text-2xs transition-colors',
                     i > 0 && 'border-l border-line-default',
                     o.active
-                      ? 'bg-accent font-semibold text-white'
+                      ? 'bg-accent font-semibold text-content-on-accent'
                       : 'bg-surface-panel text-content-secondary hover:bg-surface-hover',
                     o.disabled && 'cursor-not-allowed opacity-50',
                   )}
@@ -138,7 +138,7 @@ export function OpsPanel({
           <button
             type="button"
             className={cn(
-              'flex h-control-stop w-full items-center justify-center gap-2 rounded-md bg-danger text-base font-semibold text-white transition-colors',
+              'flex h-control-stop w-full items-center justify-center gap-2 rounded-md bg-danger text-base font-semibold text-content-on-accent transition-colors',
               'hover:bg-danger-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none',
               stop.disabled && 'cursor-not-allowed opacity-50',
             )}
@@ -160,7 +160,7 @@ export function OpsPanel({
       {/* ⑧ 마지막 조작 한 줄 — 방금 무엇을 보냈는지가 판을 떠나지 않는다. */}
       {lastAction ? (
         <div
-          className="flex h-7 flex-none items-center truncate border-t border-line-subtle bg-surface-inset px-2 text-3xs text-content-faint"
+          className="flex h-control-sm flex-none items-center truncate border-t border-line-subtle bg-surface-inset px-2 text-3xs text-content-faint"
           title={lastAction}
         >
           {lastAction}

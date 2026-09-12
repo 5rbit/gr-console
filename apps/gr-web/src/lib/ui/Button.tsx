@@ -5,23 +5,23 @@ import { LoaderCircle } from 'lucide-react'
 import { cn } from '../utils'
 
 const button = tv({
-  base: 'inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900',
+  base: 'inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-white-slate-900',
   variants: {
     intent: {
-      primary: 'bg-accent text-white hover:bg-accent-hover focus-visible:ring-focus',
+      primary: 'bg-accent text-content-on-accent hover:bg-accent-hover focus-visible:ring-focus',
       neutral:
-        'bg-slate-100 text-slate-800 hover:bg-slate-200 focus-visible:ring-focus dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600',
+        'bg-surface-inset text-content-primary hover:bg-surface-active focus-visible:ring-focus',
       ghost:
-        'text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-focus dark:hover:bg-slate-800 dark:hover:text-slate-100',
+        'text-content-muted hover:bg-surface-inset hover:text-content-primary focus-visible:ring-focus',
       outline:
-        'border border-slate-300 text-slate-700 hover:bg-slate-100 focus-visible:ring-focus dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800',
-      danger: 'bg-danger text-white hover:bg-danger-hover focus-visible:ring-focus',
+        'border border-line-strong text-content-secondary hover:bg-surface-inset focus-visible:ring-focus',
+      danger: 'bg-danger text-content-on-accent hover:bg-danger-hover focus-visible:ring-focus',
     },
     size: {
-      sm: 'h-7 px-2 text-xs',
-      md: 'h-8 px-3 text-sm',
-      icon: 'h-8 w-8',
-      'icon-sm': 'h-7 w-7',
+      sm: 'h-control-sm px-2 text-xs',
+      md: 'h-control-md px-3 text-sm',
+      icon: 'h-control-md w-control-md',
+      'icon-sm': 'h-control-sm w-control-sm',
     },
     active: { true: 'ring-2 ring-accent/40', false: '' },
   },
