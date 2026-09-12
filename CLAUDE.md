@@ -3,10 +3,11 @@
 겐트리 로봇(GR2) 엔지니어링 테스트 콘솔. Rust(axum) 백엔드 + React 프런트의 워크스페이스 하나다.
 
 ```
-apps/gr-console/   백엔드(axum) — PLC S7 읽기/쓰기 · OPC UA 명령 · SSE · SQLite
+apps/gr-console/   백엔드(axum) — PLC S7 읽기/쓰기 · OPC UA 명령 · SSE · SQLite · 웹 서빙(패키지는 웹·계약 내장)
 apps/gr-web/       프런트(React 19 + Vite + Tailwind v4) — 셸 · 화면 넷 · 도킹 워크스페이스
 crates/            공유 크레이트(PLC 레이아웃·계약)
 tools/gr-contract/ TIA 소스 → PLC 레이아웃 생성기
+tools/package.*    배포 패키지 스크립트(cargo feature `embed` — README "패키지 만들기")
 plc/contract/      TIA 소스(진실원)
 docs/              DESIGN.md(UI 규칙) · ui-ux-plan.md(결정 기록) · screenshots/
 ```
@@ -40,6 +41,8 @@ npm run check             # tsc(app + node) + 디자인 린트
 npm run lint:design       # 디자인 시스템 예산 검사(tools/design-lint.mjs)
 TZ=Asia/Seoul npm run test:unit   # vitest — 순수 모듈만
 npm run build
+
+tools/package.sh          # 배포 패키지(실행 파일 하나 + 설정 + 안내문 → dist/*.zip). Windows: just package
 ```
 
 `TZ=Asia/Seoul`: `apps/gr-web/src/lib/task/state.test.ts`의 `endedToday`가 로컬 시간대에 매여 있다

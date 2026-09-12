@@ -25,3 +25,7 @@ dev:
 
 console: web-build
     $env:GR_CONSOLE_WEB_DIR = "$PWD/apps/gr-web/dist"; cargo run -p gr-console
+
+# 배포 패키지 — 실행 파일 하나(웹·계약 내장) + 설정 + 안내문 → dist/*.zip
+package:
+    pwsh -NoProfile -File tools/package.ps1
