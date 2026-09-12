@@ -62,7 +62,7 @@ status_plc = "GR2"
 grm_plc = "GRM"
 
 # 로봇 목록 — GRM 뒤에 최대 2대. 비워 두면 [cmd]/[opcua] 의 한 대(GR2) 만 쓴다.
-# 두 대를 쓰려면 아래 주석을 풀고 GR1 의 S7 PLC 도 [[plcs]] 에 추가한다(contract "GR1_PLC", OPCUA/TASK DB, checks ComponentID 4001).
+# 두 대를 쓰려면 아래 주석을 풀고 GR1 의 S7 PLC 도 [[plcs]] 에 추가한다(contract "GR1_PLC", checks ComponentID 4001). GR1 도 GR2 V1.4.1 과 같은 프로그램이라 WEBMON·MEASLOG·STATION 을 똑같이 읽는다.
 # [[robots]]
 # id = 1
 # name = "GR1"
@@ -87,7 +87,7 @@ grm_plc = "GRM"
 # rack = 0
 # slot = 1
 # fast = ["OPCUA", "TASK"]
-# webmon = []
-# slow = ["PARA", "ALARM", "CELL", "STATION"]
-# on_demand = []
+# webmon = ["WEBMON"]
+# slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG"]
+# on_demand = ["MEASLOG_HIST"]
 # checks = [{ db = "OPCUA", path = "STAT.ComponentID", equals = 4001 }, { db = "PARA", path = "Machine.ID", equals = 1 }]

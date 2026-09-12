@@ -1,0 +1,13 @@
+﻿TYPE "LGR_MeasureLogTrend"
+VERSION : 0.1
+   STRUCT
+      Count : UDInt;   //   유효 값 수
+      Last : Real;   //   마지막 값
+      Avg : Real;   //   누적 평균
+      Ema : Real;   //   지수 이동 평균 (alpha 0.2, 최근 추세) - Avg 와의 차이가 드리프트
+      Min : Real;
+      Max : Real;
+   END_STRUCT;
+
+END_TYPE
+

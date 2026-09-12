@@ -1,0 +1,24 @@
+﻿TYPE "LGR_MeasureLogByCode"
+VERSION : 0.1
+   STRUCT
+      Code : UDInt;   //   아이템 코드 (0 = 빈 슬롯)
+      Item : "LGR_Stock_Item";   //   명령 사양 (마지막 명령 기준 : Count / InnerDiameter / OuterDiameter / Height ...)
+      LastTime {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;   //   마지막 기록 시각
+      Count : UDInt;   //   이 코드의 누적 기록 수 (Item + Sku + Pick)
+      Stat : Array[1..5] of "LGR_MeasureLogStat";   //   종류별 명령 대비 편차 추세 (인덱스 = MEAS_LOG_* : 1 Item, 2 Sku, 4 Pick 사용)
+      Meas : Struct   //   측정값(절대) 누적 - 동일 규격 비교용
+         InnerDia : "LGR_MeasureLogTrend";   //   [Item] 정합 내경 (mm)
+         LaserInnerDia : "LGR_MeasureLogTrend";   //   [Item] 레이저 내경 (들어갈 때 / 나갈 때 유효값 평균, mm)
+         TorqInnerDia : "LGR_MeasureLogTrend";   //   [Item] 토크 내경 (mm)
+         UpperBeadHeight : "LGR_MeasureLogTrend";   //   [Item] 상단 비드 높이 (Cell 바닥 기준, mm)
+         TireHeight : "LGR_MeasureLogTrend";   //   [Item] 타이어 높이 (Cell 바닥 기준, mm)
+         Offset : "LGR_MeasureLogTrend";   //   [Item] 편심 크기 (mm)
+         PickBeadPos : "LGR_MeasureLogTrend";   //   [Pick] 마지막 비드 - Target Z (mm)
+         PickInnerDia : "LGR_MeasureLogTrend";   //   [Pick] 하강 중 레이저 내경 (유효 시, mm)
+         SkuEachHeight : "LGR_MeasureLogTrend";   //   [Sku] 단당 높이 (mm)
+         SkuStackHeight : "LGR_MeasureLogTrend";   //   [Sku] 스택 전체 높이 (mm)
+      END_STRUCT;
+   END_STRUCT;
+
+END_TYPE
+

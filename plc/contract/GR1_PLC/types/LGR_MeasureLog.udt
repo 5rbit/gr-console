@@ -1,0 +1,20 @@
+﻿TYPE "LGR_MeasureLog"
+VERSION : 0.1
+   STRUCT
+      TimeStamp {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;   //    기록 시각 (PLC 로컬 시간)
+      Seq : UDInt;   //    기록 일련번호 (1 부터 증가, 전원 유지)
+      Kind : USInt;   //    측정 종류 MEAS_LOG_* : 1 Item, 2 Sku, 3 Floor, 4 Pick 마지막 비드, 5 수동 측정
+      Status : UInt;   //    MEAS_STAT_* : 2 Done, 3 Error, 4 Mismatch
+      Cmd : "LGR_Task_Data";   //   측정 시점의 명령 전체 ("TASK".Now 복사. 수동 측정은 InitValue.Task + OuterDiameter). 셀 바닥 기준 명령 Z = Cmd.Position[Z] - Cmd.Cell.Position[Z]
+      Data : Array[0..19] of Real;   //    측정 결과. Item = MEAS_ITEM_* 인덱스 (+[4] Torq_Raw1 [5] Torq_Raw2 [6] Torq_CenterSource [9] Tolerance), Sku = MEAS_SKU_* (+[15] ResultSensor [16] 완료 센서 수), Floor / Pick / 수동 = "MeasureLogAdd" 주석
+      Delta : Struct   //    명령(사양) 대비 측정 편차 - 추세 분석용 (해당 없으면 0)
+         InnerDia : Real;   //    측정 내경 - 명령 Item.InnerDiameter (mm). 수동 측정 : 레이저 내경 - 토크 내경
+         Height : Real;   //    측정 타이어 높이 - 명령 Item.Height (mm). Sku : 단당 높이 기준
+         Z : Real;   //    측정 높이 - 명령 Z (셀 바닥 기준, mm). Item : 상단 비드, Sku : 스택 높이, Floor : 바닥 - Cell Z, Pick : 마지막 비드 - Target Z
+         Offset : Real;   //    편심 크기 SQRT(X^2 + Y^2) (mm)
+         Count : Real;   //    측정 단수 - 명령 Item.Count (Sku)
+      END_STRUCT;
+   END_STRUCT;
+
+END_TYPE
+

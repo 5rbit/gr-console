@@ -1,0 +1,15 @@
+﻿DATA_BLOCK "MEASLOG_HIST"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+// 표준 접근 : 외부 S7 통신(gr-console) 읽기용. 64 KB 제한으로 MEASLOG 에서 분리
+   STRUCT 
+      LayoutSig : DWord;   //   레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
+      Entry : Array[0.."MEAS_LOG_LAST"] of "LGR_MeasureLog";   //   측정 이력 (모든 종류, 시간순 링버퍼. 위치는 "MEASLOG".Head/Count/Total)
+   END_STRUCT;
+
+
+BEGIN
+   LayoutSig := 16#B320_BA18;
+
+END_DATA_BLOCK
+

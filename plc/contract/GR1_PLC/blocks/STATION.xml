@@ -72,10 +72,8 @@
   </Section>
 </Sections></Interface>
       <IsOnlyStoredInLoadMemory>false</IsOnlyStoredInLoadMemory>
-      <IsRetainMemResEnabled>false</IsRetainMemResEnabled>
       <IsWriteProtectedInAS>false</IsWriteProtectedInAS>
-      <MemoryLayout>Optimized</MemoryLayout>
-      <MemoryReserve>100</MemoryReserve>
+      <MemoryLayout>Standard</MemoryLayout>
       <Name>STATION</Name>
       <Namespace />
       <Number>49</Number>
