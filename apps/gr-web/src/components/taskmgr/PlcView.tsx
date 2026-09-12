@@ -135,6 +135,17 @@ export function PlcView({ onPickKey, highlight = null }: PlcViewProps) {
       status: s.Inprogress ? 'ok' : undefined,
     },
     { label: 'HoldItem', value: s.HoldItem ? 'TRUE' : 'FALSE' },
+    // Complete·Canceled — Now 태스크가 끝났다는 PLC의 첫 신호. 링보다 먼저 서고 원장이 이것으로 끝낸다.
+    {
+      label: 'Complete',
+      value: s.Complete ? 'TRUE' : 'FALSE',
+      status: s.Complete ? 'ok' : undefined,
+    },
+    {
+      label: 'Canceled',
+      value: s.Canceled ? 'TRUE' : 'FALSE',
+      status: s.Canceled ? 'warn' : undefined,
+    },
     { label: 'Step', value: Number(s.Step ?? 0), mono: true },
   ]
   const h = data.res.Header

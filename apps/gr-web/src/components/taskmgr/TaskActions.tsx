@@ -41,7 +41,7 @@ function describe(action: TaskAction, task: Task): string {
     case 'cancel':
       return task.state === 'draft'
         ? `${who} 초안을 폐기합니다.`
-        : `${who} 에 Delete 명령을 보냅니다. PLC는 실행 중인 Task의 Delete를 AUTO 모드가 아닐 때만 처리합니다.`
+        : `${who} 에 Delete 명령을 보냅니다. PLC가 허용(STAT.RES.Data[6])할 때만 통하고, 실행 중인 Task는 AUTO 모드가 아닐 때만 처리됩니다. 결과는 PLC의 Task.Status.Canceled 또는 Canceled 링으로 돌아옵니다.`
     case 'complete':
       return `${who} 에 Complete 명령을 보내 강제로 완료 처리합니다. PLC가 허용(STAT.RES.Data[5])할 때만 통합니다.`
     case 'resubmit':

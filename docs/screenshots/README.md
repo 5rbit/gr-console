@@ -69,4 +69,6 @@
 | ![](48_bits_grid.png) | 비트 묶음은 칩 구름이 아니라 **고정 격자** — 켜진 것만 색, 꺼진 것도 같은 자리에 남아 무엇이 꺼졌는지 읽힌다 |
 | ![](49_capsule_table_only.png) | 캡슐은 표의 상태 열 **하나**뿐 — 필터 칩은 4px 모서리의 조작, 사이드바 개수는 숫자 |
 | ![](50_dot_label_detail.png) | 상세의 값 자리는 점+글자(`연결됨` · `레이아웃 OK`) — 폭이 고정이라 옆 값의 x가 흔들리지 않는다 |
+| ![](51_cancel_timeline.png) | Task 취소 — 이력이 `delete requested`(콘솔) → `canceled on PLC (console request)`(PLC)로 읽힌다. PLC 자발 취소는 `(console request)`가 없다 |
+| ![](52_plc_view_terminal_bits.png) | PLC 뷰 — `Task.Status.Complete`·`Canceled` 비트가 보인다. 원장은 링보다 이 비트로 먼저 끝낸다 |
 | ![](42_view_menu_fixed.png) | `보기` 메뉴 — 라벨이 줄어들지 않고 힌트가 먼저 잘린다(예전에는 `명령 중 / 심`으로 끊겼다) |

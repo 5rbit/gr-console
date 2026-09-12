@@ -105,6 +105,29 @@ async fn task_op(cmd: &Arc<CommandPort>, op: TaskOp, key: TaskKey) -> Result<(),
     cmd.write_task_op(op, 0, 0).await // re-arm
 }
 
+/// How long the PLC gets to answer a Delete/Complete (status bit or ring) before the request is
+/// recorded as unanswered. The op itself is fire-and-forget on the wire — there is no ack field —
+/// so "the PLC ignored it" is only observable as *nothing happening*.
+pub const OP_ANSWER_MS: u64 = 5000;
+
+/// Watches a Delete/Complete request: if the entry is still in the same non-terminal state after
+/// `OP_ANSWER_MS`, a `System` history line says so. Without it an ignored Delete looked exactly like
+/// a Delete in flight until the task went `Lost` minutes later with an unrelated note.
+fn watch_op_answer(ledger: Arc<super::Ledger>, id: String, state: TaskState, what: &'static str) {
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(OP_ANSWER_MS)).await;
+        let Some(e) = ledger.get(&id) else { return };
+        if e.state != state || e.state.is_terminal() {
+            return;
+        }
+        let mut e2 = e;
+        e2.history.push(super::Transition { from: Some(state), to: state, at: crate::util::now_str(), by: Actor::System, note: Some(format!("{what} not answered by PLC within {OP_ANSWER_MS} ms")) });
+        if let Err(err) = ledger.upsert(e2) {
+            tracing::warn!(id, "op watch: {err}");
+        }
+    });
+}
+
 pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
     let (r, e) = st.find_task(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
     match e.state {
@@ -112,23 +135,29 @@ pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
         TaskState::Submitted | TaskState::Accepted | TaskState::Queued | TaskState::Running | TaskState::Lost => {}
         s => return Err(ApiError::Conflict(format!("cannot cancel a {} task", s.as_str()))),
     }
-    // GR2 only processes `Command.Task.Delete` for the running task outside AUTO mode.
-    if e.state == TaskState::Running && !st.cfg.demo {
+    // `STAT.RES.Data[6]` says whether the PLC accepts a Delete right now (the mirror of Data[5] for
+    // Complete); on top of that GR2 only processes `Command.Task.Delete` for the running task outside
+    // AUTO mode. Both are checked here so the operator gets the reason instead of a silent no-op.
+    if !st.cfg.demo {
         match status_view(st, r) {
-            Some(v) if v.mode.auto => {
+            Some(v) if !v.reject_info().delete_allowed => {
+                return Err(ApiError::Conflict("PLC가 취소(Delete)를 허용하지 않습니다 (STAT.RES.Data[6] = 0)".into()));
+            }
+            Some(v) if e.state == TaskState::Running && v.mode.auto => {
                 return Err(ApiError::Conflict("AUTO 모드에서는 실행 중인 태스크를 취소(Delete)할 수 없습니다 — 로봇을 AUTO에서 내린 뒤 다시 시도하세요".into()));
             }
             Some(_) => {}
-            None => return Err(ApiError::PlcUnavailable("상태 PLC 스냅샷 없음 — AUTO 모드 여부를 확인할 수 없습니다".into())),
+            None => return Err(ApiError::PlcUnavailable("상태 PLC 스냅샷 없음 — 취소 허용 여부를 확인할 수 없습니다".into())),
         }
     }
     // Note the request *before* the op: `task_op` sleeps 600 ms for the re-arm, during which the sync
     // engine may already record `Canceled` — upserting a pre-op snapshot afterwards would clobber it.
     let id = e.id.clone();
     let mut e2 = e.clone();
-    e2.history.push(super::Transition { from: Some(e2.state), to: e2.state, at: crate::util::now_str(), by: Actor::Ui, note: Some("delete requested".into()) });
+    e2.history.push(super::Transition { from: Some(e2.state), to: e2.state, at: crate::util::now_str(), by: Actor::Ui, note: Some(super::sync::DELETE_REQUESTED.into()) });
     r.ledger.upsert(e2)?;
     task_op(&r.cmd, TaskOp::Delete, e.key()).await?;
+    watch_op_answer(r.ledger.clone(), id.clone(), e.state, "Delete");
     Ok(r.ledger.get(&id).unwrap_or(e))
 }
 
@@ -150,9 +179,10 @@ pub async fn force_complete(st: &AppState, id: &str) -> Result<LedgerEntry, ApiE
     // Same ordering as `cancel`: note first, op second, fresh read last.
     let id = e.id.clone();
     let mut e2 = e.clone();
-    e2.history.push(super::Transition { from: Some(e2.state), to: e2.state, at: crate::util::now_str(), by: Actor::Ui, note: Some("complete requested".into()) });
+    e2.history.push(super::Transition { from: Some(e2.state), to: e2.state, at: crate::util::now_str(), by: Actor::Ui, note: Some(super::sync::COMPLETE_REQUESTED.into()) });
     r.ledger.upsert(e2)?;
     task_op(&r.cmd, TaskOp::Complete, e.key()).await?;
+    watch_op_answer(r.ledger.clone(), id.clone(), e.state, "Complete");
     Ok(r.ledger.get(&id).unwrap_or(e))
 }
 
