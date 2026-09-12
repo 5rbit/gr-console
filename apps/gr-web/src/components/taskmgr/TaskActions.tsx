@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Ban, CheckCircle2, RotateCw, Send, Trash2, XOctagon } from 'lucide-react'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
+import { FieldList, type FieldItem } from '../../lib/ui/FieldList'
 import { Input } from '../../lib/ui/Input'
 import { runAction } from '../../lib/task/actions'
 import {
@@ -11,6 +12,8 @@ import {
   STATE_LABEL,
   allowedActions,
   isRobotAction,
+  targetOf,
+  typeName,
   type TaskAction,
 } from '../../lib/task/state'
 import type { Task } from '../../lib/types'
@@ -39,24 +42,57 @@ const ICON: Record<TaskAction, React.ReactNode> = {
 
 const DANGER: ReadonlySet<TaskAction> = new Set<TaskAction>(['cancel', 'fail', 'delete'])
 
+// 확인은 **질문 한 줄**이다. PLC 허용 조건·AUTO 모드 같은 규칙은 여기 적지 않는다 — 막히면 서버가
+// 그 이유를 토스트로 말하고, 매번 읽지 않는 안내문은 진짜 경고(되돌릴 수 없음)까지 묻어 버린다.
 function describe(action: TaskAction, task: Task): string {
-  const who = `#${task.seq} (WorkId ${task.work_id} · TaskId ${task.task_id}, ${STATE_LABEL[task.state]})`
+  const who = `Task #${task.seq}`
   switch (action) {
     case 'submit':
-      return `${who} 을(를) PLC에 제출합니다.`
+      return `${who}을(를) PLC에 제출하시겠습니까?`
     case 'cancel':
       return task.state === 'draft'
-        ? `${who} 초안을 폐기합니다.`
-        : `${who} 에 Delete 명령을 보냅니다. PLC가 허용(STAT.RES.Data[6])할 때만 통하고, 실행 중인 Task는 AUTO 모드가 아닐 때만 처리됩니다. 결과는 PLC의 Task.Status.Canceled 또는 Canceled 링으로 돌아옵니다.`
+        ? `${who} 초안을 폐기하시겠습니까?`
+        : `${who}을(를) 정말로 취소하시겠습니까?`
     case 'complete':
-      return `${who} 에 Complete 명령을 보내 강제로 완료 처리합니다. PLC가 허용(STAT.RES.Data[5])할 때만 통합니다.`
+      return `${who}을(를) 강제로 완료 처리하시겠습니까?`
     case 'resubmit':
-      return `${who} 과 같은 내용으로 새 Task를 만들어 제출합니다(WorkId/TaskId는 새로 받습니다).`
+      return `${who}과(와) 같은 내용으로 다시 제출하시겠습니까?`
     case 'fail':
-      return `${who} 을(를) 콘솔 원장에서 실패로 표시합니다. PLC에는 아무것도 보내지 않습니다.`
+      return `${who}을(를) 실패로 표시하시겠습니까?`
     case 'delete':
-      return `${who} 기록을 원장에서 지웁니다. 되돌릴 수 없습니다.`
+      return `${who} 기록을 정말로 삭제하시겠습니까? 되돌릴 수 없습니다.`
   }
+}
+
+/**
+ * 어떤 Task인지 알아보는 라벨+값 짝 — 질문 한 줄 아래에 선다. 번호만으로는 작업자가 "무슨 작업"인지
+ * 모른다(같은 셀·같은 품목의 Task가 열 개 줄지어 있다). 상세와 같은 말(종류·대상·품목·로봇)을 쓴다.
+ */
+function identity(task: Task): FieldItem[] {
+  const t = targetOf(task)
+  const item = task.plc_task?.Item
+  const req = task.request
+  return [
+    { label: '종류', value: typeName(task.plc_task?.TaskType) || req?.type?.toUpperCase() || null },
+    { label: '대상', value: t ? `${t.kind === 'station' ? '스테이션' : '셀'} ${t.id}` : null },
+    {
+      label: '품목',
+      value: item?.Code
+        ? `${item.Code} × ${item.Count ?? 1}`
+        : req?.item_code
+          ? `${req.item_code} × ${req.count ?? 1}`
+          : null,
+    },
+    { label: '로봇', value: task.plc_name ?? null },
+    { label: '상태', value: STATE_LABEL[task.state] },
+    {
+      label: 'WorkId / TaskId',
+      value: task.work_id ? `${task.work_id} / ${task.task_id}` : null,
+      mono: true,
+      wide: true,
+    },
+    ...(req?.note ? [{ label: '메모', value: req.note, wide: true } as FieldItem] : []),
+  ]
 }
 
 export function TaskActions({
@@ -116,7 +152,8 @@ export function TaskActions({
           confirmLabel={ACTION_LABEL[pending]}
           onConfirm={() => void run(pending)}
         >
-          <p className="m-0">{describe(pending, task)}</p>
+          <p className="m-0 text-content-primary">{describe(pending, task)}</p>
+          <FieldList className="mt-3" items={identity(task)} columns={2} labelWidth={96} dense />
           {pending === 'fail' ? (
             <Input
               className="mt-3"

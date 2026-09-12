@@ -88,7 +88,9 @@ export function ConfirmDialog({
       {/* 포커스 트랩 — 첫 포커스는 **취소**(안전한 쪽)다. 확인에 주면 Enter 연타로 파괴적 조작이 통과한다. */}
       <div
         ref={box}
-        className="relative w-full max-w-md rounded-lg border border-line-default bg-surface-panel shadow-xl"
+        // `text-left`: 대화상자는 어디서 열렸든 제 정렬을 가진다 — 표의 액션 열(`text-right`) 안에서
+        // 열리면 물려받은 정렬로 질문이 오른쪽에 붙는다.
+        className="relative w-full max-w-md rounded-lg border border-line-default bg-surface-panel text-left shadow-xl"
         role="dialog"
         aria-modal="true"
         aria-label={title}
