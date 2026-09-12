@@ -3,6 +3,9 @@
 React 19 + Vite 8 + Tailwind v4 + TypeScript. 라우터·상태 라이브러리 없음(`lib/store.ts`의 `Store` +
 `useSyncExternalStore`). sh4w-web의 셸·UI 킷을 옮겨 왔다.
 
+**UI를 만지기 전에 `docs/DESIGN.md`를 읽는다** — 셸 골격·도킹 불변식·데이터 뷰 규칙·색·밀도·테마·
+접근성·체크리스트가 거기 있다. 규칙과 코드가 어긋나면 문서가 진실원이고 코드가 버그다.
+
 ## 실행
 
 ```
@@ -10,6 +13,7 @@ npm install
 npm run dev          # http://localhost:5173 — /api 는 GR_BACKEND(기본 http://127.0.0.1:8090)로 프록시
 npm run check        # tsc (app + node)
 npm run test:unit    # vitest — src/**/*.test.ts 순수 모듈만(컴포넌트 테스트 없음)
+                     # TZ=Asia/Seoul 을 붙인다 — lib/task/state.test.ts 의 endedToday 가 로컬 시간대에 매여 있다
 npm run build        # dist/
 ```
 
@@ -17,9 +21,12 @@ npm run build        # dist/
 
 ## 구조
 
+셸은 본문이 **두 모양**이다(진실원은 `workspace.enabled` 하나). 단일 화면 모드 = 사이드바 + 화면
+하나, 워크스페이스 모드 = 존 넷에 패널 도킹. 두 모양이 **같은 패널 컴포넌트**를 쓴다.
+
 ```
 src/
-  App.tsx                   셸: 메뉴바(엔지니어링 그룹) · Sidebar · StatusBar · PanelHost · Toaster · ?tab= 딥링크 · 단축키 1~4
+  App.tsx                   셸: 메뉴바(그룹 + 보기 메뉴) · 본문 두 모양 · StatusBar · PanelHost · CommandPalette · ?tab= 딥링크 · 단축키 1~9
   main.tsx, app.css, tokens.css
   lib/
     types.ts                백엔드 페이로드 타입(공유 계약)
@@ -30,11 +37,16 @@ src/
     measlog.ts              측정 로그 스냅샷·항목·축 이력(300점) 스토어
     registry.ts             useRegistry<T>(loader) 훅
     nav.ts, tabs.ts         탭 상태·레지스트리 · 한 번 쓰는 신호(taskId/measSeq/measCode/scenarioId)
+    workspace/              도킹 레이아웃 — model.ts(순수 연산·불변식) · presets.ts(배치 넷) · store.ts(현재 배치·저장·모드·드래그)
+    commands.ts, palette.ts 명령 팔레트 — 명령의 모양·순수 검색 / 열림 상태
+    density.ts              전역 표시 밀도(표준·조밀) — `<html data-density>` + app.css 토큰
     gr/const.ts             TASK_TYPE_CODE · MODE_NAME · KIND · STATUS · AXIS · PARAM_LABELS · STATE_LABEL/TONE
     store.ts, poll.ts, congestion.ts, share.ts, utils.ts, keys.ts, clipboard.ts, panels.ts, theme.ts
     ui/                     UI 킷(Button·Input·Select·Switch·StatusDot·StatusBadge·JsonView·DataGrid·Modal·Toaster·ScreenHeader·…; 모델은 *Model.ts)
   components/
-    Sidebar.tsx, StatusBar.tsx, PanelHost.tsx
+    Sidebar.tsx, StatusBar.tsx, PanelHost.tsx, CommandPalette.tsx
+    workspace/              존 격자(WorkspaceShell) · 탭 띠·도킹·레일·창 메뉴(DockZone) · Splitter · paneRegistry(패널 등록)
+    panes/                  보조 패널 — RobotsPane · PlcPane · StatusPane (사이드바와 도킹 모드가 함께 쓴다)
     shared/                 TaskParamFields · TargetPicker · ItemPicker
     task/TaskIssue.tsx      작업 명령      (스텁)
     taskmgr/TaskManager.tsx Task 관리      (스텁)
@@ -46,8 +58,11 @@ src/
 
 - `components/<page>/` — 화면별 담당 에이전트가 소유한다. 루트 컴포넌트는 **default export** 하나이고
   `App.tsx`의 `Screen` 스위치가 그것만 가리킨다. 화면 안의 하위 컴포넌트·훅은 그 폴더 안에 둔다.
-- `lib/types.ts`, `lib/api.ts`, `App.tsx` — **리드 소유**. 필요한 타입·엔드포인트가 없으면 리드에게
-  요청한다(직접 고치지 않는다). `lib/*.ts` 스토어와 `components/shared/`도 공용이라 바꾸면 알린다.
+- `lib/types.ts`, `lib/api.ts`, `App.tsx`, `components/workspace/paneRegistry.tsx` — **리드 소유**.
+  필요한 타입·엔드포인트·패널 등록이 없으면 리드에게 요청한다(직접 고치지 않는다). `lib/*.ts` 스토어와
+  `components/shared/`도 공용이라 바꾸면 알린다.
+- 패널을 추가하는 절차와 도킹 불변식은 `docs/DESIGN.md` 2절에 있다. 패널 몸은 **자기 머리띠를 그리지
+  않는다**(탭·닫기·최대화는 껍데기가 그린다).
 - `lib/ui/` — sh4w-web과 같은 킷. 화면 전용 변형은 킷을 고치지 말고 화면 폴더에서 감싼다.
 
 ## 규약

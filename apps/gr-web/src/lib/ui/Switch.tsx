@@ -32,7 +32,7 @@ export function Switch({
 }: SwitchProps) {
   if (inline && label) {
     return (
-      <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 text-xs text-slate-600 select-none dark:text-slate-300">
+      <label className="inline-flex h-control-md cursor-pointer items-center gap-1.5 text-xs text-slate-600 select-none dark:text-slate-300">
         <Switch
           checked={checked}
           label={label}

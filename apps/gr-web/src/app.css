@@ -23,6 +23,22 @@ html {
   color-scheme: light;
 }
 
+/* 표시 밀도(`lib/density.ts`가 `data-density`를 세팅) — VSCode의 `Customize Layout > Compact`.
+
+   **컨트롤 높이 토큰만** 갈아 끼운다. 그래서 밀도가 닿는 범위는 정확히 "그 토큰으로 높이를 부른
+   컴포넌트"다 — UI 킷(Button·Input·Select·Switch·Segmented·IconPopover·ScreenHeader·Toolbar)과
+   셸 크롬(메뉴바·탭 띠)이 그렇게 부른다. 새 컴포넌트는 `h-8` 대신 `h-control-md`를 쓴다. 안 쓰면
+   밀도를 켜도 그 컴포넌트만 제 높이로 남아 줄이 어긋난다.
+
+   글자 크기는 건드리지 않는다 — 11px 아래로 내려가면 값을 잘못 읽고, 그건 밀도로 벌 이득이 아니다.
+   상태바(24px)도 건드리지 않는다: 더 줄이면 알람 점과 집계가 눌린다. */
+:root[data-density='compact'] {
+  --spacing-control-sm: 24px;
+  --spacing-control-md: 28px;
+  --spacing-screen-header: 30px;
+  --spacing-menubar: 30px;
+}
+
 /* 셸의 타입 바닥 — 폰트·본문 크기를 한 자리에서 정한다. 조밀한 엔지니어링 화면이라 12px가 기본이다. */
 body {
   font-family: var(--font-sans);

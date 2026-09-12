@@ -31,3 +31,27 @@
 | ![](11_measure_dashboard.png) | 측정 모니터 대시보드 |
 | ![](12_history_item.png) | 측정 이력 — MeasureItem Data 배치 |
 | ![](13_history_sku.png) | 측정 이력 — MeasureSku Data 배치 |
+
+## 셸 — 워크스페이스(도킹)·명령 팔레트·밀도
+
+`vite preview`(백엔드 없음)로 띄운 화면을 헤드리스 Chromium(playwright)으로 캡처했다. 백엔드가 없어
+목록은 비어 있고 일부 카드에 `502`가 뜬다 — **셸의 구성**을 보는 캡처라 그대로 남겼다. 규칙은
+`docs/DESIGN.md`, 결정 이유는 `docs/ui-ux-plan.md`.
+
+| 파일 | 내용 |
+|---|---|
+| ![](20_single_screen_mode.png) | 단일 화면 모드 — 사이드바(로봇·PLC·상태) + 화면 하나. 기본값이고 예전 셸과 같다 |
+| ![](21_view_menu.png) | `보기` 메뉴 — 모드·배치 프리셋·저장·존 토글·밀도·테마 |
+| ![](22_workspace_standard.png) | 워크스페이스 모드 `기본` 배치 — 왼쪽 목록 + 중앙 화면 탭 |
+| ![](23_preset_command.png) | `명령 중심` — 중앙 작업 명령, 하단 Task 관리, 오른쪽 상태. 명령→결과가 한 화면 |
+| ![](24_preset_triage.png) | `데이터 3분할` — 중앙 Task 관리, 오른쪽 상태, 하단 측정 |
+| ![](25_preset_monitor.png) | `모니터링` — 중앙 측정 모니터, 오른쪽에 상태·PLC |
+| ![](26_tab_drag.png) | 탭 드래그 — 놓을 존이 점선으로 비친다(`오른쪽에 도킹`) |
+| ![](27_after_dock.png) | 도킹 후 — Task 관리가 하단에서 오른쪽으로. 좁은 존에서는 머리띠 요약이 접힌다 |
+| ![](28_window_menu.png) | 창 메뉴(탭 우클릭 / `⋮`) — 최대화·존 이동·닫기. 드래그를 못 쓰는 자리의 경로 |
+| ![](29_zone_collapsed_rail.png) | 존 접기 — 아이콘 레일로 남는다(무엇이 들었는지 사라지지 않는다) |
+| ![](30_command_palette.png) | 명령 팔레트 `Ctrl/⌘+K` — 보기·레이아웃·존·창·설정. 체크와 존 이름이 붙는다 |
+| ![](31_palette_query.png) | 팔레트 검색 — `배치`로 프리셋·저장·초기화만 남는다 |
+| ![](32_maximized.png) | 최대화 `Alt+Enter` — 그 존 하나만 그린다(뒤 화면은 언마운트) |
+| ![](33_compact_density.png) | 조밀 밀도 — 메뉴바 36→30, 머리띠 36→30, 컨트롤 32→28(상태바는 그대로) |
+| ![](34_after_reload.png) | 새로고침 후 — 배치·모드·밀도·저장한 배치가 그대로 복원된다 |

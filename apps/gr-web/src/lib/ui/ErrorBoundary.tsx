@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
         <p className="m-0 font-mono break-all">{error.message}</p>
         <button
           type="button"
-          className="h-7 rounded-md border border-red-300 px-2 hover:bg-red-100 dark:border-red-500/40 dark:hover:bg-red-500/20"
+          className="h-control-sm rounded-md border border-red-300 px-2 hover:bg-red-100 dark:border-red-500/40 dark:hover:bg-red-500/20"
           onClick={() => this.setState({ error: null })}
         >
           다시 시도

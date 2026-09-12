@@ -1,4 +1,5 @@
-// 세그먼트 토글 — 도구 막대 높이 규칙(h-7)을 한 곳에서 지킨다.
+// 세그먼트 토글 — 도구 막대 높이 규칙(`--spacing-control-sm`)을 한 곳에서 지킨다.
+// 높이를 토큰으로 부르는 이유: 전역 밀도(`lib/density.ts`)가 그 토큰을 갈아 끼운다(`docs/DESIGN.md` 5절).
 // 레일 탭·작성 방식·그립 기준·맵 모드·편집 목록이 모두 같은 모양과 높이를 쓴다.
 import type { ReactNode } from 'react'
 import { cn } from '../utils'
@@ -36,7 +37,7 @@ export function Segmented<T extends string>({
       role="tablist"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex h-7 flex-none items-stretch rounded-md border border-slate-300 bg-white p-0.5 dark:border-slate-600 dark:bg-slate-900',
+        'inline-flex h-control-sm flex-none items-stretch rounded-md border border-slate-300 bg-white p-0.5 dark:border-slate-600 dark:bg-slate-900',
         className,
       )}
     >

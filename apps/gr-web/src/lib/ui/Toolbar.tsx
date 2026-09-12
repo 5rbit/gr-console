@@ -37,7 +37,7 @@ export function Toolbar({
     <div
       className={cn(
         'flex flex-wrap items-center gap-2 border-b px-2',
-        dense ? 'min-h-control-sm' : 'min-h-9',
+        dense ? 'min-h-control-sm' : 'min-h-screen-header',
         danger ? 'border-fault bg-fault-soft' : 'border-line-default bg-surface-inset',
         className,
       )}

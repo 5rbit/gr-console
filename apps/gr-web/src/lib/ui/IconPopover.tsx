@@ -1,10 +1,10 @@
 // 플롯 위 아이콘 버튼과 거기에 붙어 뜨는 팝업 — 보기 설정·범례처럼 가끔 쓰는 조작을 화면 밖으로 치운다.
-// 바깥 클릭·Escape 로 닫힌다. 버튼은 모두 h-8 w-8 한 규격.
+// 바깥 클릭·Escape 로 닫힌다. 버튼은 모두 `--spacing-control-md` 한 규격(전역 밀도가 그 토큰을 간다).
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '../utils'
 
 export const mapIconBtn =
-  'flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white/95 text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+  'flex h-control-md w-control-md items-center justify-center rounded-md border border-slate-200 bg-white/95 text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
 
 export interface MapIconButtonProps {
   icon: ReactNode

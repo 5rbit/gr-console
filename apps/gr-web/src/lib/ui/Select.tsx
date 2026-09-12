@@ -43,7 +43,7 @@ export function Select({
           onValueChange?.(e.target.value)
           onChange?.(e)
         }}
-        className={`${box} ${dense ? 'h-7 text-xs' : 'h-8'}`}
+        className={`${box} ${dense ? 'h-control-sm text-xs' : 'h-control-md'}`}
         {...rest}
       >
         {children}

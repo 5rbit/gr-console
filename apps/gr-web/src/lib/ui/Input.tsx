@@ -42,7 +42,7 @@ export function Input({
           onValueChange?.(e.target.value)
           onChange?.(e)
         }}
-        className={`h-8 rounded-md border border-slate-300 bg-transparent px-2 text-sm text-slate-900 transition-colors placeholder:text-slate-400 focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none dark:border-slate-600 dark:text-slate-100 ${
+        className={`h-control-md rounded-md border border-slate-300 bg-transparent px-2 text-sm text-slate-900 transition-colors placeholder:text-slate-400 focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none dark:border-slate-600 dark:text-slate-100 ${
           mono ? 'font-mono tabular-nums' : ''
         }`}
         {...rest}
