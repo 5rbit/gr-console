@@ -7,10 +7,14 @@ import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { FieldList, type FieldItem } from '../../lib/ui/FieldList'
 import { Input } from '../../lib/ui/Input'
 import { runAction } from '../../lib/task/actions'
+import { tasks } from '../../lib/tasks'
+import { useStore } from '../../lib/store'
 import {
   ACTION_LABEL,
   STATE_LABEL,
   allowedActions,
+  cascadeAfter,
+  isTerminal,
   dimsLabel,
   isRobotAction,
   targetOf,
@@ -28,8 +32,11 @@ export interface TaskActionsProps {
   only?: readonly TaskAction[]
   /** 아이콘 없이 글자만. */
   icons?: boolean
-  /** 아이콘만(행 액션 열) — 라벨은 `aria-label`·`title`로 남는다. 표 셀의 유일한 아이콘 예외다. */
-  iconOnly?: boolean
+  /**
+   * 행 액션 열 — 아이콘+짧은 글자, **고정 너비 둘**(취소·완료)이 항상 같은 자리에 선다. 상태가
+   * 허용하지 않는 쪽은 사유를 달고 비활성(자리를 비우면 열이 흔들려 세로로 훑을 수 없다).
+   */
+  row?: boolean
   /** `data-testid` 접두 — 상세(`action-*`)와 행(`row-action-*`)이 한 화면에 같이 선다. */
   testid?: string
 }
@@ -44,6 +51,16 @@ const ICON: Record<TaskAction, React.ReactNode> = {
 }
 
 const DANGER: ReadonlySet<TaskAction> = new Set<TaskAction>(['cancel', 'fail', 'delete'])
+const ROW_DEFAULT: readonly TaskAction[] = ['cancel', 'complete']
+/** 행 버튼의 짧은 글자 — 폭이 고정이라 `완료 처리`는 들어가지 않는다. 대화상자 제목은 긴 이름을 쓴다. */
+const ROW_LABEL: Partial<Record<TaskAction, string>> = { cancel: '취소', complete: '완료' }
+/** 행 모드에서 비활성인 이유 — 회색으로 침묵하는 버튼은 고장으로 읽힌다(DESIGN.md 4절 ⑥). */
+function whyNot(a: TaskAction, state: Task['state']): string {
+  if (isTerminal(state)) return `${STATE_LABEL[state]} — 끝난 Task`
+  if (a === 'complete' && (state === 'draft' || state === 'submitted'))
+    return `${STATE_LABEL[state]} — PLC에 아직 자리가 없어 완료 처리할 수 없음`
+  return `${STATE_LABEL[state]}에서는 할 수 없음`
+}
 
 // 확인은 **질문 한 줄**이다. PLC 허용 조건·AUTO 모드 같은 규칙은 여기 적지 않는다 — 막히면 서버가
 // 그 이유를 토스트로 말하고, 매번 읽지 않는 안내문은 진짜 경고(되돌릴 수 없음)까지 묻어 버린다.
@@ -105,14 +122,20 @@ export function TaskActions({
   size = 'sm',
   only,
   icons = true,
-  iconOnly = false,
+  row = false,
   testid = 'action',
 }: TaskActionsProps) {
   const [pending, setPending] = useState<TaskAction | null>(null)
   const [busy, setBusy] = useState<TaskAction | null>(null)
   const [note, setNote] = useState('')
-  const actions = allowedActions(task.state).filter((a) => !only || only.includes(a))
+  useStore(tasks)
+  const allowed = allowedActions(task.state)
+  // 행 모드는 슬롯이 고정이다(`only` 순서대로, 허용 안 되면 비활성). 그 외는 허용된 것만.
+  const actions = row
+    ? [...(only ?? ROW_DEFAULT)]
+    : allowed.filter((a) => !only || only.includes(a))
   if (actions.length === 0) return null
+  const tail = pending === 'cancel' && task.state !== 'draft' ? cascadeAfter(tasks.list, task) : []
 
   const run = async (a: TaskAction) => {
     setBusy(a)
@@ -127,29 +150,29 @@ export function TaskActions({
 
   return (
     <>
-      {/* 아이콘만일 때는 줄바꿈하지 않는다 — 폭이 내용에 맞는 표 셀(`fit`)에서 둘이 세로로 쌓인다. */}
+      {/* 행 모드는 줄바꿈하지 않는다 — 폭이 내용에 맞는 표 셀(`fit`)에서 둘이 세로로 쌓인다. */}
       <div
         className={
-          iconOnly ? 'flex items-center justify-center gap-1' : 'flex flex-wrap items-center gap-1'
+          row ? 'flex items-center justify-center gap-1' : 'flex flex-wrap items-center gap-1'
         }
         data-testid="task-actions"
       >
         {actions.map((a) => (
           <Button
             key={a}
-            size={iconOnly ? 'icon-sm' : size}
+            size={size}
             intent={
               DANGER.has(a) ? 'outline' : a === 'submit' || a === 'resubmit' ? 'primary' : 'neutral'
             }
-            icon={icons || iconOnly ? ICON[a] : undefined}
+            icon={icons ? ICON[a] : undefined}
             loading={busy === a}
-            disabled={busy !== null}
-            aria-label={iconOnly ? ACTION_LABEL[a] : undefined}
-            title={iconOnly ? ACTION_LABEL[a] : undefined}
+            disabled={busy !== null || (row && !allowed.includes(a))}
+            title={row && !allowed.includes(a) ? whyNot(a, task.state) : undefined}
+            className={row ? 'w-18 justify-center' : undefined}
             data-testid={`${testid}-${a}`}
             onClick={() => setPending(a)}
           >
-            {iconOnly ? null : ACTION_LABEL[a]}
+            {row ? (ROW_LABEL[a] ?? ACTION_LABEL[a]) : ACTION_LABEL[a]}
           </Button>
         ))}
       </div>
@@ -167,6 +190,12 @@ export function TaskActions({
         >
           <p className="m-0 text-content-primary">{describe(pending, task)}</p>
           <FieldList className="mt-3" items={identity(task)} columns={2} labelWidth={96} dense />
+          {tail.length > 0 ? (
+            <p className="mt-3 mb-0 text-warn-fg" data-testid="cascade-note">
+              같은 WorkId의 뒤 Task {tail.length}건도 함께 취소됩니다 —{' '}
+              {tail.map((t) => `#${t.seq}(TaskId ${t.task_id})`).join(' · ')}
+            </p>
+          ) : null}
           {pending === 'fail' ? (
             <Input
               className="mt-3"

@@ -128,6 +128,17 @@ fn watch_op_answer(ledger: Arc<super::Ledger>, id: String, state: TaskState, wha
     });
 }
 
+/// Later tasks of the same WorkId that are still alive. A WorkId is one job split into TaskIds
+/// that the PLC runs in order; canceling task N while N+1.. are queued leaves the job half-done
+/// with the tail still waiting to run on a state the canceled task never produced. So a cancel
+/// takes the tail with it — the dialog says so before the operator confirms.
+pub fn cascade_after(entries: &[LedgerEntry], key: TaskKey) -> Vec<LedgerEntry> {
+    let mut v: Vec<LedgerEntry> =
+        entries.iter().filter(|e| e.key().work_id == key.work_id && e.key().task_id > key.task_id && !e.state.is_terminal() && e.state != TaskState::Draft).cloned().collect();
+    v.sort_by_key(|e| e.key().task_id);
+    v
+}
+
 pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
     let (r, e) = st.find_task(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
     match e.state {
@@ -153,11 +164,19 @@ pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
     // Note the request *before* the op: `task_op` sleeps 600 ms for the re-arm, during which the sync
     // engine may already record `Canceled` — upserting a pre-op snapshot afterwards would clobber it.
     let id = e.id.clone();
-    let mut e2 = e.clone();
-    e2.history.push(super::Transition { from: Some(e2.state), to: e2.state, at: crate::util::now_str(), by: Actor::Ui, note: Some(super::sync::DELETE_REQUESTED.into()) });
-    r.ledger.upsert(e2)?;
-    task_op(&r.cmd, TaskOp::Delete, e.key()).await?;
-    watch_op_answer(r.ledger.clone(), id.clone(), e.state, "Delete");
+    let tail = if e.key().work_id != 0 { cascade_after(&r.ledger.list(), e.key()) } else { Vec::new() };
+    for t in std::iter::once(&e).chain(tail.iter()) {
+        let mut t2 = t.clone();
+        let note = if t.id == e.id { super::sync::DELETE_REQUESTED.to_string() } else { format!("{} (cascade from task {})", super::sync::DELETE_REQUESTED, e.key().task_id) };
+        t2.history.push(super::Transition { from: Some(t2.state), to: t2.state, at: crate::util::now_str(), by: Actor::Ui, note: Some(note) });
+        r.ledger.upsert(t2)?;
+    }
+    // The PLC takes one Delete at a time (re-armed with zeros in between): the requested task first,
+    // then its tail in TaskId order.
+    for t in std::iter::once(&e).chain(tail.iter()) {
+        task_op(&r.cmd, TaskOp::Delete, t.key()).await?;
+        watch_op_answer(r.ledger.clone(), t.id.clone(), t.state, "Delete");
+    }
     Ok(r.ledger.get(&id).unwrap_or(e))
 }
 
@@ -210,4 +229,38 @@ pub fn mark_failed(st: &AppState, id: &str, note: Option<String>) -> Result<Ledg
 pub fn remove(st: &AppState, id: &str) -> Result<(), ApiError> {
     let (r, _) = st.find_task(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
     r.ledger.remove(id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Db;
+    use crate::ledger::{Ledger, Origin};
+
+    fn entry(ledger: &Ledger, w: u32, t: u32, state: TaskState) -> LedgerEntry {
+        let task = TaskData { work_id: w, task_id: t, task_type: 0x41, ..Default::default() };
+        // `create` keys a console entry 0:0 until submission assigns the ids — set them as submit would.
+        let mut e = ledger.create(Origin::Console, None, None, task).unwrap();
+        e.work_id = w;
+        e.task_id = t;
+        ledger.upsert(e.clone()).unwrap();
+        if state == TaskState::Draft { e } else { ledger.transition(e, state, Actor::Plc, None).unwrap() }
+    }
+
+    #[test]
+    fn cascade_takes_later_alive_tasks_of_the_same_work_only() {
+        let db = Db::open_memory().unwrap();
+        let ledger = Ledger::new(db, "GR2", None).unwrap();
+        entry(&ledger, 7, 1, TaskState::Completed); // earlier, done — untouched
+        let me = entry(&ledger, 7, 2, TaskState::Running);
+        entry(&ledger, 7, 4, TaskState::Queued); // later — goes
+        entry(&ledger, 7, 3, TaskState::Accepted); // later — goes, sorted before 4
+        entry(&ledger, 7, 5, TaskState::Draft); // never submitted — stays a draft
+        entry(&ledger, 7, 6, TaskState::Canceled); // already terminal
+        entry(&ledger, 8, 3, TaskState::Queued); // other work
+        let tail: Vec<u32> = cascade_after(&ledger.list(), me.key()).iter().map(|e| e.key().task_id).collect();
+        assert_eq!(tail, vec![3, 4]);
+        // the requested task itself is never in its own tail
+        assert!(cascade_after(&ledger.list(), TaskKey { work_id: 7, task_id: 4 }).is_empty());
+    }
 }

@@ -188,7 +188,7 @@ export function TaskTable({
       fit
       actions={
         rowActions
-          ? (t) => <TaskActions task={t} only={ROW_ACTIONS} iconOnly testid="row-action" />
+          ? (t) => <TaskActions task={t} only={ROW_ACTIONS} row testid="row-action" />
           : undefined
       }
     />

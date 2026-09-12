@@ -101,6 +101,28 @@ export function allowedActions(state: TaskState): TaskAction[] {
   }
 }
 
+/**
+ * 같은 WorkId의 **뒤** Task 중 살아 있는 것 — 취소가 함께 데려간다(백엔드 `ops::cascade_after`와
+ * 같은 규칙). 한 작업(WorkId)은 TaskId 순서로 도는 조각들이라, 가운데를 취소하고 뒤를 두면 앞이
+ * 만들지 않은 상태 위에서 뒤가 돈다. 확인 대화상자가 이 목록을 보여 준 뒤 묻는다.
+ */
+export function cascadeAfter(
+  tasks: readonly Pick<Task, 'id' | 'seq' | 'work_id' | 'task_id' | 'state'>[],
+  task: Pick<Task, 'id' | 'work_id' | 'task_id'>,
+): Pick<Task, 'id' | 'seq' | 'work_id' | 'task_id' | 'state'>[] {
+  if (!task.work_id) return []
+  return tasks
+    .filter(
+      (t) =>
+        t.id !== task.id &&
+        t.work_id === task.work_id &&
+        t.task_id > task.task_id &&
+        t.state !== 'draft' &&
+        !TERMINAL.includes(t.state),
+    )
+    .sort((a, b) => a.task_id - b.task_id)
+}
+
 /** 실장비에 물리적 결과가 있는 조작 — ConfirmDialog scope `single-robot`. */
 export function isRobotAction(a: TaskAction): boolean {
   return a === 'cancel' || a === 'complete'

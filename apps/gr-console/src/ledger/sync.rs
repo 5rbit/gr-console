@@ -193,7 +193,8 @@ pub const COMPLETE_REQUESTED: &str = "complete requested";
 
 /// The last history line is a pending console request (`delete requested` / `complete requested`).
 fn last_request(e: &LedgerEntry) -> Option<&str> {
-    e.history.iter().rev().find(|t| t.from == Some(t.to)).and_then(|t| t.note.as_deref()).filter(|n| *n == DELETE_REQUESTED || *n == COMPLETE_REQUESTED)
+    // a cascade note is `"delete requested (cascade from task N)"` — same request, same attribution
+    e.history.iter().rev().find(|t| t.from == Some(t.to)).and_then(|t| t.note.as_deref()).and_then(|n| [DELETE_REQUESTED, COMPLETE_REQUESTED].into_iter().find(|k| n.starts_with(k)))
 }
 
 /// Note for a PLC-side terminal transition, attributing it to the console request that asked for it.

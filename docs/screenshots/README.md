@@ -71,6 +71,6 @@
 | ![](50_dot_label_detail.png) | 상세의 값 자리는 점+글자(`연결됨` · `레이아웃 OK`) — 폭이 고정이라 옆 값의 x가 흔들리지 않는다 |
 | ![](51_cancel_timeline.png) | Task 취소 — 이력이 `delete requested`(콘솔) → `canceled on PLC (console request)`(PLC)로 읽힌다. PLC 자발 취소는 `(console request)`가 없다 |
 | ![](52_plc_view_terminal_bits.png) | PLC 뷰 — `Task.Status.Complete`·`Canceled` 비트가 보인다. 원장은 링보다 이 비트로 먼저 끝낸다 |
-| ![](53_row_actions.png) | Task 목록·종결 이력 — **같은 열**(WorkId · TaskId · 로봇 · 셀 · 종류 · 품목 · 명령시간 · 완료시각 · 상태), 열 폭은 내용에 맞춰 왼쪽으로 붙는다(`fit`). 목록에는 취소·완료 아이콘 버튼 |
+| ![](53_row_actions.png) | Task 목록·종결 이력 — **같은 열**(WorkId · TaskId · 로봇 · 셀 · 종류 · 품목 · 명령시간 · 완료시각 · 상태), 열 폭은 내용에 맞춰 왼쪽으로 붙는다(`fit`). 목록에는 취소·완료 버튼(아이콘+글자, 고정 너비 둘 — 안 되는 쪽은 사유를 달고 비활성) |
 | ![](54_row_action_confirm.png) | 확인 대화상자 — **질문 한 줄** + 어떤 Task인지 알아볼 라벨+값 짝(종류·대상·품목·로봇·상태·Id·메모). 규칙 안내문은 없다 |
 | ![](42_view_menu_fixed.png) | `보기` 메뉴 — 라벨이 줄어들지 않고 힌트가 먼저 잘린다(예전에는 `명령 중 / 심`으로 끊겼다) |
