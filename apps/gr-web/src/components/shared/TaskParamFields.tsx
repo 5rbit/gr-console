@@ -27,8 +27,20 @@ interface Group {
 
 /** 표시 순서 — 현장에서 함께 만지는 것끼리 묶는다. */
 export const PARAM_GROUPS: Group[] = [
-  { label: 'Grip', keys: ['grip_height', 'pre_grip_delta', 'grip_back_delta', 'adjust_center', 'find_station_item'] },
-  { label: 'Lift', keys: ['lift_up_height', 'lift_up_after_complete', 'lift_up_partial', 'avoid', 'outbound'] },
+  {
+    label: 'Grip',
+    keys: [
+      'grip_height',
+      'pre_grip_delta',
+      'grip_back_delta',
+      'adjust_center',
+      'find_station_item',
+    ],
+  },
+  {
+    label: 'Lift',
+    keys: ['lift_up_height', 'lift_up_after_complete', 'lift_up_partial', 'avoid', 'outbound'],
+  },
   { label: 'Blend', keys: ['blend_up_distance', 'blend_down_distance'] },
   { label: 'Creep', keys: ['lift_up_creep_distance', 'lift_down_creep_distance'] },
   { label: 'Measure', keys: ['measure_floor', 'measure_item', 'measure_sku'] },
@@ -110,7 +122,9 @@ export function TaskParamFields({
                       checked={has(k)}
                       disabled={disabled}
                       onChange={(e) =>
-                        onChange(e.currentTarget.checked ? setKey(value, k, cur) : dropKey(value, k))
+                        onChange(
+                          e.currentTarget.checked ? setKey(value, k, cur) : dropKey(value, k),
+                        )
                       }
                     />
                   ) : null}

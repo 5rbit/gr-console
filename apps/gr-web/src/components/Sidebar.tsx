@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from 'react'
 import type * as React from 'react'
 import { ChevronRight, Link as LinkIcon, RefreshCw, Rows2, Rows3 } from 'lucide-react'
 import { plcs } from '../lib/plcs'
+import { robots } from '../lib/robots'
+import { robotTone } from './shared/RobotPicker'
 import { statusFeed } from '../lib/feeds'
 import { useSse } from '../lib/sse'
 import { useStore } from '../lib/store'
@@ -97,13 +99,15 @@ function PlcDetail({ id }: { id: PlcId }) {
 }
 
 export function Sidebar() {
-  useStore(plcs)
+  useStore(plcs, robots)
   useSse(statusFeed)
   useEffect(() => plcs.start(), [])
+  useEffect(() => robots.start(), [])
 
   const [width, setWidth] = useState(() => readNum(LS_WIDTH, 240))
   const [dense, setDense] = useState(() => localStorage.getItem(LS_DENSE) === '1')
   const [plcOpen, setPlcOpen] = useState(true)
+  const [robotOpen, setRobotOpen] = useState(true)
   const [statOpen, setStatOpen] = useState(true)
 
   function toggleDense(): void {
@@ -141,6 +145,70 @@ export function Sidebar() {
       data-testid="sidebar"
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {/* ── 로봇 (명령을 보낼 로봇 선택) ── */}
+        <div className={headCls}>
+          <button
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+            onClick={() => setRobotOpen(!robotOpen)}
+            aria-expanded={robotOpen}
+            data-testid="sec-robot"
+          >
+            <ChevronRight
+              className={`h-3 w-3 shrink-0 text-slate-400 transition-transform ${robotOpen ? 'rotate-90' : ''}`}
+            />
+            <span className="text-xs font-semibold text-slate-500">로봇</span>
+            <span className={countCls} data-testid="robot-count">
+              {robots.list.length}
+            </span>
+            {robots.current ? (
+              <span className="text-[10px] text-slate-400">선택 {robots.current.name}</span>
+            ) : null}
+          </button>
+        </div>
+        {robotOpen ? (
+          <ul
+            className="shrink-0"
+            data-testid="robot-list"
+            role="radiogroup"
+            aria-label="명령을 보낼 로봇"
+          >
+            {robots.list.length === 0 ? (
+              <li className="px-2 py-2 text-[11px] text-slate-400">
+                {robots.error ? `로봇 목록 조회 실패 — ${robots.error}` : '로봇 목록 없음'}
+              </li>
+            ) : null}
+            {robots.list.map((r) => {
+              const on = r.id === robots.selected
+              return (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    className={`flex w-full items-center gap-2 px-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 ${rowPad} ${on ? 'bg-indigo-50 dark:bg-indigo-950' : ''}`}
+                    data-testid={`robot-${r.id}`}
+                    title={`${r.opcua_root} · DST ${r.dst} · 상태 PLC ${r.plc}${r.gate.can_submit ? '' : ` · 게이트 닫힘: ${r.gate.reasons.join('; ')}`}`}
+                    onClick={() => robots.select(r.id)}
+                  >
+                    <StatusDot status={robotTone(r)} size="sm" />
+                    <span
+                      className={`min-w-0 flex-1 truncate text-xs ${on ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'font-medium'}`}
+                    >
+                      {r.name}
+                    </span>
+                    {r.active_tasks ? (
+                      <span className="font-mono text-[10px] text-slate-400" title="진행 중 Task">
+                        {r.active_tasks}
+                      </span>
+                    ) : null}
+                    {on ? <StatusBadge status="info">선택</StatusBadge> : null}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        ) : null}
+
         {/* ── PLC ── */}
         <div className={headCls}>
           <button
@@ -222,7 +290,12 @@ export function Sidebar() {
             />
             <span className="text-xs font-semibold text-slate-500">상태</span>
           </button>
-          <StatusDot status={sseStatus} size="sm" label="SSE" title={statusFeed.error ?? '상태 스트림'} />
+          <StatusDot
+            status={sseStatus}
+            size="sm"
+            label="SSE"
+            title={statusFeed.error ?? '상태 스트림'}
+          />
         </div>
         {statOpen ? (
           <dl
@@ -246,7 +319,11 @@ export function Sidebar() {
             <dd className="flex items-center gap-2" data-testid="st-alarm">
               {wm ? (
                 <>
-                  <StatusDot status={wm.Alarm.Fault ? 'fault' : 'neutral'} size="sm" label="Fault" />
+                  <StatusDot
+                    status={wm.Alarm.Fault ? 'fault' : 'neutral'}
+                    size="sm"
+                    label="Fault"
+                  />
                   <StatusDot status={wm.Alarm.Warn ? 'warn' : 'neutral'} size="sm" label="Warn" />
                 </>
               ) : (

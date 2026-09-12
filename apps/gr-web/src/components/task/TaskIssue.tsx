@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Send } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useRegistry } from '../../lib/registry'
+import { robots } from '../../lib/robots'
 import { stock as stockStore } from '../../lib/stock'
 import { useStore } from '../../lib/store'
 import type { Shape } from '../../lib/task/layoutModel'
@@ -21,7 +22,7 @@ import {
 import { ScreenHeader } from '../../lib/ui/ScreenHeader'
 import { toast } from '../../lib/ui/toast'
 import { cn } from '../../lib/utils'
-import type { Cell, Defaults, Item, Station, Target, TaskType } from '../../lib/types'
+import type { Cell, Defaults, GripRef, Item, Station, Target, TaskType } from '../../lib/types'
 import { ComposeCard } from './ComposeCard'
 import { DefaultsDialog } from './DefaultsDialog'
 import { GateBanner, useGate } from './GateBanner'
@@ -46,9 +47,11 @@ export default function TaskIssue() {
   const items = useRegistry<Item>(api.items)
   const cells = useRegistry<Cell>(api.cells)
   const stations = useRegistry<Station>(api.stations)
-  const { gate, error: gateError } = useGate()
-  useStore(stockStore)
+  useStore(stockStore, robots)
   useEffect(() => stockStore.start(), [])
+  useEffect(() => robots.start(), [])
+  const robot = robots.selected
+  const { gate, error: gateError } = useGate(robot)
   const [defaults, setDefaults] = useState<Defaults | null>(null)
   const [defaultsOpen, setDefaultsOpen] = useState(false)
   const [side, setSide] = useState<Side>('plan')
@@ -80,6 +83,20 @@ export default function TaskIssue() {
   useEffect(() => {
     void loadDefaults()
   }, [loadDefaults])
+
+  const gripRef: GripRef = defaults?.grip_ref ?? 'mid'
+  const setGripRef = useCallback(
+    async (g: GripRef) => {
+      if (!defaults) return
+      try {
+        setDefaults(await api.defaultsSave({ ...defaults, grip_ref: g }))
+        toast.ok(g === 'bead' ? '그립 기준: 상부 비드 높이' : '그립 기준: 타이어 중간(H/2)')
+      } catch (e) {
+        toast.error(`그립 기준 저장 실패 — ${e instanceof Error ? e.message : String(e)}`)
+      }
+    },
+    [defaults],
+  )
 
   const setPlan = useCallback((next: PlanStep[]) => setHist((h) => commit(h, next)), [])
   const doUndo = useCallback(() => setHist((h) => undo(h)), [])
@@ -121,6 +138,7 @@ export default function TaskIssue() {
           stockStore.map,
           type,
           items.items[0]?.code ?? null,
+          robots.selected,
         )
         toast.info(
           `#${h.present.length + 1} ${step.type} ${shape.label}${step.item_code !== null ? ` · 품목 ${step.item_code}` : ''} → 계획`,
@@ -154,7 +172,7 @@ export default function TaskIssue() {
         onCompose={compose}
       />
     ),
-    [cells, stations, items.items, plan, selected, planAdd, compose],
+    [cells, stations, items, plan, selected, planAdd, compose],
   )
 
   return (
@@ -173,6 +191,15 @@ export default function TaskIssue() {
             value: gate ? (gate.can_submit ? '열림' : `닫힘 ${gate.reasons.length}`) : '…',
           },
         ]}
+        trailing={
+          <span
+            className="text-xs text-slate-500"
+            data-testid="task-robot"
+            title="사이드바 로봇 목록에서 바꿉니다"
+          >
+            로봇 <b className="text-slate-800 dark:text-slate-100">{robots.current?.name ?? '…'}</b>
+          </span>
+        }
       />
       <div className="flex min-h-0 flex-1">
         <section
@@ -229,6 +256,8 @@ export default function TaskIssue() {
               stockNow={stockStore.map}
               gate={gate}
               onFocus={setFocusStep}
+              gripRef={gripRef}
+              onGripRefChange={(g) => void setGripRef(g)}
             />
           </div>
           <div className={side === 'single' ? '' : 'hidden'}>

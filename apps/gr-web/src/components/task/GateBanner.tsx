@@ -11,14 +11,14 @@ import type { Gate } from '../../lib/types'
 const POLL_MS = 1000
 
 /** 게이트 폴링 훅 — 화면이 살아 있는 동안만 돈다. `null`은 아직 못 받음. */
-export function useGate(): { gate: Gate | null; error: string | null } {
+export function useGate(robot: number | null = null): { gate: Gate | null; error: string | null } {
   const [gate, setGate] = useState<Gate | null>(null)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
     const tick = async () => {
       try {
-        const g = await api.taskGate()
+        const g = await api.taskGate(robot)
         if (!alive) return
         setGate(g)
         setError(null)
@@ -33,7 +33,7 @@ export function useGate(): { gate: Gate | null; error: string | null } {
       alive = false
       clearInterval(t)
     }
-  }, [])
+  }, [robot])
   return { gate, error }
 }
 

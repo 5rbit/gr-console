@@ -35,6 +35,8 @@ export interface LayoutTabProps {
   onCompose: (target: Target, shape: Shape, type: TaskType) => void
   /** 셀 편집(셀 탭의 폼을 연다). */
   onEditCell?: (cell: Cell) => void
+  /** 재고 편집에서 품목을 새로 등록했을 때. */
+  onItemsChanged?: () => void
 }
 
 export function LayoutTab({
@@ -46,6 +48,7 @@ export function LayoutTab({
   onPlanAdd,
   onCompose,
   onEditCell,
+  onItemsChanged,
 }: LayoutTabProps) {
   useStore(stockStore)
   const [mode, setMode] = useState<MapMode>(() => {
@@ -322,7 +325,12 @@ export function LayoutTab({
           <p className="text-[11px] text-slate-400">우클릭하면 명령 팔레트가 열립니다.</p>
         </div>
       ) : null}
-      <StockEditDialog edit={stockEdit} items={items} onClose={() => setStockEdit(null)} />
+      <StockEditDialog
+        edit={stockEdit}
+        items={items}
+        onClose={() => setStockEdit(null)}
+        onItemsChanged={onItemsChanged}
+      />
     </div>
   )
 }

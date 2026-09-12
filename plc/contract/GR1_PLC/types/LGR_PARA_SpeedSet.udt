@@ -1,0 +1,11 @@
+﻿TYPE "LGR_PARA_SpeedSet"
+VERSION : 0.1
+   STRUCT
+      Speed : Real;
+      Accel : Real;
+      Decel : Real;
+      JerkTime : Real;
+   END_STRUCT;
+
+END_TYPE
+

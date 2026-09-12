@@ -15,6 +15,8 @@ import { toast } from '../../lib/ui/toast'
 import { Toolbar } from '../../lib/ui/Toolbar'
 import type { Cell, Item, StockEntry } from '../../lib/types'
 import { ItemPicker } from '../shared/ItemPicker'
+import { EMPTY_ITEM, ItemForm } from './forms'
+import type { ItemUpsert } from '../../lib/types'
 
 export interface StockEdit {
   cell: Cell
@@ -27,13 +29,23 @@ export function StockEditDialog({
   edit,
   items,
   onClose,
+  onItemsChanged,
 }: {
   edit: StockEdit | null
   items: readonly Item[]
   onClose: () => void
+  /** 품목을 새로 등록했을 때(목록 다시 받기). */
+  onItemsChanged?: () => void
 }) {
   const [v, setV] = useState<StockEdit | null>(edit)
   const [busy, setBusy] = useState(false)
+  const [newItem, setNewItem] = useState(false)
+  async function createItem(it: ItemUpsert) {
+    const created = await api.itemCreate(it)
+    toast.ok(`품목 ${created.code} 등록`)
+    onItemsChanged?.()
+    setV((cur) => (cur ? { ...cur, item: created.code } : cur))
+  }
   useEffect(() => setV(edit), [edit])
   async function save() {
     if (!v) return
@@ -59,7 +71,21 @@ export function StockEditDialog({
     >
       {v ? (
         <div className="flex flex-col gap-3">
-          <ItemPicker value={v.item} onChange={(item) => setV({ ...v, item })} items={[...items]} />
+          <div className="flex items-end gap-2">
+            <ItemPicker
+              value={v.item}
+              onChange={(item) => setV({ ...v, item })}
+              items={[...items]}
+            />
+            <Button
+              size="sm"
+              intent="outline"
+              onClick={() => setNewItem(true)}
+              data-testid="stock-new-item"
+            >
+              새 품목 등록
+            </Button>
+          </div>
           <Input
             label="개수"
             type="number"
@@ -90,6 +116,13 @@ export function StockEditDialog({
           </div>
         </div>
       ) : null}
+      <ItemForm
+        open={newItem}
+        onOpenChange={setNewItem}
+        initial={EMPTY_ITEM}
+        editing={false}
+        onSave={createItem}
+      />
     </Modal>
   )
 }
@@ -103,9 +136,10 @@ export interface StockRegistryProps {
   cells: readonly Cell[]
   items: readonly Item[]
   q: string
+  onItemsChanged?: () => void
 }
 
-export function StockRegistry({ cells, items, q }: StockRegistryProps) {
+export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistryProps) {
   useStore(stockStore)
   const [edit, setEdit] = useState<StockEdit | null>(null)
   const [clearAll, setClearAll] = useState(false)
@@ -226,7 +260,12 @@ export function StockRegistry({ cells, items, q }: StockRegistryProps) {
           )}
         />
       </div>
-      <StockEditDialog edit={edit} items={items} onClose={() => setEdit(null)} />
+      <StockEditDialog
+        edit={edit}
+        items={items}
+        onClose={() => setEdit(null)}
+        onItemsChanged={onItemsChanged}
+      />
       <ConfirmDialog
         open={clearAll}
         onOpenChange={setClearAll}

@@ -43,6 +43,7 @@ const base: TaskParams = {
 
 const defaults: Defaults = {
   version: 1,
+  grip_ref: 'mid',
   updated_at: '',
   base,
   by: {

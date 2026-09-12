@@ -148,11 +148,31 @@ export interface TaskParams {
   drag_in_dir: number
 }
 
+/** 그립 기준 — 타이어 바닥에서 그리퍼가 잡는 높이: mid = Height/2, bead = UpperBidHeight(없으면 mid) */
+export type GripRef = 'mid' | 'bead'
+
 export interface Defaults {
   version: number
   updated_at: string
   base: TaskParams
   by: Record<'PICK' | 'DROP', Record<TargetKind, Partial<TaskParams>>>
+  grip_ref: GripRef
+}
+
+/** GRM 뒤의 로봇 한 대 (GET /api/robots). */
+export interface Robot {
+  id: number
+  name: string
+  plc: string
+  opcua_root: string
+  dst: number
+  default: boolean
+  cmd_ready: boolean
+  cmd_error: string | null
+  plc_connected: boolean
+  layout_ok: boolean | null
+  gate: Gate
+  active_tasks: number
 }
 
 export type TaskState =
@@ -192,6 +212,10 @@ export interface TaskRequest {
   position_override: [number, number, number, number] | null
   note: string
   source: { scenario_id: string; run_id: string; iteration: number; step_index: number } | null
+  /** 보낼 로봇(없으면 기본 로봇) */
+  robot?: number | null
+  /** 그립 기준 덮어쓰기(없으면 Defaults.grip_ref) */
+  grip_ref?: GripRef | null
 }
 
 export interface Task {
@@ -200,6 +224,8 @@ export interface Task {
   work_id: number
   task_id: number
   origin: 'console' | 'scenario' | 'external'
+  /** 로봇 상태 PLC 이름(= 로봇 이름) */
+  plc_name?: string
   request: TaskRequest | null
   resolved: TaskParams | null
   position: [number, number, number, number]
@@ -223,6 +249,7 @@ export interface TaskPage {
 }
 
 export interface TaskQuery {
+  robot?: number
   state?: TaskState[] | 'active' | 'terminal'
   type?: TaskType
   q?: string
@@ -254,6 +281,8 @@ export interface ScenarioStep {
   wait_after_ms: number
   on_failure: 'stop' | 'skip' | 'retry'
   note: string
+  /** 보낼 로봇(없으면 기본 로봇) */
+  robot?: number | null
 }
 
 export interface Scenario {

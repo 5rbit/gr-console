@@ -80,19 +80,48 @@ pub fn plc_status_views(st: &AppState) -> Vec<PlcStatusView> {
         });
     }
     out.sort_by(|a, b| a.id.cmp(&b.id));
-    let cs = st.cmd.status();
-    out.push(PlcStatusView {
-        id: "grm_opcua".into(),
-        label: "GRM OPC UA".into(),
-        kind: "opcua",
-        endpoint: cs.endpoint,
-        connected: cs.ready,
-        rtt_ms: None,
-        last_ok_at: cs.last_ok_at,
-        last_error: cs.error,
-        layout: LayoutCheckView { ok: cs.ready.then_some(true), detail: cs.detail, checked_at: None, mismatches: vec![] },
-    });
+    for (i, r) in st.robots.iter().enumerate() {
+        let cs = r.cmd.status();
+        out.push(PlcStatusView {
+            id: if i == 0 { "grm_opcua".into() } else { format!("grm_opcua_{}", r.name.to_ascii_lowercase()) },
+            label: format!("GRM OPC UA → {} ({})", r.name, r.opcua_root),
+            kind: "opcua",
+            endpoint: cs.endpoint,
+            connected: cs.ready,
+            rtt_ms: None,
+            last_ok_at: cs.last_ok_at,
+            last_error: cs.error,
+            layout: LayoutCheckView { ok: cs.ready.then_some(true), detail: cs.detail, checked_at: None, mismatches: vec![] },
+        });
+    }
     out
+}
+
+/// `grm_opcua` = default robot, `grm_opcua_<name>` = the others.
+fn opcua_robot<'a>(st: &'a AppState, id: &str) -> Option<&'a crate::state::RobotCtx> {
+    if id == "grm_opcua" {
+        return st.robots.first();
+    }
+    let name = id.strip_prefix("grm_opcua_")?;
+    st.robots.iter().find(|r| r.name.eq_ignore_ascii_case(name))
+}
+
+///  — robots behind GRM with command readiness, status PLC health and the submission gate.
+async fn robots(State(st): State<AppState>) -> ApiResult<Json> {
+    let mut out = Vec::new();
+    for (i, r) in st.robots.iter().enumerate() {
+        let cs = r.cmd.status();
+        let plc = st.robot_plc(r).ok().map(|h| h.health_now());
+        let g = crate::ledger::ops::gate(&st, r);
+        let active = r.ledger.list().iter().filter(|e| e.state.is_active()).count();
+        out.push(json!({
+            "id": r.id, "name": r.name, "plc": r.plc, "opcua_root": r.opcua_root, "dst": r.dst, "default": i == 0,
+            "cmd_ready": cs.ready, "cmd_error": cs.error,
+            "plc_connected": plc.as_ref().map(|h| h.connected).unwrap_or(false), "layout_ok": plc.as_ref().and_then(|h| h.layout_ok),
+            "gate": { "can_submit": g.can_submit, "reasons": g.reasons }, "active_tasks": active,
+        }));
+    }
+    Ok(axum::Json(Json::Array(out)))
 }
 
 async fn plcs(State(st): State<AppState>) -> ApiResult<Vec<PlcStatusView>> {
@@ -100,8 +129,8 @@ async fn plcs(State(st): State<AppState>) -> ApiResult<Vec<PlcStatusView>> {
 }
 
 async fn plc_check(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<Vec<PlcStatusView>> {
-    if id == "grm_opcua" {
-        st.cmd.rebrowse().await;
+    if let Some(r) = opcua_robot(&st, &id) {
+        r.cmd.rebrowse().await;
     } else if let Some(h) = st.plc_by_id(&id) {
         h.reverify().await;
         tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
@@ -112,8 +141,8 @@ async fn plc_check(State(st): State<AppState>, Path(id): Path<String>) -> ApiRes
 }
 
 async fn plc_reconnect(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<Vec<PlcStatusView>> {
-    if id == "grm_opcua" {
-        st.cmd.rebrowse().await;
+    if let Some(r) = opcua_robot(&st, &id) {
+        r.cmd.rebrowse().await;
     } else if let Some(h) = st.plc_by_id(&id) {
         h.reconnect().await;
         tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
@@ -125,7 +154,9 @@ async fn plc_reconnect(State(st): State<AppState>, Path(id): Path<String>) -> Ap
 
 async fn health(State(st): State<AppState>) -> ApiResult<Json> {
     let plcs: serde_json::Map<String, Json> = st.plcs.iter().map(|(n, h)| (n.clone(), serde_json::to_value(h.health_now()).unwrap_or(Json::Null))).collect();
-    Ok(axum::Json(json!({ "plcs": plcs, "opcua": st.cmd.status(), "demo": st.cfg.demo, "at": crate::util::now_str() })))
+    Ok(axum::Json(
+        json!({ "plcs": plcs, "opcua": st.cmd.status(), "robots": st.robots.iter().map(|r| json!({ "id": r.id, "name": r.name, "opcua": r.cmd.status() })).collect::<Vec<_>>(), "demo": st.cfg.demo, "at": crate::util::now_str() }),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -183,6 +214,7 @@ async fn opcua_rebrowse(State(st): State<AppState>) -> ApiResult<Json> {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/plcs", get(plcs))
+        .route("/api/robots", get(robots))
         .route("/api/plcs/{id}/check", post(plc_check))
         .route("/api/plcs/{id}/reconnect", post(plc_reconnect))
         .route("/api/health", get(health))

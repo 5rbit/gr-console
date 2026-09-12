@@ -1,0 +1,784 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Document>
+  <Engineering version="V20" />
+  <SW.Blocks.GlobalDB ID="0">
+    <AttributeList>
+      <AutoNumber>true</AutoNumber>
+      <DBAccessibleFromOPCUA>true</DBAccessibleFromOPCUA>
+      <DBAccessibleFromWebserver>true</DBAccessibleFromWebserver>
+      <HeaderAuthor />
+      <HeaderFamily />
+      <HeaderName />
+      <HeaderVersion>0.1</HeaderVersion>
+      <Interface><Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">
+  <Section Name="Static">
+    <Member Name="Status" Datatype="&quot;LGR_Equip_TaskStatus&quot;" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="Accept" Datatype="Bool" />
+          <Member Name="Idle" Datatype="Bool" />
+          <Member Name="Assigned" Datatype="Bool" />
+          <Member Name="Inprogress" Datatype="Bool" />
+          <Member Name="AvoidReq" Datatype="Bool" />
+          <Member Name="HoldItem" Datatype="Bool" />
+          <Member Name="Complete" Datatype="Bool" />
+          <Member Name="Canceled" Datatype="Bool" />
+          <Member Name="Reserved" Datatype="Byte" />
+          <Member Name="Step" Datatype="UInt" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="Proc" Datatype="&quot;LGR_Proc_component&quot;" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="ProcNo" Datatype="UInt" />
+          <Member Name="Step" Datatype="Struct">
+            <Member Name="Now" Datatype="UInt" />
+            <Member Name="Prev" Datatype="UInt" />
+            <Member Name="ElapseTime" Datatype="Real" />
+          </Member>
+          <Member Name="Option" Datatype="Struct">
+            <Member Name="Logging" Datatype="Bool" />
+          </Member>
+          <Member Name="Msg" Datatype="String" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="ProcBuff" Datatype="&quot;LGR_Proc_component&quot;" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="ProcNo" Datatype="UInt" />
+          <Member Name="Step" Datatype="Struct">
+            <Member Name="Now" Datatype="UInt" />
+            <Member Name="Prev" Datatype="UInt" />
+            <Member Name="ElapseTime" Datatype="Real" />
+          </Member>
+          <Member Name="Option" Datatype="Struct">
+            <Member Name="Logging" Datatype="Bool" />
+          </Member>
+          <Member Name="Msg" Datatype="String" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="Now" Datatype="&quot;LGR_Task_Data&quot;" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="WorkId" Datatype="UDInt" />
+          <Member Name="TaskId" Datatype="UDInt" />
+          <Member Name="TaskType" Datatype="Byte" />
+          <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+          <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Code" Datatype="UDInt" />
+                <Member Name="Count" Datatype="USInt" />
+                <Member Name="InnerDiameter" Datatype="Real" />
+                <Member Name="OuterDiameter" Datatype="Real" />
+                <Member Name="LowerBidHeight" Datatype="Real" />
+                <Member Name="UpperBidHeight" Datatype="Real" />
+                <Member Name="Height" Datatype="Real" />
+                <Member Name="DeflectionFactor" Datatype="Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Use" Datatype="Bool" />
+                <Member Name="BlendUse" Datatype="Bool" />
+                <Member Name="Id" Datatype="UInt" />
+                <Member Name="Section" Datatype="UInt" />
+                <Member Name="Row" Datatype="UInt" />
+                <Member Name="Col" Datatype="UInt" />
+                <Member Name="Lenth" Datatype="Real" />
+                <Member Name="Width" Datatype="Real" />
+                <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="BlendUpDistance" Datatype="UInt" />
+          <Member Name="BlendDownDistance" Datatype="UInt" />
+          <Member Name="DragOutHeight" Datatype="UInt" />
+          <Member Name="DragOutDist" Datatype="UInt" />
+          <Member Name="DragOutDir" Datatype="Byte" />
+          <Member Name="DragInHeight" Datatype="UInt" />
+          <Member Name="DragInDist" Datatype="UInt" />
+          <Member Name="DragInDir" Datatype="Byte" />
+          <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+          <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+          <Member Name="LiftUpHeight" Datatype="UInt" />
+          <Member Name="PreGripDelta" Datatype="UInt" />
+          <Member Name="GripBackDelta" Datatype="UInt" />
+          <Member Name="GripHeight" Datatype="UInt" />
+          <Member Name="UseDragOut" Datatype="Bool" />
+          <Member Name="UseDragIn" Datatype="Bool" />
+          <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+          <Member Name="LiftUpPartial" Datatype="Bool" />
+          <Member Name="MeasureFloor" Datatype="Bool" />
+          <Member Name="MeasureItem" Datatype="Bool" />
+          <Member Name="MeasureSku" Datatype="Bool" />
+          <Member Name="AdjustCenter" Datatype="Bool" />
+          <Member Name="FindStationItem" Datatype="Bool" />
+          <Member Name="Avoid" Datatype="Bool" />
+          <Member Name="Outbound" Datatype="Bool" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="NowBuff" Datatype="&quot;LGR_Task_Data&quot;" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="WorkId" Datatype="UDInt" />
+          <Member Name="TaskId" Datatype="UDInt" />
+          <Member Name="TaskType" Datatype="Byte" />
+          <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+          <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Code" Datatype="UDInt" />
+                <Member Name="Count" Datatype="USInt" />
+                <Member Name="InnerDiameter" Datatype="Real" />
+                <Member Name="OuterDiameter" Datatype="Real" />
+                <Member Name="LowerBidHeight" Datatype="Real" />
+                <Member Name="UpperBidHeight" Datatype="Real" />
+                <Member Name="Height" Datatype="Real" />
+                <Member Name="DeflectionFactor" Datatype="Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Use" Datatype="Bool" />
+                <Member Name="BlendUse" Datatype="Bool" />
+                <Member Name="Id" Datatype="UInt" />
+                <Member Name="Section" Datatype="UInt" />
+                <Member Name="Row" Datatype="UInt" />
+                <Member Name="Col" Datatype="UInt" />
+                <Member Name="Lenth" Datatype="Real" />
+                <Member Name="Width" Datatype="Real" />
+                <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="BlendUpDistance" Datatype="UInt" />
+          <Member Name="BlendDownDistance" Datatype="UInt" />
+          <Member Name="DragOutHeight" Datatype="UInt" />
+          <Member Name="DragOutDist" Datatype="UInt" />
+          <Member Name="DragOutDir" Datatype="Byte" />
+          <Member Name="DragInHeight" Datatype="UInt" />
+          <Member Name="DragInDist" Datatype="UInt" />
+          <Member Name="DragInDir" Datatype="Byte" />
+          <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+          <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+          <Member Name="LiftUpHeight" Datatype="UInt" />
+          <Member Name="PreGripDelta" Datatype="UInt" />
+          <Member Name="GripBackDelta" Datatype="UInt" />
+          <Member Name="GripHeight" Datatype="UInt" />
+          <Member Name="UseDragOut" Datatype="Bool" />
+          <Member Name="UseDragIn" Datatype="Bool" />
+          <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+          <Member Name="LiftUpPartial" Datatype="Bool" />
+          <Member Name="MeasureFloor" Datatype="Bool" />
+          <Member Name="MeasureItem" Datatype="Bool" />
+          <Member Name="MeasureSku" Datatype="Bool" />
+          <Member Name="AdjustCenter" Datatype="Bool" />
+          <Member Name="FindStationItem" Datatype="Bool" />
+          <Member Name="Avoid" Datatype="Bool" />
+          <Member Name="Outbound" Datatype="Bool" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="Buff" Datatype="Array[0..3] of &quot;LGR_Task_Data&quot;" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="WorkId" Datatype="UDInt" />
+          <Member Name="TaskId" Datatype="UDInt" />
+          <Member Name="TaskType" Datatype="Byte" />
+          <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+          <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Code" Datatype="UDInt" />
+                <Member Name="Count" Datatype="USInt" />
+                <Member Name="InnerDiameter" Datatype="Real" />
+                <Member Name="OuterDiameter" Datatype="Real" />
+                <Member Name="LowerBidHeight" Datatype="Real" />
+                <Member Name="UpperBidHeight" Datatype="Real" />
+                <Member Name="Height" Datatype="Real" />
+                <Member Name="DeflectionFactor" Datatype="Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Use" Datatype="Bool" />
+                <Member Name="BlendUse" Datatype="Bool" />
+                <Member Name="Id" Datatype="UInt" />
+                <Member Name="Section" Datatype="UInt" />
+                <Member Name="Row" Datatype="UInt" />
+                <Member Name="Col" Datatype="UInt" />
+                <Member Name="Lenth" Datatype="Real" />
+                <Member Name="Width" Datatype="Real" />
+                <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="BlendUpDistance" Datatype="UInt" />
+          <Member Name="BlendDownDistance" Datatype="UInt" />
+          <Member Name="DragOutHeight" Datatype="UInt" />
+          <Member Name="DragOutDist" Datatype="UInt" />
+          <Member Name="DragOutDir" Datatype="Byte" />
+          <Member Name="DragInHeight" Datatype="UInt" />
+          <Member Name="DragInDist" Datatype="UInt" />
+          <Member Name="DragInDir" Datatype="Byte" />
+          <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+          <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+          <Member Name="LiftUpHeight" Datatype="UInt" />
+          <Member Name="PreGripDelta" Datatype="UInt" />
+          <Member Name="GripBackDelta" Datatype="UInt" />
+          <Member Name="GripHeight" Datatype="UInt" />
+          <Member Name="UseDragOut" Datatype="Bool" />
+          <Member Name="UseDragIn" Datatype="Bool" />
+          <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+          <Member Name="LiftUpPartial" Datatype="Bool" />
+          <Member Name="MeasureFloor" Datatype="Bool" />
+          <Member Name="MeasureItem" Datatype="Bool" />
+          <Member Name="MeasureSku" Datatype="Bool" />
+          <Member Name="AdjustCenter" Datatype="Bool" />
+          <Member Name="FindStationItem" Datatype="Bool" />
+          <Member Name="Avoid" Datatype="Bool" />
+          <Member Name="Outbound" Datatype="Bool" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="Last" Datatype="Array[0..9] of &quot;LGR_Task_Data&quot;" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">false</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="WorkId" Datatype="UDInt" />
+          <Member Name="TaskId" Datatype="UDInt" />
+          <Member Name="TaskType" Datatype="Byte" />
+          <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+          <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Code" Datatype="UDInt" />
+                <Member Name="Count" Datatype="USInt" />
+                <Member Name="InnerDiameter" Datatype="Real" />
+                <Member Name="OuterDiameter" Datatype="Real" />
+                <Member Name="LowerBidHeight" Datatype="Real" />
+                <Member Name="UpperBidHeight" Datatype="Real" />
+                <Member Name="Height" Datatype="Real" />
+                <Member Name="DeflectionFactor" Datatype="Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Use" Datatype="Bool" />
+                <Member Name="BlendUse" Datatype="Bool" />
+                <Member Name="Id" Datatype="UInt" />
+                <Member Name="Section" Datatype="UInt" />
+                <Member Name="Row" Datatype="UInt" />
+                <Member Name="Col" Datatype="UInt" />
+                <Member Name="Lenth" Datatype="Real" />
+                <Member Name="Width" Datatype="Real" />
+                <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="BlendUpDistance" Datatype="UInt" />
+          <Member Name="BlendDownDistance" Datatype="UInt" />
+          <Member Name="DragOutHeight" Datatype="UInt" />
+          <Member Name="DragOutDist" Datatype="UInt" />
+          <Member Name="DragOutDir" Datatype="Byte" />
+          <Member Name="DragInHeight" Datatype="UInt" />
+          <Member Name="DragInDist" Datatype="UInt" />
+          <Member Name="DragInDir" Datatype="Byte" />
+          <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+          <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+          <Member Name="LiftUpHeight" Datatype="UInt" />
+          <Member Name="PreGripDelta" Datatype="UInt" />
+          <Member Name="GripBackDelta" Datatype="UInt" />
+          <Member Name="GripHeight" Datatype="UInt" />
+          <Member Name="UseDragOut" Datatype="Bool" />
+          <Member Name="UseDragIn" Datatype="Bool" />
+          <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+          <Member Name="LiftUpPartial" Datatype="Bool" />
+          <Member Name="MeasureFloor" Datatype="Bool" />
+          <Member Name="MeasureItem" Datatype="Bool" />
+          <Member Name="MeasureSku" Datatype="Bool" />
+          <Member Name="AdjustCenter" Datatype="Bool" />
+          <Member Name="FindStationItem" Datatype="Bool" />
+          <Member Name="Avoid" Datatype="Bool" />
+          <Member Name="Outbound" Datatype="Bool" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="Canceled" Datatype="Array[0..9] of &quot;LGR_Task_Data&quot;" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="WorkId" Datatype="UDInt" />
+          <Member Name="TaskId" Datatype="UDInt" />
+          <Member Name="TaskType" Datatype="Byte" />
+          <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+          <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Code" Datatype="UDInt" />
+                <Member Name="Count" Datatype="USInt" />
+                <Member Name="InnerDiameter" Datatype="Real" />
+                <Member Name="OuterDiameter" Datatype="Real" />
+                <Member Name="LowerBidHeight" Datatype="Real" />
+                <Member Name="UpperBidHeight" Datatype="Real" />
+                <Member Name="Height" Datatype="Real" />
+                <Member Name="DeflectionFactor" Datatype="Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Use" Datatype="Bool" />
+                <Member Name="BlendUse" Datatype="Bool" />
+                <Member Name="Id" Datatype="UInt" />
+                <Member Name="Section" Datatype="UInt" />
+                <Member Name="Row" Datatype="UInt" />
+                <Member Name="Col" Datatype="UInt" />
+                <Member Name="Lenth" Datatype="Real" />
+                <Member Name="Width" Datatype="Real" />
+                <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="BlendUpDistance" Datatype="UInt" />
+          <Member Name="BlendDownDistance" Datatype="UInt" />
+          <Member Name="DragOutHeight" Datatype="UInt" />
+          <Member Name="DragOutDist" Datatype="UInt" />
+          <Member Name="DragOutDir" Datatype="Byte" />
+          <Member Name="DragInHeight" Datatype="UInt" />
+          <Member Name="DragInDist" Datatype="UInt" />
+          <Member Name="DragInDir" Datatype="Byte" />
+          <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+          <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+          <Member Name="LiftUpHeight" Datatype="UInt" />
+          <Member Name="PreGripDelta" Datatype="UInt" />
+          <Member Name="GripBackDelta" Datatype="UInt" />
+          <Member Name="GripHeight" Datatype="UInt" />
+          <Member Name="UseDragOut" Datatype="Bool" />
+          <Member Name="UseDragIn" Datatype="Bool" />
+          <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+          <Member Name="LiftUpPartial" Datatype="Bool" />
+          <Member Name="MeasureFloor" Datatype="Bool" />
+          <Member Name="MeasureItem" Datatype="Bool" />
+          <Member Name="MeasureSku" Datatype="Bool" />
+          <Member Name="AdjustCenter" Datatype="Bool" />
+          <Member Name="FindStationItem" Datatype="Bool" />
+          <Member Name="Avoid" Datatype="Bool" />
+          <Member Name="Outbound" Datatype="Bool" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="Rejected" Datatype="Array[0..9] of &quot;LGR_Task_Data&quot;" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="WorkId" Datatype="UDInt" />
+          <Member Name="TaskId" Datatype="UDInt" />
+          <Member Name="TaskType" Datatype="Byte" />
+          <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+          <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Code" Datatype="UDInt" />
+                <Member Name="Count" Datatype="USInt" />
+                <Member Name="InnerDiameter" Datatype="Real" />
+                <Member Name="OuterDiameter" Datatype="Real" />
+                <Member Name="LowerBidHeight" Datatype="Real" />
+                <Member Name="UpperBidHeight" Datatype="Real" />
+                <Member Name="Height" Datatype="Real" />
+                <Member Name="DeflectionFactor" Datatype="Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Use" Datatype="Bool" />
+                <Member Name="BlendUse" Datatype="Bool" />
+                <Member Name="Id" Datatype="UInt" />
+                <Member Name="Section" Datatype="UInt" />
+                <Member Name="Row" Datatype="UInt" />
+                <Member Name="Col" Datatype="UInt" />
+                <Member Name="Lenth" Datatype="Real" />
+                <Member Name="Width" Datatype="Real" />
+                <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="BlendUpDistance" Datatype="UInt" />
+          <Member Name="BlendDownDistance" Datatype="UInt" />
+          <Member Name="DragOutHeight" Datatype="UInt" />
+          <Member Name="DragOutDist" Datatype="UInt" />
+          <Member Name="DragOutDir" Datatype="Byte" />
+          <Member Name="DragInHeight" Datatype="UInt" />
+          <Member Name="DragInDist" Datatype="UInt" />
+          <Member Name="DragInDir" Datatype="Byte" />
+          <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+          <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+          <Member Name="LiftUpHeight" Datatype="UInt" />
+          <Member Name="PreGripDelta" Datatype="UInt" />
+          <Member Name="GripBackDelta" Datatype="UInt" />
+          <Member Name="GripHeight" Datatype="UInt" />
+          <Member Name="UseDragOut" Datatype="Bool" />
+          <Member Name="UseDragIn" Datatype="Bool" />
+          <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+          <Member Name="LiftUpPartial" Datatype="Bool" />
+          <Member Name="MeasureFloor" Datatype="Bool" />
+          <Member Name="MeasureItem" Datatype="Bool" />
+          <Member Name="MeasureSku" Datatype="Bool" />
+          <Member Name="AdjustCenter" Datatype="Bool" />
+          <Member Name="FindStationItem" Datatype="Bool" />
+          <Member Name="Avoid" Datatype="Bool" />
+          <Member Name="Outbound" Datatype="Bool" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="ErrorOccuredData" Datatype="Struct" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Member Name="Last" Datatype="Array[0..9] of &quot;LGR_Task_Data&quot;">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+        </AttributeList>
+        <Sections>
+          <Section Name="None">
+            <Member Name="WorkId" Datatype="UDInt" />
+            <Member Name="TaskId" Datatype="UDInt" />
+            <Member Name="TaskType" Datatype="Byte" />
+            <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+            <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+              <Sections>
+                <Section Name="None">
+                  <Member Name="Code" Datatype="UDInt" />
+                  <Member Name="Count" Datatype="USInt" />
+                  <Member Name="InnerDiameter" Datatype="Real" />
+                  <Member Name="OuterDiameter" Datatype="Real" />
+                  <Member Name="LowerBidHeight" Datatype="Real" />
+                  <Member Name="UpperBidHeight" Datatype="Real" />
+                  <Member Name="Height" Datatype="Real" />
+                  <Member Name="DeflectionFactor" Datatype="Real" />
+                </Section>
+              </Sections>
+            </Member>
+            <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+              <Sections>
+                <Section Name="None">
+                  <Member Name="Use" Datatype="Bool" />
+                  <Member Name="BlendUse" Datatype="Bool" />
+                  <Member Name="Id" Datatype="UInt" />
+                  <Member Name="Section" Datatype="UInt" />
+                  <Member Name="Row" Datatype="UInt" />
+                  <Member Name="Col" Datatype="UInt" />
+                  <Member Name="Lenth" Datatype="Real" />
+                  <Member Name="Width" Datatype="Real" />
+                  <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+                </Section>
+              </Sections>
+            </Member>
+            <Member Name="BlendUpDistance" Datatype="UInt" />
+            <Member Name="BlendDownDistance" Datatype="UInt" />
+            <Member Name="DragOutHeight" Datatype="UInt" />
+            <Member Name="DragOutDist" Datatype="UInt" />
+            <Member Name="DragOutDir" Datatype="Byte" />
+            <Member Name="DragInHeight" Datatype="UInt" />
+            <Member Name="DragInDist" Datatype="UInt" />
+            <Member Name="DragInDir" Datatype="Byte" />
+            <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+            <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+            <Member Name="LiftUpHeight" Datatype="UInt" />
+            <Member Name="PreGripDelta" Datatype="UInt" />
+            <Member Name="GripBackDelta" Datatype="UInt" />
+            <Member Name="GripHeight" Datatype="UInt" />
+            <Member Name="UseDragOut" Datatype="Bool" />
+            <Member Name="UseDragIn" Datatype="Bool" />
+            <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+            <Member Name="LiftUpPartial" Datatype="Bool" />
+            <Member Name="MeasureFloor" Datatype="Bool" />
+            <Member Name="MeasureItem" Datatype="Bool" />
+            <Member Name="MeasureSku" Datatype="Bool" />
+            <Member Name="AdjustCenter" Datatype="Bool" />
+            <Member Name="FindStationItem" Datatype="Bool" />
+            <Member Name="Avoid" Datatype="Bool" />
+            <Member Name="Outbound" Datatype="Bool" />
+          </Section>
+        </Sections>
+      </Member>
+      <Member Name="Now" Datatype="Array[0..9] of &quot;LGR_Task_Data&quot;">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+        </AttributeList>
+        <Sections>
+          <Section Name="None">
+            <Member Name="WorkId" Datatype="UDInt" />
+            <Member Name="TaskId" Datatype="UDInt" />
+            <Member Name="TaskType" Datatype="Byte" />
+            <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+            <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+              <Sections>
+                <Section Name="None">
+                  <Member Name="Code" Datatype="UDInt" />
+                  <Member Name="Count" Datatype="USInt" />
+                  <Member Name="InnerDiameter" Datatype="Real" />
+                  <Member Name="OuterDiameter" Datatype="Real" />
+                  <Member Name="LowerBidHeight" Datatype="Real" />
+                  <Member Name="UpperBidHeight" Datatype="Real" />
+                  <Member Name="Height" Datatype="Real" />
+                  <Member Name="DeflectionFactor" Datatype="Real" />
+                </Section>
+              </Sections>
+            </Member>
+            <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+              <Sections>
+                <Section Name="None">
+                  <Member Name="Use" Datatype="Bool" />
+                  <Member Name="BlendUse" Datatype="Bool" />
+                  <Member Name="Id" Datatype="UInt" />
+                  <Member Name="Section" Datatype="UInt" />
+                  <Member Name="Row" Datatype="UInt" />
+                  <Member Name="Col" Datatype="UInt" />
+                  <Member Name="Lenth" Datatype="Real" />
+                  <Member Name="Width" Datatype="Real" />
+                  <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+                </Section>
+              </Sections>
+            </Member>
+            <Member Name="BlendUpDistance" Datatype="UInt" />
+            <Member Name="BlendDownDistance" Datatype="UInt" />
+            <Member Name="DragOutHeight" Datatype="UInt" />
+            <Member Name="DragOutDist" Datatype="UInt" />
+            <Member Name="DragOutDir" Datatype="Byte" />
+            <Member Name="DragInHeight" Datatype="UInt" />
+            <Member Name="DragInDist" Datatype="UInt" />
+            <Member Name="DragInDir" Datatype="Byte" />
+            <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+            <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+            <Member Name="LiftUpHeight" Datatype="UInt" />
+            <Member Name="PreGripDelta" Datatype="UInt" />
+            <Member Name="GripBackDelta" Datatype="UInt" />
+            <Member Name="GripHeight" Datatype="UInt" />
+            <Member Name="UseDragOut" Datatype="Bool" />
+            <Member Name="UseDragIn" Datatype="Bool" />
+            <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+            <Member Name="LiftUpPartial" Datatype="Bool" />
+            <Member Name="MeasureFloor" Datatype="Bool" />
+            <Member Name="MeasureItem" Datatype="Bool" />
+            <Member Name="MeasureSku" Datatype="Bool" />
+            <Member Name="AdjustCenter" Datatype="Bool" />
+            <Member Name="FindStationItem" Datatype="Bool" />
+            <Member Name="Avoid" Datatype="Bool" />
+            <Member Name="Outbound" Datatype="Bool" />
+          </Section>
+        </Sections>
+      </Member>
+      <Member Name="Next" Datatype="Array[0..9] of &quot;LGR_Task_Data&quot;">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+        </AttributeList>
+        <Sections>
+          <Section Name="None">
+            <Member Name="WorkId" Datatype="UDInt" />
+            <Member Name="TaskId" Datatype="UDInt" />
+            <Member Name="TaskType" Datatype="Byte" />
+            <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+            <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+              <Sections>
+                <Section Name="None">
+                  <Member Name="Code" Datatype="UDInt" />
+                  <Member Name="Count" Datatype="USInt" />
+                  <Member Name="InnerDiameter" Datatype="Real" />
+                  <Member Name="OuterDiameter" Datatype="Real" />
+                  <Member Name="LowerBidHeight" Datatype="Real" />
+                  <Member Name="UpperBidHeight" Datatype="Real" />
+                  <Member Name="Height" Datatype="Real" />
+                  <Member Name="DeflectionFactor" Datatype="Real" />
+                </Section>
+              </Sections>
+            </Member>
+            <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+              <Sections>
+                <Section Name="None">
+                  <Member Name="Use" Datatype="Bool" />
+                  <Member Name="BlendUse" Datatype="Bool" />
+                  <Member Name="Id" Datatype="UInt" />
+                  <Member Name="Section" Datatype="UInt" />
+                  <Member Name="Row" Datatype="UInt" />
+                  <Member Name="Col" Datatype="UInt" />
+                  <Member Name="Lenth" Datatype="Real" />
+                  <Member Name="Width" Datatype="Real" />
+                  <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+                </Section>
+              </Sections>
+            </Member>
+            <Member Name="BlendUpDistance" Datatype="UInt" />
+            <Member Name="BlendDownDistance" Datatype="UInt" />
+            <Member Name="DragOutHeight" Datatype="UInt" />
+            <Member Name="DragOutDist" Datatype="UInt" />
+            <Member Name="DragOutDir" Datatype="Byte" />
+            <Member Name="DragInHeight" Datatype="UInt" />
+            <Member Name="DragInDist" Datatype="UInt" />
+            <Member Name="DragInDir" Datatype="Byte" />
+            <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+            <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+            <Member Name="LiftUpHeight" Datatype="UInt" />
+            <Member Name="PreGripDelta" Datatype="UInt" />
+            <Member Name="GripBackDelta" Datatype="UInt" />
+            <Member Name="GripHeight" Datatype="UInt" />
+            <Member Name="UseDragOut" Datatype="Bool" />
+            <Member Name="UseDragIn" Datatype="Bool" />
+            <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+            <Member Name="LiftUpPartial" Datatype="Bool" />
+            <Member Name="MeasureFloor" Datatype="Bool" />
+            <Member Name="MeasureItem" Datatype="Bool" />
+            <Member Name="MeasureSku" Datatype="Bool" />
+            <Member Name="AdjustCenter" Datatype="Bool" />
+            <Member Name="FindStationItem" Datatype="Bool" />
+            <Member Name="Avoid" Datatype="Bool" />
+            <Member Name="Outbound" Datatype="Bool" />
+          </Section>
+        </Sections>
+      </Member>
+      <Member Name="Time" Datatype="Array[0..9] of DTL" Version="1.0">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+        </AttributeList>
+      </Member>
+    </Member>
+  </Section>
+</Sections></Interface>
+      <IsOnlyStoredInLoadMemory>false</IsOnlyStoredInLoadMemory>
+      <IsWriteProtectedInAS>false</IsWriteProtectedInAS>
+      <MemoryLayout>Standard</MemoryLayout>
+      <Name>TASK</Name>
+      <Namespace />
+      <Number>41</Number>
+      <ProgrammingLanguage>DB</ProgrammingLanguage>
+    </AttributeList>
+    <ObjectList>
+      <MultilingualText ID="1" CompositionName="Comment">
+        <ObjectList>
+          <MultilingualTextItem ID="2" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="3" CompositionName="Items">
+            <AttributeList>
+              <Culture>hu-HU</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="4" CompositionName="Items">
+            <AttributeList>
+              <Culture>ko-KR</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+      <MultilingualText ID="5" CompositionName="Title">
+        <ObjectList>
+          <MultilingualTextItem ID="6" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="7" CompositionName="Items">
+            <AttributeList>
+              <Culture>hu-HU</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="8" CompositionName="Items">
+            <AttributeList>
+              <Culture>ko-KR</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+    </ObjectList>
+  </SW.Blocks.GlobalDB>
+</Document>

@@ -262,6 +262,12 @@ async fn execute_step(st: &AppState, runner: &Arc<Runner>, scenario: &Scenario, 
         position_override: None,
         note: if step.label.trim().is_empty() { step.note.clone() } else { step.label.clone() },
         source: Some(ScenarioSource { scenario_id: scenario.id.clone(), run_id: run_id.to_string(), iteration: cur.iteration, step_index: cur.step_index }),
+        robot: step.robot,
+        grip_ref: None,
+    };
+    let robot = match st.robot(step.robot) {
+        Ok(r) => r,
+        Err(e) => return fail(res, format!("robot: {e}")),
     };
     let composed = match crate::issue::compose(st, &req) {
         Ok(c) => c,
@@ -281,7 +287,7 @@ async fn execute_step(st: &AppState, runner: &Arc<Runner>, scenario: &Scenario, 
             }
             continue;
         }
-        let g = crate::ledger::ops::gate(st);
+        let g = crate::ledger::ops::gate(st, robot);
         if g.can_submit {
             break;
         }
@@ -300,8 +306,8 @@ async fn execute_step(st: &AppState, runner: &Arc<Runner>, scenario: &Scenario, 
     }
 
     // subscribe before submitting so the first transition cannot be missed
-    let mut rx = st.ledger.events.subscribe();
-    let entry = match crate::ledger::ops::create_and_submit(st, Origin::Scenario, Some(req), Some(composed.params), composed.task, true).await {
+    let mut rx = st.task_events.subscribe();
+    let entry = match crate::ledger::ops::create_and_submit(st, robot, Origin::Scenario, Some(req), Some(composed.params), composed.task, true).await {
         Ok(e) => e,
         Err(e) => return fail(res, format!("submit: {e}")),
     };
@@ -335,14 +341,14 @@ async fn execute_step(st: &AppState, runner: &Arc<Runner>, scenario: &Scenario, 
                 }
                 Ok(_) => {}
                 Err(RecvError::Lagged(_)) | Err(RecvError::Closed) => {
-                    if let Some(e) = st.ledger.get(&id) {
+                    if let Some(e) = robot.ledger.get(&id) {
                         state = e.state;
                         ack = e.ack;
                     }
                 }
             },
             _ = tick.tick() => {
-                if let Some(e) = st.ledger.get(&id) {
+                if let Some(e) = robot.ledger.get(&id) {
                     state = e.state;
                     ack = e.ack;
                 }

@@ -154,8 +154,9 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
         } else if matches!(tt, TaskType::Pick | TaskType::Drop | TaskType::Measure) {
             warnings.push(format!("cell {} stock unknown — Z assumes {}", task.cell.id, if tt == TaskType::Drop { "an empty cell" } else { "the task count on the floor" }));
         }
+        let grip = crate::stock::grip_offset(req.grip_ref.as_deref().unwrap_or(&defaults.grip_ref), &task.item);
         task.position[2] = match tt {
-            TaskType::Pick | TaskType::Measure | TaskType::Drop => crate::stock::stack_z(tt, floor, h, n, c),
+            TaskType::Pick | TaskType::Measure | TaskType::Drop => crate::stock::stack_z(tt, floor, h, grip, n, c),
             TaskType::Move => floor + MOVE_CLEARANCE,
             TaskType::Up => task.position[2],
         };

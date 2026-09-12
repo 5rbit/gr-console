@@ -1,0 +1,16 @@
+﻿TYPE "LGR_Cell_Info"
+VERSION : 0.1
+   STRUCT
+      Use : Bool;
+      BlendUse : Bool;
+      Id : UInt;
+      Section : UInt;
+      Row : UInt;
+      Col : UInt;
+      Lenth : Real;
+      Width : Real;
+      Position : Array["X".."Z"] of Real;
+   END_STRUCT;
+
+END_TYPE
+

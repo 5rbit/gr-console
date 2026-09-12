@@ -143,6 +143,12 @@ pub struct TaskRequest {
     pub position_override: Option<[f32; 4]>,
     pub note: String,
     pub source: Option<ScenarioSource>,
+    /// Robot to send to (`None` = default robot).
+    #[serde(default)]
+    pub robot: Option<u8>,
+    /// Grip reference override: `mid` (tire centre) | `bead` (upper bead height). `None` = `Defaults.grip_ref`.
+    #[serde(default)]
+    pub grip_ref: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -206,8 +212,10 @@ pub struct Ledger {
 }
 
 impl Ledger {
-    pub fn new(db: Db, plc: &str) -> anyhow::Result<Arc<Ledger>> {
-        let (tx, _) = broadcast::channel(512);
+    /// One ledger per robot (`plc` = its status PLC). `events` may be shared between robots so one SSE
+    /// stream carries every robot's tasks.
+    pub fn new(db: Db, plc: &str, events: Option<broadcast::Sender<LedgerEvent>>) -> anyhow::Result<Arc<Ledger>> {
+        let tx = events.unwrap_or_else(|| broadcast::channel(512).0);
         let l = Ledger { db, plc: plc.to_string(), cache: Mutex::new(Vec::new()), events: tx };
         l.reload()?;
         Ok(Arc::new(l))
@@ -215,8 +223,9 @@ impl Ledger {
 
     fn reload(&self) -> anyhow::Result<()> {
         let rows: Vec<String> = self.db.with(|c| {
-            let mut st = c.prepare("SELECT doc_json FROM tasks WHERE state NOT IN ('completed','canceled','rejected','failed') OR updated_at > datetime('now','-1 day') ORDER BY seq")?;
-            let rows = st.query_map([], |r| r.get::<_, String>(0))?;
+            let mut st =
+                c.prepare("SELECT doc_json FROM tasks WHERE plc = ?1 AND (state NOT IN ('completed','canceled','rejected','failed') OR updated_at > datetime('now','-1 day')) ORDER BY seq")?;
+            let rows = st.query_map([&self.plc], |r| r.get::<_, String>(0))?;
             rows.collect::<Result<Vec<_>, _>>()
         })?;
         let mut cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
@@ -386,8 +395,8 @@ impl Ledger {
     /// All persisted rows, newest first.
     fn all_rows(&self) -> Result<Vec<LedgerEntry>, ApiError> {
         let rows: Vec<String> = self.db.with(|c| {
-            let mut st = c.prepare("SELECT doc_json FROM tasks ORDER BY seq DESC")?;
-            let rows = st.query_map([], |r| r.get::<_, String>(0))?;
+            let mut st = c.prepare("SELECT doc_json FROM tasks WHERE plc = ?1 ORDER BY seq DESC")?;
+            let rows = st.query_map([&self.plc], |r| r.get::<_, String>(0))?;
             rows.collect::<Result<Vec<_>, _>>()
         })?;
         Ok(rows.into_iter().filter_map(|s| serde_json::from_str(&s).ok()).collect())
@@ -476,14 +485,10 @@ impl Ledger {
         s.completed_samples = n;
         Ok(s)
     }
-
-    pub fn snapshot_event(&self) -> LedgerEvent {
-        LedgerEvent::Snapshot { tasks: self.list() }
-    }
 }
 
 /// Filters for [`Ledger::query_filtered`].
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct QueryFilter {
     pub states: Option<Vec<TaskState>>,
     pub task_type: Option<u8>,

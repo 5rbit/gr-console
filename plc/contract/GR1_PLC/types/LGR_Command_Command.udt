@@ -1,0 +1,88 @@
+﻿TYPE "LGR_Command_Command"
+VERSION : 0.1
+   STRUCT
+      Stop : Struct
+         Normal : Bool;
+         Fast : Bool;
+         Cycle : Bool;
+         Spare_X3 : Bool;
+         Spare_X4 : Bool;
+         Spare_X5 : Bool;
+         Spare_X6 : Bool;
+         Spare_X7 : Bool;
+      END_STRUCT;
+      Common : Struct
+         Reset : Bool;
+         Initializing : Bool;
+         Spare_X2 : Bool;
+         Spare_X3 : Bool;
+         Spare_X4 : Bool;
+         Spare_X5 : Bool;   //    (legacy TaskComplete - 미사용, Task.Complete.WorkId 로 판별)
+         Spare_X6 : Bool;   //    (legacy TaskDelete - 미사용, Task.Delete.WorkId 로 판별)
+         BuzzerStop : Bool;
+      END_STRUCT;
+      Task : Struct
+         Complete : Struct
+            WorkId : UDInt;
+            TaskId : UDInt;
+         END_STRUCT;
+         Delete : Struct
+            WorkId : UDInt;
+            TaskId : UDInt;
+         END_STRUCT;
+      END_STRUCT;
+      Jog : Struct
+         xPositive : Bool;
+         xNegative : Bool;
+         yPositive : Bool;
+         yNegative : Bool;
+         zPositive : Bool;
+         zNegative : Bool;
+         gPositive : Bool;
+         gNegative : Bool;
+      END_STRUCT;
+      B3_Spare : Struct
+         Spare_X0 : Bool;
+         Spare_X1 : Bool;
+         Spare_X2 : Bool;
+         Spare_X3 : Bool;
+         Spare_X4 : Bool;
+         Spare_X5 : Bool;
+         Spare_X6 : Bool;
+         Spare_X7 : Bool;
+      END_STRUCT;
+      Home : Struct
+         X : Bool;
+         Y : Bool;
+         Z : Bool;
+         G : Bool;
+         Spare_X4 : Bool;
+         Spare_X5 : Bool;
+         Spare_X6 : Bool;
+         Spare_X7 : Bool;
+      END_STRUCT;
+      MaintPos : Struct
+         X : Bool;
+         Y : Bool;
+         Z : Bool;
+         G : Bool;
+         Spare_X4 : Bool;
+         Spare_X5 : Bool;
+         Spare_X6 : Bool;
+         Spare_X7 : Bool;
+      END_STRUCT;
+      CellOrigin : Struct
+         X : Bool;
+         Y : Bool;
+         Spare_X2 : Bool;
+         Spare_X3 : Bool;
+         Spare_X4 : Bool;
+         Spare_X5 : Bool;
+         Spare_X6 : Bool;
+         Spare_X7 : Bool;
+      END_STRUCT;
+      ChangeMode : Byte;
+   END_STRUCT;
+
+END_TYPE
+

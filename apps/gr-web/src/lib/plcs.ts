@@ -115,7 +115,11 @@ class Plcs extends Store {
     try {
       const p = await api.plcReconnect(id)
       this.#replace(p)
-      toast.resolve(tid, p.connected ? 'ok' : 'warn', `${p.label} ${p.connected ? '연결됨' : '미연결'}`)
+      toast.resolve(
+        tid,
+        p.connected ? 'ok' : 'warn',
+        `${p.label} ${p.connected ? '연결됨' : '미연결'}`,
+      )
       return p
     } catch (e) {
       toast.resolve(tid, 'error', e instanceof Error ? e.message : String(e))

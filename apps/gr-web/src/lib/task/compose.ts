@@ -3,6 +3,7 @@
 // 백엔드 `issue::compose_from`과 같은 우선순위다: `base` ← `by[type][kind]` ← 요청 `params`.
 // 화면은 이 결과를 "지금 이 값이 갈 것이다"로 보여 주고, 최종 확정은 백엔드 미리보기가 한다.
 import { PARAM_LABELS } from '../gr/const'
+import { robots } from '../robots'
 import type { Defaults, TargetKind, TaskParams, TaskRequest, TaskType } from '../types'
 import type { ComposePreview, Draft } from './types'
 
@@ -60,6 +61,8 @@ export function buildRequest(d: Draft): TaskRequest {
     position_override: null,
     note: d.note,
     source: null,
+    robot: robots.selected,
+    grip_ref: null,
   }
 }
 

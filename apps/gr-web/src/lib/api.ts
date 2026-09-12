@@ -20,6 +20,7 @@ import type {
   MeasLogSnapshot,
   PlcId,
   PlcStatus,
+  Robot,
   Scenario,
   ScenarioRun,
   ScenarioUpsert,
@@ -219,6 +220,7 @@ export const api = {
   tasks: (q: TaskQuery = {}) =>
     getJson<TaskPage>(
       `/api/tasks${qs({
+        robot: q.robot,
         state: Array.isArray(q.state) ? q.state.join(',') : q.state,
         type: q.type,
         q: q.q,
@@ -234,7 +236,10 @@ export const api = {
   taskCancel: (id: string) => postJson<Task>(`/api/tasks/${id}/cancel`),
   taskComplete: (id: string) => postJson<Task>(`/api/tasks/${id}/complete`),
   taskResubmit: (id: string) => postJson<Task>(`/api/tasks/${id}/resubmit`),
-  taskGate: () => getJson<Gate>('/api/tasks/gate'),
+  taskGate: (robot?: number | null) =>
+    getJson<Gate>(`/api/tasks/gate${qs({ robot: robot ?? undefined })}`),
+  /** GRM 뒤 로봇 목록 + 명령 경로·게이트 상태 */
+  robots: () => getJson<Robot[]>('/api/robots'),
   tasksStream: (): EventSource => new EventSource(STREAM_URL.tasks),
 
   // 재고(셀별 화물) — 콘솔 소유, 완료된 PICK/DROP 으로 자동 갱신

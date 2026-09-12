@@ -1,0 +1,18 @@
+﻿DATA_BLOCK "OPCUA"
+TITLE = INTERFACE
+{ DB_Accessible_From_Webserver := 'FALSE' ;
+ S7_Optimized_Access := 'FALSE' }
+AUTHOR : 'HYUNDAI-MOVEX'
+FAMILY : LGR
+VERSION : 0.1
+NON_RETAIN
+   STRUCT 
+      CMD { S7_SetPoint := 'False'} : "LGR_Interface_GR_Command";
+      STAT { S7_SetPoint := 'False'} : "LGR_Interface_GR_Status";
+   END_STRUCT;
+
+
+BEGIN
+
+END_DATA_BLOCK
+

@@ -112,7 +112,12 @@ export function RegistryRail({ items, cells, stations, layout }: RegistryRailPro
         ) : tab === 'station' ? (
           <StationRegistry reg={stations} q={q.trim()} />
         ) : tab === 'stock' ? (
-          <StockRegistry cells={cells.items} items={items.items} q={q.trim()} />
+          <StockRegistry
+            cells={cells.items}
+            items={items.items}
+            q={q.trim()}
+            onItemsChanged={() => void items.reload()}
+          />
         ) : (
           layout
         )}

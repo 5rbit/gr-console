@@ -58,6 +58,9 @@ pub struct Defaults {
     pub base: TaskParams,
     /// by[task_type][target_kind] = partial params (snake_case)
     pub by: HashMap<String, HashMap<String, Json>>,
+    /// Where the gripper takes the tire, as a Z offset from the tire bottom: `mid` = Height/2,
+    /// `bead` = UpperBidHeight (falls back to mid when the item has none).
+    pub grip_ref: String,
 }
 
 impl Default for Defaults {
@@ -69,7 +72,7 @@ impl Default for Defaults {
             m.insert("station".to_string(), serde_json::json!({ "find_station_item": t == "PICK" }));
             by.insert(t.into(), m);
         }
-        Self { version: 1, updated_at: now_str(), base: TaskParams::default(), by }
+        Self { version: 1, updated_at: now_str(), base: TaskParams::default(), by, grip_ref: "mid".into() }
     }
 }
 

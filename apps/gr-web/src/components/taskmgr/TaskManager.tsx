@@ -19,7 +19,16 @@ import { Card } from '../../lib/ui/Card'
 import { ScreenHeader, type MetaItem } from '../../lib/ui/ScreenHeader'
 import { StatusDot } from '../../lib/ui/StatusDot'
 import { taskApi, type TaskStats } from '../../lib/task/actions'
-import { EMPTY_FILTER, endedToday, fmtElapsed, isTerminal, matchesFilter, typeName, type PlcTaskArea, type TaskFilter } from '../../lib/task/state'
+import {
+  EMPTY_FILTER,
+  endedToday,
+  fmtElapsed,
+  isTerminal,
+  matchesFilter,
+  typeName,
+  type PlcTaskArea,
+  type TaskFilter,
+} from '../../lib/task/state'
 import type { Task } from '../../lib/types'
 import { PlcView } from './PlcView'
 import TaskDetail, { TASK_DETAIL_PANEL } from './TaskDetail'
@@ -37,7 +46,9 @@ export default function TaskManager() {
   useEffect(() => statusFeed.start(), [])
 
   const [now, setNow] = useState(() => Date.now())
-  const [area, setArea] = useState<PlcTaskArea | null>(() => statusFeed.data?.webmon.Stat.Task ?? null)
+  const [area, setArea] = useState<PlcTaskArea | null>(
+    () => statusFeed.data?.webmon.Stat.Task ?? null,
+  )
   const [stats, setStats] = useState<TaskStats | null>(null)
   const [filter, setFilter] = useState<TaskFilter>(EMPTY_FILTER)
   const [plcView, setPlcView] = useState(false)
@@ -93,14 +104,17 @@ export default function TaskManager() {
 
   const rows = useMemo(() => list.filter((t) => matchesFilter(t, filter, typeName)), [list, filter])
 
-  const completedToday = stats?.completed_today ?? list.filter((t) => t.state === 'completed' && endedToday(t, now)).length
+  const completedToday =
+    stats?.completed_today ??
+    list.filter((t) => t.state === 'completed' && endedToday(t, now)).length
   const items: MetaItem[] = [
     { label: '실행', value: String(counts.running) },
     { label: '대기', value: String(counts.queued) },
     { label: '오늘 완료', value: String(completedToday) },
   ]
   if (stats?.rejected_today) items.push({ label: '오늘 거부', value: String(stats.rejected_today) })
-  if (stats?.avg_complete_secs != null) items.push({ label: '평균 소요', value: fmtElapsed(stats.avg_complete_secs) })
+  if (stats?.avg_complete_secs != null)
+    items.push({ label: '평균 소요', value: fmtElapsed(stats.avg_complete_secs) })
 
   const feedStatus = tasksFeed.connected ? 'ok' : tasksFeed.error ? 'fault' : 'neutral'
   const selectedTask = selected ? tasks.get(selected) : null
@@ -134,7 +148,10 @@ export default function TaskManager() {
               status={feedStatus}
               size="sm"
               label="SSE"
-              title={tasksFeed.error ?? (tasksFeed.connected ? 'Task 스트림 연결됨' : 'Task 스트림 연결 중')}
+              title={
+                tasksFeed.error ??
+                (tasksFeed.connected ? 'Task 스트림 연결됨' : 'Task 스트림 연결 중')
+              }
             />
           </span>
         }
@@ -143,13 +160,18 @@ export default function TaskManager() {
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-auto p-3">
           <Card padded={false}>
-            <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-1.5 dark:border-slate-700" data-testid="task-active">
+            <div
+              className="flex items-center gap-2 border-b border-slate-200 px-3 py-1.5 dark:border-slate-700"
+              data-testid="task-active"
+            >
               <span className="text-xs font-semibold">Task 목록</span>
               <span className="text-[11px] text-slate-400 tabular-nums">
                 {rows.length}건{rows.length !== list.length ? ` / 전체 ${list.length}건` : ''}
               </span>
               {filter.states.length === 0 && !filter.includeTerminal ? (
-                <span className="text-[11px] text-slate-400">진행 중만 — 종결은 아래 이력 또는 '종결 포함'</span>
+                <span className="text-[11px] text-slate-400">
+                  진행 중만 — 종결은 아래 이력 또는 '종결 포함'
+                </span>
               ) : null}
             </div>
             <TaskTable
@@ -159,14 +181,28 @@ export default function TaskManager() {
               selected={selected}
               onPick={onPick}
               loading={!tasksFeed.lastAt && list.length === 0}
-              emptyHint={filter !== EMPTY_FILTER ? '필터에 맞는 Task가 없습니다.' : '작업 명령 화면에서 Task를 제출하면 여기에 나타납니다.'}
+              emptyHint={
+                filter !== EMPTY_FILTER
+                  ? '필터에 맞는 Task가 없습니다.'
+                  : '작업 명령 화면에서 Task를 제출하면 여기에 나타납니다.'
+              }
             />
           </Card>
           <TaskHistory selected={selected} onPick={onPick} refreshKey={terminalCount} now={now} />
         </div>
         {plcView ? (
-          <aside className="w-[22rem] shrink-0 overflow-auto border-l border-line-default bg-surface-panel" data-testid="plc-view-pane">
-            <PlcView onPickKey={onPickKey} highlight={selectedTask ? { work_id: selectedTask.work_id, task_id: selectedTask.task_id } : null} />
+          <aside
+            className="w-[22rem] shrink-0 overflow-auto border-l border-line-default bg-surface-panel"
+            data-testid="plc-view-pane"
+          >
+            <PlcView
+              onPickKey={onPickKey}
+              highlight={
+                selectedTask
+                  ? { work_id: selectedTask.work_id, task_id: selectedTask.task_id }
+                  : null
+              }
+            />
           </aside>
         ) : null}
       </div>

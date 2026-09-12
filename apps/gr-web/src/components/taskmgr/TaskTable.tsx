@@ -75,25 +75,62 @@ export function AckCell({ task }: { task: Task }) {
       title={a.reason}
     >
       {a.code}
-      {a.reject_bits ? <span className="ml-1 text-[10px] opacity-70">b{a.reject_bits.toString(2).padStart(4, '0')}</span> : null}
+      {a.reject_bits ? (
+        <span className="ml-1 text-[10px] opacity-70">
+          b{a.reject_bits.toString(2).padStart(4, '0')}
+        </span>
+      ) : null}
     </span>
   )
 }
 
-export function TaskTable({ rows, area, now, selected, onPick, loading = false, empty = '진행 중인 Task 없음', emptyHint, testid = 'task-table' }: TaskTableProps) {
+export function TaskTable({
+  rows,
+  area,
+  now,
+  selected,
+  onPick,
+  loading = false,
+  empty = '진행 중인 Task 없음',
+  emptyHint,
+  testid = 'task-table',
+}: TaskTableProps) {
   const columns = useMemo<Column<Task>[]>(
     () => [
       { key: 'seq', label: '#', get: (t) => t.seq, numeric: true, class: 'w-12' },
-      { key: 'state', label: '상태', get: (t) => t.state, cell: (t) => <StateCell task={t} area={area} /> },
+      {
+        key: 'state',
+        label: '상태',
+        get: (t) => t.state,
+        cell: (t) => <StateCell task={t} area={area} />,
+      },
+      { key: 'robot', label: '로봇', get: (t) => t.plc_name ?? '', class: 'font-mono' },
       { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType) },
       { key: 'target', label: '대상', get: (t) => targetLabel(t) },
       { key: 'item', label: '품목', get: (t) => t.plc_task?.Item?.Code || null, numeric: true },
       { key: 'count', label: '수량', get: (t) => t.plc_task?.Item?.Count ?? null, numeric: true },
-      { key: 'ack', label: 'Ack', get: (t) => t.ack?.code ?? null, cell: (t) => <AckCell task={t} />, numeric: true },
+      {
+        key: 'ack',
+        label: 'Ack',
+        get: (t) => t.ack?.code ?? null,
+        cell: (t) => <AckCell task={t} />,
+        numeric: true,
+      },
       { key: 'step', label: 'PLC', get: (t) => plcStep(t), class: 'font-mono' },
       { key: 'origin', label: '출처', get: (t) => ORIGIN_LABEL[t.origin] },
-      { key: 'created', label: '생성', get: (t) => t.created_at, cell: (t) => <span className="tabular-nums">{fmtTime(t.created_at, now)}</span> },
-      { key: 'elapsed', label: '경과', get: (t) => elapsed(t, now), cell: (t) => <span className="tabular-nums">{fmtElapsed(elapsed(t, now))}</span>, numeric: true },
+      {
+        key: 'created',
+        label: '생성',
+        get: (t) => t.created_at,
+        cell: (t) => <span className="tabular-nums">{fmtTime(t.created_at, now)}</span>,
+      },
+      {
+        key: 'elapsed',
+        label: '경과',
+        get: (t) => elapsed(t, now),
+        cell: (t) => <span className="tabular-nums">{fmtElapsed(elapsed(t, now))}</span>,
+        numeric: true,
+      },
     ],
     [area, now],
   )

@@ -13,7 +13,36 @@ pub struct Config {
     pub opcua: OpcUaCfg,
     pub poll: PollCfg,
     pub cmd: CmdCfg,
+    /// Robots reachable through GRM (up to 2). Empty = one robot derived from `cmd` + `opcua`.
+    pub robots: Vec<RobotCfg>,
     pub demo: bool,
+}
+
+/// One gantry robot behind GRM: its OPC UA command root (`GR[n].CMD`), OPC UA destination id and the
+/// S7 PLC (name in `plcs`) whose OPCUA DB carries the echo / task arrays.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RobotCfg {
+    pub id: u8,
+    pub name: String,
+    pub plc: String,
+    pub opcua_root: String,
+    pub dst: u16,
+}
+impl Default for RobotCfg {
+    fn default() -> Self {
+        Self { id: 2, name: "GR2".into(), plc: "GR2".into(), opcua_root: "GR[2].CMD".into(), dst: 4002 }
+    }
+}
+
+impl Config {
+    /// Robots to run: the configured list, or the single legacy robot from `cmd` + `opcua`.
+    pub fn robots_effective(&self) -> Vec<RobotCfg> {
+        if !self.robots.is_empty() {
+            return self.robots.clone();
+        }
+        vec![RobotCfg { id: (self.cmd.dst % 100) as u8, name: self.cmd.status_plc.clone(), plc: self.cmd.status_plc.clone(), opcua_root: self.opcua.root_path.clone(), dst: self.cmd.dst }]
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -207,6 +236,7 @@ impl Default for Config {
             opcua: OpcUaCfg::default(),
             poll: PollCfg::default(),
             cmd: CmdCfg::default(),
+            robots: vec![],
             demo: false,
         }
     }

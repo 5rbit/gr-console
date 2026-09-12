@@ -94,6 +94,8 @@ pub struct Step {
     pub wait_after_ms: u64,
     pub on_failure: OnFailure,
     pub note: String,
+    /// Robot to send this step to ( = default robot).
+    pub robot: Option<u8>,
 }
 
 impl Default for Step {
@@ -110,6 +112,7 @@ impl Default for Step {
             wait_after_ms: 0,
             on_failure: OnFailure::Stop,
             note: String::new(),
+            robot: None,
         }
     }
 }

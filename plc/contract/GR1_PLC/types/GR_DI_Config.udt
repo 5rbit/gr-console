@@ -1,0 +1,135 @@
+﻿TYPE "GR_DI_Config"
+VERSION : 0.1
+   STRUCT
+      MC_Feed_SD_POWER : Bool;   // [I_G2_01.00] 2302MC01 - MC Feed_SD POWER
+      LSW_DOOR01 : Bool;   // [I_G2_01.01] 2153LS01 - LSW_DOOR01
+      LSW_DOOR02 : Bool;   // [I_G2_01.02] 2153LS02 - LSW_DOOR02
+      LSW_DOOR03 : Bool;   // [I_G2_01.03] 2401LS01 - LSW_DOOR03
+      SPARE : Bool;   // [I_G2_01.04]  - SPARE
+      TEMP_PANEL : Bool;   // [I_G2_01.05] 2401TEMP01 - TEMP_PANEL
+      SPARE_1 : Bool;   // [I_G2_01.06]  - SPARE
+      SPARE_2 : Bool;   // [I_G2_01.07]  - SPARE
+      FAN_1_ON : Bool;   // [I_G2_01.08]  - FAN 1 ON
+      FAN_2_ON : Bool;   // [I_G2_01.09]  - FAN 2 ON
+      FAN_3_ON : Bool;   // [I_G2_01.10]  - FAN 3 ON
+      FAN_4_ON : Bool;   // [I_G2_01.11]  - FAN 4 ON
+      FAN_5_ON : Bool;   // [I_G2_01.12]  - FAN 5 ON
+      FAN_6_ON : Bool;   // [I_G2_01.13]  - FAN 6 ON
+      SPARE_3 : Bool;   // [I_G2_01.14]  - SPARE
+      SPARE_4 : Bool;   // [I_G2_01.15]  - SPARE
+      SPARE_5 : Bool;   // [I_G2_02.00]  - SPARE
+      MCCB_SD_Power_Ok : Bool;   // [I_G2_02.01] 2101MCCB02 - MCCB_SD_Power_Ok
+      MCB_PS01_Ok : Bool;   // [I_G2_02.02] 2102MCB01 - MCB_PS01_Ok
+      MCB_PS02_Ok : Bool;   // [I_G2_02.03] 2102MCB02 - MCB_PS02_Ok
+      MCB_PS03_Ok : Bool;   // [I_G2_02.04] 2102MCB03 - MCB_PS03_Ok
+      MCB_PS04_Ok : Bool;   // [I_G2_02.05] 2102MCB04 - MCB_PS04_Ok
+      MCB_PS05_Ok : Bool;   // [I_G2_02.06] 2102MCB05 - MCB_PS05_Ok
+      SUB_PS01_Ok : Bool;   // [I_G2_02.07]  - SUB_PS01_Ok
+      SUB_PS02_Ok : Bool;   // [I_G2_02.08] 2151PS01 - SUB_PS02_Ok
+      SUB_PS03_Ok : Bool;   // [I_G2_02.09] 2151PS02 - SUB_PS03_Ok
+      SUB_PS04_Ok : Bool;   // [I_G2_02.10] 2152PS01 - SUB_PS04_Ok
+      SUB_PS05_Ok : Bool;   // [I_G2_02.11] 2152PS02 - SUB_PS05_Ok
+      SPARE_6 : Bool;   // [I_G2_02.12]  - SPARE
+      SPARE_7 : Bool;   // [I_G2_02.13]  - SPARE
+      SPARE_8 : Bool;   // [I_G2_02.14]  - SPARE
+      SPARE_9 : Bool;   // [I_G2_02.15] FUSE - SPARE
+      MCB_PLC_Ok : Bool;   // [I_G2_03.00] 2151MCB01 - MCB_PLC_Ok
+      MCB_SPLC_Ok : Bool;   // [I_G2_03.01] 2151MCB02 - MCB_SPLC_Ok
+      MCB_RIO_Ok : Bool;   // [I_G2_03.02] 2151MCB03 - MCB_RIO_Ok
+      MCB_Sensor_Ok : Bool;   // [I_G2_03.03] 2151MCB04 - MCB_Sensor_Ok
+      MCB_BZ_TL_Ok : Bool;   // [I_G2_03.04] 2151MCB05 - MCB_BZ/TL_Ok
+      SPARE_10 : Bool;   // [I_G2_03.05]  - SPARE
+      MCB_Hub01_Ok : Bool;   // [I_G2_03.06] 2152MCB01 - MCB_Hub01_Ok
+      MCB_Hub02_Ok : Bool;   // [I_G2_03.07] 2152MCB02 - MCB_Hub02_Ok
+      MCB_AP_Ok : Bool;   // [I_G2_03.08] 2152MCB03 - MCB_AP_Ok
+      MCB_FAN_Ok : Bool;   // [I_G2_03.09] 2152MCB04 - MCB_FAN_Ok
+      MCB_PanelLamp_Ok : Bool;   // [I_G2_03.10] 2152MCB05 - MCB_PanelLamp_Ok
+      MCB_HandTouch_Ok : Bool;   // [I_G2_03.11] 2152MCB06 - MCB_HandTouch_Ok
+      MCB_G_BRAKE_Ok : Bool;   // [I_G2_03.12] 2152MCB07 - MCB_G_BRAKE_Ok
+      MCB_Z_FAN_Ok : Bool;   // [I_G2_03.13] 2152MCB08 - MCB_Z_FAN_Ok
+      MCB_DRIVE_DC_POWER_Ok : Bool;   // [I_G2_03.14] 2152MCB09 - MCB_DRIVE_DC_POWER_Ok
+      SPARE_11 : Bool;   // [I_G2_03.15]  - SPARE
+      Reserved_0 : Bool;
+      Reserved_1 : Bool;
+      Reserved_2 : Bool;
+      Reserved_3 : Bool;
+      Reserved_4 : Bool;
+      Reserved_5 : Bool;
+      Reserved_6 : Bool;
+      Reserved_7 : Bool;
+      Reserved_8 : Bool;
+      Reserved_9 : Bool;
+      Reserved_10 : Bool;
+      Reserved_11 : Bool;
+      Reserved_12 : Bool;
+      Reserved_13 : Bool;
+      Reserved_14 : Bool;
+      Reserved_15 : Bool;
+      Reserved_16 : Bool;
+      Reserved_17 : Bool;
+      Reserved_18 : Bool;
+      Reserved_19 : Bool;
+      Reserved_20 : Bool;
+      Reserved_21 : Bool;
+      Reserved_22 : Bool;
+      Reserved_23 : Bool;
+      Reserved_24 : Bool;
+      Reserved_25 : Bool;
+      Reserved_26 : Bool;
+      Reserved_27 : Bool;
+      Reserved_28 : Bool;
+      Reserved_29 : Bool;
+      Reserved_30 : Bool;
+      Reserved_31 : Bool;
+      Reserved_32 : Bool;
+      Reserved_33 : Bool;
+      Reserved_34 : Bool;
+      Reserved_35 : Bool;
+      Reserved_36 : Bool;
+      Reserved_37 : Bool;
+      Reserved_38 : Bool;
+      Reserved_39 : Bool;
+      Reserved_40 : Bool;
+      Reserved_41 : Bool;
+      Reserved_42 : Bool;
+      Reserved_43 : Bool;
+      Reserved_44 : Bool;
+      Reserved_45 : Bool;
+      Reserved_46 : Bool;
+      Reserved_47 : Bool;
+      Reserved_48 : Bool;
+      Reserved_49 : Bool;
+      Reserved_50 : Bool;
+      Reserved_51 : Bool;
+      Reserved_52 : Bool;
+      Reserved_53 : Bool;
+      Reserved_54 : Bool;
+      Reserved_55 : Bool;
+      Reserved_56 : Bool;
+      Reserved_57 : Bool;
+      Reserved_58 : Bool;
+      Reserved_59 : Bool;
+      Reserved_60 : Bool;
+      Reserved_61 : Bool;
+      Reserved_62 : Bool;
+      Reserved_63 : Bool;
+      Reserved_64 : Bool;
+      Reserved_65 : Bool;
+      Reserved_66 : Bool;
+      Reserved_67 : Bool;
+      Reserved_68 : Bool;
+      Reserved_69 : Bool;
+      Reserved_70 : Bool;
+      Reserved_71 : Bool;
+      Reserved_72 : Bool;
+      Reserved_73 : Bool;
+      Reserved_74 : Bool;
+      Reserved_75 : Bool;
+      Reserved_76 : Bool;
+      Reserved_77 : Bool;
+      Reserved_78 : Bool;
+      Reserved_79 : Bool;
+   END_STRUCT;
+
+END_TYPE
+

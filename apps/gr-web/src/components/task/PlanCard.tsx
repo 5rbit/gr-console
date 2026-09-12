@@ -39,7 +39,9 @@ import { Input } from '../../lib/ui/Input'
 import { Select } from '../../lib/ui/Select'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
 import { toast } from '../../lib/ui/toast'
-import type { Cell, Gate, Item, Station, StockEntry, TaskType } from '../../lib/types'
+import { robots } from '../../lib/robots'
+import { useStore } from '../../lib/store'
+import type { Cell, Gate, GripRef, Item, Station, StockEntry, TaskType } from '../../lib/types'
 import { cn } from '../../lib/utils'
 
 const TYPES: TaskType[] = ['PICK', 'DROP', 'MEASURE', 'MOVE']
@@ -58,6 +60,9 @@ export interface PlanCardProps {
   gate: Gate | null
   /** 표에서 행을 고르면 레이아웃 강조에 쓴다. */
   onFocus?: (step: PlanStep | null) => void
+  /** 그립 기준(전역 기본값) + 변경. */
+  gripRef: GripRef
+  onGripRefChange: (g: GripRef) => void
 }
 
 export function PlanCard({
@@ -73,10 +78,13 @@ export function PlanCard({
   stockNow,
   gate,
   onFocus,
+  gripRef,
+  onGripRefChange,
 }: PlanCardProps) {
+  useStore(robots)
   const rows = useMemo(
-    () => planRows(steps, { cells, stations, items, stockNow }),
-    [steps, cells, stations, items, stockNow],
+    () => planRows(steps, { cells, stations, items, stockNow, gripRef }),
+    [steps, cells, stations, items, stockNow, gripRef],
   )
   const [name, setName] = useState('')
   const [confirmNext, setConfirmNext] = useState(false)
@@ -161,6 +169,36 @@ export function PlanCard({
           {steps.length}스텝{warnCount ? ` · 경고 ${warnCount}` : ''}
         </span>
         <span className="flex-1" />
+        <div
+          className="inline-flex rounded-md border border-slate-300 p-0.5 text-[11px] dark:border-slate-600"
+          role="radiogroup"
+          aria-label="그립 기준"
+          title="Z 계산 기준: 타이어 중간(H/2) 또는 상부 비드 높이"
+        >
+          {(
+            [
+              ['mid', '타이어 중간'],
+              ['bead', '그립 비드'],
+            ] as [GripRef, string][]
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={gripRef === id}
+              className={cn(
+                'rounded px-1.5 py-0.5',
+                gripRef === id
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+              )}
+              onClick={() => onGripRefChange(id)}
+              data-testid={`grip-${id}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <Button
           size="icon-sm"
           intent="ghost"
@@ -204,6 +242,7 @@ export function PlanCard({
               <th className="px-1 py-1 text-left">#</th>
               <th className="px-1 text-left">종류</th>
               <th className="px-1 text-left">대상</th>
+              {robots.multi ? <th className="px-1 text-left">로봇</th> : null}
               <th className="px-1 text-left">품목</th>
               <th className="px-1 text-right">수량</th>
               <th className="px-1 text-right">재고</th>
@@ -215,7 +254,7 @@ export function PlanCard({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-2 py-4 text-center text-slate-400">
+                <td colSpan={11} className="px-2 py-4 text-center text-slate-400">
                   계획이 비어 있습니다 — 레이아웃에서 셀을 누르세요
                 </td>
               </tr>
@@ -287,6 +326,25 @@ export function PlanCard({
                       {r.target.kind === 'cell' ? '셀' : '스테이션'}{' '}
                       <b className="font-mono">#{r.target.id}</b>
                     </td>
+                    {robots.multi ? (
+                      <td className="px-1">
+                        <Select
+                          dense
+                          value={r.robot === null || r.robot === undefined ? '' : String(r.robot)}
+                          onValueChange={(v) =>
+                            onChange(patch(steps, r.id, { robot: v === '' ? null : Number(v) }))
+                          }
+                          aria-label="로봇"
+                        >
+                          <option value="">기본</option>
+                          {robots.list.map((rb) => (
+                            <option key={rb.id} value={String(rb.id)}>
+                              {rb.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </td>
+                    ) : null}
                     <td className="px-1">
                       <Select
                         dense
@@ -377,7 +435,7 @@ export function PlanCard({
                   </tr>
                   {open === r.id ? (
                     <tr className="bg-slate-50 dark:bg-slate-900/40">
-                      <td colSpan={10} className="px-2 py-2">
+                      <td colSpan={11} className="px-2 py-2">
                         {preview?.id === r.id && preview.p ? (
                           <>
                             <PlcStructView

@@ -6,6 +6,7 @@
 // 되돌리기/다시실행은 계획 배열의 스냅샷 스택이다.
 import type {
   Cell,
+  GripRef,
   Item,
   ScenarioStep,
   ScenarioUpsert,
@@ -23,6 +24,8 @@ export interface PlanStep {
   item_code: number | null
   count: number
   note: string
+  /** 보낼 로봇(없으면 기본 로봇). */
+  robot?: number | null
 }
 
 export interface PlanRow extends PlanStep {
@@ -69,11 +72,27 @@ export function carried(steps: readonly PlanStep[]): Carry | null {
   return null
 }
 
-export function stackZ(type: TaskType, floor: number, h: number, n: number, c: number): number {
-  const mid = h / 2
+/** 타이어 바닥에서 그리퍼가 잡는 높이 — mid = H/2, bead = 상부 비드 높이(없으면 mid). 백엔드 grip_offset 과 같다. */
+export function gripOffset(
+  ref: GripRef | string | undefined,
+  item: { height: number; upper_bead_height?: number } | undefined,
+): number {
+  const h = item?.height ?? 0
+  if (ref === 'bead' && (item?.upper_bead_height ?? 0) > 0) return item!.upper_bead_height!
+  return h / 2
+}
+
+export function stackZ(
+  type: TaskType,
+  floor: number,
+  h: number,
+  n: number,
+  c: number,
+  grip = h / 2,
+): number {
   if (type === 'PICK' || type === 'MEASURE')
-    return floor + h * Math.max(n - Math.max(c, 1), 0) + mid
-  if (type === 'DROP') return floor + h * n + mid
+    return floor + h * Math.max(n - Math.max(c, 1), 0) + grip
+  if (type === 'DROP') return floor + h * n + grip
   return floor
 }
 
@@ -87,6 +106,7 @@ export function stepForClick(
   stockNow: ReadonlyMap<number, StockEntry>,
   type?: TaskType,
   fallbackItem: number | null = null,
+  robot: number | null = null,
 ): PlanStep {
   const t = type ?? nextType(steps)
   const sim = simulateStock(steps, stockNow)
@@ -101,7 +121,7 @@ export function stepForClick(
     item_code = st?.item_code || carry?.item_code || fallbackItem
   }
   if (item_code === 0) item_code = null
-  return { id: stepId(), type: t, target, item_code, count, note: '' }
+  return { id: stepId(), type: t, target, item_code, count, note: '', robot }
 }
 
 /** 계획을 순서대로 적용한 뒤의 셀 재고(품목/개수). */
@@ -129,6 +149,8 @@ export interface PlanContext {
   stations: readonly Station[]
   items: readonly Item[]
   stockNow: ReadonlyMap<number, StockEntry>
+  /** 그립 기준(기본 mid). */
+  gripRef?: GripRef
 }
 
 /** 표에 보일 행 — 재고 전/후, Z, 경고. */
@@ -152,7 +174,8 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
     const st = cell ? (sim.get(cell.id) ?? { item_code: 0, count: 0 }) : null
     const n = st ? st.count : 0
     let z: number | null = null
-    if (floor !== null && h !== null) z = stackZ(s.type, floor, h, n, s.count)
+    if (floor !== null && h !== null)
+      z = stackZ(s.type, floor, h, n, s.count, gripOffset(ctx.gripRef ?? 'mid', item))
     else if (floor !== null && s.type === 'MOVE') z = floor
     if (cell) {
       if ((s.type === 'PICK' || s.type === 'MEASURE') && n === 0) warnings.push('셀 재고 없음')
@@ -281,6 +304,7 @@ export function toScenario(
     wait_after_ms: 0,
     on_failure: 'stop',
     note: s.note,
+    robot: s.robot ?? null,
   }))
   return { name, description, steps: st, repeat: 1 }
 }

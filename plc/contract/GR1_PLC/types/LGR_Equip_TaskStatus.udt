@@ -1,0 +1,17 @@
+﻿TYPE "LGR_Equip_TaskStatus"
+VERSION : 0.1
+   STRUCT
+      Accept { ExternalWritable := 'False'} : Bool;
+      Idle { ExternalWritable := 'False'} : Bool;
+      Assigned { ExternalWritable := 'False'} : Bool;
+      Inprogress { ExternalWritable := 'False'} : Bool;
+      AvoidReq { ExternalWritable := 'False'} : Bool;
+      HoldItem { ExternalWritable := 'False'} : Bool;
+      Complete { ExternalWritable := 'False'} : Bool;
+      Canceled { ExternalWritable := 'False'} : Bool;
+      Reserved { ExternalWritable := 'False'} : Byte;
+      Step { ExternalWritable := 'False'} : UInt;
+   END_STRUCT;
+
+END_TYPE
+

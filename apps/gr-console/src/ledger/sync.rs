@@ -401,7 +401,7 @@ mod tests {
 
     fn fresh() -> (Db, Arc<Ledger>, SyncState) {
         let db = Db::open_memory().unwrap();
-        let ledger = Ledger::new(db.clone(), "GR2").unwrap();
+        let ledger = Ledger::new(db.clone(), "GR2", None).unwrap();
         let mut st = SyncState::load(&ledger, 5000);
         st.lost_grace_ms = 0;
         (db, ledger, st)
@@ -637,7 +637,7 @@ mod tests {
     #[test]
     fn cursor_survives_restart() {
         let db = Db::open_memory().unwrap();
-        let ledger = Ledger::new(db.clone(), "GR2").unwrap();
+        let ledger = Ledger::new(db.clone(), "GR2", None).unwrap();
         let mut st = SyncState::load(&ledger, 5000);
         let mut v = view();
         push_ring(&mut v.task.completed, task(key(3, 1)));
@@ -649,7 +649,7 @@ mod tests {
         let before = ledger.query(None, None, None, 100, 0).unwrap().1;
 
         // "restart": a second Ledger on the same sqlite, fresh SyncState
-        let ledger2 = Ledger::new(db.clone(), "GR2").unwrap();
+        let ledger2 = Ledger::new(db.clone(), "GR2", None).unwrap();
         let mut st2 = SyncState::load(&ledger2, 5000);
         assert_eq!(st2.completed.top, Some(key(3, 2)));
         assert_eq!(st2.rejected.top, Some(key(3, 3)));
@@ -664,7 +664,7 @@ mod tests {
         assert_eq!(ledger2.load_cursor("completed"), Some(Some(key(3, 4))));
 
         // a third start on a PLC whose rings were wiped: nothing re-emitted, no overflow noise
-        let ledger3 = Ledger::new(db.clone(), "GR2").unwrap();
+        let ledger3 = Ledger::new(db.clone(), "GR2", None).unwrap();
         let mut st3 = SyncState::load(&ledger3, 5000);
         let mut wiped = view();
         apply(&ledger3, &wiped, &mut st3).unwrap();

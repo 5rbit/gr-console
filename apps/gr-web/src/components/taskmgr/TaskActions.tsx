@@ -6,7 +6,13 @@ import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { Input } from '../../lib/ui/Input'
 import { runAction } from '../../lib/task/actions'
-import { ACTION_LABEL, STATE_LABEL, allowedActions, isRobotAction, type TaskAction } from '../../lib/task/state'
+import {
+  ACTION_LABEL,
+  STATE_LABEL,
+  allowedActions,
+  isRobotAction,
+  type TaskAction,
+} from '../../lib/task/state'
 import type { Task } from '../../lib/types'
 
 export interface TaskActionsProps {
@@ -71,7 +77,9 @@ export function TaskActions({ task, onDone, size = 'sm' }: TaskActionsProps) {
           <Button
             key={a}
             size={size}
-            intent={DANGER.has(a) ? 'outline' : a === 'submit' || a === 'resubmit' ? 'primary' : 'neutral'}
+            intent={
+              DANGER.has(a) ? 'outline' : a === 'submit' || a === 'resubmit' ? 'primary' : 'neutral'
+            }
             icon={ICON[a]}
             loading={busy === a}
             disabled={busy !== null}

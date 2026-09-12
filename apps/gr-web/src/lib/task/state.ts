@@ -288,9 +288,17 @@ export interface TaskFilter {
   type: string
   q: string
   includeTerminal: boolean
+  /** 로봇(상태 PLC 이름) — 빈 문자열 = 전체 */
+  robot: string
 }
 
-export const EMPTY_FILTER: TaskFilter = { states: [], type: '', q: '', includeTerminal: false }
+export const EMPTY_FILTER: TaskFilter = {
+  states: [],
+  type: '',
+  q: '',
+  includeTerminal: false,
+  robot: '',
+}
 
 export function matchesFilter(
   task: Task,
@@ -301,6 +309,7 @@ export function matchesFilter(
     if (!f.states.includes(task.state)) return false
   } else if (!f.includeTerminal && isTerminal(task.state)) return false
   if (f.type && typeName(task.plc_task?.TaskType ?? 0) !== f.type) return false
+  if (f.robot && (task.plc_name ?? '') !== f.robot) return false
   const q = f.q.trim().toLowerCase()
   if (q) {
     const hay = [

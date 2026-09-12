@@ -170,7 +170,7 @@ pub fn from_csv(text: &str, name: &str) -> Result<Scenario, ApiError> {
         let of = get(&rec, 8);
         let on_failure = OnFailure::parse(&of).ok_or_else(|| bad("on_failure", &of))?;
         let params = params_from_kv(&get(&rec, 10)).map_err(|e| ApiError::BadRequest(format!("csv row {row}: {e}")))?;
-        let mut step = Step { id: String::new(), label: get(&rec, 0), task_type, target, item_code, count, params, wait_for, wait_after_ms, on_failure, note: get(&rec, 9) };
+        let mut step = Step { id: String::new(), label: get(&rec, 0), task_type, target, item_code, count, params, wait_for, wait_after_ms, on_failure, note: get(&rec, 9), robot: None };
         step.normalize();
         steps.push(step);
     }

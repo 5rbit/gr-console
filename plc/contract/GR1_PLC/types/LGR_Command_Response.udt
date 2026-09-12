@@ -1,0 +1,11 @@
+﻿TYPE "LGR_Command_Response"
+VERSION : 0.1
+   STRUCT
+      Header { S7_SetPoint := 'False'} : "LGR_Command_Header";
+      Command { ExternalWritable := 'False'} : "LGR_Command_Command";
+      Task : "LGR_Task_Data";
+      Data { ExternalWritable := 'False'} : Array[0..15] of Byte;
+   END_STRUCT;
+
+END_TYPE
+

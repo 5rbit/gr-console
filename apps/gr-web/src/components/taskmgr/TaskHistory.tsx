@@ -51,33 +51,73 @@ export function TaskHistory({ selected, onPick, refreshKey, now }: TaskHistoryPr
 
   const columns: Column<Task>[] = [
     { key: 'seq', label: '#', get: (t) => t.seq, numeric: true, class: 'w-12' },
-    { key: 'state', label: '상태', get: (t) => t.state, cell: (t) => <StateCell task={t} area={null} /> },
+    {
+      key: 'state',
+      label: '상태',
+      get: (t) => t.state,
+      cell: (t) => <StateCell task={t} area={null} />,
+    },
     { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType) },
     { key: 'target', label: '대상', get: (t) => targetLabel(t) },
     { key: 'item', label: '품목', get: (t) => t.plc_task?.Item?.Code || null, numeric: true },
-    { key: 'ack', label: 'Ack', get: (t) => t.ack?.code ?? null, cell: (t) => <AckCell task={t} />, numeric: true },
+    {
+      key: 'ack',
+      label: 'Ack',
+      get: (t) => t.ack?.code ?? null,
+      cell: (t) => <AckCell task={t} />,
+      numeric: true,
+    },
     { key: 'origin', label: '출처', get: (t) => ORIGIN_LABEL[t.origin] },
-    { key: 'ended', label: '종결', get: (t) => t.ended_at, cell: (t) => <span className="tabular-nums">{fmtTime(t.ended_at, now)}</span> },
-    { key: 'elapsed', label: '소요', get: (t) => elapsed(t, now), cell: (t) => <span className="tabular-nums">{fmtElapsed(elapsed(t, now))}</span>, numeric: true },
+    {
+      key: 'ended',
+      label: '종결',
+      get: (t) => t.ended_at,
+      cell: (t) => <span className="tabular-nums">{fmtTime(t.ended_at, now)}</span>,
+    },
+    {
+      key: 'elapsed',
+      label: '소요',
+      get: (t) => elapsed(t, now),
+      cell: (t) => <span className="tabular-nums">{fmtElapsed(elapsed(t, now))}</span>,
+      numeric: true,
+    },
     {
       key: 'reason',
       label: '사유',
       get: (t) => t.error ?? (t.ack && !t.ack.accepted ? t.ack.reason : null),
       cell: (t) => {
         const r = t.error ?? (t.ack && !t.ack.accepted ? t.ack.reason : '')
-        return r ? <span className="block max-w-64 truncate text-slate-500" title={r}>{r}</span> : <span className="text-slate-300">—</span>
+        return r ? (
+          <span className="block max-w-64 truncate text-slate-500" title={r}>
+            {r}
+          </span>
+        ) : (
+          <span className="text-slate-300">—</span>
+        )
       },
     },
   ]
 
   return (
     <Card padded={false} className="flex min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-1.5 dark:border-slate-700" data-testid="task-history">
+      <div
+        className="flex items-center gap-2 border-b border-slate-200 px-3 py-1.5 dark:border-slate-700"
+        data-testid="task-history"
+      >
         <History size={14} className="text-slate-400" />
         <span className="text-xs font-semibold">종결 이력</span>
-        {error ? <span className="truncate text-[11px] text-red-600 dark:text-red-400">{error}</span> : null}
+        {error ? (
+          <span className="truncate text-[11px] text-red-600 dark:text-red-400">{error}</span>
+        ) : null}
         <span className="flex-1" />
-        <Button size="icon-sm" intent="ghost" aria-label="다시 읽기" title="다시 읽기" loading={loading} onClick={() => void load(offset)}>
+        <Button
+          size="icon-sm"
+          intent="ghost"
+          aria-label="다시 읽기"
+          title="다시 읽기"
+          loading={loading}
+          onClick={() => void load(offset)}
+        >
           <RefreshCw size={13} />
         </Button>
       </div>
@@ -96,7 +136,13 @@ export function TaskHistory({ selected, onPick, refreshKey, now }: TaskHistoryPr
       </div>
       {page && page.total > 0 ? (
         <div className="border-t border-slate-200 px-3 py-1.5 dark:border-slate-700">
-          <Pagination total={page.total} limit={LIMIT} offset={offset} onMove={setOffset} testid="history-pager" />
+          <Pagination
+            total={page.total}
+            limit={LIMIT}
+            offset={offset}
+            onMove={setOffset}
+            testid="history-pager"
+          />
         </div>
       ) : null}
     </Card>

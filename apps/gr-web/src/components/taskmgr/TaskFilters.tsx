@@ -4,13 +4,21 @@
 // 직접 고를 수 있으므로) — 두 조작이 같은 것을 두 번 말하지 않게.
 import { RotateCcw, Search } from 'lucide-react'
 import { TASK_TYPES } from '../../lib/gr/const'
+import { robots } from '../../lib/robots'
+import { useStore } from '../../lib/store'
 import { Button } from '../../lib/ui/Button'
 import { Input } from '../../lib/ui/Input'
 import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
 import { statusTone } from '../../lib/ui/status'
 import { cn } from '../../lib/utils'
-import { ALL_STATES, EMPTY_FILTER, STATE_LABEL, STATE_TONE, type TaskFilter } from '../../lib/task/state'
+import {
+  ALL_STATES,
+  EMPTY_FILTER,
+  STATE_LABEL,
+  STATE_TONE,
+  type TaskFilter,
+} from '../../lib/task/state'
 import type { TaskState } from '../../lib/types'
 
 export interface TaskFiltersProps {
@@ -22,11 +30,18 @@ export interface TaskFiltersProps {
 
 export function TaskFilters({ value, onChange, counts = {} }: TaskFiltersProps) {
   const toggle = (s: TaskState) => {
-    const states = value.states.includes(s) ? value.states.filter((x) => x !== s) : [...value.states, s]
+    const states = value.states.includes(s)
+      ? value.states.filter((x) => x !== s)
+      : [...value.states, s]
     onChange({ ...value, states })
   }
+  useStore(robots)
   const dirty =
-    value.states.length > 0 || value.type !== '' || value.q !== '' || value.includeTerminal !== EMPTY_FILTER.includeTerminal
+    value.states.length > 0 ||
+    value.type !== '' ||
+    value.q !== '' ||
+    value.robot !== '' ||
+    value.includeTerminal !== EMPTY_FILTER.includeTerminal
 
   return (
     <div
@@ -61,6 +76,23 @@ export function TaskFilters({ value, onChange, counts = {} }: TaskFiltersProps) 
         })}
       </div>
 
+      {robots.multi ? (
+        <Select
+          dense
+          aria-label="로봇"
+          value={value.robot}
+          onValueChange={(robot) => onChange({ ...value, robot })}
+          className="w-24"
+          data-testid="filter-robot"
+        >
+          <option value="">모든 로봇</option>
+          {robots.list.map((r) => (
+            <option key={r.id} value={r.plc}>
+              {r.name}
+            </option>
+          ))}
+        </Select>
+      ) : null}
       <Select
         dense
         aria-label="작업 종류"
@@ -92,7 +124,11 @@ export function TaskFilters({ value, onChange, counts = {} }: TaskFiltersProps) 
           label="종결 포함"
           checked={value.includeTerminal}
           disabled={value.states.length > 0}
-          title={value.states.length > 0 ? '상태 칩을 골랐을 때는 칩이 우선합니다' : '완료·취소·거부·실패도 표에 보입니다'}
+          title={
+            value.states.length > 0
+              ? '상태 칩을 골랐을 때는 칩이 우선합니다'
+              : '완료·취소·거부·실패도 표에 보입니다'
+          }
           testid="switch-terminal"
           onCheckedChange={(includeTerminal) => onChange({ ...value, includeTerminal })}
         />
@@ -100,7 +136,12 @@ export function TaskFilters({ value, onChange, counts = {} }: TaskFiltersProps) 
       </span>
 
       {dirty ? (
-        <Button size="sm" intent="ghost" icon={<RotateCcw size={12} />} onClick={() => onChange(EMPTY_FILTER)}>
+        <Button
+          size="sm"
+          intent="ghost"
+          icon={<RotateCcw size={12} />}
+          onClick={() => onChange(EMPTY_FILTER)}
+        >
           초기화
         </Button>
       ) : null}

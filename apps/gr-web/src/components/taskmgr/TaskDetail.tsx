@@ -39,7 +39,15 @@ export interface TaskDetailProps {
   id: string
 }
 
-function Section({ title, children, trailing }: { title: string; children: React.ReactNode; trailing?: React.ReactNode }) {
+function Section({
+  title,
+  children,
+  trailing,
+}: {
+  title: string
+  children: React.ReactNode
+  trailing?: React.ReactNode
+}) {
   return (
     <section className="space-y-1.5">
       <h4 className="m-0 flex items-center text-2xs font-semibold tracking-wide text-content-muted uppercase">
@@ -52,7 +60,12 @@ function Section({ title, children, trailing }: { title: string; children: React
   )
 }
 
-const ACTOR_LABEL: Record<TaskTransition['by'], string> = { ui: '콘솔', plc: 'PLC', scenario: '시나리오', system: '시스템' }
+const ACTOR_LABEL: Record<TaskTransition['by'], string> = {
+  ui: '콘솔',
+  plc: 'PLC',
+  scenario: '시나리오',
+  system: '시스템',
+}
 
 function Timeline({ history, now }: { history: TaskTransition[]; now: number }) {
   if (history.length === 0) return <p className="m-0 text-xs text-slate-400">이력 없음</p>
@@ -60,14 +73,21 @@ function Timeline({ history, now }: { history: TaskTransition[]; now: number }) 
     <ol className="m-0 list-none space-y-1 p-0" data-testid="task-timeline">
       {history.map((h, i) => (
         <li key={i} className="flex items-baseline gap-2 text-xs">
-          <span className="w-20 shrink-0 font-mono text-[11px] text-slate-400 tabular-nums" title={h.at}>
+          <span
+            className="w-20 shrink-0 font-mono text-[11px] text-slate-400 tabular-nums"
+            title={h.at}
+          >
             {fmtTime(h.at, now)}
           </span>
           <StatusBadge status={STATE_TONE[h.to]} dot={false}>
             {STATE_LABEL[h.to]}
           </StatusBadge>
           <span className="text-[11px] text-slate-400">{ACTOR_LABEL[h.by]}</span>
-          {h.note ? <span className="min-w-0 truncate text-slate-600 dark:text-slate-300" title={h.note}>{h.note}</span> : null}
+          {h.note ? (
+            <span className="min-w-0 truncate text-slate-600 dark:text-slate-300" title={h.note}>
+              {h.note}
+            </span>
+          ) : null}
         </li>
       ))}
     </ol>
@@ -95,7 +115,9 @@ export default function TaskDetail({ id }: TaskDetailProps) {
   const [error, setError] = useState<string | null>(null)
   const [showJson, setShowJson] = useState(false)
   const [now, setNow] = useState(() => Date.now())
-  const [area, setArea] = useState<PlcTaskArea | null>(() => statusFeed.data?.webmon.Stat.Task ?? null)
+  const [area, setArea] = useState<PlcTaskArea | null>(
+    () => statusFeed.data?.webmon.Stat.Task ?? null,
+  )
 
   useEffect(() => {
     if (live) return
@@ -142,22 +164,55 @@ export default function TaskDetail({ id }: TaskDetailProps) {
     { label: 'WorkId', value: t.work_id, mono: true },
     { label: 'TaskId', value: t.task_id, mono: true },
     { label: '종류', value: typeName(t.plc_task?.TaskType) },
-    { label: '대상', value: target ? `${target.kind === 'station' ? '스테이션' : '셀'} ${target.id}` : null, missing: '대상 없음(MOVE 또는 외부 Task)' },
+    {
+      label: '대상',
+      value: target ? `${target.kind === 'station' ? '스테이션' : '셀'} ${target.id}` : null,
+      missing: '대상 없음(MOVE 또는 외부 Task)',
+    },
     { label: '품목', value: t.plc_task?.Item?.Code || null },
     { label: '수량', value: t.plc_task?.Item?.Count ?? null },
     { label: 'PLC', value: t.plc_name ?? null },
-    { label: '위치', value: t.position.map((v) => v.toFixed(1)).join(' / '), tooltip: 'X / Y / Z / G' },
+    {
+      label: '위치',
+      value: t.position.map((v) => v.toFixed(1)).join(' / '),
+      tooltip: 'X / Y / Z / G',
+    },
     { label: '생성', value: fmtTime(t.created_at, now), tooltip: t.created_at },
-    { label: '제출', value: t.submitted_at ? fmtTime(t.submitted_at, now) : null, tooltip: t.submitted_at ?? undefined, missing: '아직 제출되지 않음' },
-    { label: '종결', value: t.ended_at ? fmtTime(t.ended_at, now) : null, tooltip: t.ended_at ?? undefined, missing: '아직 진행 중' },
+    {
+      label: '제출',
+      value: t.submitted_at ? fmtTime(t.submitted_at, now) : null,
+      tooltip: t.submitted_at ?? undefined,
+      missing: '아직 제출되지 않음',
+    },
+    {
+      label: '종결',
+      value: t.ended_at ? fmtTime(t.ended_at, now) : null,
+      tooltip: t.ended_at ?? undefined,
+      missing: '아직 진행 중',
+    },
     { label: '경과', value: fmtElapsed(elapsed(t, now)) },
-    { label: '오류', value: t.error, status: t.error ? 'fault' : undefined, wide: true, missing: '오류 없음' },
+    {
+      label: '오류',
+      value: t.error,
+      status: t.error ? 'fault' : undefined,
+      wide: true,
+      missing: '오류 없음',
+    },
   ]
   const ack: FieldItem[] = t.ack
     ? [
-        { label: '판정', value: t.ack.accepted ? '수락' : '거부', status: t.ack.accepted ? 'ok' : 'fault' },
+        {
+          label: '판정',
+          value: t.ack.accepted ? '수락' : '거부',
+          status: t.ack.accepted ? 'ok' : 'fault',
+        },
         { label: '검증 코드', value: t.ack.code, mono: true },
-        { label: '거부 비트', value: `0b${t.ack.reject_bits.toString(2).padStart(8, '0')}`, mono: true, tooltip: 'X0 로봇번호 · X1 중복 · X2 태스크 무효 · X3 버퍼 풀 · X7 오프라인' },
+        {
+          label: '거부 비트',
+          value: `0b${t.ack.reject_bits.toString(2).padStart(8, '0')}`,
+          mono: true,
+          tooltip: 'X0 로봇번호 · X1 중복 · X2 태스크 무효 · X3 버퍼 풀 · X7 오프라인',
+        },
         { label: '시각', value: fmtTime(t.ack.at, now), tooltip: t.ack.at },
         { label: '사유', value: t.ack.reason, wide: true },
       ]
@@ -171,33 +226,86 @@ export default function TaskDetail({ id }: TaskDetailProps) {
       ]
     : []
   const plc: FieldItem[] = [
-    { label: 'PLC 자리', value: derived ? (derived.location === 'absent' ? '없음' : `${derived.location}${derived.index !== null && derived.location !== 'now' ? `[${derived.index}]` : ''}`) : null, status: derived?.mismatch ? 'warn' : undefined, tooltip: derived?.reason ?? undefined, missing: '상태 스트림 없음' },
+    {
+      label: 'PLC 자리',
+      value: derived
+        ? derived.location === 'absent'
+          ? '없음'
+          : `${derived.location}${derived.index !== null && derived.location !== 'now' ? `[${derived.index}]` : ''}`
+        : null,
+      status: derived?.mismatch ? 'warn' : undefined,
+      tooltip: derived?.reason ?? undefined,
+      missing: '상태 스트림 없음',
+    },
     { label: '스텝', value: t.plc?.step ?? null, mono: true, missing: 'PLC에서 아직 못 봄' },
-    { label: '큐 슬롯', value: t.plc?.queue_index ?? null, mono: true, missing: 'PLC에서 아직 못 봄' },
-    { label: '마지막 관측', value: t.plc ? fmtTime(t.plc.last_seen_at, now) : null, tooltip: t.plc?.last_seen_at, missing: 'PLC에서 아직 못 봄' },
+    {
+      label: '큐 슬롯',
+      value: t.plc?.queue_index ?? null,
+      mono: true,
+      missing: 'PLC에서 아직 못 봄',
+    },
+    {
+      label: '마지막 관측',
+      value: t.plc ? fmtTime(t.plc.last_seen_at, now) : null,
+      tooltip: t.plc?.last_seen_at,
+      missing: 'PLC에서 아직 못 봄',
+    },
   ]
   const req = t.request
   const request: FieldItem[] = req
     ? [
         { label: '종류', value: req.type },
-        { label: '대상', value: req.target ? `${req.target.kind} ${req.target.id}` : null, missing: '대상 없음' },
+        {
+          label: '대상',
+          value: req.target ? `${req.target.kind} ${req.target.id}` : null,
+          missing: '대상 없음',
+        },
         { label: '품목', value: req.item_code ?? null, missing: '품목 없음' },
         { label: '수량', value: req.count },
-        { label: '위치 지정', value: req.position_override ? req.position_override.join(' / ') : null, missing: '레지스트리 위치 사용' },
-        { label: '덮어쓴 파라미터', value: Object.keys(req.params).length ? Object.keys(req.params).join(', ') : null, wide: true, missing: '기본값 그대로' },
+        {
+          label: '위치 지정',
+          value: req.position_override ? req.position_override.join(' / ') : null,
+          missing: '레지스트리 위치 사용',
+        },
+        {
+          label: '덮어쓴 파라미터',
+          value: Object.keys(req.params).length ? Object.keys(req.params).join(', ') : null,
+          wide: true,
+          missing: '기본값 그대로',
+        },
         { label: '메모', value: req.note || null, wide: true, missing: '메모 없음' },
-        ...(req.source ? [{ label: '시나리오', value: `${req.source.scenario_id} · run ${req.source.run_id} · ${req.source.iteration}회차 스텝 ${req.source.step_index}`, wide: true }] : []),
+        ...(req.source
+          ? [
+              {
+                label: '시나리오',
+                value: `${req.source.scenario_id} · run ${req.source.run_id} · ${req.source.iteration}회차 스텝 ${req.source.step_index}`,
+                wide: true,
+              },
+            ]
+          : []),
       ]
     : []
   const pt = t.plc_task
   const plcTask: FieldItem[] = pt
     ? [
-        { label: 'TaskType', value: `0x${pt.TaskType.toString(16).toUpperCase()} ${typeName(pt.TaskType)}`, mono: true },
+        {
+          label: 'TaskType',
+          value: `0x${pt.TaskType.toString(16).toUpperCase()} ${typeName(pt.TaskType)}`,
+          mono: true,
+        },
         { label: 'Cell.Id', value: pt.Cell?.Id, mono: true },
-        { label: 'Cell 구역', value: pt.Cell ? `S${pt.Cell.Section} R${pt.Cell.Row} C${pt.Cell.Col}` : null },
+        {
+          label: 'Cell 구역',
+          value: pt.Cell ? `S${pt.Cell.Section} R${pt.Cell.Row} C${pt.Cell.Col}` : null,
+        },
         { label: 'Cell 위치', value: pt.Cell?.Position?.map((v) => v.toFixed(0)).join(' / ') },
         { label: 'Item', value: pt.Item ? `${pt.Item.Code} × ${pt.Item.Count}` : null },
-        { label: 'Item 치수', value: pt.Item ? `ID ${pt.Item.InnerDiameter} · OD ${pt.Item.OuterDiameter} · H ${pt.Item.Height}` : null },
+        {
+          label: 'Item 치수',
+          value: pt.Item
+            ? `ID ${pt.Item.InnerDiameter} · OD ${pt.Item.OuterDiameter} · H ${pt.Item.Height}`
+            : null,
+        },
       ]
     : []
 
@@ -228,7 +336,11 @@ export default function TaskDetail({ id }: TaskDetailProps) {
       </Section>
 
       <Section title="응답 (Ack)">
-        {ack.length ? <FieldList items={ack} columns={2} dense labelWidth={72} /> : <p className="m-0 text-xs text-slate-400">아직 PLC 응답 없음</p>}
+        {ack.length ? (
+          <FieldList items={ack} columns={2} dense labelWidth={72} />
+        ) : (
+          <p className="m-0 text-xs text-slate-400">아직 PLC 응답 없음</p>
+        )}
       </Section>
 
       {header.length ? (
@@ -242,15 +354,32 @@ export default function TaskDetail({ id }: TaskDetailProps) {
       </Section>
 
       <Section title="요청">
-        {request.length ? <FieldList items={request} columns={2} dense labelWidth={72} /> : <p className="m-0 text-xs text-slate-400">콘솔 요청 없음 — PLC에서 처음 본 외부 Task</p>}
+        {request.length ? (
+          <FieldList items={request} columns={2} dense labelWidth={72} />
+        ) : (
+          <p className="m-0 text-xs text-slate-400">콘솔 요청 없음 — PLC에서 처음 본 외부 Task</p>
+        )}
       </Section>
 
       <Section title="적용 파라미터">
-        {t.resolved ? <FieldList items={paramItems(t.resolved, req?.params)} columns={2} dense labelWidth={96} /> : <p className="m-0 text-xs text-slate-400">없음</p>}
+        {t.resolved ? (
+          <FieldList
+            items={paramItems(t.resolved, req?.params)}
+            columns={2}
+            dense
+            labelWidth={96}
+          />
+        ) : (
+          <p className="m-0 text-xs text-slate-400">없음</p>
+        )}
       </Section>
 
       <Section title="PLC Task">
-        {plcTask.length ? <FieldList items={plcTask} columns={2} dense labelWidth={72} /> : <p className="m-0 text-xs text-slate-400">없음</p>}
+        {plcTask.length ? (
+          <FieldList items={plcTask} columns={2} dense labelWidth={72} />
+        ) : (
+          <p className="m-0 text-xs text-slate-400">없음</p>
+        )}
       </Section>
 
       <Section title="이력">
@@ -260,12 +389,26 @@ export default function TaskDetail({ id }: TaskDetailProps) {
       <Section
         title="원본 JSON"
         trailing={
-          <Button size="sm" intent="ghost" icon={<Braces size={12} />} onClick={() => setShowJson(!showJson)} aria-expanded={showJson}>
+          <Button
+            size="sm"
+            intent="ghost"
+            icon={<Braces size={12} />}
+            onClick={() => setShowJson(!showJson)}
+            aria-expanded={showJson}
+          >
             {showJson ? '접기' : '펼치기'}
           </Button>
         }
       >
-        {showJson ? <JsonView value={t} rootLabel="task" defaultDepth={1} height={360} highlightChanges={false} /> : null}
+        {showJson ? (
+          <JsonView
+            value={t}
+            rootLabel="task"
+            defaultDepth={1}
+            height={360}
+            highlightChanges={false}
+          />
+        ) : null}
       </Section>
     </div>
   )

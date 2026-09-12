@@ -16,7 +16,7 @@ use tokio::sync::broadcast;
 
 use crate::db::Db;
 use crate::error::ApiError;
-use crate::ledger::{Ledger, LedgerEntry, LedgerEvent, TaskState};
+use crate::ledger::{LedgerEntry, LedgerEvent, TaskState};
 use crate::util::now_str;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -44,12 +44,22 @@ pub struct Stock {
     lock: std::sync::Mutex<()>,
 }
 
-/// Z of the gripper for a stack of `n` tires of height `h` on `floor`, taking/leaving `c`.
-pub fn stack_z(tt: TaskType, floor: f32, h: f32, n: u32, c: u32) -> f32 {
-    let mid = h / 2.0;
+/// Z offset (from the tire bottom) where the gripper takes the tire: `mid` = Height/2, `bead` = UpperBidHeight
+/// (mid when the item has no bead height).
+pub fn grip_offset(grip_ref: &str, item: &gr_proto::StockItem) -> f32 {
+    let mid = item.height.max(0.0) / 2.0;
+    match grip_ref.trim().to_ascii_lowercase().as_str() {
+        "bead" if item.upper_bid_height > 0.0 => item.upper_bid_height,
+        _ => mid,
+    }
+}
+
+/// Z of the gripper for a stack of `n` tires of height `h` on `floor`, taking/leaving `c`; `grip` = offset
+/// from the bottom of the tire being gripped (see `grip_offset`).
+pub fn stack_z(tt: TaskType, floor: f32, h: f32, grip: f32, n: u32, c: u32) -> f32 {
     match tt {
-        TaskType::Pick | TaskType::Measure => floor + h * (n.saturating_sub(c.max(1)) as f32) + mid,
-        TaskType::Drop => floor + h * (n as f32) + mid,
+        TaskType::Pick | TaskType::Measure => floor + h * (n.saturating_sub(c.max(1)) as f32) + grip,
+        TaskType::Drop => floor + h * (n as f32) + grip,
         _ => floor,
     }
 }
@@ -159,9 +169,9 @@ fn task_delta(t: &TaskData) -> Option<Delta> {
 }
 
 /// Follows the ledger: every entry that becomes `Completed` is folded in once.
-pub fn spawn(stock: Arc<Stock>, ledger: Arc<Ledger>) {
+pub fn spawn(stock: Arc<Stock>, events: broadcast::Sender<LedgerEvent>) {
     tokio::spawn(async move {
-        let mut rx = ledger.events.subscribe();
+        let mut rx = events.subscribe();
         loop {
             match rx.recv().await {
                 Ok(LedgerEvent::Upsert { task }) => {
@@ -184,13 +194,19 @@ mod tests {
     #[test]
     fn stack_z_matches_the_agreed_formulas() {
         // pick: H*(n-1) + H/2 for one tire; drop: H*n + H/2
-        assert_eq!(stack_z(TaskType::Pick, 1000.0, 240.0, 3, 1), 1000.0 + 240.0 * 2.0 + 120.0);
-        assert_eq!(stack_z(TaskType::Drop, 1000.0, 240.0, 3, 1), 1000.0 + 240.0 * 3.0 + 120.0);
+        assert_eq!(stack_z(TaskType::Pick, 1000.0, 240.0, 120.0, 3, 1), 1000.0 + 240.0 * 2.0 + 120.0);
+        assert_eq!(stack_z(TaskType::Drop, 1000.0, 240.0, 120.0, 3, 1), 1000.0 + 240.0 * 3.0 + 120.0);
         // taking 2 of 3 grips the middle tire; empty cell pick sits on the floor mid-tire
-        assert_eq!(stack_z(TaskType::Pick, 0.0, 240.0, 3, 2), 240.0 + 120.0);
-        assert_eq!(stack_z(TaskType::Pick, 0.0, 240.0, 0, 1), 120.0);
-        assert_eq!(stack_z(TaskType::Drop, 0.0, 240.0, 0, 1), 120.0);
-        assert_eq!(stack_z(TaskType::Move, 50.0, 240.0, 9, 1), 50.0);
+        assert_eq!(stack_z(TaskType::Pick, 0.0, 240.0, 120.0, 3, 2), 240.0 + 120.0);
+        assert_eq!(stack_z(TaskType::Pick, 0.0, 240.0, 120.0, 0, 1), 120.0);
+        assert_eq!(stack_z(TaskType::Drop, 0.0, 240.0, 120.0, 0, 1), 120.0);
+        assert_eq!(stack_z(TaskType::Move, 50.0, 240.0, 120.0, 9, 1), 50.0);
+        // grip reference: bead uses UpperBidHeight, mid = H/2, bead without a bead height falls back
+        let it = gr_proto::StockItem { height: 240.0, upper_bid_height: 200.0, ..Default::default() };
+        assert_eq!(grip_offset("mid", &it), 120.0);
+        assert_eq!(grip_offset("bead", &it), 200.0);
+        assert_eq!(grip_offset("bead", &gr_proto::StockItem { height: 240.0, ..Default::default() }), 120.0);
+        assert_eq!(stack_z(TaskType::Pick, 1000.0, 240.0, 200.0, 3, 1), 1000.0 + 480.0 + 200.0);
     }
 
     #[test]

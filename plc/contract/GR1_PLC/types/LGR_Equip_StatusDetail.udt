@@ -1,0 +1,9 @@
+﻿TYPE "LGR_Equip_StatusDetail"
+VERSION : 0.1
+   STRUCT
+      Main : UInt;
+      Sub : UInt;
+   END_STRUCT;
+
+END_TYPE
+

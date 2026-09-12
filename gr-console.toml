@@ -60,3 +60,34 @@ dst = 4002
 echo_timeout_ms = 5000
 status_plc = "GR2"
 grm_plc = "GRM"
+
+# 로봇 목록 — GRM 뒤에 최대 2대. 비워 두면 [cmd]/[opcua] 의 한 대(GR2) 만 쓴다.
+# 두 대를 쓰려면 아래 주석을 풀고 GR1 의 S7 PLC 도 [[plcs]] 에 추가한다(contract "GR1_PLC", OPCUA/TASK DB, checks ComponentID 4001).
+# [[robots]]
+# id = 1
+# name = "GR1"
+# plc = "GR1"
+# opcua_root = "GR[1].CMD"
+# dst = 4001
+#
+# [[robots]]
+# id = 2
+# name = "GR2"
+# plc = "GR2"
+# opcua_root = "GR[2].CMD"
+# dst = 4002
+
+# GR1 상태 PLC 예시 (두 대 구성일 때 [[robots]] 와 함께 주석 해제; contract 는 plc/contract/GR1_PLC 에 동기화돼 있음)
+# [[plcs]]
+# name = "GR1"
+# role = "gr"
+# contract = "GR1_PLC"
+# host = "192.168.1.101"
+# port = 102
+# rack = 0
+# slot = 1
+# fast = ["OPCUA", "TASK"]
+# webmon = []
+# slow = ["PARA", "ALARM", "CELL", "STATION"]
+# on_demand = []
+# checks = [{ db = "OPCUA", path = "STAT.ComponentID", equals = 4001 }, { db = "PARA", path = "Machine.ID", equals = 1 }]

@@ -8,7 +8,7 @@ use axum::routing::{get, post, put};
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
-use super::{StockEvent, stack_z};
+use super::{StockEvent, grip_offset, stack_z};
 use crate::error::{ApiError, ApiResult};
 use crate::issue::parse_task_type;
 use crate::sse::broadcast_sse;
@@ -57,6 +57,8 @@ struct ZQuery {
     item: Option<u32>,
     #[serde(default = "one")]
     count: u32,
+    /// `mid` | `bead` — default `Defaults.grip_ref`.
+    grip: Option<String>,
 }
 fn one() -> u32 {
     1
@@ -68,12 +70,16 @@ async fn z_preview(State(st): State<AppState>, Query(q): Query<ZQuery>) -> ApiRe
     let cell = st.registry.cell(q.cell)?.ok_or_else(|| ApiError::NotFound(format!("cell {}", q.cell)))?.cell;
     let stock = st.stock.get(q.cell)?;
     let code = q.item.or(stock.as_ref().map(|s| s.item_code)).filter(|c| *c != 0);
-    let h = match code {
-        Some(c) => st.registry.item(c)?.map(|i| i.item.height).unwrap_or(0.0),
-        None => 0.0,
+    let item = match code {
+        Some(c) => st.registry.item(c)?.map(|i| i.item).unwrap_or_default(),
+        None => Default::default(),
     };
+    let grip_ref = q.grip.unwrap_or(st.registry.defaults()?.grip_ref);
+    let grip = grip_offset(&grip_ref, &item);
     let n = stock.as_ref().map(|s| s.count).unwrap_or(0);
-    Ok(axum::Json(json!({ "cell": q.cell, "type": tt.name(), "item_code": code, "height": h, "stock": n, "floor": cell.position[2], "z": stack_z(tt, cell.position[2], h, n, q.count) })))
+    Ok(axum::Json(
+        json!({ "cell": q.cell, "type": tt.name(), "item_code": code, "height": item.height, "grip_ref": grip_ref, "grip": grip, "stock": n, "floor": cell.position[2], "z": stack_z(tt, cell.position[2], item.height, grip, n, q.count) }),
+    ))
 }
 
 pub fn router() -> Router<AppState> {

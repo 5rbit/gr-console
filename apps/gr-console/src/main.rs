@@ -102,52 +102,65 @@ async fn main() -> anyhow::Result<()> {
     }
     let plcs = Arc::new(plcs);
 
-    // command port
-    let cmd = match &demo_world {
-        Some(w) => CommandPort::Demo { world: w.clone(), cfg: cfg.cmd.clone(), last: Mutex::new(None) },
-        None => {
-            let o = &cfg.opcua;
-            let ocfg = opcua_cmd::OpcUaConfig {
-                endpoint: o.endpoint.clone(),
-                security_policy: o.security_policy.clone(),
-                security_mode: o.security_mode.clone(),
-                auth: if o.user.is_empty() { opcua_cmd::Auth::Anonymous } else { opcua_cmd::Auth::UserPass { user: o.user.clone(), pass: o.pass.clone() } },
-                ns_hint: o.ns_hint,
-                db_name: o.db_name.clone(),
-                root_path: o.root_path.clone(),
-                connect_timeout_ms: o.connect_timeout_ms,
-                write_timeout_ms: o.write_timeout_ms,
-                session_timeout_ms: 60_000,
-                node_cache: o.node_cache.clone(),
-                pki_dir: o.pki_dir.clone(),
-                trust_server_cert: o.trust_server_cert,
-            };
-            let (writer, _state_rx) = opcua_cmd::CmdWriter::spawn(ocfg);
-            CommandPort::Opc { writer, cfg: cfg.cmd.clone(), last: Mutex::new(None), endpoint: o.endpoint.clone() }
-        }
-    };
-    let cmd = Arc::new(cmd);
-
-    // storage + domain
+    // storage
     let db = db::Db::open(&cfg.paths.sqlite)?;
-    let ledger = ledger::Ledger::new(db.clone(), &cfg.cmd.status_plc)?;
     let registry = registry::Registry::new(db.clone());
     let measure = measure::MeasureStore::new(db.clone());
     let scenario = scenario::Runner::new(db.clone());
     let stock = stock::Stock::new(db.clone());
-    stock::spawn(stock.clone(), ledger.clone());
     let status = status::StatusBus::new();
     let (events, _) = tokio::sync::broadcast::channel(256);
+    let (task_events, _) = tokio::sync::broadcast::channel::<ledger::LedgerEvent>(512);
+    stock::spawn(stock.clone(), task_events.clone());
+
+    // robots: one command port (OPC UA GR[n].CMD via GRM) + one ledger + one sync loop each
+    let mut robots = Vec::new();
+    for r in cfg.robots_effective() {
+        let rcfg = config::CmdCfg { dst: r.dst, status_plc: r.plc.clone(), ..cfg.cmd.clone() };
+        let cmd = match &demo_world {
+            Some(w) => CommandPort::Demo { world: w.clone(), cfg: rcfg, last: Mutex::new(None) },
+            None => {
+                let o = &cfg.opcua;
+                let ocfg = opcua_cmd::OpcUaConfig {
+                    endpoint: o.endpoint.clone(),
+                    security_policy: o.security_policy.clone(),
+                    security_mode: o.security_mode.clone(),
+                    auth: if o.user.is_empty() { opcua_cmd::Auth::Anonymous } else { opcua_cmd::Auth::UserPass { user: o.user.clone(), pass: o.pass.clone() } },
+                    ns_hint: o.ns_hint,
+                    db_name: o.db_name.clone(),
+                    root_path: r.opcua_root.clone(),
+                    connect_timeout_ms: o.connect_timeout_ms,
+                    write_timeout_ms: o.write_timeout_ms,
+                    session_timeout_ms: 60_000,
+                    node_cache: o.node_cache.clone().map(|p| if robots_is_multi(&cfg) { p.with_extension(format!("gr{}.json", r.id)) } else { p }),
+                    pki_dir: o.pki_dir.clone(),
+                    trust_server_cert: o.trust_server_cert,
+                };
+                let (writer, _state_rx) = opcua_cmd::CmdWriter::spawn(ocfg);
+                CommandPort::Opc { writer, cfg: rcfg, last: Mutex::new(None), endpoint: o.endpoint.clone() }
+            }
+        };
+        let ledger = ledger::Ledger::new(db.clone(), &r.plc, Some(task_events.clone()))?;
+        match plcs.get(&r.plc) {
+            Some(h) => ledger::sync::spawn(ledger.clone(), h.clone(), cfg.cmd.echo_timeout_ms),
+            None => tracing::error!(robot = r.id, plc = %r.plc, "robot status PLC not configured"),
+        }
+        tracing::info!(robot = r.id, name = %r.name, plc = %r.plc, root = %r.opcua_root, dst = r.dst, "robot");
+        robots.push(state::RobotCtx { id: r.id, name: r.name.clone(), plc: r.plc.clone(), opcua_root: r.opcua_root.clone(), dst: r.dst, cmd: Arc::new(cmd), ledger });
+    }
+    let robots = Arc::new(robots);
+    let first = robots.first().expect("at least one robot");
+    let cmd = first.cmd.clone();
+    let ledger = first.ledger.clone();
 
     if let Some(h) = plcs.get(&cfg.cmd.status_plc) {
         status.follow(h.clone(), "WEBMON".into(), if cfg.demo { "demo" } else { "plc" });
-        ledger::sync::spawn(ledger.clone(), h.clone(), cfg.cmd.echo_timeout_ms);
         measure.attach(h.clone());
     } else {
         tracing::error!(plc = %cfg.cmd.status_plc, "status PLC not configured");
     }
 
-    let st = AppState { cfg: cfg.clone(), plcs, cmd, db, ledger, registry, measure, scenario, stock, status, events };
+    let st = AppState { cfg: cfg.clone(), plcs, cmd, robots, task_events, db, ledger, registry, measure, scenario, stock, status, events };
 
     // demo: seed registries from the fake PLC tables once they are readable
     if cfg.demo {
@@ -225,4 +238,8 @@ fn cors_layer(extra: &str) -> CorsLayer {
     } else {
         layer.allow_origin(AllowOrigin::list(origins))
     }
+}
+
+fn robots_is_multi(cfg: &Config) -> bool {
+    cfg.robots.len() > 1
 }

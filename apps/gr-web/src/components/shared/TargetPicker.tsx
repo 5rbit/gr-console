@@ -59,7 +59,10 @@ export function TargetPicker({
   // 고른 것이 검색에 안 걸려도 목록에서 사라지면 안 된다(빈 선택으로 보인다).
   const picked =
     value && !shown.some((o) => o.id === value.id)
-      ? (options.find((o) => o.id === value.id) ?? { id: value.id, text: `#${value.id} (목록에 없음)` })
+      ? (options.find((o) => o.id === value.id) ?? {
+          id: value.id,
+          text: `#${value.id} (목록에 없음)`,
+        })
       : null
   const loading = kind === 'cell' ? cellReg.loading : stationReg.loading
   const error = kind === 'cell' ? cellReg.error : stationReg.error
