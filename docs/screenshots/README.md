@@ -71,4 +71,6 @@
 | ![](50_dot_label_detail.png) | 상세의 값 자리는 점+글자(`연결됨` · `레이아웃 OK`) — 폭이 고정이라 옆 값의 x가 흔들리지 않는다 |
 | ![](51_cancel_timeline.png) | Task 취소 — 이력이 `delete requested`(콘솔) → `canceled on PLC (console request)`(PLC)로 읽힌다. PLC 자발 취소는 `(console request)`가 없다 |
 | ![](52_plc_view_terminal_bits.png) | PLC 뷰 — `Task.Status.Complete`·`Canceled` 비트가 보인다. 원장은 링보다 이 비트로 먼저 끝낸다 |
+| ![](53_row_actions.png) | Task 목록의 행 액션 — 취소·완료 처리 둘만, 오른쪽 끝 열의 글자 버튼. 상태가 허용하는 것만 선다(초안은 취소뿐) |
+| ![](54_row_action_confirm.png) | 행에서 눌러도 같은 확인 대화상자(`실 로봇 1대`)를 거친다 — 상세와 한 코드 경로 |
 | ![](42_view_menu_fixed.png) | `보기` 메뉴 — 라벨이 줄어들지 않고 힌트가 먼저 잘린다(예전에는 `명령 중 / 심`으로 끊겼다) |

@@ -5,6 +5,7 @@
 // 표가 직접 구독하면 초당 스무 번 다시 그린다).
 import { useMemo } from 'react'
 import { DataTable } from '../../lib/ui/DataTable'
+import { TaskActions } from './TaskActions'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
 import { StatusDot } from '../../lib/ui/StatusDot'
 import type { Column } from '../../lib/ui/table'
@@ -34,7 +35,12 @@ export interface TaskTableProps {
   empty?: string
   emptyHint?: string
   testid?: string
+  /** 행 끝에 취소·완료 버튼 — 상세를 열지 않고 목록에서 바로 보낸다. 확인 대화상자는 그대로 거친다. */
+  rowActions?: boolean
 }
+
+/** 행에 싣는 조작은 PLC에 가는 둘뿐이다 — 실패 표시·삭제·재제출은 상세에서(행이 조작 띠가 되지 않게). */
+const ROW_ACTIONS = ['cancel', 'complete'] as const
 
 export function targetLabel(task: Task): string {
   const t = targetOf(task)
@@ -95,6 +101,7 @@ export function TaskTable({
   empty = '진행 중인 Task 없음',
   emptyHint,
   testid = 'task-table',
+  rowActions = false,
 }: TaskTableProps) {
   const columns = useMemo<Column<Task>[]>(
     () => [
@@ -171,6 +178,11 @@ export function TaskTable({
       empty={empty}
       emptyHint={emptyHint}
       testid={testid}
+      actions={
+        rowActions
+          ? (t) => <TaskActions task={t} only={ROW_ACTIONS} icons={false} testid="row-action" />
+          : undefined
+      }
     />
   )
 }

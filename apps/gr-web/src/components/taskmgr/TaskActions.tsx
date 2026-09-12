@@ -20,6 +20,12 @@ export interface TaskActionsProps {
   /** 조작이 끝난 뒤(성공/실패 무관) — 삭제 성공이면 상세를 닫는 데 쓴다. */
   onDone?: (action: TaskAction, ok: boolean) => void
   size?: 'sm' | 'md'
+  /** 이 조작만 그린다(상태가 허용하는 것과 교집합). 표의 행 액션은 취소·완료 둘만 싣는다. */
+  only?: readonly TaskAction[]
+  /** 아이콘 없이 글자만 — 표 셀 안에는 아이콘을 두지 않는다(DESIGN.md 5절 예산). */
+  icons?: boolean
+  /** `data-testid` 접두 — 상세(`action-*`)와 행(`row-action-*`)이 한 화면에 같이 선다. */
+  testid?: string
 }
 
 const ICON: Record<TaskAction, React.ReactNode> = {
@@ -53,11 +59,19 @@ function describe(action: TaskAction, task: Task): string {
   }
 }
 
-export function TaskActions({ task, onDone, size = 'sm' }: TaskActionsProps) {
+export function TaskActions({
+  task,
+  onDone,
+  size = 'sm',
+  only,
+  icons = true,
+  testid = 'action',
+}: TaskActionsProps) {
   const [pending, setPending] = useState<TaskAction | null>(null)
   const [busy, setBusy] = useState<TaskAction | null>(null)
   const [note, setNote] = useState('')
-  const actions = allowedActions(task.state)
+  const actions = allowedActions(task.state).filter((a) => !only || only.includes(a))
+  if (actions.length === 0) return null
 
   const run = async (a: TaskAction) => {
     setBusy(a)
@@ -80,10 +94,10 @@ export function TaskActions({ task, onDone, size = 'sm' }: TaskActionsProps) {
             intent={
               DANGER.has(a) ? 'outline' : a === 'submit' || a === 'resubmit' ? 'primary' : 'neutral'
             }
-            icon={ICON[a]}
+            icon={icons ? ICON[a] : undefined}
             loading={busy === a}
             disabled={busy !== null}
-            data-testid={`action-${a}`}
+            data-testid={`${testid}-${a}`}
             onClick={() => setPending(a)}
           >
             {ACTION_LABEL[a]}

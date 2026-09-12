@@ -180,6 +180,7 @@ export default function TaskManager() {
               now={now}
               selected={selected}
               onPick={onPick}
+              rowActions
               loading={!tasksFeed.lastAt && list.length === 0}
               emptyHint={
                 filter !== EMPTY_FILTER
