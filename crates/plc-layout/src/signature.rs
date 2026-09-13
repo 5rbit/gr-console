@@ -57,5 +57,18 @@ pub fn layout_sig(contract: &Contract, db: &str) -> Result<u32, LayoutError> {
     Ok(crc32fast::hash(canonical_db(contract, db)?.as_bytes()))
 }
 
+/// Canonical text of a UDT declaration (identical to a DB declaring exactly the UDT's fields).
+pub fn canonical_udt(contract: &Contract, name: &str) -> Result<String, LayoutError> {
+    let decl = contract.udt(name)?;
+    let mut s = String::new();
+    canonical_fields(contract, &decl.fields, &mut s)?;
+    Ok(s)
+}
+
+/// UDT signature: `crc32(canonical_fields(udt))`, the same value a DB with those fields gets.
+pub fn udt_sig(contract: &Contract, name: &str) -> Result<u32, LayoutError> {
+    Ok(crc32fast::hash(canonical_udt(contract, name)?.as_bytes()))
+}
+
 #[allow(dead_code)]
 fn _bound_unused(_: &Bound) {}

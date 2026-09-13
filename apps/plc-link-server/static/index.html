@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>plc-link</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1d2330;--mut:#6b7385;--card:#fff;--line:#dde1e8;--ok:#1f8a4c;--bad:#c0392b;--warn:#b7791f;--acc:#2f6fdb;--mono:ui-monospace,Consolas,"D2Coding",monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--fg:#e3e6ec;--mut:#8b93a5;--card:#1c2027;--line:#2c323c;--ok:#4cc27e;--bad:#ff6b5e;--warn:#e0a84a;--acc:#6ea0ff}}
+body{margin:0;font:13px/1.45 system-ui,"Segoe UI","Malgun Gothic",sans-serif;background:var(--bg);color:var(--fg)}
+header{display:flex;gap:14px;align-items:baseline;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+h1{font-size:16px;margin:0}
+h2{font-size:13px;margin:0 0 8px}
+.mut{color:var(--mut)}.mono{font-family:var(--mono)}.bad{color:var(--bad)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:12px;padding:12px 16px}
+@media (max-width:1050px){main{grid-template-columns:1fr}}
+section{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px;margin-bottom:12px}
+#cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.card{border:1px solid var(--line);border-radius:6px;padding:8px}
+.badge{display:inline-block;padding:0 6px;border-radius:8px;font-size:11px;border:1px solid currentColor}
+.on{color:var(--ok)}.off{color:var(--mut)}
+table{border-collapse:collapse;width:100%}
+td,th{padding:2px 6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--card)}
+tr.err td{color:var(--bad)}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:rgba(127,127,127,.12)}
+tr.sel{background:rgba(47,111,219,.18)}
+.scroll{max-height:420px;overflow:auto}
+pre{font-family:var(--mono);font-size:12px;margin:0 0 8px;white-space:pre-wrap;word-break:break-all;max-height:340px;overflow:auto;background:rgba(127,127,127,.08);padding:6px;border-radius:4px}
+textarea{width:100%;box-sizing:border-box;height:280px;font-family:var(--mono);font-size:12px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:4px}
+input,select,button{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:2px 6px}
+button{cursor:pointer}
+button.primary{background:var(--acc);color:#fff;border-color:var(--acc)}
+button:disabled{opacity:.5}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>plc-link</h1>
+  <span id="health" class="mut"></span>
+  <span id="sse" class="badge off">SSE</span>
+</header>
+<main>
+  <div>
+    <section>
+      <h2>PLC</h2>
+      <div id="cards" class="mut">PLC 없음 (PLC 가 접속하거나 --connect 로 등록하면 표시)</div>
+    </section>
+    <section>
+      <h2>메시지 로그 <span class="mut" id="logcount"></span></h2>
+      <div class="row">
+        PLC <select id="fplc"><option value="">전체</option></select>
+        메시지 <input id="fmsg" size="12" placeholder="MeasLog">
+        방향 <select id="fdir"><option value="">전체</option><option>rx</option><option>tx</option></select>
+        <label><input type="checkbox" id="ferr"> 오류만</label>
+        <label><input type="checkbox" id="fpause"> 일시정지</label>
+        <button id="fclear">화면 지우기</button>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>#</th><th>시각</th><th>PLC</th><th>방향</th><th>프레이밍</th><th>메시지</th><th>seq</th><th>len</th><th>상태</th></tr></thead>
+          <tbody id="log"></tbody>
+        </table>
+      </div>
+    </section>
+    <section>
+      <h2>상세</h2>
+      <div id="detail" class="mut">로그 행을 클릭하면 JSON 과 HEX 를 표시</div>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2>명령 (Command)</h2>
+      <div class="row">대상 <select id="cplc"></select> <label><input type="checkbox" id="cqueue"> 미연결이면 큐에 넣기</label></div>
+      <textarea id="cbody" spellcheck="false"></textarea>
+      <div class="row">
+        <button class="primary" id="csend">전송 (5 초 대기)</button>
+        <button id="ctpl">템플릿 다시 불러오기</button>
+      </div>
+      <pre id="cresult" class="mut">-</pre>
+    </section>
+    <section>
+      <h2>명령 이력</h2>
+      <div class="scroll" style="max-height:280px">
+        <table>
+          <thead><tr><th>id</th><th>PLC</th><th>seq</th><th>상태</th><th>코드</th><th>ms</th></tr></thead>
+          <tbody id="cmds"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const MAX = 500;
+let log = [], plcs = {}, selected = null, lastId = 0;
+const cmds = new Map();
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+
+async function api(path, opt) {
+  const r = await fetch(path, opt);
+  const t = await r.text();
+  let body = null;
+  try { body = t ? JSON.parse(t) : null; } catch { body = t; }
+  return { status: r.status, body };
+}
+
+function renderPlcs() {
+  const list = Object.values(plcs).sort((a, b) => a.name.localeCompare(b.name));
+  const el = $('cards');
+  if (!list.length) {
+    el.className = 'mut';
+    el.textContent = 'PLC 없음 (PLC 가 접속하거나 --connect 로 등록하면 표시)';
+  } else {
+    el.className = '';
+    el.innerHTML = list.map(p => {
+      const c = p.counters || {};
+      const reg = p.registry_ok == null ? '<span class="badge off">Hello 대기</span>'
+        : p.registry_ok ? '<span class="badge on">계약 일치</span>' : '<span class="badge bad">contract_mismatch (BIN 거부)</span>';
+      return `<div class="card">
+        <div class="row"><b>${esc(p.name)}</b><span class="badge ${p.connected ? 'on' : 'off'}">${p.connected ? '연결' : '끊김'}</span>${reg}</div>
+        <div class="mut">${esc(p.mode)} · ${esc(p.framing || '-')} × ${esc(p.format || '-')} · ${esc(p.peer || p.target || '')}</div>
+        <div class="mono">rx ${c.rx_msgs || 0} · tx ${c.tx_msgs || 0} · 오류 ${(c.rx_errors || 0) + (c.tx_errors || 0)} · 접속 ${c.connects || 0}</div>
+        <div class="mono">큐 ${p.queued} · 진행 ${p.inflight} · 최근 수신 ${esc((p.last_rx || '-').slice(11, 23))}</div>
+        <div class="mut">${Object.keys(p.last || {}).map(esc).join(', ')}</div>
+        ${p.last_error ? `<div class="bad">${esc(p.last_error)}</div>` : ''}
+        <div class="row"><button data-target="${esc(p.name)}">명령 대상</button>${p.connected ? `<button data-disc="${esc(p.name)}">연결 끊기</button>` : ''}</div>
+      </div>`;
+    }).join('');
+  }
+  for (const id of ['fplc', 'cplc']) {
+    const s = $(id), cur = s.value;
+    s.innerHTML = (id === 'fplc' ? '<option value="">전체</option>' : '') + list.map(p => `<option>${esc(p.name)}</option>`).join('');
+    if ([...s.options].some(o => o.value === cur)) s.value = cur;
+  }
+}
+
+$('cards').addEventListener('click', async e => {
+  const t = e.target;
+  if (t.dataset.target) $('cplc').value = t.dataset.target;
+  if (t.dataset.disc) await api(`/api/plcs/${encodeURIComponent(t.dataset.disc)}/disconnect`, { method: 'POST' });
+});
+
+function match(e) {
+  const p = $('fplc').value, m = $('fmsg').value.trim().toLowerCase(), d = $('fdir').value;
+  return (!p || e.plc === p) && (!m || (e.name || '').toLowerCase().includes(m) || String(e.msg_type) === m)
+    && (!d || e.dir === d) && (!$('ferr').checked || !e.ok);
+}
+
+function renderLog() {
+  const rows = log.filter(match).slice(-MAX).reverse();
+  $('logcount').textContent = `(${rows.length} / ${log.length})`;
+  $('log').innerHTML = rows.map(e => `<tr data-id="${e.id}" class="${e.ok ? '' : 'err'} ${selected === e.id ? 'sel' : ''}">
+    <td>${e.id}</td><td class="mono">${esc((e.ts || '').slice(11, 23))}</td><td>${esc(e.plc)}</td><td>${e.dir}</td>
+    <td>${esc(e.framing || '')}${e.format ? '×' + e.format : ''}</td><td>${esc(e.name || e.msg_type || '')}</td>
+    <td>${e.seq ?? ''}</td><td>${e.len}</td><td>${e.ok ? ((e.warnings || []).length ? '경고' : 'OK') : esc(e.error)}</td></tr>`).join('');
+}
+
+let pending = false;
+function scheduleLog() {
+  if (pending || $('fpause').checked) return;
+  pending = true;
+  requestAnimationFrame(() => { pending = false; renderLog(); });
+}
+['fplc', 'fmsg', 'fdir', 'ferr'].forEach(id => $(id).addEventListener('input', renderLog));
+$('fpause').addEventListener('change', renderLog);
+$('fclear').addEventListener('click', () => { log = []; selected = null; renderLog(); });
+
+function hexdump(h) {
+  if (!h) return '';
+  const out = [];
+  for (let i = 0; i < h.length; i += 32) {
+    out.push((i / 2).toString(16).toUpperCase().padStart(4, '0') + '  ' + h.slice(i, i + 32).match(/../g).join(' '));
+  }
+  return out.join('\n');
+}
+
+$('log').addEventListener('click', e => {
+  const tr = e.target.closest('tr');
+  if (!tr) return;
+  selected = Number(tr.dataset.id);
+  renderLog();
+  const x = log.find(l => l.id === selected);
+  if (!x) return;
+  const json = x.data != null ? JSON.stringify(x.data, null, 2) : (x.data_text || '');
+  $('detail').className = '';
+  $('detail').innerHTML = `<div class="row"><b>#${x.id} ${esc(x.name || '')}</b>
+      <span class="mut">${esc(x.ts)} · ${esc(x.plc)} · ${x.dir} · ${esc(x.peer || '')} · seq ${x.seq ?? ''} · sig ${x.sig ?? ''}</span></div>
+    ${x.error ? `<div class="bad">${esc(x.error)}</div>` : ''}
+    ${(x.warnings || []).map(w => `<div style="color:var(--warn)">${esc(w)}</div>`).join('')}
+    <h2>JSON</h2><pre>${esc(json)}</pre>
+    <h2>HEX ${x.hex ? '(UDT ' + x.hex.length / 2 + ' B)' : ''}</h2><pre>${esc(hexdump(x.hex))}</pre>`;
+});
+
+function renderCmds() {
+  const rows = [...cmds.values()].sort((a, b) => b.id - a.id).slice(0, 100);
+  $('cmds').innerHTML = rows.map(c => `<tr class="${['rejected', 'failed', 'expired'].includes(c.state) ? 'err' : ''}" title="${esc(c.error || '')}">
+    <td>${c.id}</td><td>${esc(c.plc)}</td><td>${c.seq}</td><td>${c.state}</td>
+    <td>${c.code ?? ''}${c.http_status ? ' / HTTP ' + c.http_status : ''}</td><td>${c.elapsed_ms ?? ''}</td></tr>`).join('');
+}
+
+async function loadTemplate() {
+  const r = await fetch('/api/schema/Command/template');
+  if (!r.ok) { $('cbody').value = '// Command 템플릿을 불러오지 못함: HTTP ' + r.status; return; }
+  $('cbody').value = JSON.stringify(JSON.parse(await r.text()), null, 2);
+}
+$('ctpl').addEventListener('click', loadTemplate);
+
+$('csend').addEventListener('click', async () => {
+  const plc = $('cplc').value;
+  if (!plc) { $('cresult').textContent = '대상 PLC 를 선택하세요'; return; }
+  let body;
+  try { body = JSON.parse($('cbody').value); } catch (e) { $('cresult').textContent = 'JSON 오류: ' + e.message; return; }
+  $('csend').disabled = true;
+  $('cresult').className = 'mut';
+  $('cresult').textContent = '전송 중…';
+  const q = 'wait_ms=5000' + ($('cqueue').checked ? '&queue=1' : '');
+  try {
+    const r = await api(`/api/plcs/${encodeURIComponent(plc)}/command?${q}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    $('cresult').className = r.status === 200 && r.body && r.body.state === 'done' ? '' : 'bad';
+    $('cresult').textContent = `HTTP ${r.status}\n` + JSON.stringify(r.body, null, 2);
+  } catch (e) {
+    $('cresult').textContent = String(e);
+  } finally {
+    $('csend').disabled = false;
+  }
+});
+
+async function refresh() {
+  const r = await api('/api/plcs');
+  if (r.status === 200) { plcs = {}; for (const p of r.body) plcs[p.name] = p; renderPlcs(); }
+  const h = await api('/api/health');
+  if (h.status === 200) $('health').textContent = `계약 ${h.body.contract} · 레지스트리 ${h.body.registry_hash} · PLC 포트 ${h.body.server.plc_bind} · 로그 ${h.body.log_entries}`;
+}
+
+function connect() {
+  const es = new EventSource('/api/log/stream');
+  es.onopen = () => { $('sse').className = 'badge on'; };
+  es.onerror = () => { $('sse').className = 'badge bad'; };
+  // the server sends NAMED events (event: msg / plc / cmd); onmessage would not receive them
+  es.addEventListener('msg', ev => {
+    const e = JSON.parse(ev.data);
+    if (e.id <= lastId) return;
+    lastId = e.id;
+    log.push(e);
+    if (log.length > 5000) log.splice(0, log.length - 5000);
+    scheduleLog();
+  });
+  es.addEventListener('plc', ev => { const p = JSON.parse(ev.data); plcs[p.name] = p; renderPlcs(); });
+  es.addEventListener('cmd', ev => { const c = JSON.parse(ev.data); cmds.set(c.id, c); renderCmds(); });
+  es.addEventListener('lag', ev => { $('sse').title = 'lagged ' + ev.data; });
+}
+
+(async () => {
+  const r = await api(`/api/log?limit=${MAX}`);
+  if (r.status === 200 && Array.isArray(r.body)) { log = r.body; lastId = log.length ? log[log.length - 1].id : 0; renderLog(); }
+  connect();
+  await refresh();
+  await loadTemplate();
+  setInterval(refresh, 2000);
+})();
+</script>
+</body>
+</html>

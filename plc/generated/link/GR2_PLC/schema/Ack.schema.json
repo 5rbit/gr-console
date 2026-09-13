@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gr-link:GR2_PLC:Ack",
+  "title": "Ack (LNK_Ack)",
+  "description": "Link message Ack (id 30, both), JSON envelope (docs/link/wire-spec.md section 2). data = UDT \"LNK_Ack\" (sig 0xFF5482FF, 48 B standard layout)",
+  "type": "object",
+  "properties": {
+    "type": {
+      "description": "message name (readers also accept the numeric id)",
+      "anyOf": [
+        {"const": "Ack"},
+        {"const": 30}
+      ]
+    },
+    "seq": {"type": "integer", "minimum": 0, "maximum": 65535},
+    "sig": {
+      "description": "UDT signature (0 = not checked)",
+      "enum": [0, 4283728639]
+    },
+    "data": {"$ref": "#/$defs/LNK_Ack"}
+  },
+  "required": ["type", "data"],
+  "$defs": {
+    "LNK_Ack": {
+      "title": "UDT \"LNK_Ack\"",
+      "type": "object",
+      "properties": {
+        "RefType": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "응답 대상 메시지 ID (LNK_MSG_*)"},
+        "RefSeq": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "응답 대상 메시지 Seq"},
+        "Code": {
+          "type": "integer",
+          "minimum": -32768,
+          "maximum": 32767,
+          "description": "0 OK, LNK_ERR_* (1..10), PLC 런타임 코드 LNK_E_* (100+)"
+        },
+        "Text": {"type": "string", "maxLength": 40, "description": "참고 텍스트 (ASCII)"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

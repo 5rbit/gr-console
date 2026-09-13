@@ -4,3 +4,4 @@
 /apps/gr-web/dist
 *.log
 bench-report.json
+link-selftest.json

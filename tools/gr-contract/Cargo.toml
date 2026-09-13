@@ -8,9 +8,11 @@ description = "Syncs the PLC contract (TIA export text) into the repo, computes 
 
 [dependencies]
 plc-layout = { path = "../../crates/plc-layout" }
+plc-link = { path = "../../crates/plc-link" }
 clap = { workspace = true }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }
 
 [lints]
 workspace = true

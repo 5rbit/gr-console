@@ -1,0 +1,11 @@
+﻿TYPE "LNK_Ack"
+VERSION : 0.1
+   STRUCT
+      RefType : UInt;   //   응답 대상 메시지 ID (LNK_MSG_*)
+      RefSeq : UInt;   //   응답 대상 메시지 Seq
+      Code : Int;   //   0 OK, LNK_ERR_* (1..10), PLC 런타임 코드 LNK_E_* (100+)
+      Text : String[40];   //   참고 텍스트 (ASCII)
+   END_STRUCT;
+
+END_TYPE
+

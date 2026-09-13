@@ -262,3 +262,62 @@ fn signature_is_stable_and_sensitive() {
     c3.add_db_source("DATA_BLOCK \"HIST\"\n{ S7_Optimized_Access := 'FALSE' }\n   VAR RETAIN\n      LayoutSig : DWord;\n      Flags : Array[0..9] of Bool;\n      Head : Int;\n      Small : Array[0..2] of Byte;\n      Entry : Array[0..199] of \"LGR_MeasureLog\";\n   END_VAR\nEND_DATA_BLOCK\n").unwrap();
     assert_ne!(c3.layout_sig("HIST").unwrap(), s1);
 }
+
+#[test]
+fn udt_sig_equals_db_with_same_fields() {
+    let mut c = contract();
+    c.add_db_source("DATA_BLOCK \"HDR\"\n{ S7_Optimized_Access := 'FALSE' }\n   VAR\n      Protocol : Byte;\n      CMD_ID : Byte;\n      CMD : Byte;\n      SRC : Word;\n      DST : Word;\n      SEQ : Word;\n   END_VAR\nBEGIN\nEND_DATA_BLOCK\n").unwrap();
+    assert_eq!(c.udt_sig("LGR_Command_Header").unwrap(), c.layout_sig("HDR").unwrap());
+    assert_eq!(plc_layout::signature::canonical_udt(&c, "LGR_Command_Header").unwrap(), "{Protocol:Byte;CMD_ID:Byte;CMD:Byte;SRC:Word;DST:Word;SEQ:Word;}");
+    assert!(c.udt_sig("NOPE").is_err());
+}
+
+#[test]
+fn udt_sig_follows_nested_renames_but_not_comments() {
+    let c = contract();
+    let resp = c.udt_sig("LGR_Command_Response").unwrap();
+    // comments, attributes and start values do not matter
+    let mut c2 = contract();
+    c2.add_udt_source("TYPE \"LGR_Command_Header\"\nVERSION : 0.1\n   STRUCT\n      Protocol { S7_SetPoint := 'False'} : Byte := 16#01;   // x\n      CMD_ID : Byte;\n      CMD : Byte;   // y\n      SRC : Word;\n      DST : Word;\n      SEQ : Word;\n   END_STRUCT;\nEND_TYPE\n").unwrap();
+    assert_eq!(c2.udt_sig("LGR_Command_Response").unwrap(), resp);
+    // renaming a member of a nested UDT does
+    let mut c3 = contract();
+    c3.add_udt_source("TYPE \"LGR_Command_Header\"\n   STRUCT\n      Protocol : Byte;\n      CMD_ID : Byte;\n      CMD : Byte;\n      Source : Word;\n      DST : Word;\n      SEQ : Word;\n   END_STRUCT;\nEND_TYPE\n").unwrap();
+    assert_ne!(c3.udt_sig("LGR_Command_Response").unwrap(), resp);
+}
+
+#[test]
+fn dtl_weekday_and_separators() {
+    use plc_layout::Prim;
+    use plc_layout::encode::{dtl_weekday, encode_prim};
+    assert_eq!(dtl_weekday(1970, 1, 1), 5); // Thursday
+    assert_eq!(dtl_weekday(2026, 9, 13), 1); // Sunday
+    assert_eq!(dtl_weekday(2026, 9, 12), 7); // Saturday
+    assert_eq!(dtl_weekday(2000, 2, 29), 3); // Tuesday
+    assert_eq!(dtl_weekday(2026, 0, 1), 0);
+    let mut b = [0u8; 12];
+    encode_prim(&mut b, Prim::Dtl, 0, None, &Value::Str("2026-09-13T10:11:12.5".into()), "t").unwrap();
+    assert_eq!(b, [0x07, 0xEA, 9, 13, 1, 10, 11, 12, 0x1D, 0xCD, 0x65, 0x00]);
+    encode_prim(&mut b, Prim::Dtl, 0, None, &Value::Str("2026-09-12 10:11:12.345".into()), "t").unwrap();
+    assert_eq!(b[4], 7);
+    assert_eq!(u32::from_be_bytes([b[8], b[9], b[10], b[11]]), 345_000_000);
+    encode_prim(&mut b, Prim::Dtl, 0, None, &Value::Str("2026-09-13T00:00:00.123456789".into()), "t").unwrap();
+    assert_eq!(u32::from_be_bytes([b[8], b[9], b[10], b[11]]), 123_456_789);
+    encode_prim(&mut b, Prim::Dtl, 0, None, &Value::Str("2026-09-13T00:00:00".into()), "t").unwrap();
+    assert_eq!((b[4], u32::from_be_bytes([b[8], b[9], b[10], b[11]])), (1, 0));
+    assert_eq!(plc_layout::decode::decode_prim(&b, Prim::Dtl, 0, None).unwrap(), Value::Str("2026-09-13 00:00:00.000".into()));
+}
+
+#[test]
+fn string_and_char_are_latin1() {
+    use plc_layout::Prim;
+    use plc_layout::encode::encode_prim;
+    let mut b = [0xFFu8; 10];
+    encode_prim(&mut b, Prim::String(8), 0, None, &Value::Str("\u{e9}\u{ac00}A".into()), "s").unwrap();
+    assert_eq!(b, [8, 3, 0xE9, b'?', b'A', 0, 0, 0, 0, 0]);
+    let mut c = [0u8; 1];
+    encode_prim(&mut c, Prim::Char, 0, None, &Value::Str("\u{fc}x".into()), "c").unwrap();
+    assert_eq!(c[0], 0xFC);
+    encode_prim(&mut c, Prim::Char, 0, None, &Value::Str("\u{ac00}".into()), "c").unwrap();
+    assert_eq!(c[0], b'?');
+}

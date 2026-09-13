@@ -1,0 +1,10 @@
+TYPE "LNK_Ack"
+VERSION : 0.1
+   STRUCT
+      RefType : UInt;   // acked message id
+      RefSeq : UInt;   // acked message seq
+      Code : Int;   // 0 OK, LNK_ERR_*, runtime codes >= 100
+      Text : String[40];
+   END_STRUCT;
+
+END_TYPE

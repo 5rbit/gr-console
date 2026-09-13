@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gr-link:GR2_PLC:CommandResult",
+  "title": "CommandResult (LGR_Command_Response)",
+  "description": "Link message CommandResult (id 21, plc_to_pc), JSON envelope (docs/link/wire-spec.md section 2). data = UDT \"LGR_Command_Response\" (sig 0x04088012, 174 B standard layout)",
+  "type": "object",
+  "properties": {
+    "type": {
+      "description": "message name (readers also accept the numeric id)",
+      "anyOf": [
+        {"const": "CommandResult"},
+        {"const": 21}
+      ]
+    },
+    "seq": {"type": "integer", "minimum": 0, "maximum": 65535},
+    "sig": {
+      "description": "UDT signature (0 = not checked)",
+      "enum": [0, 67665938]
+    },
+    "data": {"$ref": "#/$defs/LGR_Command_Response"}
+  },
+  "required": ["type", "data"],
+  "$defs": {
+    "LGR_Cell_Info": {
+      "title": "UDT \"LGR_Cell_Info\"",
+      "type": "object",
+      "properties": {
+        "Use": {"type": "boolean"},
+        "BlendUse": {"type": "boolean"},
+        "Id": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "Section": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "Row": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "Col": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "Lenth": {
+          "type": ["number", "null"],
+          "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+        },
+        "Width": {
+          "type": ["number", "null"],
+          "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+        },
+        "Position": {
+          "type": "array",
+          "maxItems": 3,
+          "description": "PLC index 1..3; missing trailing elements read as zero",
+          "items": {
+            "type": ["number", "null"],
+            "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "LGR_Command_Command": {
+      "title": "UDT \"LGR_Command_Command\"",
+      "type": "object",
+      "properties": {
+        "Stop": {
+          "type": "object",
+          "properties": {
+            "Normal": {"type": "boolean"},
+            "Fast": {"type": "boolean"},
+            "Cycle": {"type": "boolean"},
+            "Spare_X3": {"type": "boolean"},
+            "Spare_X4": {"type": "boolean"},
+            "Spare_X5": {"type": "boolean"},
+            "Spare_X6": {"type": "boolean"},
+            "Spare_X7": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        },
+        "Common": {
+          "type": "object",
+          "properties": {
+            "Reset": {"type": "boolean"},
+            "Initializing": {"type": "boolean"},
+            "Spare_X2": {"type": "boolean"},
+            "Spare_X3": {"type": "boolean"},
+            "Spare_X4": {"type": "boolean"},
+            "Spare_X5": {"type": "boolean", "description": "(legacy TaskComplete - 미사용, Task.Complete.WorkId 로 판별)"},
+            "Spare_X6": {"type": "boolean", "description": "(legacy TaskDelete - 미사용, Task.Delete.WorkId 로 판별)"},
+            "BuzzerStop": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        },
+        "Task": {
+          "type": "object",
+          "properties": {
+            "Complete": {
+              "type": "object",
+              "properties": {
+                "WorkId": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+                "TaskId": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+              },
+              "additionalProperties": false
+            },
+            "Delete": {
+              "type": "object",
+              "properties": {
+                "WorkId": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+                "TaskId": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "Jog": {
+          "type": "object",
+          "properties": {
+            "xPositive": {"type": "boolean"},
+            "xNegative": {"type": "boolean"},
+            "yPositive": {"type": "boolean"},
+            "yNegative": {"type": "boolean"},
+            "zPositive": {"type": "boolean"},
+            "zNegative": {"type": "boolean"},
+            "gPositive": {"type": "boolean"},
+            "gNegative": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        },
+        "B3_Spare": {
+          "type": "object",
+          "properties": {
+            "Spare_X0": {"type": "boolean"},
+            "Spare_X1": {"type": "boolean"},
+            "Spare_X2": {"type": "boolean"},
+            "Spare_X3": {"type": "boolean"},
+            "Spare_X4": {"type": "boolean"},
+            "Spare_X5": {"type": "boolean"},
+            "Spare_X6": {"type": "boolean"},
+            "Spare_X7": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        },
+        "Home": {
+          "type": "object",
+          "properties": {
+            "X": {"type": "boolean"},
+            "Y": {"type": "boolean"},
+            "Z": {"type": "boolean"},
+            "G": {"type": "boolean"},
+            "Spare_X4": {"type": "boolean"},
+            "Spare_X5": {"type": "boolean"},
+            "Spare_X6": {"type": "boolean"},
+            "Spare_X7": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        },
+        "MaintPos": {
+          "type": "object",
+          "properties": {
+            "X": {"type": "boolean"},
+            "Y": {"type": "boolean"},
+            "Z": {"type": "boolean"},
+            "G": {"type": "boolean"},
+            "Spare_X4": {"type": "boolean"},
+            "Spare_X5": {"type": "boolean"},
+            "Spare_X6": {"type": "boolean"},
+            "Spare_X7": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        },
+        "CellOrigin": {
+          "type": "object",
+          "properties": {
+            "X": {"type": "boolean"},
+            "Y": {"type": "boolean"},
+            "Spare_X2": {"type": "boolean"},
+            "Spare_X3": {"type": "boolean"},
+            "Spare_X4": {"type": "boolean"},
+            "Spare_X5": {"type": "boolean"},
+            "Spare_X6": {"type": "boolean"},
+            "Spare_X7": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        },
+        "ChangeMode": {"type": "integer", "minimum": 0, "maximum": 255}
+      },
+      "additionalProperties": false
+    },
+    "LGR_Command_Header": {
+      "title": "UDT \"LGR_Command_Header\"",
+      "type": "object",
+      "properties": {
+        "Protocol": {"type": "integer", "minimum": 0, "maximum": 255, "description": "Protocol ID"},
+        "CMD_ID": {"type": "integer", "minimum": 0, "maximum": 255, "description": "Command ID"},
+        "CMD": {"type": "integer", "minimum": 0, "maximum": 255, "description": "Command Code"},
+        "SRC": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "Source Component ID (Send Component)"},
+        "DST": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "Destination Compoenet ID (Recieve Component)"
+        },
+        "SEQ": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "Squencial and Identical Command Number"}
+      },
+      "additionalProperties": false
+    },
+    "LGR_Command_Response": {
+      "title": "UDT \"LGR_Command_Response\"",
+      "type": "object",
+      "properties": {
+        "Header": {"$ref": "#/$defs/LGR_Command_Header"},
+        "Command": {"$ref": "#/$defs/LGR_Command_Command"},
+        "Task": {"$ref": "#/$defs/LGR_Task_Data"},
+        "Data": {
+          "type": "array",
+          "maxItems": 16,
+          "description": "PLC index 0..15; missing trailing elements read as zero",
+          "items": {"type": "integer", "minimum": 0, "maximum": 255}
+        }
+      },
+      "additionalProperties": false
+    },
+    "LGR_Stock_Item": {
+      "title": "UDT \"LGR_Stock_Item\"",
+      "type": "object",
+      "properties": {
+        "Code": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "Count": {"type": "integer", "minimum": 0, "maximum": 255},
+        "InnerDiameter": {
+          "type": ["number", "null"],
+          "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+        },
+        "OuterDiameter": {
+          "type": ["number", "null"],
+          "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+        },
+        "LowerBidHeight": {
+          "type": ["number", "null"],
+          "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+        },
+        "UpperBidHeight": {
+          "type": ["number", "null"],
+          "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+        },
+        "Height": {
+          "type": ["number", "null"],
+          "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+        },
+        "DeflectionFactor": {
+          "type": ["number", "null"],
+          "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LGR_Task_Data": {
+      "title": "UDT \"LGR_Task_Data\"",
+      "type": "object",
+      "properties": {
+        "WorkId": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "TaskId": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "TaskType": {"type": "integer", "minimum": 0, "maximum": 255},
+        "Position": {
+          "type": "array",
+          "maxItems": 4,
+          "description": "PLC index 1..4; missing trailing elements read as zero",
+          "items": {
+            "type": ["number", "null"],
+            "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+          }
+        },
+        "Item": {"$ref": "#/$defs/LGR_Stock_Item"},
+        "Cell": {"$ref": "#/$defs/LGR_Cell_Info"},
+        "BlendUpDistance": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "BlendDownDistance": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "DragOutHeight": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "DragOutDist": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "DragOutDir": {"type": "integer", "minimum": 0, "maximum": 255},
+        "DragInHeight": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "DragInDist": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "DragInDir": {"type": "integer", "minimum": 0, "maximum": 255},
+        "LiftUpCreepDistance": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "LiftDownCreepDistance": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "LiftUpHeight": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "PreGripDelta": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "GripBackDelta": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "GripHeight": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "UseDragOut": {"type": "boolean"},
+        "UseDragIn": {"type": "boolean"},
+        "LiftUpAfterComplete": {"type": "boolean", "description": "작업 완료후 Z축 상승 여부"},
+        "LiftUpPartial": {"type": "boolean"},
+        "MeasureFloor": {"type": "boolean", "description": "바닥 높이 측정 여부 (Move 명령 전용)"},
+        "MeasureItem": {"type": "boolean", "description": "아이템 측정 여부 (비드 높이, 중심 등)"},
+        "MeasureSku": {"type": "boolean", "description": "재고 및 높이 측정 여부"},
+        "AdjustCenter": {"type": "boolean", "description": "아이템 중심 보정 여부 (Pick)"},
+        "FindStationItem": {"type": "boolean", "description": "Station 아이템 중심 탐색 여부 (Pick, Single Stack 기준)"},
+        "Avoid": {"type": "boolean", "description": "회피 동작 여부 (XY이동, Z= 9999)"},
+        "Outbound": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

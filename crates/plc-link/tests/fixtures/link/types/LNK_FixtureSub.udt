@@ -1,0 +1,10 @@
+TYPE "LNK_FixtureSub"
+VERSION : 0.1
+   STRUCT
+      Id : UInt;
+      Name : String[4];
+      On : Bool;
+      Pos : Array["X".."G"] of Real;
+   END_STRUCT;
+
+END_TYPE

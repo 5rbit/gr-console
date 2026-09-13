@@ -1,0 +1,18 @@
+[package]
+name = "plc-link"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Sans-io PLC socket link: message registry, frame header, framings (FRAME/NDJSON/HTTP), byte-exact wire JSON and codec"
+
+[dependencies]
+plc-layout = { path = "../plc-layout" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }
+crc32fast = { workspace = true }
+
+[lints]
+workspace = true

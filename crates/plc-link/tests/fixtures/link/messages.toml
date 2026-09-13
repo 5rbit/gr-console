@@ -1,0 +1,74 @@
+# Fixture registry for crates/plc-link tests (same schema as plc/link/messages.toml).
+
+magic = 0x4753
+proto_version = 1
+max_payload = 65535
+plc_max_payload = 8176
+heartbeat_ms = 5000
+const_prefix = "LNK_"
+writer_prefix = "JsonW_"
+reader_prefix = "JsonR_"
+envelope_prefix = "LnkJ_"
+
+[[message]]
+id = 1
+name = "Hello"
+udt = "LNK_Hello"
+dir = "both"
+formats = ["json", "bin"]
+reply = "Hello"
+
+[[message]]
+id = 2
+name = "Heartbeat"
+udt = ""
+dir = "both"
+
+[[message]]
+id = 30
+name = "Ack"
+udt = "LNK_Ack"
+dir = "both"
+
+[[message]]
+id = 40
+name = "Fixture"
+udt = "LNK_Fixture"
+dir = "plc_to_pc"
+ack = true
+
+[[message]]
+id = 41
+name = "FixtureCmd"
+udt = "LNK_FixtureSub"
+dir = "pc_to_plc"
+reply = "Fixture"
+
+[[message]]
+id = 42
+name = "JsonOnly"
+udt = "LNK_FixtureSub"
+dir = "both"
+formats = ["json"]
+
+[[message]]
+id = 50
+name = "Missing"
+udt = "LNK_DoesNotExist"
+dir = "plc_to_pc"
+
+[[route]]
+role = "active"
+method = "POST"
+path = "/api/plc/{plc}/{msg}"
+msgs = ["Hello", "Heartbeat", "Fixture", "Ack"]
+response = "Ack"
+
+[[route]]
+role = "active"
+method = "GET"
+path = "/api/plc/{plc}/command"
+response = "FixtureCmd"
+empty_status = 204
+
+[alias]

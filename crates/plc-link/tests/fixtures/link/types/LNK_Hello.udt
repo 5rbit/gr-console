@@ -1,0 +1,11 @@
+TYPE "LNK_Hello"
+VERSION : 0.1
+   STRUCT
+      Plc : String[16];   // SOCK_CFG.PlcName
+      Proto : USInt;   // protocol version (1)
+      Formats : Byte;   // bit0 JSON, bit1 BIN
+      RegistryHash : DWord;   // crc32 of the message registry
+      HeartbeatMs : UDInt;
+   END_STRUCT;
+
+END_TYPE

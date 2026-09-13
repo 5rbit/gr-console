@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gr-link:FIXTURE:Heartbeat",
+  "title": "Heartbeat",
+  "description": "Link message Heartbeat (id 2, both), JSON envelope without payload",
+  "type": "object",
+  "properties": {
+    "type": {
+      "description": "message name (readers also accept the numeric id)",
+      "anyOf": [
+        {"const": "Heartbeat"},
+        {"const": 2}
+      ]
+    },
+    "seq": {"type": "integer", "minimum": 0, "maximum": 65535},
+    "sig": {
+      "description": "UDT signature (0 = not checked)",
+      "enum": [0]
+    },
+    "data": {"type": "null"}
+  },
+  "required": ["type"]
+}

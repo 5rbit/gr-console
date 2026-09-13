@@ -203,6 +203,11 @@ impl Contract {
         signature::layout_sig(self, db)
     }
 
+    /// Signature of a UDT (same as a DB declaring exactly the UDT's fields).
+    pub fn udt_sig(&self, udt: &str) -> Result<u32, LayoutError> {
+        signature::udt_sig(self, udt)
+    }
+
     /// Finds the type and byte offset of a (struct/array/scalar) member path.
     pub fn locate(&self, fields: &[Field], path: &str) -> Result<(TypeRef, u32), LayoutError> {
         let mut cur = Cursor::default();

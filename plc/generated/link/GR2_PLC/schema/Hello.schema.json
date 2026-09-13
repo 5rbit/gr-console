@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gr-link:GR2_PLC:Hello",
+  "title": "Hello (LNK_Hello)",
+  "description": "Link message Hello (id 1, both), JSON envelope (docs/link/wire-spec.md section 2). data = UDT \"LNK_Hello\" (sig 0xBFAD9982, 28 B standard layout)",
+  "type": "object",
+  "properties": {
+    "type": {
+      "description": "message name (readers also accept the numeric id)",
+      "anyOf": [
+        {"const": "Hello"},
+        {"const": 1}
+      ]
+    },
+    "seq": {"type": "integer", "minimum": 0, "maximum": 65535},
+    "sig": {
+      "description": "UDT signature (0 = not checked)",
+      "enum": [0, 3215825282]
+    },
+    "data": {"$ref": "#/$defs/LNK_Hello"}
+  },
+  "required": ["type", "data"],
+  "$defs": {
+    "LNK_Hello": {
+      "title": "UDT \"LNK_Hello\"",
+      "type": "object",
+      "properties": {
+        "Plc": {"type": "string", "maxLength": 16, "description": "PLC 이름 (\"SOCK_CFG\".PlcName)"},
+        "Proto": {"type": "integer", "minimum": 0, "maximum": 255, "description": "링크 프로토콜 버전 (1)"},
+        "Formats": {"type": "integer", "minimum": 0, "maximum": 255, "description": "지원 포맷 비트 : X0 JSON, X1 BIN"},
+        "RegistryHash": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "description": "메시지 레지스트리 해시 (\"LNK_REGISTRY_HASH\"), 불일치 시 BIN 거부"
+        },
+        "HeartbeatMs": {"type": "integer", "minimum": 0, "maximum": 4294967295, "description": "Heartbeat 송신 주기 (ms)"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gr-link:FIXTURE:JsonOnly",
+  "title": "JsonOnly (LNK_FixtureSub)",
+  "description": "Link message JsonOnly (id 42, both), JSON envelope (docs/link/wire-spec.md section 2). data = UDT \"LNK_FixtureSub\" (sig 0xAFBB75A6, 26 B standard layout)",
+  "type": "object",
+  "properties": {
+    "type": {
+      "description": "message name (readers also accept the numeric id)",
+      "anyOf": [
+        {"const": "JsonOnly"},
+        {"const": 42}
+      ]
+    },
+    "seq": {"type": "integer", "minimum": 0, "maximum": 65535},
+    "sig": {
+      "description": "UDT signature (0 = not checked)",
+      "enum": [0, 2948298150]
+    },
+    "data": {"$ref": "#/$defs/LNK_FixtureSub"}
+  },
+  "required": ["type", "data"],
+  "$defs": {
+    "LNK_FixtureSub": {
+      "title": "UDT \"LNK_FixtureSub\"",
+      "type": "object",
+      "properties": {
+        "Id": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "Name": {"type": "string", "maxLength": 4, "description": "Latin-1 characters (U+0000..U+00FF)"},
+        "On": {"type": "boolean"},
+        "Pos": {
+          "type": "array",
+          "maxItems": 4,
+          "description": "PLC index 1..4; missing trailing elements read as zero",
+          "items": {
+            "type": ["number", "null"],
+            "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

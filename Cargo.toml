@@ -3,9 +3,11 @@ resolver = "3"
 members = [
     "crates/s7",
     "crates/plc-layout",
+    "crates/plc-link",
     "crates/gr-proto",
     "crates/opcua-cmd",
     "apps/gr-console",
+    "apps/plc-link-server",
     "tools/gr-contract",
 ]
 

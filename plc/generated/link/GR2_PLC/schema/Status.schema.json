@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gr-link:GR2_PLC:Status",
+  "title": "Status (LNK_GR_Status)",
+  "description": "Link message Status (id 11, plc_to_pc), JSON envelope (docs/link/wire-spec.md section 2). data = UDT \"LNK_GR_Status\" (sig 0x2FE5346B, 220 B standard layout)",
+  "type": "object",
+  "properties": {
+    "type": {
+      "description": "message name (readers also accept the numeric id)",
+      "anyOf": [
+        {"const": "Status"},
+        {"const": 11}
+      ]
+    },
+    "seq": {"type": "integer", "minimum": 0, "maximum": 65535},
+    "sig": {
+      "description": "UDT signature (0 = not checked)",
+      "enum": [0, 803550315]
+    },
+    "data": {"$ref": "#/$defs/LNK_GR_Status"}
+  },
+  "required": ["type", "data"],
+  "$defs": {
+    "LGR_Equip_Status": {
+      "title": "UDT \"LGR_Equip_Status\"",
+      "type": "object",
+      "properties": {
+        "Normal": {"type": "boolean"},
+        "Idle": {"type": "boolean"},
+        "Busy": {"type": "boolean"},
+        "Stopped": {"type": "boolean"},
+        "Reserved_B0_X4": {"type": "boolean"},
+        "Online": {"type": "boolean"},
+        "Warn": {"type": "boolean"},
+        "Fault": {"type": "boolean"},
+        "PowerOn": {"type": "boolean"},
+        "DoorOpenErrorGR1": {"type": "boolean"},
+        "DoorOpenErrorGR2": {"type": "boolean"},
+        "Reserved_B1_X3": {"type": "boolean"},
+        "Reserved_B1_X4": {"type": "boolean"},
+        "ItemDectect": {"type": "boolean"},
+        "BuzzerStop": {"type": "boolean"},
+        "HeartBeat": {"type": "boolean"},
+        "Speed": {"type": "integer", "minimum": -128, "maximum": 127},
+        "Speed_ChangeReserved": {"type": "integer", "minimum": -128, "maximum": 127}
+      },
+      "additionalProperties": false
+    },
+    "LGR_Equip_StatusDetail": {
+      "title": "UDT \"LGR_Equip_StatusDetail\"",
+      "type": "object",
+      "properties": {
+        "Main": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "Sub": {"type": "integer", "minimum": 0, "maximum": 65535}
+      },
+      "additionalProperties": false
+    },
+    "LGR_Equip_TaskStatus": {
+      "title": "UDT \"LGR_Equip_TaskStatus\"",
+      "type": "object",
+      "properties": {
+        "Accept": {"type": "boolean"},
+        "Idle": {"type": "boolean"},
+        "Assigned": {"type": "boolean"},
+        "Inprogress": {"type": "boolean"},
+        "AvoidReq": {"type": "boolean"},
+        "HoldItem": {"type": "boolean"},
+        "Complete": {"type": "boolean"},
+        "Canceled": {"type": "boolean"},
+        "Reserved": {"type": "integer", "minimum": 0, "maximum": 255},
+        "Step": {"type": "integer", "minimum": 0, "maximum": 65535}
+      },
+      "additionalProperties": false
+    },
+    "LNK_GR_Status": {
+      "title": "UDT \"LNK_GR_Status\"",
+      "type": "object",
+      "properties": {
+        "UpdateTime": {
+          "type": ["string", "null"],
+          "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{0,9})?$",
+          "description": "갱신 시각 (PLC 로컬)"
+        },
+        "Mode": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "\"MACHINE\".Mode (MODE_*)"},
+        "Status": {"$ref": "#/$defs/LGR_Equip_Status", "description": "\"OPCUA\".STAT.Status"},
+        "StatusCode": {"$ref": "#/$defs/LGR_Equip_StatusDetail", "description": "\"OPCUA\".STAT.StatusCode"},
+        "Task": {"$ref": "#/$defs/LGR_Equip_TaskStatus", "description": "\"OPCUA\".STAT.Task.Status"},
+        "ProcStep": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "\"TASK\".Proc.Step.Now"},
+        "Now": {
+          "type": "object",
+          "properties": {
+            "WorkId": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+            "TaskId": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+            "TaskType": {"type": "integer", "minimum": 0, "maximum": 255},
+            "CellId": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "Cell.Id"},
+            "Target": {
+              "type": "array",
+              "maxItems": 4,
+              "items": {
+                "type": ["number", "null"],
+                "description": "4 fraction digits, exponent form from 1e9; writers send null for NaN/Inf, PLC readers reject null"
+              },
+              "description": "Position (mm)"
+            }
+          },
+          "additionalProperties": false,
+          "description": "진행 중 Task 요약 (\"OPCUA\".STAT.Task.Now)"
+        },
+        "Queue": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "properties": {
+              "WorkId": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+              "TaskId": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+              "TaskType": {"type": "integer", "minimum": 0, "maximum": 255}
+            },
+            "additionalProperties": false
+          },
+          "description": "대기 Task 요약 (\"OPCUA\".STAT.Task.Queue)"
+        },
+        "Alarm": {
+          "type": "object",
+          "properties": {
+            "Fault": {"type": "boolean"},
+            "Warn": {"type": "boolean"},
+            "FaultCode": {
+              "type": "array",
+              "maxItems": 5,
+              "description": "PLC index 0..4; missing trailing elements read as zero",
+              "items": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+            },
+            "WarnCode": {
+              "type": "array",
+              "maxItems": 5,
+              "description": "PLC index 0..4; missing trailing elements read as zero",
+              "items": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+            }
+          },
+          "additionalProperties": false,
+          "description": "\"MACHINE\".Alarm 최근 코드 (앞 5개)"
+        },
+        "Axis": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "properties": {
+              "Position": {
+                "type": ["number", "null"],
+                "description": "PV.Position (mm)"
+              },
+              "Speed": {
+                "type": ["number", "null"],
+                "description": "PV.Speed"
+              },
+              "Torque": {
+                "type": ["number", "null"],
+                "description": "PV.Torque"
+              },
+              "Ready": {"type": "boolean"},
+              "Running": {"type": "boolean"},
+              "MainCode": {"type": "integer", "minimum": 0, "maximum": 65535}
+            },
+            "additionalProperties": false
+          },
+          "description": "\"DRIVE\".Axis 요약 (X, Y, Z, G)"
+        },
+        "ItemDetect": {"type": "boolean", "description": "\"MACHINE\".Gripper.ItemDetect.Detect"},
+        "Res": {
+          "type": "object",
+          "properties": {
+            "Src": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "Header.SRC"},
+            "Dst": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "Header.DST"},
+            "Seq": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "Header.SEQ"},
+            "Cmd": {"type": "integer", "minimum": 0, "maximum": 255, "description": "Header.CMD"},
+            "Data0": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255,
+              "description": "Data[0] 거부 비트 (X0 DST, X1 중복, X2 무효 Task, X3 버퍼 가득, X7 비온라인)"
+            },
+            "Code": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "Data[1..2] (16#0001 = 수락)"},
+            "CanComplete": {"type": "integer", "minimum": 0, "maximum": 255, "description": "완료 가능 표시 (RES.Data)"},
+            "CanDelete": {"type": "integer", "minimum": 0, "maximum": 255, "description": "삭제 가능 표시 (RES.Data)"}
+          },
+          "additionalProperties": false,
+          "description": "마지막 명령 응답 요약 (\"OPCUA\".STAT.RES)"
+        },
+        "MeasTotal": {"type": "integer", "minimum": 0, "maximum": 4294967295, "description": "\"MEASLOG\".Total"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

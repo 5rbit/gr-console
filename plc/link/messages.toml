@@ -1,0 +1,202 @@
+# PLC link message registry (single source of truth).
+# Normative wire contract: docs/link/wire-spec.md. Consumed by crates/plc-link (registry.rs),
+# `gr-contract sync --messages` (UDT closure) and `gr-contract gen-link` (SCL / constants).
+# Changing ids, names or UDTs changes the registry hash (wire-spec section 5).
+
+magic = 0x4753
+proto_version = 1
+# PC receive maximum (FRAME Length / NDJSON line / HTTP body)
+max_payload = 65535
+# PLC receive maximum (FRAME Length / NDJSON line / HTTP body)
+plc_max_payload = 8176
+heartbeat_ms = 5000
+
+# generated SCL names
+const_prefix = "LNK_"
+writer_prefix = "JsonW_"
+reader_prefix = "JsonR_"
+envelope_prefix = "LnkJ_"
+
+# dir: "both" | "plc_to_pc" | "pc_to_plc"; formats: "json" / "bin"
+# ack: receiver answers with an Ack; reply: message the receiver answers with (optional)
+
+[[message]]
+id = 1
+name = "Hello"
+udt = "LNK_Hello"
+dir = "both"
+formats = ["json", "bin"]
+ack = false
+reply = "Hello"
+
+[[message]]
+id = 2
+name = "Heartbeat"
+udt = ""
+dir = "both"
+formats = ["json", "bin"]
+ack = false
+
+[[message]]
+id = 10
+name = "MeasLog"
+udt = "LGR_MeasureLog"
+dir = "plc_to_pc"
+formats = ["json", "bin"]
+ack = true
+
+[[message]]
+id = 11
+name = "Status"
+udt = "LNK_GR_Status"
+dir = "plc_to_pc"
+formats = ["json", "bin"]
+ack = false
+
+[[message]]
+id = 20
+name = "Command"
+udt = "LGR_Interface_GR_Command"
+dir = "pc_to_plc"
+formats = ["json", "bin"]
+ack = false
+reply = "CommandResult"
+
+[[message]]
+id = 21
+name = "CommandResult"
+udt = "LGR_Command_Response"
+dir = "plc_to_pc"
+formats = ["json", "bin"]
+ack = true
+
+[[message]]
+id = 30
+name = "Ack"
+udt = "LNK_Ack"
+dir = "both"
+formats = ["json", "bin"]
+ack = false
+
+# Error / Ack codes (wire-spec section 3). PLC runtime-internal codes (>= 100) are listed for display only.
+[[error]]
+code = 0
+name = "OK"
+
+[[error]]
+code = 1
+name = "BAD_MAGIC"
+
+[[error]]
+code = 2
+name = "BAD_VERSION"
+
+[[error]]
+code = 3
+name = "UNKNOWN_TYPE"
+
+[[error]]
+code = 4
+name = "SIG_MISMATCH"
+
+[[error]]
+code = 5
+name = "BAD_LENGTH"
+
+[[error]]
+code = 6
+name = "PARSE"
+
+[[error]]
+code = 7
+name = "FORMAT_NOT_ALLOWED"
+
+[[error]]
+code = 8
+name = "DIR_NOT_ALLOWED"
+
+[[error]]
+code = 9
+name = "BUSY"
+
+[[error]]
+code = 10
+name = "NO_PENDING"
+
+[[error]]
+code = 100
+name = "CMD_DISABLED"
+runtime = true
+
+[[error]]
+code = 101
+name = "HEADER"
+runtime = true
+
+[[error]]
+code = 102
+name = "SRC"
+runtime = true
+
+[[error]]
+code = 103
+name = "DST"
+runtime = true
+
+[[error]]
+code = 104
+name = "UNSUPPORTED"
+runtime = true
+
+[[error]]
+code = 105
+name = "MASKED"
+runtime = true
+
+# HTTP routes (wire-spec section 1.3). role = PLC role; `{plc}` = SOCK_CFG.PlcName, `{msg}` = lower-case message name.
+[[route]]
+role = "active"
+method = "POST"
+path = "/api/plc/{plc}/{msg}"
+msgs = ["Hello", "Heartbeat", "MeasLog", "Status", "CommandResult", "Ack"]
+response = "Ack"
+
+[[route]]
+role = "active"
+method = "GET"
+path = "/api/plc/{plc}/command"
+msgs = []
+response = "Command"
+empty_status = 204
+
+[[route]]
+role = "passive"
+method = "POST"
+path = "/api/command"
+msgs = ["Command"]
+response = "CommandResult"
+
+[[route]]
+role = "passive"
+method = "GET"
+path = "/api/status"
+msgs = []
+response = "Status"
+
+[[route]]
+role = "passive"
+method = "GET"
+path = "/api/measlog/last"
+msgs = []
+response = "MeasLog"
+empty_status = 204
+
+[[route]]
+role = "passive"
+method = "GET"
+path = "/api/hello"
+msgs = []
+response = "Hello"
+
+# Short names for generated identifiers that would exceed the TIA name limit: "<long>" = "<short>"
+[alias]

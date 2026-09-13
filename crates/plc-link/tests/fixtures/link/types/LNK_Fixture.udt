@@ -1,0 +1,40 @@
+TYPE "LNK_Fixture"
+VERSION : 0.1
+   STRUCT
+      B0 : Bool;   // 9 Bools cross a byte boundary
+      B1 : Bool;
+      B2 : Bool;
+      B3 : Bool;
+      B4 : Bool;
+      B5 : Bool;
+      B6 : Bool;
+      B7 : Bool;
+      B8 : Bool;
+      By : Byte;
+      Si : SInt;
+      I : Int;
+      W : Word;
+      Di : DInt;
+      Udi : UDInt;
+      R : Real;
+      Lr : LReal;
+      Li : LInt;
+      Ch : Char;
+      Str : String[8];
+      Ts {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;
+      Tm : Time;
+      Flags : Array[0..2] of Bool;
+      Axis : Array["X".."Z"] of Real;
+      Grid : Array[1..2, 0..1] of Int;
+      Outer : Struct
+         A : USInt;
+         Inner : Struct
+            Flag : Bool;
+            Val : UInt;
+         END_STRUCT;
+      END_STRUCT;
+      Sub : "LNK_FixtureSub";
+      Subs : Array[0..1] of "LNK_FixtureSub";
+   END_STRUCT;
+
+END_TYPE

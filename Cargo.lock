@@ -972,7 +972,9 @@ dependencies = [
  "anyhow",
  "clap",
  "plc-layout",
+ "plc-link",
  "serde_json",
+ "toml",
 ]
 
 [[package]]
@@ -1639,6 +1641,37 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "plc-link"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "plc-layout",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
+name = "plc-link-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "clap",
+ "futures",
+ "plc-layout",
+ "plc-link",
+ "serde",
+ "serde_json",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

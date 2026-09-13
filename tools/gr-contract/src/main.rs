@@ -4,6 +4,9 @@
 //! * `dump`    print the standard-access member table of a DB (compare with the TIA offset column)
 //! * `sizes`   print DB / UDT sizes
 //! * `gen-sig` compute the LayoutSig of a DB and rewrite the `LayoutSig` start value in a .db source
+//! * `gen-link` generate the PLC link SCL / constant table / test vector DB and the PC artifacts
+
+mod gen_link;
 
 use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
@@ -38,6 +41,9 @@ enum Cmd {
         /// Extra UDTs to include even if not referenced
         #[arg(long, value_delimiter = ',', default_value = "")]
         udts: Vec<String>,
+        /// Link message registry (plc/link/messages.toml): every message `udt` is added to the extra UDTs
+        #[arg(long)]
+        messages: Option<PathBuf>,
     },
     /// Print the member table of a DB.
     Dump {
@@ -72,11 +78,49 @@ enum Cmd {
         #[arg(long)]
         patch: Option<PathBuf>,
     },
+    /// Generate JsonW_/JsonR_/LnkJ_ SCL, LNK_Const_Gen.xml, LNK_TestVectors.db and plc/generated/link/<PLC>.
+    GenLink {
+        #[arg(long)]
+        plc: String,
+        #[arg(long, default_value = "plc/contract")]
+        contract: PathBuf,
+        #[arg(long, default_value = "plc/link/messages.toml")]
+        messages: PathBuf,
+        /// TIA export root (contains <PLC>/{blocks,types,tags})
+        #[arg(long, default_value = "../siemens/export")]
+        export: PathBuf,
+        /// Default <export>/<PLC>/blocks/700. Communication/Socket/Gen
+        #[arg(long)]
+        out_scl: Option<PathBuf>,
+        /// Default <export>/<PLC>/tags/Const
+        #[arg(long)]
+        out_tags: Option<PathBuf>,
+        /// Default plc/generated/link/<PLC>
+        #[arg(long)]
+        out_pc: Option<PathBuf>,
+        /// Write nothing; exit 1 when any file differs (whitespace-normalized compare)
+        #[arg(long)]
+        check: bool,
+        /// Remove generated .scl (marker comment) and PC schema/vector files that were not produced
+        #[arg(long)]
+        prune: bool,
+        /// Every registry message must be available in the contract
+        #[arg(long)]
+        strict: bool,
+        /// Fail when contract .udt files differ from the export's
+        #[arg(long)]
+        verify_sync: bool,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
     match Cli::parse().cmd {
-        Cmd::Sync { from, out, plc, dbs, udts } => sync(&from, &out, &plc, &dbs, &udts),
+        Cmd::Sync { from, out, plc, dbs, mut udts, messages } => {
+            if let Some(m) = messages {
+                udts.extend(message_udts(&m)?);
+            }
+            sync(&from, &out, &plc, &dbs, &udts)
+        }
         Cmd::Dump { contract, plc, db, prefix, json } => {
             let c = Contract::load_dir(&contract.join(&plc))?;
             let l = c.layout_db(&db)?;
@@ -105,8 +149,8 @@ fn main() -> anyhow::Result<()> {
             let mut udts: Vec<_> = c.udts.keys().cloned().collect();
             udts.sort();
             for u in udts {
-                match c.size_of_udt(&u) {
-                    Ok(s) => println!("UDT {:<24} {:>7} B", u, s),
+                match c.size_of_udt(&u).and_then(|s| Ok((s, c.udt_sig(&u)?))) {
+                    Ok((s, sig)) => println!("UDT {:<24} {:>7} B  sig 16#{sig:08X}", u, s),
                     Err(e) => println!("UDT {:<24} ERROR {e}", u),
                 }
             }
@@ -121,6 +165,13 @@ fn main() -> anyhow::Result<()> {
                 let patched = patch_sig(&text, sig)?;
                 std::fs::write(&p, patched)?;
                 println!("patched {}", p.display());
+            }
+            Ok(())
+        }
+        Cmd::GenLink { plc, contract, messages, export, out_scl, out_tags, out_pc, check, prune, strict, verify_sync } => {
+            let args = gen_link::Args { plc, contract, messages, export, out_scl, out_tags, out_pc, check, prune, strict, verify_sync };
+            if !gen_link::run(&args)? {
+                std::process::exit(1);
             }
             Ok(())
         }
@@ -170,38 +221,7 @@ fn sync(from: &Path, out: &Path, plc: &str, dbs: &[String], extra_udts: &[String
     std::fs::create_dir_all(dst.join("types"))?;
     std::fs::create_dir_all(dst.join("tags/Const"))?;
 
-    // UDT closure
-    let mut needed: BTreeSet<String> = extra_udts.iter().filter(|s| !s.is_empty()).cloned().collect();
-    let mut stack: Vec<TypeRef> = Vec::new();
-    for db in dbs {
-        let d = full.db(db).with_context(|| format!("DB {db} not in export"))?;
-        for f in &d.fields {
-            stack.push(f.ty.clone());
-        }
-    }
-    let mut seen: HashSet<String> = HashSet::new();
-    while let Some(t) = stack.pop() {
-        match t {
-            TypeRef::Udt(n) => {
-                if seen.insert(n.clone()) {
-                    needed.insert(n.clone());
-                    let u = full.udt(&n)?;
-                    for f in &u.fields {
-                        stack.push(f.ty.clone());
-                    }
-                }
-            }
-            TypeRef::Struct(fields) => push_fields(&fields, &mut stack),
-            TypeRef::Array { elem, .. } => stack.push(*elem),
-            TypeRef::Prim(_) => {}
-        }
-    }
-    for n in needed.iter().filter(|n| !seen.contains(*n)) {
-        let u = full.udt(n)?;
-        for f in &u.fields {
-            stack.push(f.ty.clone());
-        }
-    }
+    let needed = udt_closure(&full, dbs, extra_udts)?;
     // copy files
     let copied_udts = copy_matching(&src_root.join("types"), &dst.join("types"), "udt", |stem| needed.contains(stem))?;
     let copied_dbs = copy_matching(&src_root.join("blocks"), &dst.join("blocks"), "db", |stem| dbs.iter().any(|d| d == stem))?;
@@ -219,6 +239,50 @@ fn sync(from: &Path, out: &Path, plc: &str, dbs: &[String], extra_udts: &[String
         println!("  {db}: {} bytes, DB{:?}, sig 16#{:08X}", l.size, c.db_number(db), c.layout_sig(db)?);
     }
     Ok(())
+}
+
+/// Every UDT referenced (transitively) by the DBs and by the extra UDTs, plus the extras themselves.
+/// UDTs missing from the export stay in the set (the caller reports them).
+fn udt_closure(full: &Contract, dbs: &[String], extra_udts: &[String]) -> anyhow::Result<BTreeSet<String>> {
+    let mut needed: BTreeSet<String> = BTreeSet::new();
+    // seed with the extras so their children are expanded too
+    let mut stack: Vec<TypeRef> = extra_udts.iter().map(|s| s.trim()).filter(|s| !s.is_empty()).map(|s| TypeRef::Udt(s.to_string())).collect();
+    for db in dbs {
+        let d = full.db(db).with_context(|| format!("DB {db} not in export"))?;
+        push_fields(&d.fields, &mut stack);
+    }
+    let mut seen: HashSet<String> = HashSet::new();
+    while let Some(t) = stack.pop() {
+        match t {
+            TypeRef::Udt(n) => {
+                if seen.insert(n.clone()) {
+                    needed.insert(n.clone());
+                    if let Ok(u) = full.udt(&n) {
+                        push_fields(&u.fields, &mut stack);
+                    }
+                }
+            }
+            TypeRef::Struct(fields) => push_fields(&fields, &mut stack),
+            TypeRef::Array { elem, .. } => stack.push(*elem),
+            TypeRef::Prim(_) => {}
+        }
+    }
+    Ok(needed)
+}
+
+/// Non-empty `udt` values of every `[[message]]` in a link registry TOML.
+fn message_udts(path: &Path) -> anyhow::Result<Vec<String>> {
+    let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    let doc: toml::Value = toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
+    let mut out = Vec::new();
+    if let Some(msgs) = doc.get("message").and_then(|m| m.as_array()) {
+        for m in msgs {
+            if let Some(u) = m.get("udt").and_then(|u| u.as_str()).map(str::trim).filter(|u| !u.is_empty()) {
+                out.push(u.to_string());
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn push_fields(fields: &[Field], stack: &mut Vec<TypeRef>) {
@@ -259,4 +323,48 @@ fn copy_matching(src: &Path, dst: &Path, ext: &str, keep: impl Fn(&str) -> bool)
         }
     }
     Ok(n)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_root(tag: &str) -> PathBuf {
+        let p = std::env::temp_dir().join(format!("gr-contract-test-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&p);
+        p
+    }
+
+    fn write(p: &Path, text: &str) {
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, text).unwrap();
+    }
+
+    #[test]
+    fn sync_expands_children_of_extra_udts() {
+        let root = temp_root("sync");
+        let src = root.join("export/P");
+        write(&src.join("types/A.udt"), "TYPE \"A\"\n   STRUCT\n      B1 : \"B\";\n      Arr : Array[0..1] of \"C\";\n   END_STRUCT;\nEND_TYPE\n");
+        write(&src.join("types/B.udt"), "TYPE \"B\"\n   STRUCT\n      X : Int;\n   END_STRUCT;\nEND_TYPE\n");
+        write(&src.join("types/C.udt"), "TYPE \"C\"\n   STRUCT\n      S : Struct\n         D1 : \"D\";\n      END_STRUCT;\n   END_STRUCT;\nEND_TYPE\n");
+        write(&src.join("types/D.udt"), "TYPE \"D\"\n   STRUCT\n      Y : Bool;\n   END_STRUCT;\nEND_TYPE\n");
+        write(&src.join("types/Unused.udt"), "TYPE \"Unused\"\n   STRUCT\n      Z : Bool;\n   END_STRUCT;\nEND_TYPE\n");
+        write(&src.join("blocks/DB1.db"), "DATA_BLOCK \"DB1\"\n{ S7_Optimized_Access := 'FALSE' }\n   VAR\n      V : Int;\n   END_VAR\nBEGIN\nEND_DATA_BLOCK\n");
+        write(&root.join("messages.toml"), "[[message]]\nid = 1\nname = \"M\"\nudt = \"A\"\n\n[[message]]\nid = 2\nname = \"Heartbeat\"\nudt = \"\"\n");
+
+        let full = Contract::load_dir(&src).unwrap();
+        let extras = message_udts(&root.join("messages.toml")).unwrap();
+        assert_eq!(extras, vec!["A".to_string()]);
+        let closure = udt_closure(&full, &["DB1".to_string()], &extras).unwrap();
+        assert_eq!(closure.into_iter().collect::<Vec<_>>(), vec!["A", "B", "C", "D"]);
+
+        let out = root.join("contract");
+        sync(&root.join("export"), &out, "P", &["DB1".to_string()], &extras).unwrap();
+        for n in ["A", "B", "C", "D"] {
+            assert!(out.join(format!("P/types/{n}.udt")).is_file(), "{n} copied");
+        }
+        assert!(!out.join("P/types/Unused.udt").exists());
+        assert!(out.join("P/blocks/DB1.db").is_file());
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

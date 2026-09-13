@@ -1,0 +1,14 @@
+{
+  "message": "Heartbeat",
+  "id": 2,
+  "udt": null,
+  "seq": 1,
+  "sig": 0,
+  "size": 0,
+  "value": null,
+  "json_text": "{\"type\":\"Heartbeat\",\"seq\":1,\"sig\":0,\"data\":null}",
+  "bin_hex": "",
+  "frame_json_hex": "475301010002000100000000000000307b2274797065223a22486561727462656174222c22736571223a312c22736967223a302c2264617461223a6e756c6c7d",
+  "frame_bin_hex": "47530102000200010000000000000000",
+  "ndjson_text": "{\"type\":\"Heartbeat\",\"seq\":1,\"sig\":0,\"data\":null}\n"
+}

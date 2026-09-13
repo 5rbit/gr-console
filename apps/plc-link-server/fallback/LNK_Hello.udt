@@ -1,0 +1,12 @@
+﻿TYPE "LNK_Hello"
+VERSION : 0.1
+   STRUCT
+      Plc : String[16];   //   PLC 이름 ("SOCK_CFG".PlcName)
+      Proto : USInt;   //   링크 프로토콜 버전 (1)
+      Formats : Byte;   //   지원 포맷 비트 : X0 JSON, X1 BIN
+      RegistryHash : DWord;   //   메시지 레지스트리 해시 ("LNK_REGISTRY_HASH"), 불일치 시 BIN 거부
+      HeartbeatMs : UDInt;   //   Heartbeat 송신 주기 (ms)
+   END_STRUCT;
+
+END_TYPE
+

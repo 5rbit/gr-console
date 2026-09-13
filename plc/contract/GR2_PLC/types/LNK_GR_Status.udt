@@ -1,0 +1,51 @@
+﻿TYPE "LNK_GR_Status"
+VERSION : 0.1
+   STRUCT
+      UpdateTime {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;   //   갱신 시각 (PLC 로컬)
+      Mode : Word;   //   "MACHINE".Mode (MODE_*)
+      Status : "LGR_Equip_Status";   //   "OPCUA".STAT.Status
+      StatusCode : "LGR_Equip_StatusDetail";   //   "OPCUA".STAT.StatusCode
+      Task : "LGR_Equip_TaskStatus";   //   "OPCUA".STAT.Task.Status
+      ProcStep : UInt;   //   "TASK".Proc.Step.Now
+      Now : Struct   //   진행 중 Task 요약 ("OPCUA".STAT.Task.Now)
+         WorkId : UDInt;
+         TaskId : UDInt;
+         TaskType : Byte;
+         CellId : UInt;   //   Cell.Id
+         Target : Array["X".."G"] of Real;   //   Position (mm)
+      END_STRUCT;
+      Queue : Array[0..3] of Struct   //   대기 Task 요약 ("OPCUA".STAT.Task.Queue)
+         WorkId : UDInt;
+         TaskId : UDInt;
+         TaskType : Byte;
+      END_STRUCT;
+      Alarm : Struct   //   "MACHINE".Alarm 최근 코드 (앞 5개)
+         Fault : Bool;
+         Warn : Bool;
+         FaultCode : Array[0..4] of UDInt;
+         WarnCode : Array[0..4] of UDInt;
+      END_STRUCT;
+      Axis : Array["X".."G"] of Struct   //   "DRIVE".Axis 요약 (X, Y, Z, G)
+         Position : Real;   //   PV.Position (mm)
+         Speed : Real;   //   PV.Speed
+         Torque : Real;   //   PV.Torque
+         Ready : Bool;
+         Running : Bool;
+         MainCode : UInt;
+      END_STRUCT;
+      ItemDetect : Bool;   //   "MACHINE".Gripper.ItemDetect.Detect
+      Res : Struct   //   마지막 명령 응답 요약 ("OPCUA".STAT.RES)
+         Src : Word;   //   Header.SRC
+         Dst : Word;   //   Header.DST
+         Seq : Word;   //   Header.SEQ
+         Cmd : Byte;   //   Header.CMD
+         Data0 : Byte;   //   Data[0] 거부 비트 (X0 DST, X1 중복, X2 무효 Task, X3 버퍼 가득, X7 비온라인)
+         Code : Word;   //   Data[1..2] (16#0001 = 수락)
+         CanComplete : Byte;   //   완료 가능 표시 (RES.Data)
+         CanDelete : Byte;   //   삭제 가능 표시 (RES.Data)
+      END_STRUCT;
+      MeasTotal : UDInt;   //   "MEASLOG".Total
+   END_STRUCT;
+
+END_TYPE
+
