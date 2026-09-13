@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # 배포 패키지 — 실행 파일 하나(웹·계약 내장) + 설정 + 안내문을 dist/ 에 묶는다.
 #
-#   tools/package.sh              # 현재 OS용
-#   tools/package.sh --no-web     # npm 빌드를 건너뛴다(apps/gr-web/dist 가 이미 최신일 때)
+#   tools/package.sh                                   # 현재 OS용
+#   tools/package.sh --no-web                          # npm 빌드를 건너뛴다(apps/gr-web/dist 가 이미 최신일 때)
+#   tools/package.sh --target x86_64-pc-windows-gnu    # Linux 에서 Windows exe 를 만든다
+#                                                      #   (apt install mingw-w64 · rustup target add x86_64-pc-windows-gnu)
 #
 # 결과: dist/gr-console-<버전>-<target>/ 와 같은 이름의 .zip(또는 .tar.gz).
 # 왜 스크립트인가: cargo 만으로는 프런트 빌드와 설정·안내문을 묶을 수 없고, 사람이 손으로 모으면
@@ -11,11 +13,15 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 WEB=1
-for a in "$@"; do
-  case "$a" in
+TARGET=""
+while [ $# -gt 0 ]; do
+  case "$1" in
     --no-web) WEB=0 ;;
-    *) echo "unknown arg: $a" >&2; exit 2 ;;
+    --target) TARGET="$2"; shift ;;
+    --target=*) TARGET="${1#--target=}" ;;
+    *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
+  shift
 done
 
 if [ "$WEB" = 1 ]; then
@@ -23,15 +29,21 @@ if [ "$WEB" = 1 ]; then
 fi
 [ -f apps/gr-web/dist/index.html ] || { echo "apps/gr-web/dist/index.html 이 없다 — 프런트 빌드가 먼저다" >&2; exit 1; }
 
-# 실행 파일: 웹·계약을 내장(embed)한 release
-cargo build --release -p gr-console --features embed
+# 실행 파일: 웹·계약을 내장(embed)한 release. --target 이면 크로스 빌드(산출물은 target/<triple>/release).
+if [ -n "$TARGET" ]; then
+  cargo build --release -p gr-console --features embed --target "$TARGET"
+  BINDIR="target/$TARGET/release"
+else
+  cargo build --release -p gr-console --features embed
+  TARGET=$(rustc -vV | sed -n 's/^host: //p')
+  BINDIR="target/release"
+fi
 
 VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
 SHA=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
-TARGET=$(rustc -vV | sed -n 's/^host: //p')
 NAME="gr-console-${VERSION}+${SHA}-${TARGET}"
 OUT="dist/${NAME}"
-BIN=target/release/gr-console
+BIN="$BINDIR/gr-console"
 [ -f "$BIN.exe" ] && BIN="$BIN.exe"
 
 rm -rf "$OUT"
