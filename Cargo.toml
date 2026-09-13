@@ -46,3 +46,5 @@ unsafe_code = "forbid"
 [profile.release]
 lto = "thin"
 codegen-units = 4
+# 배포 파일은 디버그 심볼이 필요 없다 — 크기가 절반 아래로 내려간다.
+strip = true

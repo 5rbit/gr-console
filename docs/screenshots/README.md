@@ -31,3 +31,46 @@
 | ![](11_measure_dashboard.png) | 측정 모니터 대시보드 |
 | ![](12_history_item.png) | 측정 이력 — MeasureItem Data 배치 |
 | ![](13_history_sku.png) | 측정 이력 — MeasureSku Data 배치 |
+
+## 셸 — 워크스페이스(도킹)·명령 팔레트·밀도·표 접기
+
+`gr-console --demo`(가짜 PLC)로 띄운 화면을 헤드리스 Chromium(playwright)으로 캡처했다. Task 여섯
+건을 넣은 상태다. 규칙은 `docs/DESIGN.md`, 결정 이유는 `docs/ui-ux-plan.md`.
+
+| 파일 | 내용 |
+|---|---|
+| ![](20_single_screen_mode.png) | 단일 화면 모드 — 사이드바(로봇·PLC·상태) + 화면 하나. 기본값이고 예전 셸과 같다 |
+| ![](21_view_menu.png) | `보기` 메뉴 — 모드·배치 프리셋·저장·존 토글·밀도·테마 |
+| ![](22_workspace_standard.png) | 워크스페이스 모드 `기본` 배치 — 왼쪽 목록 + 중앙 화면 탭 |
+| ![](23_preset_command.png) | `명령 중심` — 중앙 작업 명령, 하단 Task 관리, 오른쪽 상태. 명령→결과가 한 화면 |
+| ![](24_preset_triage.png) | `데이터 3분할` — 중앙 Task 관리, 오른쪽 상태, 하단 측정 |
+| ![](25_preset_monitor.png) | `모니터링` — 중앙 측정 모니터, 오른쪽에 상태·PLC |
+| ![](26_tab_drag.png) | 탭 드래그 — 놓을 존이 점선으로 비친다(`오른쪽에 도킹`) |
+| ![](27_after_dock.png) | 도킹 후 — Task 관리가 하단에서 오른쪽으로. 좁은 존에서는 머리띠 요약이 접힌다. 탭이 이름을 말하므로 화면 머리띠는 제목을 내지 않는다 |
+| ![](28_window_menu.png) | 창 메뉴(탭 우클릭 / `⋮`) — 최대화·존 이동·닫기. 드래그를 못 쓰는 자리의 경로 |
+| ![](29_zone_collapsed_rail.png) | 존 접기 — 아이콘 레일로 남는다(무엇이 들었는지 사라지지 않는다) |
+| ![](30_command_palette.png) | 명령 팔레트 `Ctrl/⌘+K` — 보기·레이아웃·존·창·설정. 체크와 존 이름이 붙는다 |
+| ![](31_palette_query.png) | 팔레트 검색 — `배치`로 프리셋·저장·초기화만 남는다 |
+| ![](32_maximized.png) | 최대화 `Alt+Enter` — 그 존 하나만 그린다(뒤 화면은 언마운트) |
+| ![](33_compact_density.png) | 조밀 밀도 — 메뉴바 36→30, 머리띠 36→30, 컨트롤 32→28(상태바는 그대로) |
+| ![](34_after_reload.png) | 새로고침 후 — 배치·모드·밀도·저장한 배치가 그대로 복원된다 |
+| ![](35_focused_zone_right.png) | 활성 패널 — 오른쪽 존을 만지면 그 탭 띠가 밝아지고 accent 밑줄을 받는다(다른 존은 회색). `Alt+Enter`의 대상이 이것이다 |
+| ![](36_empty_zone_rail.png) | 드래그 중에는 **빈 존도** 점선 레일로 뜬다(오른쪽 끝) — 놓을 자리가 화면에서 사라지지 않는다 |
+| ![](37_table_narrow_zone.png) | 273px 존에 들어간 Task 표 — 열 열둘이 `#·상태·대상` 셋으로 접힌다(가로 스크롤이 아니라) |
+| ![](38_table_wide_after_maximize.png) | 같은 표, 최대화(1574px) — 열 열둘이 전부 돌아온다 |
+| ![](39_table_row_expanded.png) | 접힌 열은 버리지 않는다 — 행을 펼치면 아홉 열이 라벨+값 짝으로 나온다 |
+| ![](40_theme_light.png) | **기본은 화이트톤** — 색은 전부 시맨틱 토큰에서 나온다 |
+| ![](41_theme_dark.png) | 다크는 토큰 한 층(`[data-theme='dark']`) — 킷·셸에 `dark:` 짝이 0개다 |
+| ![](43_theme_dark_triage.png) | 다크 · 데이터 3분할 — 상태 배지·점이 두 테마에서 같은 뜻으로 읽힌다 |
+| ![](44_dark_task.png) | 다크 · 작업 명령 — 셀 맵의 판정색(`var(--color-fault/ok)`)과 스테이션 hue가 토큰·데이터로 갈려 있다 |
+| ![](45_dark_taskmgr.png) | 다크 · Task 관리 — 표·배지·필터 칩이 전부 토큰이라 화면 코드에 `dark:`가 없다 |
+| ![](46_dark_measure.png) | 다크 · 측정 모니터 — 상태 칩 soft 900 틴트가 panel과 갈린다(1.25~1.73) |
+| ![](47_dark_scenario.png) | 다크 · 시나리오 — 인스펙터 머리띠(control-header)와 위험 버튼(danger)도 토큰 |
+| ![](48_bits_grid.png) | 비트 묶음은 칩 구름이 아니라 **고정 격자** — 켜진 것만 색, 꺼진 것도 같은 자리에 남아 무엇이 꺼졌는지 읽힌다 |
+| ![](49_capsule_table_only.png) | 캡슐은 표의 상태 열 **하나**뿐 — 필터 칩은 4px 모서리의 조작, 사이드바 개수는 숫자 |
+| ![](50_dot_label_detail.png) | 상세의 값 자리는 점+글자(`연결됨` · `레이아웃 OK`) — 폭이 고정이라 옆 값의 x가 흔들리지 않는다 |
+| ![](51_cancel_timeline.png) | Task 취소 — 이력이 `delete requested`(콘솔) → `canceled on PLC (console request)`(PLC)로 읽힌다. PLC 자발 취소는 `(console request)`가 없다 |
+| ![](52_plc_view_terminal_bits.png) | PLC 뷰 — `Task.Status.Complete`·`Canceled` 비트가 보인다. 원장은 링보다 이 비트로 먼저 끝낸다 |
+| ![](53_row_actions.png) | Task 목록·종결 이력 — **같은 열**(WorkId · TaskId · 로봇 · 셀 · 종류 · 품목 · 명령시간 · 완료시각 · 상태), 열 폭은 내용에 맞춰 왼쪽으로 붙는다(`fit`). 목록에는 취소·완료 버튼(아이콘+글자, 고정 너비 둘 — 안 되는 쪽은 사유를 달고 비활성) |
+| ![](54_row_action_confirm.png) | 확인 대화상자 — **질문 한 줄** + 어떤 Task인지 알아볼 라벨+값 짝(종류·대상·품목·로봇·상태·Id·메모). 규칙 안내문은 없다 |
+| ![](42_view_menu_fixed.png) | `보기` 메뉴 — 라벨이 줄어들지 않고 힌트가 먼저 잘린다(예전에는 `명령 중 / 심`으로 끊겼다) |

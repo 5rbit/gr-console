@@ -1,14 +1,20 @@
-// 표 — 정렬·행 클릭·행 액션·빈 상태를 한 곳에.
+// 표 — 정렬·행 클릭·행 액션·빈 상태·**좁은 폭에서 열 접기**를 한 곳에.
 //
 // 컬럼이 렌더를 소유한다: 값 포맷(시각·배지·진행률)은 컬럼 정의의 `cell`이 정하고,
 // 표는 배치와 상호작용만 안다.
-import { useMemo, useState } from 'react'
+//
+// 열 접기(`Column.priority`): 표가 든 **컨테이너 폭**이 좁으면 우선순위가 낮은 열을 내린다. 접힌
+// 열은 **행 펼치기**로 되살아난다(라벨+값 짝 — 이 콘솔의 요약 규칙과 같은 모양). 접고 끝내면
+// 좁은 자리에서는 값이 없는 표가 되고, 가로 스크롤로 두면 오른쪽 끝 열이 없는 것과 같다.
+// 판정은 순수 함수(`table.ts`의 `columnLevel`·`splitColumns`)가 하고 테스트가 못 박아 둔다.
+import { Fragment, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
-import type { Column } from './table'
+import { ChevronDown, ChevronRight, ChevronUp } from 'lucide-react'
+import { columnLevel, splitColumns, type Column } from './table'
 import { cn } from '../utils'
 import { EmptyState } from './EmptyState'
 import { Skeleton } from './Skeleton'
+import { useElementWidth } from './useElementWidth'
 
 export interface DataTableProps<T> {
   rows: T[]
@@ -21,6 +27,12 @@ export interface DataTableProps<T> {
   selected?: string | null
   /** 행 끝 액션 열(선택) */
   actions?: (row: T) => ReactNode
+  /**
+   * 열 폭을 **내용에** 맞추고 표를 왼쪽에 붙인다(화면 폭에 펼치지 않는다). 열이 여덟을 넘는 표가
+   * 폭에 펼쳐지면 열 사이 공백이 값보다 넓어져 행을 가로로 읽을 수 없다 — 값끼리 가까이 서야 한
+   * 줄로 읽힌다. 기본은 펼치기(열이 적은 표는 펼쳐도 촘촘하다).
+   */
+  fit?: boolean
   empty?: string
   emptyHint?: string
   loading?: boolean
@@ -34,6 +46,7 @@ export function DataTable<T>({
   onPick,
   selected,
   actions,
+  fit = false,
   empty = '기록 없음',
   emptyHint,
   loading = false,
@@ -41,6 +54,15 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [desc, setDesc] = useState(false)
+  /** 펼친 행의 키 — 접힌 열을 보려고 연 행들. */
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
+
+  // 콜백 ref다 — 표는 로딩·빈 상태를 거쳐 **뒤늦게** 마운트될 수 있고, 그때 관찰이 다시 걸려야 한다.
+  const [box, width] = useElementWidth<HTMLDivElement>()
+  const { visible, hidden } = useMemo(
+    () => splitColumns(columns, columnLevel(width)),
+    [columns, width],
+  )
 
   const sorted = useMemo(() => {
     const col = columns.find((c) => c.key === sortKey)
@@ -70,6 +92,14 @@ export function DataTable<T>({
   function keyOf(row: T, i: number): string {
     return rowKey ? rowKey(row) : String(i)
   }
+  function toggleRow(k: string): void {
+    setOpen((prev) => {
+      const next = new Set(prev)
+      if (next.has(k)) next.delete(k)
+      else next.add(k)
+      return next
+    })
+  }
 
   if (loading && rows.length === 0) {
     return (
@@ -83,25 +113,41 @@ export function DataTable<T>({
 
   if (rows.length === 0) return <EmptyState title={empty} hint={emptyHint} />
 
+  /** 펼치기 손잡이 열 + 보이는 열 + 액션 열 (+ fit의 채움 열) — 자식 행의 `colSpan`이 이 수를 쓴다. */
+  const span = visible.length + (hidden.length > 0 ? 1 : 0) + (actions ? 1 : 0) + (fit ? 1 : 0)
+  // fit: 열은 `w-px`(내용 폭으로 줄어든다)이고 마지막 빈 열이 남은 폭을 먹는다 — 표 자체는 `w-full`이라
+  // 행 구분선이 카드 끝까지 간다(표를 `w-auto`로 두면 선이 값 끝에서 끊겨 행이 잘린 것처럼 보인다).
+  const cellW = fit ? 'w-px' : ''
+  // fit 표는 열이 내용 폭이라 값이 열을 거의 채운다 — 가운데 정렬이 머리글과 값을 한 축에 세운다
+  // (펼친 표의 왼쪽 정렬은 빈 폭 속에서 값의 시작점을 맞추는 규칙이고, 여기서는 빈 폭이 없다).
+  const align = (numeric: boolean | undefined) =>
+    fit ? 'text-center' : numeric ? 'text-right' : ''
+
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" ref={box}>
       <table className="w-full text-xs" data-testid={testid}>
         <thead>
-          <tr className="text-left text-slate-600 dark:text-slate-300">
-            {columns.map((c) => {
+          <tr className={cn('text-content-tertiary', fit ? 'text-center' : 'text-left')}>
+            {hidden.length > 0 ? (
+              <th className="w-5 px-1 py-1">
+                <span className="sr-only">접힌 열 펼치기</span>
+              </th>
+            ) : null}
+            {visible.map((c) => {
               const can = c.sortable ?? !!c.get
               return (
                 <th
                   key={c.key}
                   className={cn(
                     'px-2 py-1 font-medium whitespace-nowrap',
+                    cellW,
                     c.class ?? '',
-                    c.numeric && 'text-right',
+                    align(c.numeric),
                   )}
                 >
                   {can ? (
                     <button
-                      className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-100"
+                      className="inline-flex items-center gap-1 hover:text-content-primary"
                       onClick={() => toggle(c)}
                       aria-label={`${c.label} 정렬`}
                     >
@@ -116,40 +162,94 @@ export function DataTable<T>({
               )
             })}
             {actions && (
-              <th className="px-2 py-1">
+              <th className={cn('px-2 py-1', cellW)}>
                 <span className="sr-only">조작</span>
               </th>
             )}
+            {fit ? <th className="w-full" aria-hidden="true" /> : null}
           </tr>
         </thead>
         <tbody>
           {sorted.map((row, i) => {
             const k = keyOf(row, i)
             return (
-              <tr
-                key={k}
-                className={cn(
-                  'border-t border-slate-200 dark:border-slate-700',
-                  !!onPick && 'cursor-pointer',
-                  selected === k && 'bg-indigo-50 dark:bg-indigo-950',
-                )}
-                data-testid="dt-row"
-              >
-                {columns.map((c) => (
-                  <td
-                    key={c.key}
-                    className={cn(
-                      'px-2 py-1 whitespace-nowrap',
-                      c.class ?? '',
-                      c.numeric && 'tabular-nums text-right',
-                    )}
-                    onClick={() => onPick?.(row)}
-                  >
-                    {c.cell ? c.cell(row) : (c.get?.(row) ?? '—')}
-                  </td>
-                ))}
-                {actions && <td className="px-2 py-1 text-right">{actions(row)}</td>}
-              </tr>
+              <Fragment key={k}>
+                <tr
+                  className={cn(
+                    'border-t border-line-default',
+                    !!onPick && 'cursor-pointer',
+                    selected === k && 'bg-accent-soft',
+                  )}
+                  data-testid="dt-row"
+                >
+                  {hidden.length > 0 ? (
+                    // 손잡이는 행 클릭(드릴다운)과 **갈라야 한다** — 값을 더 보려고 눌렀는데 상세가
+                    // 열리면 방금 보던 자리를 잃는다.
+                    <td className="px-1 py-1 align-top">
+                      <button
+                        type="button"
+                        className="rounded p-0.5 text-content-faint hover:bg-surface-active hover:text-content-secondary"
+                        aria-expanded={open.has(k)}
+                        aria-label={
+                          open.has(k) ? '접힌 열 숨기기' : `접힌 열 ${hidden.length}개 보기`
+                        }
+                        title={`좁아서 접힌 열 ${hidden.length}개 — ${hidden.map((c) => c.label).join(' · ')}`}
+                        data-testid="dt-expand"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleRow(k)
+                        }}
+                      >
+                        {open.has(k) ? (
+                          <ChevronDown className="h-3 w-3" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3" />
+                        )}
+                      </button>
+                    </td>
+                  ) : null}
+                  {visible.map((c) => (
+                    <td
+                      key={c.key}
+                      className={cn(
+                        'px-2 py-1 whitespace-nowrap',
+                        cellW,
+                        c.class ?? '',
+                        c.numeric && 'tabular-nums',
+                        align(c.numeric),
+                      )}
+                      onClick={() => onPick?.(row)}
+                    >
+                      {c.cell ? c.cell(row) : (c.get?.(row) ?? '—')}
+                    </td>
+                  ))}
+                  {actions && (
+                    <td className={cn('px-2 py-1', fit ? 'text-center' : 'text-right', cellW)}>
+                      {actions(row)}
+                    </td>
+                  )}
+                  {/* 채움 칸 — 남은 폭을 먹고, 행 클릭(드릴다운)은 여기서도 통한다. */}
+                  {fit ? <td aria-hidden="true" onClick={() => onPick?.(row)} /> : null}
+                </tr>
+                {hidden.length > 0 && open.has(k) ? (
+                  <tr className="bg-surface-app" data-testid="dt-row-detail">
+                    <td colSpan={span} className="px-2 py-1.5">
+                      {/* 접힌 값은 **라벨+값 짝**으로 — 표의 머리글이 없으니 각 값이 자기 이름을 들고
+                        있어야 한다(`docs/DESIGN.md` 4절 ②와 같은 규칙). */}
+                      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-2xs sm:grid-cols-[auto_1fr_auto_1fr]">
+                        {hidden.map((c) => (
+                          <Fragment key={c.key}>
+                            <dt className="text-content-faint">{c.label}</dt>
+                            <dd className={cn('min-w-0', c.numeric && 'tabular-nums')}>
+                              {c.cell ? c.cell(row) : (c.get?.(row) ?? '—')}
+                            </dd>
+                          </Fragment>
+                        ))}
+                      </dl>
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
             )
           })}
         </tbody>

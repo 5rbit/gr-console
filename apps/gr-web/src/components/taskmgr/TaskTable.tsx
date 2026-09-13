@@ -5,17 +5,17 @@
 // 표가 직접 구독하면 초당 스무 번 다시 그린다).
 import { useMemo } from 'react'
 import { DataTable } from '../../lib/ui/DataTable'
+import { TaskActions } from './TaskActions'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
+import { StatusDot } from '../../lib/ui/StatusDot'
 import type { Column } from '../../lib/ui/table'
 import {
-  ORIGIN_LABEL,
   STATE_LABEL,
   STATE_TONE,
   deriveState,
-  elapsed,
-  fmtElapsed,
   fmtTime,
-  targetOf,
+  dimsLabel,
+  targetLabel,
   typeName,
   type PlcTaskArea,
 } from '../../lib/task/state'
@@ -33,22 +33,15 @@ export interface TaskTableProps {
   empty?: string
   emptyHint?: string
   testid?: string
+  /** 행 끝에 취소·완료 버튼 — 상세를 열지 않고 목록에서 바로 보낸다. 확인 대화상자는 그대로 거친다. */
+  rowActions?: boolean
 }
 
-export function targetLabel(task: Task): string {
-  const t = targetOf(task)
-  if (!t) return ''
-  return `${t.kind === 'station' ? 'ST' : '셀'} ${t.id}`
-}
+/** 행에 싣는 조작은 PLC에 가는 둘뿐이다 — 실패 표시·삭제·재제출은 상세에서(행이 조작 띠가 되지 않게). */
+const ROW_ACTIONS = ['cancel', 'complete'] as const
 
-/** PLC 자리 — 실행 중이면 스텝, 대기면 큐 슬롯. */
-function plcStep(task: Task): string {
-  const p = task.plc
-  if (!p) return ''
-  if (task.state === 'running') return String(p.step)
-  if (task.state === 'queued' && p.queue_index !== null) return `Q${p.queue_index}`
-  return ''
-}
+// 라벨 도우미는 `lib/task/state.ts`에 있다(순수 · 테스트 가능). 여기서는 이력 표가 쓰던 이름을 그대로 낸다.
+export { targetLabel }
 
 export function StateCell({ task, area }: { task: Task; area: PlcTaskArea | null }) {
   const d = deriveState(task, area)
@@ -58,9 +51,9 @@ export function StateCell({ task, area }: { task: Task; area: PlcTaskArea | null
         {STATE_LABEL[task.state]}
       </StatusBadge>
       {d.mismatch ? (
-        <StatusBadge status="warn" title={d.reason ?? undefined} data-testid="task-mismatch">
-          PLC와 불일치
-        </StatusBadge>
+        <span data-testid="task-mismatch">
+          <StatusDot status="warn" size="sm" title={`PLC와 불일치 — ${d.reason ?? ''}`} />
+        </span>
       ) : null}
     </span>
   )
@@ -68,20 +61,104 @@ export function StateCell({ task, area }: { task: Task; area: PlcTaskArea | null
 
 export function AckCell({ task }: { task: Task }) {
   const a = task.ack
-  if (!a) return <span className="text-slate-400">—</span>
+  if (!a) return <span className="text-content-faint">—</span>
   return (
     <span
-      className={`tabular-nums ${a.accepted ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+      className={`tabular-nums ${a.accepted ? 'text-ok-fg' : 'text-fault-fg'}`}
       title={a.reason}
     >
       {a.code}
       {a.reject_bits ? (
-        <span className="ml-1 text-[10px] opacity-70">
+        <span className="ml-1 text-3xs opacity-70">
           b{a.reject_bits.toString(2).padStart(4, '0')}
         </span>
       ) : null}
     </span>
   )
+}
+
+/**
+ * Task 표의 열 — **목록과 종결 이력이 같은 열**을 쓴다. 두 표가 열이 다르면 같은 Task가 위아래에서
+ * 다른 모양으로 보이고, 종결 뒤에 "어디 갔지"를 찾게 된다. `area`는 대조용 PLC 스냅샷(이력은 null).
+ */
+export function taskColumns(area: PlcTaskArea | null, now: number): Column<Task>[] {
+  return [
+    // 열의 순서와 구성은 현장 요구 그대로다: WorkId · TaskId · 로봇 · 셀 · 종류 · 품목 · 명령시간 ·
+    // 완료시각 · 상태 · 조작. `priority` — 좁은 존에서는 셀·종류·상태(1)가 남고, 로봇·품목·완료시각(2),
+    // Id·명령시간(3) 순으로 접힌다(접힌 값은 행 펼치기로).
+    {
+      key: 'work',
+      label: 'WorkId',
+      get: (t) => (t.work_id ? String(t.work_id) : ''),
+      class: 'font-mono',
+      priority: 3,
+    },
+    {
+      key: 'task',
+      label: 'TaskId',
+      get: (t) => (t.work_id ? t.task_id : null),
+      numeric: true,
+      priority: 3,
+    },
+    {
+      key: 'robot',
+      label: '로봇',
+      get: (t) => t.plc_name ?? '',
+      class: 'font-mono',
+      priority: 2,
+    },
+    { key: 'target', label: '셀', get: (t) => targetLabel(t), priority: 1 },
+    { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType), priority: 1 },
+    {
+      key: 'item',
+      label: '품목',
+      get: (t) => t.plc_task?.Item?.Code || null,
+      cell: (t) => {
+        const i = t.plc_task?.Item
+        if (!i?.Code) return <span className="text-content-faint">—</span>
+        return (
+          <span
+            className="tabular-nums"
+            title={dimsLabel(t) ? `ID/OD/H ${dimsLabel(t)}` : undefined}
+          >
+            {i.Code}
+            {i.Count > 1 ? <span className="text-content-faint"> ×{i.Count}</span> : null}
+          </span>
+        )
+      },
+      numeric: true,
+      priority: 2,
+    },
+    {
+      key: 'issued',
+      label: '명령시간',
+      get: (t) => t.submitted_at ?? t.created_at,
+      cell: (t) => (
+        <span className="tabular-nums">{fmtTime(t.submitted_at ?? t.created_at, now)}</span>
+      ),
+      priority: 3,
+    },
+    {
+      key: 'ended',
+      label: '완료시각',
+      get: (t) => t.ended_at ?? '',
+      // 끝나지 않은 행은 비워 둔다 — 경과 시간은 상세가 든다. 끝난 시각이 "언제 끝났나"를 바로 말한다.
+      cell: (t) =>
+        t.ended_at ? (
+          <span className="tabular-nums">{fmtTime(t.ended_at, now)}</span>
+        ) : (
+          <span className="text-content-faint">—</span>
+        ),
+      priority: 2,
+    },
+    {
+      key: 'state',
+      label: '상태',
+      get: (t) => t.state,
+      cell: (t) => <StateCell task={t} area={area} />,
+      priority: 1,
+    },
+  ]
 }
 
 export function TaskTable({
@@ -94,46 +171,9 @@ export function TaskTable({
   empty = '진행 중인 Task 없음',
   emptyHint,
   testid = 'task-table',
+  rowActions = false,
 }: TaskTableProps) {
-  const columns = useMemo<Column<Task>[]>(
-    () => [
-      { key: 'seq', label: '#', get: (t) => t.seq, numeric: true, class: 'w-12' },
-      {
-        key: 'state',
-        label: '상태',
-        get: (t) => t.state,
-        cell: (t) => <StateCell task={t} area={area} />,
-      },
-      { key: 'robot', label: '로봇', get: (t) => t.plc_name ?? '', class: 'font-mono' },
-      { key: 'type', label: '종류', get: (t) => typeName(t.plc_task?.TaskType) },
-      { key: 'target', label: '대상', get: (t) => targetLabel(t) },
-      { key: 'item', label: '품목', get: (t) => t.plc_task?.Item?.Code || null, numeric: true },
-      { key: 'count', label: '수량', get: (t) => t.plc_task?.Item?.Count ?? null, numeric: true },
-      {
-        key: 'ack',
-        label: 'Ack',
-        get: (t) => t.ack?.code ?? null,
-        cell: (t) => <AckCell task={t} />,
-        numeric: true,
-      },
-      { key: 'step', label: 'PLC', get: (t) => plcStep(t), class: 'font-mono' },
-      { key: 'origin', label: '출처', get: (t) => ORIGIN_LABEL[t.origin] },
-      {
-        key: 'created',
-        label: '생성',
-        get: (t) => t.created_at,
-        cell: (t) => <span className="tabular-nums">{fmtTime(t.created_at, now)}</span>,
-      },
-      {
-        key: 'elapsed',
-        label: '경과',
-        get: (t) => elapsed(t, now),
-        cell: (t) => <span className="tabular-nums">{fmtElapsed(elapsed(t, now))}</span>,
-        numeric: true,
-      },
-    ],
-    [area, now],
-  )
+  const columns = useMemo(() => taskColumns(area, now), [area, now])
   return (
     <DataTable
       rows={rows}
@@ -145,6 +185,12 @@ export function TaskTable({
       empty={empty}
       emptyHint={emptyHint}
       testid={testid}
+      fit
+      actions={
+        rowActions
+          ? (t) => <TaskActions task={t} only={ROW_ACTIONS} row testid="row-action" />
+          : undefined
+      }
     />
   )
 }

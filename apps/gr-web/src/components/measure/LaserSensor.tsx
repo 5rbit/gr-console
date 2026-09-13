@@ -12,6 +12,7 @@ import { Card } from '../../lib/ui/Card'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { EmptyState } from '../../lib/ui/EmptyState'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
+import { statusTone } from '../../lib/ui/status'
 import { toast } from '../../lib/ui/toast'
 import { KvTable } from './helpers'
 
@@ -90,7 +91,7 @@ export function LaserSensor() {
 
   return (
     <div className="space-y-3" data-testid="measure-laser">
-      {error ? <div className="text-xs text-red-600">{error}</div> : null}
+      {error ? <div className={`text-xs ${statusTone('fault').text}`}>{error}</div> : null}
       <div className="grid gap-3 lg:grid-cols-2">
         <Card>
           <h3 className="mb-1 text-xs font-semibold text-content-muted">

@@ -48,7 +48,7 @@ export function Toaster({ className }: ToasterProps = {}) {
           // 잡을 방법이 없으면 그 피드백이 실제로 뜨는지 아무도 확인하지 못한다.
           <div
             key={t.id}
-            className={`flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 shadow-lg dark:border-slate-700 ${tone.soft}`}
+            className={`flex items-start gap-2 rounded-lg border border-line-default px-3 py-2 shadow-lg ${tone.soft}`}
             role="status"
             data-testid="toast"
             data-kind={t.kind}
@@ -56,11 +56,11 @@ export function Toaster({ className }: ToasterProps = {}) {
             <Icon
               className={`mt-0.5 h-4 w-4 shrink-0 ${tone.text} ${t.kind === 'pending' ? 'animate-spin' : ''}`}
             />
-            <span className="flex-1 text-sm break-words text-slate-700 dark:text-slate-200">
+            <span className="flex-1 text-sm break-words text-content-secondary">
               {t.msg}
             </span>
             <button
-              className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              className="text-content-faint hover:text-content-secondary"
               aria-label="닫기"
               onClick={() => toasts.dismiss(t.id)}
             >

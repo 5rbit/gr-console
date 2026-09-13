@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cascadeAfter,
   ALL_STATES,
   EMPTY_FILTER,
   TERMINAL,
@@ -222,5 +223,27 @@ describe('matchesFilter', () => {
         typeName,
       ),
     ).toBe(true)
+  })
+})
+
+describe('cascadeAfter', () => {
+  const t = (id: string, work: number, tid: number, state: TaskState) =>
+    task({ id, seq: tid, work_id: work, task_id: tid, state })
+  it('같은 WorkId의 뒤 Task 중 살아 있는 것만, TaskId 순으로', () => {
+    const me = t('me', 7, 2, 'running')
+    const all = [
+      t('a', 7, 1, 'completed'),
+      me,
+      t('d', 7, 4, 'queued'),
+      t('c', 7, 3, 'accepted'),
+      t('e', 7, 5, 'draft'),
+      t('f', 7, 6, 'canceled'),
+      t('g', 8, 3, 'queued'),
+    ]
+    expect(cascadeAfter(all, me).map((x) => x.id)).toEqual(['c', 'd'])
+    expect(cascadeAfter(all, t('d', 7, 4, 'queued'))).toEqual([])
+  })
+  it('WorkId가 없는(제출 전) Task는 꼬리가 없다', () => {
+    expect(cascadeAfter([t('x', 7, 3, 'queued')], t('me', 0, 0, 'draft'))).toEqual([])
   })
 })

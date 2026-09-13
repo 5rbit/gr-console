@@ -43,8 +43,8 @@ export function LayoutSidePanel({
   const [q, setQ] = useState('')
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="layout-side">
-      <div className="flex h-10 flex-none items-center gap-2 border-b border-slate-200 px-3 dark:border-slate-700">
-        <Wand2 className="h-4 w-4 text-slate-500" />
+      <div className="flex h-10 flex-none items-center gap-2 border-b border-line-default px-3">
+        <Wand2 className="h-4 w-4 text-content-muted" />
         <span className="text-sm font-semibold">레이아웃 편집</span>
         <span className="flex-1" />
         <Segmented
@@ -64,11 +64,11 @@ export function LayoutSidePanel({
         />
       </div>
       {tab !== 'rule' ? (
-        <div className="flex h-10 flex-none items-center border-b border-slate-200 px-3 dark:border-slate-700">
+        <div className="flex h-10 flex-none items-center border-b border-line-default px-3">
           <label className="relative flex w-full items-center">
-            <Search className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-content-faint" />
             <input
-              className="h-7 w-full rounded-md border border-slate-300 bg-transparent pr-2 pl-7 text-xs focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none dark:border-slate-600"
+              className="h-7 w-full rounded-md border border-line-strong bg-transparent pr-2 pl-7 text-xs focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
               placeholder={tab === 'cell' ? 'id·구역·행·열' : 'id·컨베이어·그룹'}
               value={q}
               onChange={(e) => setQ(e.currentTarget.value)}

@@ -101,7 +101,14 @@ export default function MeasureMonitor() {
       {header}
       <div className="flex flex-wrap items-center gap-1 border-b border-line-default px-3 py-1.5">
         {SUB.map(([id, label]) => (
-          <Button key={id} size="sm" intent={sub === id ? 'primary' : 'ghost'} active={sub === id} onClick={() => go(id)} data-testid={`measure-sub-${id}`}>
+          <Button
+            key={id}
+            size="sm"
+            intent={sub === id ? 'primary' : 'ghost'}
+            active={sub === id}
+            onClick={() => go(id)}
+            data-testid={`measure-sub-${id}`}
+          >
             {label}
           </Button>
         ))}
@@ -123,7 +130,11 @@ export default function MeasureMonitor() {
                 </option>
               ))}
             </Select>
-            <Button size="sm" onClick={() => downloadCsv(csvFileName(), toCsv(filtered))} disabled={filtered.length === 0}>
+            <Button
+              size="sm"
+              onClick={() => downloadCsv(csvFileName(), toCsv(filtered))}
+              disabled={filtered.length === 0}
+            >
               CSV
             </Button>
             <Button size="sm" loading={measlog.loading} onClick={() => void measlog.reload(true)}>
@@ -134,14 +145,25 @@ export default function MeasureMonitor() {
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3">
         {!wm && (sub === 'dash' || sub === 'task' || sub === 'axis' || sub === 'meas') ? (
-          <EmptyState title="PLC 상태 없음" hint={statusFeed.error ?? '상태 스트림(/api/status/stream)을 기다리는 중입니다.'} />
+          <EmptyState
+            title="PLC 상태 없음"
+            hint={statusFeed.error ?? '상태 스트림(/api/status/stream)을 기다리는 중입니다.'}
+          />
         ) : null}
         {wm && sub === 'dash' ? <Dashboard wm={wm} /> : null}
         {wm && sub === 'task' ? <TaskNow wm={wm} /> : null}
         {wm && sub === 'axis' ? <Axes wm={wm} axisHist={measlog.axisHist} /> : null}
         {wm && sub === 'meas' ? <MeasureProgress wm={wm} snap={snap} /> : null}
         {sub === 'laser' ? <LaserSensor /> : null}
-        {sub === 'hist' ? <History rows={filtered} snap={snap} selected={selected} onSelect={setSelected} allCount={rows.length} /> : null}
+        {sub === 'hist' ? (
+          <History
+            rows={filtered}
+            snap={snap}
+            selected={selected}
+            onSelect={setSelected}
+            allCount={rows.length}
+          />
+        ) : null}
         {sub === 'trend' ? (
           <Trend
             rows={filtered}
@@ -179,7 +201,13 @@ export default function MeasureMonitor() {
                 rawSel === 'webmon'
                   ? wm
                   : rawSel === 'header'
-                    ? snap && { head: snap.head, count: snap.count, total: snap.total, capacity: snap.capacity, at: snap.at }
+                    ? snap && {
+                        head: snap.head,
+                        count: snap.count,
+                        total: snap.total,
+                        capacity: snap.capacity,
+                        at: snap.at,
+                      }
                     : rawSel === 'sel'
                       ? (rows.find((r) => r.seq === selected) ?? null)
                       : (snap as unknown as Record<string, unknown> | null)?.[rawSel]
@@ -187,7 +215,10 @@ export default function MeasureMonitor() {
             />
           </div>
         ) : null}
-        {measlog.error && (sub === 'hist' || sub === 'trend' || sub === 'code' || sub === 'stat') ? <div className="mt-2 text-xs text-red-600">{measlog.error}</div> : null}
+        {measlog.error &&
+        (sub === 'hist' || sub === 'trend' || sub === 'code' || sub === 'stat') ? (
+          <div className="mt-2 text-xs text-fault-fg">{measlog.error}</div>
+        ) : null}
       </div>
     </div>
   )

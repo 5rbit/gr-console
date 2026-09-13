@@ -233,16 +233,16 @@ export function LayoutTab({
       >
         {mode === 'monitor' && info ? (
           <div
-            className="absolute top-2 right-12 z-10 flex max-h-[calc(100%-1rem)] w-72 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white/95 shadow-lg dark:border-slate-700 dark:bg-slate-900/95"
+            className="absolute top-2 right-12 z-10 flex max-h-[calc(100%-1rem)] w-72 flex-col overflow-hidden rounded-lg border border-line-default bg-surface-panel/95 shadow-lg"
             data-testid="map-info"
           >
-            <div className="flex h-10 flex-none items-center gap-2 border-b border-slate-200 px-3 dark:border-slate-700">
+            <div className="flex h-10 flex-none items-center gap-2 border-b border-line-default px-3">
               <span className="text-sm font-semibold">
                 {info.kind === 'cell' ? '셀' : '스테이션'} #{info.id}
               </span>
               {infoWork ? (
                 <span
-                  className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                  className="rounded px-1.5 py-0.5 text-3xs font-semibold text-content-on-accent"
                   style={{ background: infoWork.color }}
                 >
                   {infoWork.label}
@@ -291,11 +291,8 @@ export function LayoutTab({
                           ],
                         ] as [string, string][]
                       ).map(([k, val]) => (
-                        <tr
-                          key={k}
-                          className="border-b border-slate-100 last:border-0 dark:border-slate-800"
-                        >
-                          <td className="h-7 pr-2 text-slate-500">{k}</td>
+                        <tr key={k} className="border-b border-line-subtle last:border-0">
+                          <td className="h-7 pr-2 text-content-muted">{k}</td>
                           <td className="h-7 text-right font-mono tabular-nums">{val}</td>
                         </tr>
                       ))}
@@ -341,14 +338,14 @@ export function LayoutTab({
                 </>
               ) : null}
               {infoStation ? (
-                <div className="text-slate-500">
+                <div className="text-content-muted">
                   CV{infoStation.conv_no} · G{infoStation.group}-{infoStation.group_index} ·
                   TaskType {infoStation.task_type}
                 </div>
               ) : null}
               {infoCell || infoStation ? (
                 <details>
-                  <summary className="cursor-pointer text-[11px] font-semibold text-slate-500">
+                  <summary className="cursor-pointer text-2xs font-semibold text-content-muted">
                     LGR_Cell_Info
                   </summary>
                   <div className="mt-1">

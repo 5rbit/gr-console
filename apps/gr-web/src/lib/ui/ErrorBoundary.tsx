@@ -36,7 +36,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
     return (
       <div
         role="alert"
-        className="m-3 space-y-2 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
+        className="m-3 space-y-2 rounded-md border border-fault bg-fault-soft p-3 text-xs text-fault-fg"
         data-testid="error-boundary"
       >
         <p className="m-0 text-sm font-semibold">
@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
         <p className="m-0 font-mono break-all">{error.message}</p>
         <button
           type="button"
-          className="h-7 rounded-md border border-red-300 px-2 hover:bg-red-100 dark:border-red-500/40 dark:hover:bg-red-500/20"
+          className="h-control-sm rounded-md border border-fault px-2 hover:bg-fault-soft"
           onClick={() => this.setState({ error: null })}
         >
           다시 시도

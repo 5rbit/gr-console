@@ -1,142 +1,79 @@
-// 왼쪽 사이드바 — `PLC`(연결·레이아웃)와 `상태`(모드·작업·SSE) 두 섹션.
+// 왼쪽 사이드바 — **단일 화면 모드**의 보조 면. 로봇·PLC·상태 세 패널을 접이식 섹션으로 얹는다.
 //
-// sh4w-web의 사이드바에서 폭 리사이즈·밀도 토글·접기 크롬을 가져오고 로봇/Instance 목록은 걷어 냈다 —
-// GR 콘솔은 선택 축이 없고, 사이드바는 "지금 PLC가 어떤가"를 한눈에 보이는 자리다.
-import { useEffect, useRef, useState } from 'react'
+// 내용은 더 여기 없다: 세 섹션의 몸은 `components/panes/*`로 떼어 냈고 워크스페이스(도킹) 모드는
+// 같은 컴포넌트를 존에 얹는다. 한 벌을 두 껍데기가 쓰는 모양이라 "사이드바의 PLC 목록"과
+// "오른쪽에 도킹한 PLC 목록"이 갈릴 수 없다.
+//
+// 폭·밀도 두 손잡이도 정리됐다. 폭은 `Splitter`(도킹 존과 같은 것 — 키보드로도 끈다)를 쓰고,
+// 밀도는 전역 `density`가 맡는다(예전에는 사이드바만 자기 밀도 키를 들고 있었다).
+import { useState } from 'react'
 import type * as React from 'react'
-import { ChevronRight, Link as LinkIcon, RefreshCw, Rows2, Rows3 } from 'lucide-react'
-import { plcs } from '../lib/plcs'
-import { robotColor, robots } from '../lib/robots'
-import { robotTone } from './shared/RobotPicker'
-import { statusFeed } from '../lib/feeds'
-import { useSse } from '../lib/sse'
+import { ChevronRight, Rows2, Rows3 } from 'lucide-react'
+import { density } from '../lib/density'
 import { useStore } from '../lib/store'
-import { panels } from '../lib/panels'
-import { modeName } from '../lib/gr/const'
-import { StatusDot } from '../lib/ui/StatusDot'
-import { StatusBadge } from '../lib/ui/StatusBadge'
-import { JsonView } from '../lib/ui/JsonView'
-import { Button } from '../lib/ui/Button'
-import type { PlcId, PlcStatus } from '../lib/types'
-import type { Status } from '../lib/ui/status'
+import { ZONE_LIMITS } from '../lib/workspace/model'
+import { Splitter } from './workspace/Splitter'
+import PlcPane, { PlcSummary } from './panes/PlcPane'
+import RobotsPane, { RobotsSummary } from './panes/RobotsPane'
+import StatusPane, { StatusSummary } from './panes/StatusPane'
 
 const LS_WIDTH = 'gr-sidebar-w'
-const LS_DENSE = 'gr-sidebar-dense'
-const MIN_W = 200
-const MAX_W = 480
+const MIN_W = ZONE_LIMITS.left.min
+const MAX_W = ZONE_LIMITS.left.max
 
-function readNum(key: string, fallback: number): number {
-  const v = Number(localStorage.getItem(key))
-  return Number.isFinite(v) && v >= MIN_W && v <= MAX_W ? v : fallback
+function readWidth(): number {
+  const v = Number(localStorage.getItem(LS_WIDTH))
+  return Number.isFinite(v) && v >= MIN_W && v <= MAX_W ? v : 240
 }
 
-const headCls =
-  'flex shrink-0 items-center gap-1.5 border-b border-slate-200 px-2 py-1.5 dark:border-slate-700'
-const countCls =
-  'rounded-full bg-slate-200 px-1.5 text-[11px] tabular-nums text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+const headCls = 'flex shrink-0 items-center gap-1.5 border-b border-line-default px-2 py-1.5'
+// 개수는 알약이 아니라 숫자다 — 제목 옆 같은 자리에 같은 크기로 서야 세 섹션을 훑을 수 있다.
+const countCls = 'text-2xs tabular-nums text-content-tertiary'
 const iconCls =
-  'rounded p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-800 dark:hover:bg-slate-700 dark:hover:text-slate-100'
+  'rounded p-1 text-content-faint transition-colors hover:bg-surface-active hover:text-content-primary'
 
-/** PLC 연결 → 점 상태. 한 번도 붙은 적 없고 오류도 없으면 중립(아직 모른다). */
-function plcDot(p: PlcStatus): Status {
-  if (p.connected) return 'ok'
-  return p.last_error || p.last_ok_at ? 'fault' : 'neutral'
-}
-
-/** 레이아웃 검사 → 배지. */
-function layoutBadge(p: PlcStatus): { status: Status; label: string } {
-  if (p.layout.ok === true) return { status: 'ok', label: '레이아웃 OK' }
-  if (p.layout.ok === false) return { status: 'fault', label: '불일치' }
-  return { status: 'neutral', label: '미검사' }
-}
-
-/** PLC 상세 팝업 — 원본 JSON과 재검사·재연결. `panels.open`으로 띄운다. */
-function PlcDetail({ id }: { id: PlcId }) {
-  useStore(plcs)
-  const p = plcs.byId(id)
-  const [busy, setBusy] = useState<'check' | 'reconnect' | null>(null)
-  if (!p) return <p className="text-sm text-slate-500">PLC `{id}`가 목록에 없습니다.</p>
-  const lb = layoutBadge(p)
+/** 접이식 섹션 하나 — 머리줄(제목·요약·오른쪽 손잡이) + 몸. 도킹 모드의 탭 띠와 같은 일을 한다. */
+function Section({
+  id,
+  title,
+  summary,
+  trailing,
+  children,
+}: {
+  id: string
+  title: string
+  summary?: React.ReactNode
+  trailing?: React.ReactNode
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(true)
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusDot status={plcDot(p)} label={p.connected ? '연결됨' : '미연결'} />
-        <StatusBadge status={lb.status}>{lb.label}</StatusBadge>
-        <span className="font-mono text-xs text-slate-400">{p.endpoint}</span>
-        <span className="flex-1" />
-        <Button
-          size="sm"
-          icon={<RefreshCw className="h-3.5 w-3.5" />}
-          loading={busy === 'check'}
-          disabled={busy !== null}
-          data-testid="plc-check"
-          onClick={() => {
-            setBusy('check')
-            void plcs.check(id).finally(() => setBusy(null))
-          }}
+    <>
+      <div className={headCls}>
+        <button
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          data-testid={`sec-${id}`}
         >
-          재검사
-        </Button>
-        <Button
-          size="sm"
-          intent="outline"
-          icon={<LinkIcon className="h-3.5 w-3.5" />}
-          loading={busy === 'reconnect'}
-          disabled={busy !== null}
-          data-testid="plc-reconnect"
-          onClick={() => {
-            setBusy('reconnect')
-            void plcs.reconnect(id).finally(() => setBusy(null))
-          }}
-        >
-          재연결
-        </Button>
+          <ChevronRight
+            className={`h-3 w-3 shrink-0 text-content-faint transition-transform ${open ? 'rotate-90' : ''}`}
+          />
+          <span className="text-xs font-semibold text-content-muted">{title}</span>
+          {summary ? <span className={countCls}>{summary}</span> : null}
+        </button>
+        {trailing}
       </div>
-      {p.last_error ? <p className="text-xs text-red-500">{p.last_error}</p> : null}
-      <JsonView value={p} rootLabel={p.id} defaultDepth={2} height={360} />
-    </div>
+      {/* 펼친 섹션은 **남은 높이를 나눠 갖는다**(`flex-1` + `min-h-0`) — 스크롤은 패널 자신이 한다.
+          바깥을 스크롤시키고 안쪽을 `flex-1`로 두면 높이가 auto라 목록이 0px로 접힌다. */}
+      {open ? <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div> : null}
+    </>
   )
 }
 
 export function Sidebar() {
-  useStore(plcs, robots)
-  useSse(statusFeed)
-  useEffect(() => plcs.start(), [])
-  useEffect(() => robots.start(), [])
-
-  const [width, setWidth] = useState(() => readNum(LS_WIDTH, 240))
-  const [dense, setDense] = useState(() => localStorage.getItem(LS_DENSE) === '1')
-  const [plcOpen, setPlcOpen] = useState(true)
-  const [robotOpen, setRobotOpen] = useState(true)
-  const [statOpen, setStatOpen] = useState(true)
-
-  function toggleDense(): void {
-    const next = !dense
-    setDense(next)
-    localStorage.setItem(LS_DENSE, next ? '1' : '0')
-  }
-
-  // ── 폭 드래그 ──
-  const dragging = useRef(false)
-  function startDrag(e: React.PointerEvent<HTMLDivElement>): void {
-    dragging.current = true
-    e.currentTarget.setPointerCapture(e.pointerId)
-  }
-  function onDrag(e: React.PointerEvent<HTMLDivElement>): void {
-    if (!dragging.current) return
-    setWidth(Math.min(MAX_W, Math.max(MIN_W, e.clientX)))
-  }
-  function endDrag(e: React.PointerEvent<HTMLDivElement>): void {
-    if (!dragging.current) return
-    dragging.current = false
-    e.currentTarget.releasePointerCapture(e.pointerId)
-    localStorage.setItem(LS_WIDTH, String(Math.round(width)))
-  }
-
-  const wm = statusFeed.data?.webmon ?? null
-  const sseStatus: Status = statusFeed.connected ? 'ok' : statusFeed.error ? 'fault' : 'neutral'
-  const rowPad = dense ? 'py-0.5' : 'py-1.5'
-  const connected = plcs.list.filter((p) => p.connected).length
+  useStore(density)
+  const [width, setWidth] = useState(readWidth)
 
   return (
     <div
@@ -144,217 +81,48 @@ export function Sidebar() {
       style={{ width: `${width}px` }}
       data-testid="sidebar"
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {/* ── 로봇 (명령을 보낼 로봇 선택) ── */}
-        <div className={headCls}>
-          <button
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-            onClick={() => setRobotOpen(!robotOpen)}
-            aria-expanded={robotOpen}
-            data-testid="sec-robot"
-          >
-            <ChevronRight
-              className={`h-3 w-3 shrink-0 text-slate-400 transition-transform ${robotOpen ? 'rotate-90' : ''}`}
-            />
-            <span className="text-xs font-semibold text-slate-500">로봇</span>
-            <span className={countCls} data-testid="robot-count">
-              {robots.list.length}
-            </span>
-            {robots.current ? (
-              <span className="text-[10px] text-slate-400">선택 {robots.current.name}</span>
-            ) : null}
-          </button>
-        </div>
-        {robotOpen ? (
-          <ul
-            className="shrink-0"
-            data-testid="robot-list"
-            role="radiogroup"
-            aria-label="명령을 보낼 로봇"
-          >
-            {robots.list.length === 0 ? (
-              <li className="px-2 py-2 text-[11px] text-slate-400">
-                {robots.error ? `로봇 목록 조회 실패 — ${robots.error}` : '로봇 목록 없음'}
-              </li>
-            ) : null}
-            {robots.list.map((r) => {
-              const on = r.id === robots.selected
-              return (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    className={`flex w-full items-center gap-2 px-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 ${rowPad} ${on ? 'bg-indigo-50 dark:bg-indigo-950' : ''}`}
-                    data-testid={`robot-${r.id}`}
-                    title={`${r.opcua_root} · DST ${r.dst} · 상태 PLC ${r.plc}${r.gate.can_submit ? '' : ` · 게이트 닫힘: ${r.gate.reasons.join('; ')}`}`}
-                    onClick={() => robots.select(r.id)}
-                  >
-                    <StatusDot status={robotTone(r)} size="sm" />
-                    <span
-                      className="h-2.5 w-2.5 flex-none rounded-sm"
-                      style={{ background: robotColor(r.id) }}
-                      title="맵에서 이 로봇의 작업 테두리 색"
-                    />
-                    <span
-                      className={`min-w-0 flex-1 truncate text-xs ${on ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'font-medium'}`}
-                    >
-                      {r.name}
-                    </span>
-                    {r.active_tasks ? (
-                      <span className="font-mono text-[10px] text-slate-400" title="진행 중 Task">
-                        {r.active_tasks}
-                      </span>
-                    ) : null}
-                    {on ? <StatusBadge status="info">선택</StatusBadge> : null}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        ) : null}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <Section id="robot" title="로봇" summary={<RobotsSummary />}>
+          <RobotsPane />
+        </Section>
 
-        {/* ── PLC ── */}
-        <div className={headCls}>
-          <button
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-            onClick={() => setPlcOpen(!plcOpen)}
-            aria-expanded={plcOpen}
-            data-testid="sec-plc"
-          >
-            <ChevronRight
-              className={`h-3 w-3 shrink-0 text-slate-400 transition-transform ${plcOpen ? 'rotate-90' : ''}`}
-            />
-            <span className="text-xs font-semibold text-slate-500">PLC</span>
-            <span className={countCls} data-testid="plc-count">
-              {plcs.list.length}
-            </span>
-            {plcs.list.length > 0 ? (
-              <span className="text-[10px] text-slate-400">연결 {connected}</span>
-            ) : null}
-          </button>
-          <button
-            className={iconCls}
-            title="밀도 전환"
-            aria-label="목록 밀도 전환"
-            data-testid="sidebar-density"
-            onClick={toggleDense}
-          >
-            {dense ? <Rows3 className="h-4 w-4" /> : <Rows2 className="h-4 w-4" />}
-          </button>
-        </div>
-        {plcOpen ? (
-          <ul className="shrink-0" data-testid="plc-list">
-            {plcs.list.length === 0 ? (
-              <li className="px-2 py-2 text-[11px] text-slate-400">
-                {plcs.error ? `PLC 목록 조회 실패 — ${plcs.error}` : 'PLC 목록 없음'}
-              </li>
-            ) : null}
-            {plcs.list.map((p) => {
-              const lb = layoutBadge(p)
-              return (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    className={`flex w-full items-center gap-2 px-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 ${rowPad}`}
-                    data-testid={`plc-${p.id}`}
-                    title={p.last_error ?? p.endpoint}
-                    onClick={() =>
-                      panels.open({
-                        id: `plc-${p.id}`,
-                        mode: 'popup',
-                        title: `${p.label} (${p.id})`,
-                        component: PlcDetail,
-                        props: { id: p.id },
-                      })
-                    }
-                  >
-                    <StatusDot status={plcDot(p)} size="sm" />
-                    <span className="min-w-0 flex-1 truncate text-xs font-medium">{p.label}</span>
-                    <span className="font-mono text-[10px] tabular-nums text-slate-400">
-                      {p.rtt_ms !== null ? `${Math.round(p.rtt_ms)}ms` : '—'}
-                    </span>
-                    <StatusBadge status={lb.status}>{lb.label}</StatusBadge>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        ) : null}
+        <Section
+          id="plc"
+          title="PLC"
+          summary={<PlcSummary />}
+          trailing={
+            <button
+              className={iconCls}
+              title={density.isCompact ? '표준 밀도로' : '조밀 밀도로'}
+              aria-label="표시 밀도 전환"
+              aria-pressed={density.isCompact}
+              data-testid="sidebar-density"
+              onClick={() => density.toggle()}
+            >
+              {density.isCompact ? <Rows3 className="h-4 w-4" /> : <Rows2 className="h-4 w-4" />}
+            </button>
+          }
+        >
+          <PlcPane />
+        </Section>
 
-        {/* ── 상태 ── */}
-        <div className={headCls}>
-          <button
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-            onClick={() => setStatOpen(!statOpen)}
-            aria-expanded={statOpen}
-            data-testid="sec-status"
-          >
-            <ChevronRight
-              className={`h-3 w-3 shrink-0 text-slate-400 transition-transform ${statOpen ? 'rotate-90' : ''}`}
-            />
-            <span className="text-xs font-semibold text-slate-500">상태</span>
-          </button>
-          <StatusDot
-            status={sseStatus}
-            size="sm"
-            label="SSE"
-            title={statusFeed.error ?? '상태 스트림'}
-          />
-        </div>
-        {statOpen ? (
-          <dl
-            className={`grid shrink-0 grid-cols-[auto_1fr] gap-x-3 px-2 text-xs ${dense ? 'gap-y-0.5 py-1' : 'gap-y-1 py-2'}`}
-            data-testid="status-rows"
-          >
-            <dt className="text-slate-400">모드</dt>
-            <dd className="font-mono" data-testid="st-mode">
-              {wm ? modeName(wm.Mode) : '—'}
-            </dd>
-            <dt className="text-slate-400">작업</dt>
-            <dd className="font-mono tabular-nums" data-testid="st-task">
-              {wm ? `W${wm.Stat.Task.Now.WorkId} / T${wm.Stat.Task.Now.TaskId}` : '—'}
-            </dd>
-            <dt className="text-slate-400">스텝</dt>
-            <dd className="font-mono tabular-nums" data-testid="st-step">
-              {wm ? `${wm.Proc.Step.Now}` : '—'}
-              {wm?.Proc.Msg ? <span className="ml-1 text-slate-400">{wm.Proc.Msg}</span> : null}
-            </dd>
-            <dt className="text-slate-400">알람</dt>
-            <dd className="flex items-center gap-2" data-testid="st-alarm">
-              {wm ? (
-                <>
-                  <StatusDot
-                    status={wm.Alarm.Fault ? 'fault' : 'neutral'}
-                    size="sm"
-                    label="Fault"
-                  />
-                  <StatusDot status={wm.Alarm.Warn ? 'warn' : 'neutral'} size="sm" label="Warn" />
-                </>
-              ) : (
-                '—'
-              )}
-            </dd>
-            <dt className="text-slate-400">대기열</dt>
-            <dd className="font-mono tabular-nums" data-testid="st-queue">
-              {wm ? wm.Stat.Task.Queue.length : '—'}
-            </dd>
-          </dl>
-        ) : null}
+        <Section id="status" title="상태" trailing={<StatusSummary />}>
+          <StatusPane />
+        </Section>
       </div>
 
-      {/* 폭 손잡이 */}
-      <div
-        className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="사이드바 폭 조절"
-        data-testid="sidebar-resize"
-        onPointerDown={startDrag}
-        onPointerMove={onDrag}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-      ></div>
+      {/* 폭 손잡이 — 도킹 존과 같은 스플리터(키보드 ←→ 로도 끈다). */}
+      <div className="absolute inset-y-0 -right-1 z-10 flex">
+        <Splitter
+          axis="col"
+          size={width}
+          min={MIN_W}
+          max={MAX_W}
+          label="사이드바 폭"
+          onResize={setWidth}
+          onCommit={(v) => localStorage.setItem(LS_WIDTH, String(Math.round(v)))}
+        />
+      </div>
     </div>
   )
 }

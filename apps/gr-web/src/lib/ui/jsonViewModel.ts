@@ -20,9 +20,9 @@ export function isBranch(v: unknown): v is Record<string, unknown> {
 
 /** 값 종류 → 클래스. 상태색 여섯이 아니라 **종류**를 말하는 별개 축이다. */
 export const VAL_CLASS: Record<string, string> = {
-  string: 'text-emerald-700',
-  number: 'text-sky-600',
-  boolean: 'text-amber-700',
+  string: 'text-ok-fg',
+  number: 'text-info-fg',
+  boolean: 'text-warn-fg',
   null: 'text-content-faint italic',
   undefined: 'text-content-faint italic',
 }

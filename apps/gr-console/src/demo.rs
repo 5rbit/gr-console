@@ -62,6 +62,9 @@ struct Inner {
     /// Bytes last encoded per (store, DB number) for S7-writable tables; a difference means a client wrote them.
     encoded: HashMap<(u8, u16), Vec<u8>>,
     op_echo: Option<(TaskOp, u32, u32)>,
+    /// A task that just ended: stays in `Now` for one tick with `Status.Complete`/`Canceled` raised,
+    /// then moves to its ring — the real PLC's order, which the ledger sync relies on.
+    ended: Option<(TaskData, bool)>,
 }
 
 fn ring_push(ring: &mut VecDeque<TaskData>, t: TaskData) {
@@ -151,6 +154,7 @@ impl DemoWorld {
             relay_root: None,
             cmd_zero: Json::Null,
             encoded: HashMap::new(),
+            ended: None,
         };
         // zero models from the contract, then seed constants / registries
         for db in ["OPCUA", "TASK", "CELL", "STATION", "PARA", "ALARM", "Interface_GRM", "WEBMON", "MEASLOG", "MEASLOG_HIST", "LASERDIAG"] {
@@ -375,6 +379,15 @@ impl DemoWorld {
                 }
             }
         }
+        // ---- the task that ended last tick (bit was up) now goes to its ring
+        if let Some((t, canceled)) = g.ended.take() {
+            if canceled {
+                ring_push(&mut g.canceled, t);
+            } else {
+                self.push_measure(&mut g, &t);
+                ring_push(&mut g.completed, t);
+            }
+        }
         // ---- task ops
         if let Some((op, work_id, task_id)) = g.op_echo.take() {
             match op {
@@ -392,7 +405,9 @@ impl DemoWorld {
                         && (task_id == 0 || r.task.task_id == task_id)
                     {
                         let r = g.now.take().unwrap();
-                        removed.push(r.task);
+                        // the running task is also Queue[0]: one key, one ring entry
+                        removed.retain(|t| t.key() != r.task.key());
+                        g.ended = Some((r.task, true));
                     }
                     for t in removed {
                         ring_push(&mut g.canceled, t);
@@ -404,7 +419,8 @@ impl DemoWorld {
                         && r.task.task_id == task_id
                     {
                         let r = g.now.take().unwrap();
-                        ring_push(&mut g.completed, r.task);
+                        g.queue.retain(|q| q.key() != r.task.key());
+                        g.ended = Some((r.task, false));
                     } else if let Some(i) = g.queue.iter().position(|t| t.work_id == work_id && t.task_id == task_id) {
                         let t = g.queue.remove(i);
                         ring_push(&mut g.completed, t);
@@ -431,8 +447,7 @@ impl DemoWorld {
         if let Some(t) = finished {
             g.now = None;
             g.queue.retain(|q| q.key() != t.key());
-            self.push_measure(&mut g, &t);
-            ring_push(&mut g.completed, t);
+            g.ended = Some((t, false));
             g.target[2] = 2500.0;
             g.target[3] = 300.0;
         }
@@ -443,7 +458,13 @@ impl DemoWorld {
         }
         // ---- publish status
         let step = g.now.as_ref().map(|r| STEPS[r.step_idx.min(STEPS.len() - 1)]).unwrap_or(0);
-        let now_json = serde_json::to_value(g.now.as_ref().map(|r| r.task.clone()).unwrap_or_default()).unwrap_or(Json::Null);
+        // an ended task is still `Now` for this tick, with its terminal bit raised
+        let now_task = g.now.as_ref().map(|r| r.task.clone()).or_else(|| g.ended.as_ref().map(|(t, _)| t.clone())).unwrap_or_default();
+        let now_json = serde_json::to_value(now_task).unwrap_or(Json::Null);
+        let (bit_complete, bit_canceled) = match &g.ended {
+            Some((_, canceled)) => (!canceled, *canceled),
+            None => (false, false),
+        };
         let mut queue: Vec<Json> = g.queue.iter().map(|t| serde_json::to_value(t).unwrap_or(Json::Null)).collect();
         while queue.len() < QUEUE {
             queue.push(serde_json::to_value(TaskData::default()).unwrap_or(Json::Null));
@@ -452,7 +473,7 @@ impl DemoWorld {
         let (completed, canceled, rejected) = (ring_json(&g.completed), ring_json(&g.canceled), ring_json(&g.rejected));
         let accept = g.queue.len() < QUEUE && g.pending.is_none();
         let status = json!({ "Accept": accept, "Idle": g.now.is_none() && g.queue.is_empty(), "Assigned": !g.queue.is_empty(), "Inprogress": g.now.is_some(),
-            "AvoidReq": false, "HoldItem": (500..999).contains(&step), "Complete": false, "Canceled": false, "Reserved": 0, "Step": step });
+            "AvoidReq": false, "HoldItem": (500..999).contains(&step), "Complete": bit_complete, "Canceled": bit_canceled, "Reserved": 0, "Step": step });
         let axis = g.axis;
         let (now_none, now_some, tick, target) = (g.now.is_none(), g.now.is_some(), g.tick, g.target);
         let ntp = now_str().replace('T', " ").chars().take(23).collect::<String>();

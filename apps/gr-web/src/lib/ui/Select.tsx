@@ -19,7 +19,7 @@ export interface SelectProps extends Omit<
 }
 
 const box =
-  'rounded-md border border-slate-300 bg-transparent px-2 text-sm text-slate-900 transition-colors focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-100'
+  'rounded-md border border-line-strong bg-transparent px-2 text-sm text-content-primary transition-colors focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
 
 export function Select({
   value = '',
@@ -35,7 +35,7 @@ export function Select({
   return (
     <label className={`flex flex-col gap-1 ${className}`}>
       {label && (
-        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</span>
+        <span className="text-2xs font-medium text-content-muted">{label}</span>
       )}
       <select
         value={value}
@@ -43,12 +43,12 @@ export function Select({
           onValueChange?.(e.target.value)
           onChange?.(e)
         }}
-        className={`${box} ${dense ? 'h-7 text-xs' : 'h-8'}`}
+        className={`${box} ${dense ? 'h-control-sm text-xs' : 'h-control-md'}`}
         {...rest}
       >
         {children}
       </select>
-      {hint && <span className="text-[10px] text-slate-400">{hint}</span>}
+      {hint && <span className="text-3xs text-content-faint">{hint}</span>}
     </label>
   )
 }

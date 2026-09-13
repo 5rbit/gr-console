@@ -3,18 +3,21 @@ import { alarmLabel } from '../../lib/gr/alarms'
 import { AXIS, modeName } from '../../lib/gr/const'
 import { f1, tt } from '../../lib/meas/format'
 import { Card } from '../../lib/ui/Card'
-import { StatusBadge } from '../../lib/ui/StatusBadge'
+import { StatusDot } from '../../lib/ui/StatusDot'
+import { statusTone } from '../../lib/ui/status'
 import type { WebMon } from '../../lib/types'
-import { Chips, KvTable, StatCards, TaskKv } from './helpers'
+import { Bits, KvTable, StatCards, TaskKv } from './helpers'
 
 function codes(arr: readonly number[] | undefined, tone: 'fault' | 'warn' | 'info') {
   const list = (arr ?? []).filter((c) => c)
   if (!list.length) return <span className="text-content-muted">-</span>
+  // 코드는 값이다 — 캡슐로 싸면 개수에 따라 줄이 흔들린다. 색 글자로 나열한다. 알려진 코드는 툴팁으로 설명.
   return (
-    <span className="flex flex-wrap gap-1">
+    <span className={`tabular-nums ${statusTone(tone).text}`}>
       {list.map((c, i) => (
         <span key={i} title={alarmLabel(c)}>
-          <StatusBadge status={tone}>{c}</StatusBadge>
+          {i > 0 ? ' · ' : ''}
+          {c}
         </span>
       ))}
     </span>
@@ -36,25 +39,110 @@ export function Dashboard({ wm }: { wm: WebMon }) {
     <div>
       <StatCards
         items={[
-          { label: '모드', value: modeName(wm.Mode), tone: wm.Mode === 32 ? 'ok' : wm.Mode === 128 ? 'bad' : 'warn', hint: 'MACHINE.Mode', big: true },
-          { label: '상태', value: fault ? 'FAULT' : warn ? 'WARN' : st.Busy ? 'BUSY' : st.Idle ? 'IDLE' : '-', tone: fault ? 'bad' : warn ? 'warn' : 'ok', hint: `StatusCode ${S?.StatusCode?.Main ?? ''}/${S?.StatusCode?.Sub ?? ''}`, big: true },
-          { label: 'Task', value: ts.Inprogress ? '진행' : ts.Complete ? '완료' : ts.Idle ? '대기' : '-', tone: ts.Inprogress ? 'ok' : '', hint: `Step ${ts.Step ?? ''}`, big: true },
-          { label: 'Proc Step', value: pr?.Step?.Now ?? '', hint: `${f1(pr?.Step?.ElapseTime)} s  ${pr?.Msg ?? ''}`, big: true },
-          { label: '진행 Task', value: now?.WorkId ? `${now.WorkId}/${now.TaskId}` : '-', hint: `${tt(now?.TaskType)} Cell ${now?.Cell?.Id ?? ''} Code ${now?.Item?.Code ?? ''}`, big: true },
+          {
+            label: '모드',
+            value: modeName(wm.Mode),
+            tone: wm.Mode === 32 ? 'ok' : wm.Mode === 128 ? 'bad' : 'warn',
+            hint: 'MACHINE.Mode',
+            big: true,
+          },
+          {
+            label: '상태',
+            value: fault ? 'FAULT' : warn ? 'WARN' : st.Busy ? 'BUSY' : st.Idle ? 'IDLE' : '-',
+            tone: fault ? 'bad' : warn ? 'warn' : 'ok',
+            hint: `StatusCode ${S?.StatusCode?.Main ?? ''}/${S?.StatusCode?.Sub ?? ''}`,
+            big: true,
+          },
+          {
+            label: 'Task',
+            value: ts.Inprogress ? '진행' : ts.Complete ? '완료' : ts.Idle ? '대기' : '-',
+            tone: ts.Inprogress ? 'ok' : '',
+            hint: `Step ${ts.Step ?? ''}`,
+            big: true,
+          },
+          {
+            label: 'Proc Step',
+            value: pr?.Step?.Now ?? '',
+            hint: `${f1(pr?.Step?.ElapseTime)} s  ${pr?.Msg ?? ''}`,
+            big: true,
+          },
+          {
+            label: '진행 Task',
+            value: now?.WorkId ? `${now.WorkId}/${now.TaskId}` : '-',
+            hint: `${tt(now?.TaskType)} Cell ${now?.Cell?.Id ?? ''} Code ${now?.Item?.Code ?? ''}`,
+            big: true,
+          },
           { label: '속도', value: String(st.Speed ?? ''), hint: '%', big: true },
-          { label: 'Z', value: f1(axis[2]?.Position), tone: axis[2]?.Running ? 'ok' : '', hint: `→ ${f1(axis[2]?.Target)}`, big: true },
-          { label: 'G', value: f1(axis[3]?.Position), tone: axis[3]?.Running ? 'ok' : '', hint: `→ ${f1(axis[3]?.Target)}`, big: true },
-          { label: '아이템', value: wm.Gripper?.ItemDetect ? '감지' : '없음', tone: wm.Gripper?.ItemDetect ? 'ok' : '', hint: 'Gripper', big: true },
+          {
+            label: 'Z',
+            value: f1(axis[2]?.Position),
+            tone: axis[2]?.Running ? 'ok' : '',
+            hint: `→ ${f1(axis[2]?.Target)}`,
+            big: true,
+          },
+          {
+            label: 'G',
+            value: f1(axis[3]?.Position),
+            tone: axis[3]?.Running ? 'ok' : '',
+            hint: `→ ${f1(axis[3]?.Target)}`,
+            big: true,
+          },
+          {
+            label: '아이템',
+            value: wm.Gripper?.ItemDetect ? '감지' : '없음',
+            tone: wm.Gripper?.ItemDetect ? 'ok' : '',
+            hint: 'Gripper',
+            big: true,
+          },
         ]}
       />
       <div className="grid gap-3 lg:grid-cols-3">
         <Card>
           <h3 className="mb-1 text-xs font-semibold text-content-muted">장비 상태 (Status)</h3>
-          <Chips obj={st} keys={['Normal', 'Idle', 'Busy', 'Stopped', 'Online', 'Warn', 'Fault', 'PowerOn', 'ItemDectect', 'HeartBeat', 'DoorOpenErrorGR1', 'DoorOpenErrorGR2', 'BuzzerStop']} bad={['Fault', 'DoorOpenErrorGR1', 'DoorOpenErrorGR2', 'Stopped']} warn={['Warn']} />
-          <h3 className="mt-3 mb-1 text-xs font-semibold text-content-muted">모드 (OPCUA.STAT.Mode)</h3>
-          <Chips obj={S?.Mode} keys={['Init', 'Maint', 'Manual', 'AutoReady', 'Auto', 'Fault']} bad={['Fault']} />
+          <Bits
+            obj={st}
+            keys={[
+              'Normal',
+              'Idle',
+              'Busy',
+              'Stopped',
+              'Online',
+              'Warn',
+              'Fault',
+              'PowerOn',
+              'ItemDectect',
+              'HeartBeat',
+              'DoorOpenErrorGR1',
+              'DoorOpenErrorGR2',
+              'BuzzerStop',
+            ]}
+            bad={['Fault', 'DoorOpenErrorGR1', 'DoorOpenErrorGR2', 'Stopped']}
+            warn={['Warn']}
+          />
+          <h3 className="mt-3 mb-1 text-xs font-semibold text-content-muted">
+            모드 (OPCUA.STAT.Mode)
+          </h3>
+          <Bits
+            obj={S?.Mode}
+            keys={['Init', 'Maint', 'Manual', 'AutoReady', 'Auto', 'Fault']}
+            bad={['Fault']}
+          />
           <h3 className="mt-3 mb-1 text-xs font-semibold text-content-muted">Task 상태</h3>
-          <Chips obj={ts} keys={['Accept', 'Idle', 'Assigned', 'Inprogress', 'AvoidReq', 'HoldItem', 'Complete', 'Canceled']} bad={['Canceled']} warn={['AvoidReq']} />
+          <Bits
+            obj={ts}
+            keys={[
+              'Accept',
+              'Idle',
+              'Assigned',
+              'Inprogress',
+              'AvoidReq',
+              'HoldItem',
+              'Complete',
+              'Canceled',
+            ]}
+            bad={['Canceled']}
+            warn={['AvoidReq']}
+          />
         </Card>
         <Card>
           <h3 className="mb-1 text-xs font-semibold text-content-muted">진행 중 Task</h3>
@@ -65,11 +153,15 @@ export function Dashboard({ wm }: { wm: WebMon }) {
           <KvTable
             rows={[
               [
-                <span key="f">Fault {al?.Fault ? <StatusBadge status="fault">ON</StatusBadge> : null}</span>,
+                <span key="f" className="inline-flex items-center gap-1.5">
+                  Fault {al?.Fault ? <StatusDot status="fault" size="sm" title="Fault ON" /> : null}
+                </span>,
                 codes(al?.FaultCode, 'fault'),
               ],
               [
-                <span key="w">Warn {al?.Warn ? <StatusBadge status="warn">ON</StatusBadge> : null}</span>,
+                <span key="w" className="inline-flex items-center gap-1.5">
+                  Warn {al?.Warn ? <StatusDot status="warn" size="sm" title="Warn ON" /> : null}
+                </span>,
                 codes(al?.WarnCode, 'warn'),
               ],
               ['Event', codes(al?.EventCode, 'info')],
@@ -80,8 +172,19 @@ export function Dashboard({ wm }: { wm: WebMon }) {
           <KvTable
             rows={[
               ['WorkCell / Type', `${il?.WorkCell ?? ''} / ${il?.WorkType ?? ''}`],
-              ['PI (C/V → GR)', <Chips key="pi" obj={il?.PI} keys={['CVOK', 'Req', 'MeasReq', 'ItemExist']} />],
-              ['PO (GR → C/V)', <Chips key="po" obj={il?.PO} keys={['CVNO', 'Comp', 'MeasComp', 'MeasErr']} bad={['MeasErr']} />],
+              [
+                'PI (C/V → GR)',
+                <Bits key="pi" obj={il?.PI} keys={['CVOK', 'Req', 'MeasReq', 'ItemExist']} />,
+              ],
+              [
+                'PO (GR → C/V)',
+                <Bits
+                  key="po"
+                  obj={il?.PO}
+                  keys={['CVNO', 'Comp', 'MeasComp', 'MeasErr']}
+                  bad={['MeasErr']}
+                />,
+              ],
             ]}
           />
         </Card>
@@ -108,7 +211,10 @@ export function Dashboard({ wm }: { wm: WebMon }) {
                 <td className="text-right font-mono tabular-nums">{f1(a.Speed)}</td>
                 <td className="text-right font-mono tabular-nums">{f1(a.Torque)}</td>
                 <td className="pl-3">
-                  <Chips obj={a as unknown as Record<string, unknown>} keys={['Ready', 'Enabled', 'Running', 'StandStill']} />
+                  <Bits
+                    obj={a as unknown as Record<string, unknown>}
+                    keys={['Ready', 'Enabled', 'Running', 'StandStill']}
+                  />
                 </td>
               </tr>
             ))}

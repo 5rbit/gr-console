@@ -11,14 +11,14 @@ import { ErrorBoundary } from '../lib/ui/ErrorBoundary'
 import { useFocusTrap } from '../lib/ui/focusTrap'
 
 const headerCls =
-  'flex items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-700'
+  'flex items-center gap-2 border-b border-line-default px-3 py-2'
 
 function PanelHeader({ panel }: { panel: PanelSpec }) {
   return (
     <header className={headerCls}>
       <h3 className="truncate text-sm font-semibold">{panel.title}</h3>
       <button
-        className="ml-auto text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+        className="ml-auto text-content-faint hover:text-content-secondary"
         onClick={() => panels.close(panel.id)}
         aria-label="닫기"
       >
@@ -49,7 +49,7 @@ function PanelFrame({ panel }: { panel: PanelSpec }) {
         ></button>
         <div
           ref={box}
-          className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"
+          className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-line-default bg-surface-panel shadow-xl"
           role="dialog"
           aria-modal="true"
           aria-label={panel.title}
@@ -74,7 +74,7 @@ function PanelFrame({ panel }: { panel: PanelSpec }) {
         {/* 사이드바·페이지도 모달이다(백드롭이 뒤를 막는다) — `aria-modal`을 popup과 같이 단다. */}
         <div
           ref={box}
-          className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"
+          className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-line-default bg-surface-panel shadow-xl"
           role="dialog"
           aria-modal="true"
           aria-label={panel.title}
@@ -89,7 +89,7 @@ function PanelFrame({ panel }: { panel: PanelSpec }) {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col bg-white dark:bg-slate-900"
+      className="fixed inset-0 z-40 flex flex-col bg-surface-panel"
       ref={box}
       role="dialog"
       aria-modal="true"

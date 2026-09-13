@@ -32,7 +32,7 @@ export function Input({
   return (
     <label className={`flex flex-col gap-1 ${className}`}>
       {label && (
-        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</span>
+        <span className="text-2xs font-medium text-content-muted">{label}</span>
       )}
       <input
         type={type}
@@ -42,12 +42,12 @@ export function Input({
           onValueChange?.(e.target.value)
           onChange?.(e)
         }}
-        className={`h-8 rounded-md border border-slate-300 bg-transparent px-2 text-sm text-slate-900 transition-colors placeholder:text-slate-400 focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none dark:border-slate-600 dark:text-slate-100 ${
+        className={`h-control-md rounded-md border border-line-strong bg-transparent px-2 text-sm text-content-primary transition-colors placeholder:text-content-faint focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none ${
           mono ? 'font-mono tabular-nums' : ''
         }`}
         {...rest}
       />
-      {hint && <span className="text-[10px] text-slate-400">{hint}</span>}
+      {hint && <span className="text-3xs text-content-faint">{hint}</span>}
     </label>
   )
 }

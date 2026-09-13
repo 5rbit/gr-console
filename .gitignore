@@ -2,6 +2,7 @@
 /data/
 /apps/gr-web/node_modules
 /apps/gr-web/dist
+/dist/
 *.log
 bench-report.json
 link-selftest.json

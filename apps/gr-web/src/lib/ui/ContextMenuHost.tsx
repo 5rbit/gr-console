@@ -37,8 +37,8 @@ export function ContextMenuHost({ className }: ContextMenuHostProps = {}) {
     <div
       className={
         className
-          ? `fixed z-[70] min-w-[190px] rounded-md border border-slate-200 bg-white py-1 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900 ${className}`
-          : 'fixed z-[70] min-w-[190px] rounded-md border border-slate-200 bg-white py-1 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900'
+          ? `fixed z-[70] min-w-[190px] rounded-md border border-line-default bg-surface-panel py-1 text-xs shadow-lg ${className}`
+          : 'fixed z-[70] min-w-[190px] rounded-md border border-line-default bg-surface-panel py-1 text-xs shadow-lg'
       }
       style={{ left: `${state.x}px`, top: `${state.y}px` }}
       role="menu"
@@ -49,15 +49,15 @@ export function ContextMenuHost({ className }: ContextMenuHostProps = {}) {
         !it.run ? (
           <div
             key={it.label + i}
-            className="truncate px-2.5 py-1 font-mono text-[10px] text-slate-400"
+            className="truncate px-2.5 py-1 font-mono text-3xs text-content-faint"
           >
             {it.label}
           </div>
         ) : (
           <button
             key={it.label + i}
-            className={`flex w-full items-center gap-3 px-2.5 py-1 text-left hover:bg-slate-100 disabled:opacity-40 dark:hover:bg-slate-800 ${
-              it.danger ? 'text-red-600 dark:text-red-400' : ''
+            className={`flex w-full items-center gap-3 px-2.5 py-1 text-left hover:bg-surface-inset disabled:opacity-40 ${
+              it.danger ? 'text-fault-fg' : ''
             }`}
             role="menuitem"
             disabled={!!it.disabled}
@@ -70,7 +70,7 @@ export function ContextMenuHost({ className }: ContextMenuHostProps = {}) {
             }}
           >
             <span className="flex-1">{it.label}</span>
-            {it.hint && <kbd className="font-mono text-[10px] text-slate-400">{it.hint}</kbd>}
+            {it.hint && <kbd className="font-mono text-3xs text-content-faint">{it.hint}</kbd>}
           </button>
         ),
       )}

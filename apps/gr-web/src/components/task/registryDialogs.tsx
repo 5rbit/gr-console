@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
 import { Modal } from '../../lib/ui/Modal'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
+import { StatusDot } from '../../lib/ui/StatusDot'
 import type { Column } from '../../lib/ui/table'
 import type { Status } from '../../lib/ui/status'
 import type { DiffRow } from '../../lib/types'
@@ -62,7 +63,7 @@ export function PushDialog({
           0으로 채웁니다.
           <b> Count</b>는 마지막에 씁니다. 쓴 뒤 다시 읽어 바이트를 대조합니다.
         </p>
-        <p className="text-slate-500">
+        <p className="text-content-muted">
           PLC의 기존 테이블은 되돌릴 수 없습니다 — 먼저 <b>PLC 읽기</b>로 백업하거나 Excel로 내보내
           두세요.
         </p>
@@ -103,6 +104,7 @@ const DIFF_LABEL: Record<DiffRow<unknown>['status'], { text: string; tone: Statu
 
 export function DiffBadge({ status }: { status: DiffRow<unknown>['status'] }) {
   const l = DIFF_LABEL[status]
+  if (status === 'same') return <span className="text-2xs text-content-faint">{l.text}</span>
   return <StatusBadge status={l.tone}>{l.text}</StatusBadge>
 }
 
@@ -144,9 +146,9 @@ export function DiffDialog<T>({
       get: (r) => (r.local ? summarize(r.local) : null),
       cell: (r) =>
         r.local ? (
-          <span className="font-mono text-[11px]">{summarize(r.local)}</span>
+          <span className="font-mono text-2xs">{summarize(r.local)}</span>
         ) : (
-          <span className="text-slate-400">—</span>
+          <span className="text-content-faint">—</span>
         ),
     },
     {
@@ -155,9 +157,9 @@ export function DiffDialog<T>({
       get: (r) => (r.plc ? summarize(r.plc) : null),
       cell: (r) =>
         r.plc ? (
-          <span className="font-mono text-[11px]">{summarize(r.plc)}</span>
+          <span className="font-mono text-2xs">{summarize(r.plc)}</span>
         ) : (
-          <span className="text-slate-400">—</span>
+          <span className="text-content-faint">—</span>
         ),
     },
   ]
@@ -167,8 +169,8 @@ export function DiffDialog<T>({
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {(['same', 'changed', 'local_only', 'plc_only'] as const).map((s) => (
             <span key={s} className="inline-flex items-center gap-1">
-              <DiffBadge status={s} />
-              <span className="tabular-nums text-slate-500">{counts[s] ?? 0}</span>
+              <StatusDot status={DIFF_LABEL[s].tone} size="sm" label={DIFF_LABEL[s].text} />
+              <span className="tabular-nums text-content-muted">{counts[s] ?? 0}</span>
             </span>
           ))}
           <span className="flex-1" />
@@ -181,7 +183,7 @@ export function DiffDialog<T>({
             다른 것만
           </label>
         </div>
-        {error ? <p className="text-xs text-red-600">{error}</p> : null}
+        {error ? <p className="text-xs text-fault-fg">{error}</p> : null}
         <DataTable
           rows={shown}
           columns={columns}
@@ -226,13 +228,13 @@ export function ImportDialog({
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Excel 가져오기 — 미리보기" wide>
       <div className="flex flex-col gap-3 text-xs">
-        <p className="text-slate-500">
+        <p className="text-content-muted">
           파일 <span className="font-mono">{file?.name ?? ''}</span>
           {preview?.counts
             ? ` · 셀 ${preview.counts.cells} · 스테이션 ${preview.counts.stations} · 품목 ${preview.counts.items}`
             : ''}
         </p>
-        {error ? <p className="text-red-600">{error}</p> : null}
+        {error ? <p className="text-fault-fg">{error}</p> : null}
         {preview ? (
           <div className="grid grid-cols-4 gap-2" data-testid="import-preview">
             {[
@@ -241,17 +243,14 @@ export function ImportDialog({
               ['동일(건너뜀)', preview.skipped],
               ['오류 행', preview.errors.length],
             ].map(([l, v]) => (
-              <div
-                key={String(l)}
-                className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-700"
-              >
-                <div className="text-[10px] text-slate-400">{l}</div>
+              <div key={String(l)} className="rounded-md border border-line-default px-2 py-1">
+                <div className="text-3xs text-content-faint">{l}</div>
                 <div className="text-base font-semibold tabular-nums">{v}</div>
               </div>
             ))}
           </div>
         ) : !error ? (
-          <p className="text-slate-400">미리보기 계산 중…</p>
+          <p className="text-content-faint">미리보기 계산 중…</p>
         ) : null}
         {preview && preview.errors.length > 0 ? (
           <DataTable
@@ -261,7 +260,7 @@ export function ImportDialog({
             testid="import-errors"
           />
         ) : null}
-        <p className="text-slate-500">
+        <p className="text-content-muted">
           오류 행은 건너뛰고 나머지만 로컬에 적용합니다(PLC에는 쓰지 않습니다 — 적용 뒤{' '}
           <b>PLC 쓰기</b>로 반영).
         </p>

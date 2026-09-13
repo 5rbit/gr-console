@@ -3,34 +3,56 @@ import type { ReactNode } from 'react'
 import { KIND, STATUS } from '../../lib/gr/const'
 import { f0, f1, f2, flagStr, tt } from '../../lib/meas/format'
 import { DataTable } from '../../lib/ui/DataTable'
-import { StatusBadge } from '../../lib/ui/StatusBadge'
+import { StatusDot } from '../../lib/ui/StatusDot'
+import { statusTone } from '../../lib/ui/status'
 import type { Column } from '../../lib/ui/table'
 import type { PlcTask, Trend } from '../../lib/types'
 
 export { KIND, STATUS }
 
-/** 불리언 필드 칩 묶음(켜진 것만 강조). */
-export function Chips({ obj, keys, bad = [], warn = [] }: { obj: Record<string, unknown> | null | undefined; keys: readonly string[]; bad?: readonly string[]; warn?: readonly string[] }) {
+/**
+ * 불리언 비트 묶음 — **고정 격자**의 점+이름. 칩 구름이었을 때는 켜진 비트가 줄바꿈 자리에 따라
+ * 매번 다른 x에 떠서 "무엇이 켜졌나"를 훑을 수 없었다. 자리를 고정하고 켜진 것만 색을 받으면
+ * 꺼진 비트도 같은 자리에 흐리게 남아 "무엇이 꺼졌나"까지 읽힌다.
+ */
+export function Bits({
+  obj,
+  keys,
+  bad = [],
+  warn = [],
+}: {
+  obj: Record<string, unknown> | null | undefined
+  keys: readonly string[]
+  bad?: readonly string[]
+  warn?: readonly string[]
+}) {
   if (!obj) return <span className="text-content-muted">-</span>
   return (
-    <div className="flex flex-wrap gap-1">
+    <ul className="ds-bitgrid m-0 list-none p-0">
       {keys
         .filter((k) => k in obj)
         .map((k) => {
           const on = Boolean(obj[k])
           const tone = bad.includes(k) ? 'fault' : warn.includes(k) ? 'warn' : 'ok'
           return (
-            <StatusBadge key={k} status={on ? tone : 'neutral'} dot={on}>
-              {k}
-            </StatusBadge>
+            <li key={k} className="flex items-center gap-1.5 text-2xs whitespace-nowrap">
+              <StatusDot status={on ? tone : 'neutral'} size="sm" />
+              <span className={on ? statusTone(tone).text : 'text-content-faint'}>{k}</span>
+            </li>
           )
         })}
-    </div>
+    </ul>
   )
 }
 
 /** 라벨/값 2열 표(PLC 블록처럼 8줄 안팎의 짧은 목록). */
-export function KvTable({ rows, className = '' }: { rows: readonly [ReactNode, ReactNode][]; className?: string }) {
+export function KvTable({
+  rows,
+  className = '',
+}: {
+  rows: readonly [ReactNode, ReactNode][]
+  className?: string
+}) {
   return (
     <table className={`w-full text-xs ${className}`}>
       <tbody>
@@ -61,16 +83,20 @@ export function StatCards({ items }: { items: readonly StatCardItem[] }) {
           key={i}
           className={`min-w-28 rounded-md border px-3 py-1.5 ${
             x.tone === 'ok'
-              ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/30'
+              ? 'border-ok bg-ok-soft'
               : x.tone === 'bad'
-                ? 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/30'
+                ? 'border-fault bg-fault-soft'
                 : x.tone === 'warn'
-                  ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/30'
+                  ? 'border-warn bg-warn-soft'
                   : 'border-line-default bg-surface-panel'
           }`}
         >
           <div className="text-2xs text-content-muted">{x.label}</div>
-          <div className={`font-mono tabular-nums ${x.big ? 'text-xl' : 'text-base'} font-semibold`}>{x.value}</div>
+          <div
+            className={`font-mono tabular-nums ${x.big ? 'text-xl' : 'text-base'} font-semibold`}
+          >
+            {x.value}
+          </div>
           {x.hint ? <div className="text-2xs text-content-muted">{x.hint}</div> : null}
         </div>
       ))}
@@ -103,39 +129,75 @@ export function TaskKv({ t }: { t: PlcTask | null | undefined }) {
     <KvTable
       rows={[
         ['Work / Task', `${t.WorkId ?? ''} / ${t.TaskId ?? ''}`],
-        ['Type', `${tt(t.TaskType)} (0x${Number(t.TaskType ?? 0).toString(16).toUpperCase().padStart(2, '0')})`],
+        [
+          'Type',
+          `${tt(t.TaskType)} (0x${Number(t.TaskType ?? 0)
+            .toString(16)
+            .toUpperCase()
+            .padStart(2, '0')})`,
+        ],
         ['Cell', `${c.Id ?? ''}  (Sec ${c.Section ?? ''} Row ${c.Row ?? ''} Col ${c.Col ?? ''})`],
-        ['Item', `Code ${it.Code ?? ''} / ${it.Count ?? ''}단 / ID ${f1(it.InnerDiameter)} / OD ${f1(it.OuterDiameter)} / H ${f1(it.Height)}`],
+        [
+          'Item',
+          `Code ${it.Code ?? ''} / ${it.Count ?? ''}단 / ID ${f1(it.InnerDiameter)} / OD ${f1(it.OuterDiameter)} / H ${f1(it.Height)}`,
+        ],
         ['Position', `X ${f0(p[0])} Y ${f0(p[1])} Z ${f0(p[2])} G ${f0(p[3])}`],
-        ['Cell 위치', `X ${f0(cp[0])} Y ${f0(cp[1])} Z ${f0(cp[2])}  (명령 Z rel ${f1((p[2] ?? 0) - (cp[2] ?? 0))})`],
+        [
+          'Cell 위치',
+          `X ${f0(cp[0])} Y ${f0(cp[1])} Z ${f0(cp[2])}  (명령 Z rel ${f1((p[2] ?? 0) - (cp[2] ?? 0))})`,
+        ],
         ['플래그', flagStr(t)],
-        ['Grip', `H ${t.GripHeight ?? ''} / PreGrip ${t.PreGripDelta ?? ''} / GripBack ${t.GripBackDelta ?? ''}`],
-        ['Lift', `Up ${t.LiftUpHeight ?? ''} / Creep ↑${t.LiftUpCreepDistance ?? ''} ↓${t.LiftDownCreepDistance ?? ''} / Partial ${t.LiftUpPartial ? 'Y' : 'N'}`],
+        [
+          'Grip',
+          `H ${t.GripHeight ?? ''} / PreGrip ${t.PreGripDelta ?? ''} / GripBack ${t.GripBackDelta ?? ''}`,
+        ],
+        [
+          'Lift',
+          `Up ${t.LiftUpHeight ?? ''} / Creep ↑${t.LiftUpCreepDistance ?? ''} ↓${t.LiftDownCreepDistance ?? ''} / Partial ${t.LiftUpPartial ? 'Y' : 'N'}`,
+        ],
         ['Blend', `↑${t.BlendUpDistance ?? ''} ↓${t.BlendDownDistance ?? ''}`],
-        ['Drag', `Out ${t.UseDragOut ? `${t.DragOutHeight}/${t.DragOutDist}/dir${t.DragOutDir}` : '-'}  In ${t.UseDragIn ? `${t.DragInHeight}/${t.DragInDist}/dir${t.DragInDir}` : '-'}`],
+        [
+          'Drag',
+          `Out ${t.UseDragOut ? `${t.DragOutHeight}/${t.DragOutDist}/dir${t.DragOutDir}` : '-'}  In ${t.UseDragIn ? `${t.DragInHeight}/${t.DragInDist}/dir${t.DragInDir}` : '-'}`,
+        ],
       ]}
     />
   )
 }
 
+// `priority` — PLC Task 표는 **어느 작업인가**로 훑는다: Work/Task가 1, 종류·Cell·Code가 2,
+// 단·치수·좌표·플래그가 3이다(`docs/DESIGN.md` 4절).
 const TASK_COLS: Column<PlcTask>[] = [
-  { key: 'w', label: 'Work', get: (t) => t.WorkId, numeric: true },
-  { key: 't', label: 'Task', get: (t) => t.TaskId, numeric: true },
-  { key: 'ty', label: 'Type', get: (t) => tt(t.TaskType) },
-  { key: 'cell', label: 'Cell', get: (t) => t.Cell?.Id, numeric: true },
-  { key: 'code', label: 'Code', get: (t) => t.Item?.Code, numeric: true },
-  { key: 'cnt', label: '단', get: (t) => t.Item?.Count, numeric: true },
-  { key: 'id', label: 'ID', get: (t) => f1(t.Item?.InnerDiameter), numeric: true },
-  { key: 'h', label: 'H', get: (t) => f1(t.Item?.Height), numeric: true },
-  { key: 'x', label: 'X', get: (t) => f0(t.Position?.[0]), numeric: true },
-  { key: 'y', label: 'Y', get: (t) => f0(t.Position?.[1]), numeric: true },
-  { key: 'z', label: 'Z', get: (t) => f0(t.Position?.[2]), numeric: true },
-  { key: 'g', label: 'G', get: (t) => f0(t.Position?.[3]), numeric: true },
-  { key: 'flags', label: '플래그', get: (t) => flagStr(t) },
+  { key: 'w', label: 'Work', get: (t) => t.WorkId, numeric: true, priority: 1 },
+  { key: 't', label: 'Task', get: (t) => t.TaskId, numeric: true, priority: 1 },
+  { key: 'ty', label: 'Type', get: (t) => tt(t.TaskType), priority: 2 },
+  { key: 'cell', label: 'Cell', get: (t) => t.Cell?.Id, numeric: true, priority: 2 },
+  { key: 'code', label: 'Code', get: (t) => t.Item?.Code, numeric: true, priority: 2 },
+  { key: 'cnt', label: '단', get: (t) => t.Item?.Count, numeric: true, priority: 3 },
+  { key: 'id', label: 'ID', get: (t) => f1(t.Item?.InnerDiameter), numeric: true, priority: 3 },
+  { key: 'h', label: 'H', get: (t) => f1(t.Item?.Height), numeric: true, priority: 3 },
+  { key: 'x', label: 'X', get: (t) => f0(t.Position?.[0]), numeric: true, priority: 3 },
+  { key: 'y', label: 'Y', get: (t) => f0(t.Position?.[1]), numeric: true, priority: 3 },
+  { key: 'z', label: 'Z', get: (t) => f0(t.Position?.[2]), numeric: true, priority: 3 },
+  { key: 'g', label: 'G', get: (t) => f0(t.Position?.[3]), numeric: true, priority: 3 },
+  { key: 'flags', label: '플래그', get: (t) => flagStr(t), priority: 3 },
 ]
 
 /** PLC 작업 배열 표(비어 있는 항목은 뺀다). */
-export function TaskTableMini({ list, empty = '없음' }: { list: readonly PlcTask[] | undefined; empty?: string }) {
+export function TaskTableMini({
+  list,
+  empty = '없음',
+}: {
+  list: readonly PlcTask[] | undefined
+  empty?: string
+}) {
   const rows = (list ?? []).filter((t) => t && (t.WorkId || t.TaskId))
-  return <DataTable rows={rows} columns={TASK_COLS} rowKey={(t) => `${t.WorkId}-${t.TaskId}`} empty={empty} />
+  return (
+    <DataTable
+      rows={rows}
+      columns={TASK_COLS}
+      rowKey={(t) => `${t.WorkId}-${t.TaskId}`}
+      empty={empty}
+    />
+  )
 }

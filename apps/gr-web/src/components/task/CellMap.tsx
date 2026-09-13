@@ -73,9 +73,22 @@ function save(key: string, v: string) {
 }
 
 /** 재고가 있는 셀의 채움색 — 구역(Section)별. */
-const SECTION_FILL = ['fill-slate-500', 'fill-sky-500', 'fill-emerald-500', 'fill-violet-500', 'fill-rose-500', 'fill-teal-500']
+const SECTION_FILL = [
+  'fill-content-muted',
+  'fill-sky-500',
+  'fill-emerald-500',
+  'fill-violet-500',
+  'fill-rose-500',
+  'fill-teal-500',
+]
 const sectionFill = (s: number) => SECTION_FILL[s % SECTION_FILL.length]
-const TYPE_SHORT: Record<TaskType, string> = { UP: 'U', PICK: 'P', DROP: 'D', MOVE: 'M', MEASURE: 'S' }
+const TYPE_SHORT: Record<TaskType, string> = {
+  UP: 'U',
+  PICK: 'P',
+  DROP: 'D',
+  MOVE: 'M',
+  MEASURE: 'S',
+}
 
 /** 로봇이 이 도형에서 작업 중/대기 중임을 알리는 테두리. 키 = `${kind}-${id}`. */
 export interface WorkMark {
@@ -177,14 +190,18 @@ export function CellMap({
       })),
     [preview],
   )
-  const bounds = useMemo(() => boundsOf([...shapes, ...previewShapes], size / 2), [shapes, previewShapes, size])
+  const bounds = useMemo(
+    () => boundsOf([...shapes, ...previewShapes], size / 2),
+    [shapes, previewShapes, size],
+  )
   const ov = useMemo(() => (plan && plan.length ? planOverlay(plan) : null), [plan])
 
   // 컨테이너 크기 추적.
   useEffect(() => {
     const el = wrap.current
     if (!el) return
-    const update = () => setDim({ w: Math.max(el.clientWidth, 100), h: Math.max(el.clientHeight, 100) })
+    const update = () =>
+      setDim({ w: Math.max(el.clientWidth, 100), h: Math.max(el.clientHeight, 100) })
     update()
     if (typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(update)
@@ -199,11 +216,19 @@ export function CellMap({
   const boundsKey = bounds ? `${bounds.minX},${bounds.minY},${bounds.maxX},${bounds.maxY}` : ''
   useEffect(() => {
     if (!bounds) return
-    setView((cur) => (cur && cur.flipY === flipY && cur.flipX === flipX && (cur.rot ?? 0) === rot ? cur : fitView(bounds, dim.w, dim.h, 48, flipY, flipX, rot)))
+    setView((cur) =>
+      cur && cur.flipY === flipY && cur.flipX === flipX && (cur.rot ?? 0) === rot
+        ? cur
+        : fitView(bounds, dim.w, dim.h, 48, flipY, flipX, rot),
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 경계 문자열·회전·반전이 바뀔 때만
   }, [boundsKey, flipY, flipX, rot, dim.w, dim.h])
 
-  const v: View = view ?? (bounds ? fitView(bounds, dim.w, dim.h, 48, flipY, flipX, rot) : { k: 0.05, ox: dim.w / 2, oy: dim.h / 2, flipY, flipX, rot })
+  const v: View =
+    view ??
+    (bounds
+      ? fitView(bounds, dim.w, dim.h, 48, flipY, flipX, rot)
+      : { k: 0.05, ox: dim.w / 2, oy: dim.h / 2, flipY, flipX, rot })
   const r = (size / 2) * v.k
   const rr = Math.max(r, 3)
   const step = gridStep(v.k)
@@ -211,7 +236,9 @@ export function CellMap({
   // 바깥에서 지목한 대상으로 화면 이동.
   useEffect(() => {
     if (!focus) return
-    const s = [...shapes, ...previewShapes].find((x) => x.kind === focus.target.kind && x.id === focus.target.id)
+    const s = [...shapes, ...previewShapes].find(
+      (x) => x.kind === focus.target.kind && x.id === focus.target.id,
+    )
     if (!s) return
     const [sx, sy] = toScreen(v, s.x, s.y)
     setView(panBy(v, dim.w / 2 - sx, dim.h / 2 - sy))
@@ -219,13 +246,20 @@ export function CellMap({
   }, [focus?.nonce])
 
   // 눈금선 — 화면 네 귀퉁이의 월드 좌표 범위(회전해도 네 귀퉁이의 min/max 로 충분하다).
-  const corners = [toWorld(v, 0, 0), toWorld(v, dim.w, 0), toWorld(v, 0, dim.h), toWorld(v, dim.w, dim.h)]
+  const corners = [
+    toWorld(v, 0, 0),
+    toWorld(v, dim.w, 0),
+    toWorld(v, 0, dim.h),
+    toWorld(v, dim.w, dim.h),
+  ]
   const wxs = corners.map((c) => c[0])
   const wys = corners.map((c) => c[1])
   const gx: number[] = []
   const gy: number[] = []
-  for (let x = Math.floor(Math.min(...wxs) / step) * step; x <= Math.max(...wxs); x += step) gx.push(x)
-  for (let y = Math.floor(Math.min(...wys) / step) * step; y <= Math.max(...wys); y += step) gy.push(y)
+  for (let x = Math.floor(Math.min(...wxs) / step) * step; x <= Math.max(...wxs); x += step)
+    gx.push(x)
+  for (let y = Math.floor(Math.min(...wys) / step) * step; y <= Math.max(...wys); y += step)
+    gy.push(y)
   const tooMany = gx.length > 60 || gy.length > 60
   /** 월드 좌표선 하나의 화면 모양 — 회전하면 X 선이 가로선, Y 선이 세로선이 된다. */
   const gridLine = (axis: 'x' | 'y', val: number) => {
@@ -234,7 +268,9 @@ export function CellMap({
     const vertical = Math.abs(p[0] - q[0]) < 1e-6
     return { vertical, at: vertical ? p[0] : p[1] }
   }
-  const gridLines = tooMany ? [] : [...gx.map((val) => ['x', val] as const), ...gy.map((val) => ['y', val] as const)]
+  const gridLines = tooMany
+    ? []
+    : [...gx.map((val) => ['x', val] as const), ...gy.map((val) => ['y', val] as const)]
 
   // 축 방향 표시(+X 빨강, +Y 초록).
   const [o0, o1] = toScreen(v, 0, 0)
@@ -258,7 +294,10 @@ export function CellMap({
     if (!hover) return null
     const st = hover.kind === 'cell' ? stock?.get(hover.id) : undefined
     const w = work?.get(`${hover.kind}-${hover.id}`)
-    const stockText = hover.kind === 'cell' ? ` · 재고 ${st?.count ?? 0}${st?.item_code ? ` (품목 ${st.item_code})` : ''}` : ''
+    const stockText =
+      hover.kind === 'cell'
+        ? ` · 재고 ${st?.count ?? 0}${st?.item_code ? ` (품목 ${st.item_code})` : ''}`
+        : ''
     return `${shapeInfo(hover)}${stockText}${w ? ` · ${w.label}` : ''}`
   })()
   const statusText =
@@ -268,9 +307,13 @@ export function CellMap({
       : `셀 ${cells.length} · 스테이션 ${stations.length}${previewShapes.length ? ` · 생성 예정 ${previewShapes.length}` : ''} · 눈금 ${step} mm${rot ? ` · 회전 ${rot}°` : ''}`)
 
   return (
-    <div ref={wrap} className="relative h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900" data-testid="cell-map">
+    <div
+      ref={wrap}
+      className="relative h-full min-h-0 overflow-hidden bg-surface-panel"
+      data-testid="cell-map"
+    >
       {!shapes.length && !previewShapes.length ? (
-        <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">
+        <div className="absolute inset-0 flex items-center justify-center text-xs text-content-faint">
           등록된 셀/스테이션이 없습니다 — PLC 읽기, Excel 가져오기 또는 레이아웃 편집 모드에서 생성
         </div>
       ) : null}
@@ -315,19 +358,35 @@ export function CellMap({
         aria-label="셀 레이아웃"
       >
         <defs>
-          <marker id="plan-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" className="fill-indigo-500" />
+          <marker
+            id="plan-arrow"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" className="fill-accent" />
           </marker>
         </defs>
 
         {/* 눈금 — 세로선 값은 아래, 가로선 값은 왼쪽. 회전해도 어느 축인지 보이게 X/Y 를 붙인다. */}
         {gridLines.map(([axis, val]) => {
           const g = gridLine(axis, val)
-          const cls = cn('stroke-slate-100 dark:stroke-slate-800', val === 0 && 'stroke-slate-300 dark:stroke-slate-600')
+          const cls = cn('stroke-line-subtle', val === 0 && 'stroke-line-strong')
           return (
             <g key={`${axis}${val}`}>
-              {g.vertical ? <line x1={g.at} y1={0} x2={g.at} y2={dim.h} className={cls} strokeWidth={1} /> : <line x1={0} y1={g.at} x2={dim.w} y2={g.at} className={cls} strokeWidth={1} />}
-              <text x={g.vertical ? g.at + 2 : 3} y={g.vertical ? dim.h - 3 : g.at - 2} className="fill-slate-400 text-[9px]">
+              {g.vertical ? (
+                <line x1={g.at} y1={0} x2={g.at} y2={dim.h} className={cls} strokeWidth={1} />
+              ) : (
+                <line x1={0} y1={g.at} x2={dim.w} y2={g.at} className={cls} strokeWidth={1} />
+              )}
+              <text
+                x={g.vertical ? g.at + 2 : 3}
+                y={g.vertical ? dim.h - 3 : g.at - 2}
+                className="fill-content-faint text-3xs"
+              >
                 {axis.toUpperCase()}
                 {val}
               </text>
@@ -343,7 +402,17 @@ export function CellMap({
                 const [sx, sy] = centre(s)
                 const w = (sideways ? s.width : s.length) * v.k
                 const h = (sideways ? s.length : s.width) * v.k
-                return <rect key={`fp-${s.kind}-${s.id}`} x={sx - w / 2} y={sy - h / 2} width={w} height={h} className="fill-none stroke-slate-300 dark:stroke-slate-600" strokeDasharray="4 3" />
+                return (
+                  <rect
+                    key={`fp-${s.kind}-${s.id}`}
+                    x={sx - w / 2}
+                    y={sy - h / 2}
+                    width={w}
+                    height={h}
+                    className="fill-none stroke-line-strong"
+                    strokeDasharray="4 3"
+                  />
+                )
               })
           : null}
 
@@ -353,9 +422,26 @@ export function CellMap({
           const dup = shapes.some((o) => o.kind === 'cell' && o.id === s.id)
           return (
             <g key={`pv-${s.id}`} data-testid={`map-preview-${s.id}`}>
-              <circle cx={sx} cy={sy} r={rr} className={dup ? 'fill-red-300 stroke-red-600' : 'fill-orange-200 stroke-orange-500'} fillOpacity={0.5} strokeWidth={1.5} strokeDasharray="6 3" />
+              <circle
+                cx={sx}
+                cy={sy}
+                r={rr}
+                className={
+                  dup ? 'fill-red-300 stroke-red-600' : 'fill-orange-200 stroke-orange-500'
+                }
+                fillOpacity={0.5}
+                strokeWidth={1.5}
+                strokeDasharray="6 3"
+              />
               {rr >= 10 ? (
-                <text x={sx} y={sy} textAnchor="middle" dominantBaseline="central" fontSize={Math.min(rr * 0.5, 13)} className="pointer-events-none fill-orange-800 font-semibold dark:fill-orange-200">
+                <text
+                  x={sx}
+                  y={sy}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize={Math.min(rr * 0.5, 13)}
+                  className="pointer-events-none fill-orange-800 font-semibold"
+                >
                   {s.id}
                 </text>
               ) : null}
@@ -384,7 +470,7 @@ export function CellMap({
                   y1={y1 + uy * pad}
                   x2={x2 - ux * pad}
                   y2={y2 - uy * pad}
-                  className="pointer-events-none stroke-indigo-500"
+                  className="pointer-events-none stroke-accent"
                   strokeWidth={2}
                   strokeDasharray="6 4"
                   markerEnd="url(#plan-arrow)"
@@ -402,8 +488,19 @@ export function CellMap({
           const n = s.kind === 'cell' ? (stock?.get(s.id)?.count ?? 0) : 0
           const empty = s.kind === 'cell' && n === 0
           const w = work?.get(key)
-          const fill = s.kind === 'station' ? 'fill-amber-300 dark:fill-amber-600' : empty ? 'fill-slate-200 dark:fill-slate-700' : sectionFill(s.section)
-          const stroke = sel ? 'stroke-indigo-600 dark:stroke-indigo-300' : hov ? 'stroke-slate-900 dark:stroke-white' : empty ? 'stroke-slate-300 dark:stroke-slate-600' : 'stroke-white/70 dark:stroke-slate-900/60'
+          const fill =
+            s.kind === 'station'
+              ? 'fill-amber-300'
+              : empty
+                ? 'fill-surface-active'
+                : sectionFill(s.section)
+          const stroke = sel
+            ? 'stroke-accent'
+            : hov
+              ? 'stroke-content-primary'
+              : empty
+                ? 'stroke-line-strong'
+                : 'stroke-surface-panel/70'
           const shapeCls = cn('cursor-pointer', fill, stroke, !s.use && 'opacity-40')
           const sw = sel ? 3 : hov ? 2 : 1
           const ringR = rr + 4
@@ -426,27 +523,86 @@ export function CellMap({
             <g key={key} data-testid={`map-${key}`}>
               {w ? (
                 s.kind === 'cell' ? (
-                  <circle cx={sx} cy={sy} r={ringR} fill="none" stroke={w.color} strokeWidth={w.running ? 3.5 : 2} strokeDasharray={w.running ? undefined : '5 3'} className="pointer-events-none" data-testid={`map-work-${key}`} />
+                  <circle
+                    cx={sx}
+                    cy={sy}
+                    r={ringR}
+                    fill="none"
+                    stroke={w.color}
+                    strokeWidth={w.running ? 3.5 : 2}
+                    strokeDasharray={w.running ? undefined : '5 3'}
+                    className="pointer-events-none"
+                    data-testid={`map-work-${key}`}
+                  />
                 ) : (
-                  <rect x={sx - ringR} y={sy - ringR} width={ringR * 2} height={ringR * 2} fill="none" stroke={w.color} strokeWidth={w.running ? 3.5 : 2} strokeDasharray={w.running ? undefined : '5 3'} className="pointer-events-none" data-testid={`map-work-${key}`} />
+                  <rect
+                    x={sx - ringR}
+                    y={sy - ringR}
+                    width={ringR * 2}
+                    height={ringR * 2}
+                    fill="none"
+                    stroke={w.color}
+                    strokeWidth={w.running ? 3.5 : 2}
+                    strokeDasharray={w.running ? undefined : '5 3'}
+                    className="pointer-events-none"
+                    data-testid={`map-work-${key}`}
+                  />
                 )
               ) : null}
               {sel
                 ? (() => {
                     // 선택 링 — 같은 색 셀 사이에서도 보이게 바깥 점선 링이 돌며 숨 쉰다(작업 테두리 바깥).
                     const selR = rr + (w ? 10 : 7)
-                    const cls = 'map-sel pointer-events-none stroke-indigo-500 dark:stroke-indigo-300'
+                    const cls = 'map-sel pointer-events-none stroke-accent'
                     return s.kind === 'cell' ? (
-                      <circle cx={sx} cy={sy} r={selR} fill="none" className={cls} strokeWidth={2.5} strokeDasharray="6 4" data-testid={`map-sel-${key}`} />
+                      <circle
+                        cx={sx}
+                        cy={sy}
+                        r={selR}
+                        fill="none"
+                        className={cls}
+                        strokeWidth={2.5}
+                        strokeDasharray="6 4"
+                        data-testid={`map-sel-${key}`}
+                      />
                     ) : (
-                      <rect x={sx - selR} y={sy - selR} width={selR * 2} height={selR * 2} rx={4} fill="none" className={cls} strokeWidth={2.5} strokeDasharray="6 4" data-testid={`map-sel-${key}`} />
+                      <rect
+                        x={sx - selR}
+                        y={sy - selR}
+                        width={selR * 2}
+                        height={selR * 2}
+                        rx={4}
+                        fill="none"
+                        className={cls}
+                        strokeWidth={2.5}
+                        strokeDasharray="6 4"
+                        data-testid={`map-sel-${key}`}
+                      />
                     )
                   })()
                 : null}
               {s.kind === 'cell' ? (
-                <circle cx={sx} cy={sy} r={rr} className={shapeCls} strokeWidth={sw} strokeDasharray={s.dirty ? '5 3' : undefined} {...handlers} />
+                <circle
+                  cx={sx}
+                  cy={sy}
+                  r={rr}
+                  className={shapeCls}
+                  strokeWidth={sw}
+                  strokeDasharray={s.dirty ? '5 3' : undefined}
+                  {...handlers}
+                />
               ) : (
-                <rect x={sx - rr} y={sy - rr} width={rr * 2} height={rr * 2} rx={2} className={shapeCls} strokeWidth={sw} strokeDasharray={s.dirty ? '5 3' : undefined} {...handlers} />
+                <rect
+                  x={sx - rr}
+                  y={sy - rr}
+                  width={rr * 2}
+                  height={rr * 2}
+                  rx={2}
+                  className={shapeCls}
+                  strokeWidth={sw}
+                  strokeDasharray={s.dirty ? '5 3' : undefined}
+                  {...handlers}
+                />
               )}
               {s.kind === 'cell' && rr >= 6 ? (
                 <text
@@ -455,22 +611,57 @@ export function CellMap({
                   textAnchor="middle"
                   dominantBaseline="central"
                   fontSize={Math.min(Math.max(rr * 0.95, 9), 30)}
-                  fontWeight={700}
-                  className={cn('pointer-events-none tabular-nums', empty ? 'fill-slate-400 dark:fill-slate-400' : 'fill-white')}
+                  fontWeight={600}
+                  className={cn(
+                    'pointer-events-none tabular-nums',
+                    empty ? 'fill-content-faint' : 'fill-surface-panel',
+                  )}
                   data-testid={`map-stock-${s.id}`}
                 >
                   {n}
                 </text>
               ) : null}
               {s.kind === 'station' && rr >= 12 ? (
-                <text x={sx} y={sy} textAnchor="middle" dominantBaseline="central" fontSize={Math.min(rr * 0.42, 12)} className="pointer-events-none fill-amber-900 font-semibold dark:fill-amber-50">
+                <text
+                  x={sx}
+                  y={sy}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize={Math.min(rr * 0.42, 12)}
+                  className="pointer-events-none fill-amber-900 font-semibold"
+                >
                   {s.id}
                 </text>
               ) : null}
               {badges.slice(0, 3).map((b, i) => (
-                <g key={b.no} className="pointer-events-none" data-testid={`map-badge-${key}-${b.no}`}>
-                  <rect x={sx + rr * 0.5 - 10 + i * 20} y={sy - rr - 10} width={20} height={13} rx={3} className={b.type === 'PICK' ? 'fill-indigo-600' : b.type === 'DROP' ? 'fill-emerald-600' : 'fill-slate-600'} />
-                  <text x={sx + rr * 0.5 + i * 20} y={sy - rr - 3.5} textAnchor="middle" dominantBaseline="central" fontSize={9} fontWeight={700} className="fill-white">
+                <g
+                  key={b.no}
+                  className="pointer-events-none"
+                  data-testid={`map-badge-${key}-${b.no}`}
+                >
+                  <rect
+                    x={sx + rr * 0.5 - 10 + i * 20}
+                    y={sy - rr - 10}
+                    width={20}
+                    height={13}
+                    rx={3}
+                    className={
+                      b.type === 'PICK'
+                        ? 'fill-accent'
+                        : b.type === 'DROP'
+                          ? 'fill-emerald-600'
+                          : 'fill-content-tertiary'
+                    }
+                  />
+                  <text
+                    x={sx + rr * 0.5 + i * 20}
+                    y={sy - rr - 3.5}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontSize={9}
+                    fontWeight={600}
+                    className="fill-surface-panel"
+                  >
                     {b.no}
                     {TYPE_SHORT[b.type]}
                   </text>
@@ -488,12 +679,26 @@ export function CellMap({
             const R = Math.max(rr + 6, 10)
             const tick = { stroke: m.color, strokeWidth: 3, strokeLinecap: 'round' as const }
             return (
-              <g key={m.id} className="pointer-events-none" data-testid="map-robot" opacity={m.moving ? 1 : 0.85}>
+              <g
+                key={m.id}
+                className="pointer-events-none"
+                data-testid="map-robot"
+                opacity={m.moving ? 1 : 0.85}
+              >
                 <line x1={sx - R - 9} y1={sy} x2={sx - R} y2={sy} {...tick} />
                 <line x1={sx + R} y1={sy} x2={sx + R + 9} y2={sy} {...tick} />
                 <line x1={sx} y1={sy - R - 9} x2={sx} y2={sy - R} {...tick} />
                 <line x1={sx} y1={sy + R} x2={sx} y2={sy + R + 9} {...tick} />
-                <text x={sx + R * 0.7 + 4} y={sy - R * 0.7 - 4} fontSize={11} fontWeight={700} fill={m.color} stroke="white" strokeWidth={3} paintOrder="stroke">
+                <text
+                  x={sx + R * 0.7 + 4}
+                  y={sy - R * 0.7 - 4}
+                  fontSize={11}
+                  fontWeight={600}
+                  fill={m.color}
+                  stroke="white"
+                  strokeWidth={3}
+                  paintOrder="stroke"
+                >
                   {m.name}
                 </text>
               </g>
@@ -501,26 +706,84 @@ export function CellMap({
           })}
 
         {/* 축 방향 — 회전·반전 후 +X / +Y 가 화면 어느 쪽인지 */}
-        <g className="pointer-events-none" data-testid="map-axes" transform={`translate(${dim.w - 40} ${dim.h - 40})`}>
-          <circle r={32} className="fill-white/85 stroke-slate-200 dark:fill-slate-900/85 dark:stroke-slate-700" />
-          <line x1={0} y1={0} x2={xu * 20} y2={xv * 20} stroke="#dc2626" strokeWidth={2.5} strokeLinecap="round" />
-          <line x1={0} y1={0} x2={yu * 20} y2={yv * 20} stroke="#16a34a" strokeWidth={2.5} strokeLinecap="round" />
-          <text x={xu * 27} y={xv * 27} textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={700} fill="#dc2626">
+        <g
+          className="pointer-events-none"
+          data-testid="map-axes"
+          transform={`translate(${dim.w - 40} ${dim.h - 40})`}
+        >
+          <circle r={32} className="fill-surface-panel/85 stroke-line-default" />
+          <line
+            x1={0}
+            y1={0}
+            x2={xu * 20}
+            y2={xv * 20}
+            stroke="var(--color-fault)"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+          />
+          <line
+            x1={0}
+            y1={0}
+            x2={yu * 20}
+            y2={yv * 20}
+            stroke="var(--color-ok)"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+          />
+          <text
+            x={xu * 27}
+            y={xv * 27}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize={10}
+            fontWeight={600}
+            fill="var(--color-fault)"
+          >
             X
           </text>
-          <text x={yu * 27} y={yv * 27} textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={700} fill="#16a34a">
+          <text
+            x={yu * 27}
+            y={yv * 27}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize={10}
+            fontWeight={600}
+            fill="var(--color-ok)"
+          >
             Y
           </text>
         </g>
       </svg>
 
-      {topLeft ? <div className="absolute top-2 left-2 z-10 flex items-center gap-2">{topLeft}</div> : null}
+      {topLeft ? (
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-2">{topLeft}</div>
+      ) : null}
 
       <div className="absolute top-2 right-2 z-10 flex flex-col gap-1" data-testid="map-controls">
-        <MapIconButton icon={<Maximize2 size={15} />} title="전체 맞춤" onClick={fit} testid="map-fit" />
-        <MapIconButton icon={<Plus size={15} />} title="확대" onClick={() => zoomCenter(1.25)} testid="map-zoom-in" />
-        <MapIconButton icon={<Minus size={15} />} title="축소" onClick={() => zoomCenter(1 / 1.25)} testid="map-zoom-out" />
-        <MapIconButton icon={<RotateCw size={15} />} title={`90° 회전 (지금 ${rot}°)`} onClick={() => changeRot(((rot + 90) % 360) as Rotation)} testid="map-rotate" />
+        <MapIconButton
+          icon={<Maximize2 size={15} />}
+          title="전체 맞춤"
+          onClick={fit}
+          testid="map-fit"
+        />
+        <MapIconButton
+          icon={<Plus size={15} />}
+          title="확대"
+          onClick={() => zoomCenter(1.25)}
+          testid="map-zoom-in"
+        />
+        <MapIconButton
+          icon={<Minus size={15} />}
+          title="축소"
+          onClick={() => zoomCenter(1 / 1.25)}
+          testid="map-zoom-out"
+        />
+        <MapIconButton
+          icon={<RotateCw size={15} />}
+          title={`90° 회전 (지금 ${rot}°)`}
+          onClick={() => changeRot(((rot + 90) % 360) as Rotation)}
+          testid="map-rotate"
+        />
         <MapIconButton
           icon={<Crosshair size={15} />}
           title="로봇 위치로 이동"
@@ -533,12 +796,21 @@ export function CellMap({
             setView(panBy(v, dim.w / 2 - sx, dim.h / 2 - sy))
           }}
         />
-        <IconPopover icon={<SlidersHorizontal size={15} />} title="보기 설정" testid="map-settings" width={260}>
+        <IconPopover
+          icon={<SlidersHorizontal size={15} />}
+          title="보기 설정"
+          testid="map-settings"
+          width={260}
+        >
           <div className="flex flex-col gap-2">
             <div className="flex items-end gap-2">
               <Select
                 label="원 지름 (mm)"
-                value={SIZE_PRESETS.includes(size as (typeof SIZE_PRESETS)[number]) ? String(size) : 'custom'}
+                value={
+                  SIZE_PRESETS.includes(size as (typeof SIZE_PRESETS)[number])
+                    ? String(size)
+                    : 'custom'
+                }
                 onValueChange={(s) => {
                   if (s === 'custom') return
                   setSize(Number(s))
@@ -573,12 +845,16 @@ export function CellMap({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <span className="text-[11px] text-slate-500">회전 (시계 방향)</span>
+              <span className="text-2xs text-content-muted">회전 (시계 방향)</span>
               <Segmented<RotId>
                 ariaLabel="회전"
                 value={String(rot) as RotId}
                 onChange={(s) => changeRot(Number(s) as Rotation)}
-                options={ROTATIONS.map((deg) => ({ id: String(deg) as RotId, label: `${deg}°`, testid: `map-rot-${deg}` }))}
+                options={ROTATIONS.map((deg) => ({
+                  id: String(deg) as RotId,
+                  label: `${deg}°`,
+                  testid: `map-rot-${deg}`,
+                }))}
               />
             </div>
             <Switch
@@ -599,26 +875,72 @@ export function CellMap({
                 save(FLIP_KEY, b ? '0' : '1')
               }}
             />
-            <Switch inline label="슬롯 실제 크기" checked={footprint} onCheckedChange={setFootprint} />
+            <Switch
+              inline
+              label="슬롯 실제 크기"
+              checked={footprint}
+              onCheckedChange={setFootprint}
+            />
           </div>
         </IconPopover>
         <IconPopover icon={<Info size={15} />} title="범례" testid="map-legend" width={240}>
-          <ul className="flex flex-col gap-1.5 text-[11px] text-slate-600 dark:text-slate-300">
-            <LegendRow swatch={<span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky-500 text-[9px] font-bold text-white">3</span>} text="셀 · 재고 있음 (숫자 = 개수, 색 = 구역)" />
-            <LegendRow swatch={<span className="h-4 w-4 rounded-full border border-slate-300 bg-slate-200 dark:bg-slate-700" />} text="셀 · 재고 없음" />
-            <LegendRow swatch={<span className="h-4 w-4 rounded-sm bg-amber-300" />} text="스테이션" />
-            <LegendRow swatch={<span className="h-4 w-4 rounded-full border-2 border-dashed border-orange-500 bg-orange-200" />} text="생성 예정 셀" />
-            <LegendRow swatch={<span className="h-4 w-4 rounded-full border border-dashed border-slate-500" />} text="로컬 수정 (PLC 미반영)" />
-            <LegendRow swatch={<span className="h-4 w-4 rounded-full border-[3px] border-indigo-600" />} text="선택 / 대상" />
-            {robotLegend.map((rb) => (
-              <LegendRow key={rb.name} swatch={<span className="h-4 w-4 rounded-full border-[3px]" style={{ borderColor: rb.color }} />} text={`${rb.name} 작업 중 (점선 = 대기)`} />
-            ))}
-            <LegendRow swatch={<span className="rounded bg-indigo-600 px-1 text-[9px] font-bold text-white">1P</span>} text="계획 순번 (P = PICK, D = DROP)" />
+          <ul className="flex flex-col gap-1.5 text-2xs text-content-tertiary">
             <LegendRow
               swatch={
-                <span className="text-[9px] font-bold">
-                  <span className="text-red-600">X</span>
-                  <span className="text-green-600">Y</span>
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-info text-3xs font-semibold text-content-on-accent">
+                  3
+                </span>
+              }
+              text="셀 · 재고 있음 (숫자 = 개수, 색 = 구역)"
+            />
+            <LegendRow
+              swatch={
+                <span className="h-4 w-4 rounded-full border border-line-strong bg-surface-active" />
+              }
+              text="셀 · 재고 없음"
+            />
+            <LegendRow swatch={<span className="h-4 w-4 rounded-sm bg-warn" />} text="스테이션" />
+            <LegendRow
+              swatch={
+                <span className="h-4 w-4 rounded-full border-2 border-dashed border-degraded bg-degraded-soft" />
+              }
+              text="생성 예정 셀"
+            />
+            <LegendRow
+              swatch={
+                <span className="h-4 w-4 rounded-full border border-dashed border-content-muted" />
+              }
+              text="로컬 수정 (PLC 미반영)"
+            />
+            <LegendRow
+              swatch={<span className="h-4 w-4 rounded-full border-[3px] border-accent" />}
+              text="선택 / 대상"
+            />
+            {robotLegend.map((rb) => (
+              <LegendRow
+                key={rb.name}
+                swatch={
+                  <span
+                    className="h-4 w-4 rounded-full border-[3px]"
+                    style={{ borderColor: rb.color }}
+                  />
+                }
+                text={`${rb.name} 작업 중 (점선 = 대기)`}
+              />
+            ))}
+            <LegendRow
+              swatch={
+                <span className="rounded bg-accent px-1 text-3xs font-semibold text-content-on-accent">
+                  1P
+                </span>
+              }
+              text="계획 순번 (P = PICK, D = DROP)"
+            />
+            <LegendRow
+              swatch={
+                <span className="text-3xs font-semibold">
+                  <span className="text-fault-fg">X</span>
+                  <span className="text-ok-fg">Y</span>
                 </span>
               }
               text="오른쪽 아래 = +X / +Y 방향"
@@ -630,7 +952,7 @@ export function CellMap({
       {children}
 
       <div
-        className="pointer-events-none absolute bottom-2 left-2 z-10 max-w-[calc(100%-6rem)] truncate rounded-md border border-slate-200 bg-white/90 px-2 py-1 font-mono text-[11px] text-slate-600 tabular-nums dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300"
+        className="pointer-events-none absolute bottom-2 left-2 z-10 max-w-[calc(100%-6rem)] truncate rounded-md border border-line-default bg-surface-panel/90 px-2 py-1 font-mono text-2xs text-content-tertiary tabular-nums"
         data-testid="map-status"
       >
         {statusText}

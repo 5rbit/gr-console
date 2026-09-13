@@ -1,3 +1,4 @@
+mod bundle;
 mod cmd;
 mod config;
 mod console_info;
@@ -61,7 +62,12 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,opcua=warn,async_opcua=warn".into())).init();
-    let mut cfg = Config::load(&cli.config)?;
+    // 기준 디렉터리 — 설정 파일이 있는 곳. CWD에 없으면 실행 파일 옆을 본다(배포: 더블클릭·바로 가기·
+    // 서비스는 CWD가 제멋대로다). 둘 다 없으면 CWD(개발 체크아웃의 기본값들이 거기 기준이다).
+    let (config_path, base) = locate_config(&cli.config);
+    let mut cfg = Config::load(&config_path)?;
+    cfg.anchor(&base);
+    tracing::info!(base = %base.display(), config = %config_path.display(), bundle = bundle::summary(), "paths");
     if cli.demo || cli.demo_opcua {
         cfg.demo = true;
     }
@@ -70,12 +76,21 @@ async fn main() -> anyhow::Result<()> {
     }
     std::fs::create_dir_all(&cfg.paths.data_dir)?;
 
-    // contracts
+    // contracts — 디스크에 없으면(배포 실행 파일) 내장 번들을 `data/contract/`에 풀어 쓴다
+    let mut contract_root = cfg.paths.contract_dir.clone();
+    if !contract_root.is_dir() {
+        let extracted = cfg.paths.data_dir.join("contract");
+        if bundle::extract_contract(&extracted)? {
+            tracing::info!(to = %extracted.display(), "contracts extracted from the bundle");
+            contract_root = extracted;
+        }
+    }
     let mut contracts: HashMap<String, Arc<Contract>> = HashMap::new();
     for p in &cfg.plcs {
         if !contracts.contains_key(&p.contract) {
-            let dir = cfg.paths.contract_dir.join(&p.contract);
-            let c = Contract::load_dir(&dir).map_err(|e| anyhow::anyhow!("contract {}: {e}", dir.display()))?;
+            let dir = contract_root.join(&p.contract);
+            let c = Contract::load_dir(&dir)
+                .map_err(|e| anyhow::anyhow!("contract {}: {e} — plc/contract가 실행 파일 옆에 없고 내장 번들도 없습니다(패키지는 --features embed로 빌드합니다)", dir.display()))?;
             tracing::info!(contract = %p.contract, udts = c.udts.len(), dbs = c.dbs.len(), consts = c.consts.len(), skipped = c.skipped.len(), "contract loaded");
             contracts.insert(p.contract.clone(), Arc::new(c));
         }
@@ -240,13 +255,60 @@ async fn main() -> anyhow::Result<()> {
     let addr: std::net::SocketAddr = cfg.server.bind.parse().map_err(|e| anyhow::anyhow!("bind {}: {e}", cfg.server.bind))?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, web = %web_source, demo = cfg.demo, "gr-console listening");
-    println!("gr-console  http://{addr}/  (web: {web_source}, demo: {})", cfg.demo);
+    let url = browse_url(addr);
+    println!("gr-console  {url}  (web: {web_source}, demo: {})", cfg.demo);
+    if cfg.server.open_browser {
+        open_browser(&url);
+    }
     axum::serve(listener, app)
         .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;
         })
         .await?;
     Ok(())
+}
+
+/// 설정 파일 위치와 기준 디렉터리. `--config`가 절대 경로거나 CWD에 있으면 그것, 아니면 실행 파일 옆,
+/// 그것도 없으면 CWD(기본값으로 뜬다 — `Config::load`가 경고를 남긴다).
+fn locate_config(given: &std::path::Path) -> (PathBuf, PathBuf) {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    if given.is_absolute() {
+        return (given.to_path_buf(), given.parent().map(PathBuf::from).unwrap_or(cwd));
+    }
+    if cwd.join(given).is_file() {
+        return (cwd.join(given), cwd);
+    }
+    if let Some(exe_dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from))
+        && exe_dir.join(given).is_file()
+    {
+        return (exe_dir.join(given), exe_dir);
+    }
+    // 설정 파일이 어디에도 없다: 개발 체크아웃(CWD에 plc/contract)이면 CWD, 아니면 실행 파일 옆
+    if cwd.join("plc/contract").is_dir() {
+        return (cwd.join(given), cwd);
+    }
+    let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from)).unwrap_or(cwd);
+    (exe_dir.join(given), exe_dir)
+}
+
+/// 사람이 열 주소 — `0.0.0.0`/`::`에 묶었으면 브라우저는 루프백으로 연다.
+fn browse_url(addr: std::net::SocketAddr) -> String {
+    let host = if addr.ip().is_unspecified() { "127.0.0.1".to_string() } else { addr.ip().to_string() };
+    format!("http://{host}:{}/", addr.port())
+}
+
+/// 기본 브라우저로 연다 — 실패는 조용히 넘긴다(콘솔에 주소가 이미 찍혀 있다). 서버가 뜬 **뒤**에 부른다.
+fn open_browser(url: &str) {
+    let result = if cfg!(target_os = "windows") {
+        std::process::Command::new("cmd").args(["/C", "start", "", url]).spawn()
+    } else if cfg!(target_os = "macos") {
+        std::process::Command::new("open").arg(url).spawn()
+    } else {
+        std::process::Command::new("xdg-open").arg(url).spawn()
+    };
+    if let Err(e) = result {
+        tracing::warn!(url, "open_browser: {e}");
+    }
 }
 
 fn cors_layer(extra: &str) -> CorsLayer {

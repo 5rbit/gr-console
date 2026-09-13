@@ -47,7 +47,7 @@ function Ring({
           {filled}/{rows.length}
         </span>
       </div>
-      <table className="w-full text-[11px]" data-testid={`plc-ring-${title.toLowerCase()}`}>
+      <table className="w-full text-2xs" data-testid={`plc-ring-${title.toLowerCase()}`}>
         <thead>
           <tr className="text-left text-content-faint">
             <th className="w-6 px-1 py-0.5 font-medium">#</th>
@@ -118,7 +118,7 @@ export function PlcView({ onPickKey, highlight = null }: PlcViewProps) {
 
   if (!data) {
     return (
-      <div className="p-3 text-xs text-slate-400" data-testid="plc-view">
+      <div className="p-3 text-xs text-content-faint" data-testid="plc-view">
         {error ?? 'PLC 뷰 읽는 중…'}
       </div>
     )
@@ -135,6 +135,17 @@ export function PlcView({ onPickKey, highlight = null }: PlcViewProps) {
       status: s.Inprogress ? 'ok' : undefined,
     },
     { label: 'HoldItem', value: s.HoldItem ? 'TRUE' : 'FALSE' },
+    // Complete·Canceled — Now 태스크가 끝났다는 PLC의 첫 신호. 링보다 먼저 서고 원장이 이것으로 끝낸다.
+    {
+      label: 'Complete',
+      value: s.Complete ? 'TRUE' : 'FALSE',
+      status: s.Complete ? 'ok' : undefined,
+    },
+    {
+      label: 'Canceled',
+      value: s.Canceled ? 'TRUE' : 'FALSE',
+      status: s.Canceled ? 'warn' : undefined,
+    },
     { label: 'Step', value: Number(s.Step ?? 0), mono: true },
   ]
   const h = data.res.Header
@@ -184,11 +195,7 @@ export function PlcView({ onPickKey, highlight = null }: PlcViewProps) {
 
   return (
     <div className="space-y-3 p-3" data-testid="plc-view">
-      {error ? (
-        <p className="m-0 text-[11px] text-amber-600 dark:text-amber-400">
-          마지막 읽기 실패 — {error}
-        </p>
-      ) : null}
+      {error ? <p className="m-0 text-2xs text-warn-fg">마지막 읽기 실패 — {error}</p> : null}
       <div>
         <div className="mb-1 text-2xs font-semibold tracking-wide text-content-muted uppercase">
           Task.Status

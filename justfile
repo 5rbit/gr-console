@@ -53,3 +53,7 @@ link-sim framing="frame" format="json":
 # 인프로세스 서버 × 시뮬레이터 매트릭스 (결과 link-selftest.json)
 link-selftest:
     cargo run -p plc-link-server --bin plc-link -- selftest --out link-selftest.json
+
+# 배포 패키지 — 실행 파일 하나(웹·계약 내장) + 설정 + 안내문 → dist/*.zip
+package:
+    pwsh -NoProfile -File tools/package.ps1

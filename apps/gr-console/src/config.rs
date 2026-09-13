@@ -289,6 +289,28 @@ impl Config {
         Ok(c)
     }
 
+    /// 상대 경로를 `base`에 붙인다. 개발 체크아웃은 CWD가 기준이었지만, 배포된 실행 파일은 어디서
+    /// 실행되든(더블클릭 · 바로 가기 · 서비스) **실행 파일 옆**을 기준으로 잡아야 `data/`가 한 곳에 쌓인다.
+    pub fn anchor(&mut self, base: &Path) {
+        let fix = |p: &mut PathBuf| {
+            if p.is_relative() {
+                *p = base.join(&*p);
+            }
+        };
+        fix(&mut self.paths.data_dir);
+        fix(&mut self.paths.contract_dir);
+        fix(&mut self.paths.sqlite);
+        if let Some(w) = self.paths.web_dir.as_mut() {
+            fix(w);
+        }
+        if let Some(n) = self.opcua.node_cache.as_mut() {
+            fix(n);
+        }
+        if let Some(k) = self.opcua.pki_dir.as_mut() {
+            fix(k);
+        }
+    }
+
     #[allow(dead_code)]
     pub fn plc(&self, name: &str) -> Option<&PlcCfg> {
         self.plcs.iter().find(|p| p.name.eq_ignore_ascii_case(name))

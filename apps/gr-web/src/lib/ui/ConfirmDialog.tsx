@@ -28,14 +28,14 @@ const SCOPE_LABEL: Record<ConfirmScope, string> = {
   'surface-cmd': '이 Instance surface 명령',
 }
 const SCOPE_TONE: Record<ConfirmScope, string> = {
-  single: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
-  'single-sim': 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+  single: 'bg-surface-inset text-content-tertiary',
+  'single-sim': 'bg-surface-inset text-content-tertiary',
   // 실 로봇 1대는 sim 1개와 같은 무게가 아니다 — 되돌릴 수 없는 물리적 결과가 붙는다.
-  'single-robot': 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
-  selection: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-  fleet: 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300',
-  firmware: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
-  'surface-cmd': 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+  'single-robot': 'bg-fault-soft text-fault-fg',
+  selection: 'bg-warn-soft text-warn-fg',
+  fleet: 'bg-degraded-soft text-degraded-fg',
+  firmware: 'bg-fault-soft text-fault-fg',
+  'surface-cmd': 'bg-warn-soft text-warn-fg',
 }
 
 export interface ConfirmDialogProps {
@@ -84,27 +84,29 @@ export function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={close}></div>
+      <div className="absolute inset-0 bg-black/40" onClick={close}></div>
       {/* 포커스 트랩 — 첫 포커스는 **취소**(안전한 쪽)다. 확인에 주면 Enter 연타로 파괴적 조작이 통과한다. */}
       <div
         ref={box}
-        className="relative w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800"
+        // `text-left`: 대화상자는 어디서 열렸든 제 정렬을 가진다 — 표의 액션 열(`text-right`) 안에서
+        // 열리면 물려받은 정렬로 질문이 오른쪽에 붙는다.
+        className="relative w-full max-w-md rounded-lg border border-line-default bg-surface-panel text-left shadow-xl"
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
-        <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 font-semibold dark:border-slate-700">
+        <div className="flex items-center gap-2 border-b border-line-subtle px-4 py-3 font-semibold">
           {title}
           {/* 영향 범위 배지 — "무엇을 확인하는가"만큼 "몇 대에 적용되는가"가 중요하다. */}
           <span
-            className={`ml-auto rounded px-1.5 py-0.5 text-[11px] font-normal ${SCOPE_TONE[scope]}`}
+            className={`ml-auto rounded px-1.5 py-0.5 text-2xs font-normal ${SCOPE_TONE[scope]}`}
             data-testid="confirm-scope"
           >
             {SCOPE_LABEL[scope]}
           </span>
         </div>
-        <div className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{children}</div>
-        <div className="flex justify-end gap-2 border-t border-slate-100 px-4 py-3 dark:border-slate-700">
+        <div className="px-4 py-3 text-sm text-content-tertiary">{children}</div>
+        <div className="flex justify-end gap-2 border-t border-line-subtle px-4 py-3">
           <Button data-autofocus intent="ghost" onClick={close}>
             {cancelLabel}
           </Button>
