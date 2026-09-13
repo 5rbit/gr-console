@@ -178,13 +178,28 @@ fn main() -> anyhow::Result<()> {
     }
 }
 
-/// Rewrites the `LayoutSig : DWord [:= ...];` declaration line to carry the start value.
+/// Rewrites the `LayoutSig : DWord [:= ...];` declaration line to carry the start value, and a BEGIN-section
+/// `LayoutSig := ...;` assignment (TIA export format) to the same value — the BEGIN value wins on import, so a stale
+/// one there would put the old signature into the PLC.
 fn patch_sig(text: &str, sig: u32) -> anyhow::Result<String> {
     let mut out = String::with_capacity(text.len() + 32);
     let mut found = false;
     for line in text.split_inclusive('\n') {
         let trimmed = line.trim_start();
-        if trimmed.starts_with("LayoutSig") && trimmed.contains(':') {
+        let rest = trimmed.strip_prefix("LayoutSig").map(str::trim_start);
+        if let Some(rest) = rest.filter(|r| r.starts_with(":=")) {
+            // BEGIN section start value: keep the assignment form (a declaration there is a syntax error in TIA)
+            let indent = &line[..line.len() - trimmed.len()];
+            let mut l = format!("{indent}LayoutSig := 16#{:04X}_{:04X};", sig >> 16, sig & 0xFFFF);
+            if let Some(i) = rest.find("//") {
+                l.push_str("   ");
+                l.push_str(rest[i..].trim_end());
+            }
+            let eol = if line.ends_with("\r\n") { "\r\n" } else { "\n" };
+            out.push_str(&l);
+            out.push_str(eol);
+            found = true;
+        } else if rest.is_some_and(|r| r.starts_with(':') || r.starts_with('{')) {
             let indent = &line[..line.len() - trimmed.len()];
             let (code, comment) = match trimmed.find("//") {
                 Some(i) => (&trimmed[..i], Some(trimmed[i..].trim_end())),
@@ -328,6 +343,16 @@ fn copy_matching(src: &Path, dst: &Path, ext: &str, keep: impl Fn(&str) -> bool)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn patch_sig_rewrites_declaration_and_begin_value() {
+        let src = "DATA_BLOCK \"X\"\n// 레이아웃은 LayoutSig 로 검증\n   STRUCT\n      LayoutSig : DWord;   //  서명\n   END_STRUCT;\n\nBEGIN\n   LayoutSig := 16#4853_A87B;\n\nEND_DATA_BLOCK\n";
+        let out = patch_sig(src, 0x6306_CEEE).unwrap();
+        assert!(out.contains("      LayoutSig : DWord := 16#6306CEEE;   //  서명\n"), "{out}");
+        assert!(out.contains("\n   LayoutSig := 16#6306_CEEE;\n"), "{out}");
+        assert!(out.contains("// 레이아웃은 LayoutSig 로 검증\n"));
+        assert!(!out.contains("4853"));
+    }
 
     fn temp_root(tag: &str) -> PathBuf {
         let p = std::env::temp_dir().join(format!("gr-contract-test-{tag}-{}", std::process::id()));
