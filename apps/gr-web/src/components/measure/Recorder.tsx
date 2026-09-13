@@ -2,7 +2,7 @@
 // 기록 : 백엔드(/api/record)가 WEBMON 의 축·그리퍼·측정 영역을 PLC 에서 직접 읽어(기본 50 ms) 콘솔 PC 의 data/records/<id> 에 남긴다.
 //        브라우저를 닫아도 기록은 이어지고, 시작·끝에 PARA·LASERDIAG·MEASLOG 스냅샷을 함께 남긴다.
 // 분석 : 기록 하나를 불러와 lib/record/analysis 의 순수 함수로 레이저 프로파일, 비드 판정 재현, 그리퍼 상태 변화, 멈춤 구간을 본다.
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../../lib/api'
 import { alarmLabel } from '../../lib/gr/alarms'
 import { KIND, STATUS } from '../../lib/gr/const'
@@ -690,9 +690,9 @@ function SessionAnalysis({ s }: { s: RecordSession }) {
             <tbody>
               {marks.map((x, i) => (
                 <tr key={i} className="border-t border-line-default">
-                  <td className="w-24 py-1 text-right font-mono tabular-nums">{sec(x.t)} s</td>
-                  <td className="w-44 pl-3 font-mono tabular-nums text-content-muted">{clock(x.at)}</td>
-                  <td className="pl-3">{x.mark}</td>
+                  <td className="w-20 whitespace-nowrap py-1 text-right font-mono tabular-nums">{sec(x.t)} s</td>
+                  <td className="w-56 whitespace-nowrap pl-4 font-mono tabular-nums text-content-muted">{clock(x.at)}</td>
+                  <td className="pl-4">{x.mark}</td>
                 </tr>
               ))}
             </tbody>
@@ -779,31 +779,43 @@ function PlcRecords({ meta, nDir }: { meta: RecordMeta; nDir: number }) {
           <div className="overflow-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-content-muted">
+                <tr className="whitespace-nowrap text-content-muted">
                   <th className="py-1 text-right">Seq</th>
-                  <th className="pl-2 text-left">종류</th>
-                  <th className="text-left">상태</th>
-                  <th className="text-right">Code</th>
-                  <th className="text-right">규격 내경</th>
-                  <th className="text-right">Δ 내경</th>
-                  <th className="text-right">Δ Z</th>
-                  <th className="pl-2 text-left">Item 값</th>
+                  <th className="pl-3 text-left">종류</th>
+                  <th className="pl-3 text-left">상태</th>
+                  <th className="pl-3 text-right">Code</th>
+                  <th className="pl-3 text-right">규격 내경</th>
+                  <th className="pl-3 text-right">Δ 내경</th>
+                  <th className="pl-3 text-right">Δ Z</th>
                 </tr>
               </thead>
               <tbody>
                 {meas.map((e) => (
-                  <tr key={e.Seq} className="border-t border-line-default font-mono tabular-nums">
-                    <td className="py-1 text-right">{e.Seq}</td>
-                    <td className="pl-2 font-sans">{KIND[e.Kind] ?? e.Kind}</td>
-                    <td className="font-sans">{STATUS[e.Status] ?? e.Status}</td>
-                    <td className="text-right">{e.Cmd?.Item?.Code ?? '-'}</td>
-                    <td className="text-right">{f1(e.Cmd?.Item?.InnerDiameter)}</td>
-                    <td className="text-right">{f2(e.Delta?.InnerDia)}</td>
-                    <td className="text-right">{f2(e.Delta?.Z)}</td>
-                    <td className="pl-2">
-                      {e.Kind === 1 ? ITEM_DATA.map(([i, l]) => `${l} ${f1(e.Data?.[i])}`).join(' · ') : '-'}
-                    </td>
-                  </tr>
+                  <Fragment key={e.Seq}>
+                    <tr className="whitespace-nowrap border-t border-line-default font-mono tabular-nums">
+                      <td className="py-1 text-right">{e.Seq}</td>
+                      <td className="pl-3 font-sans">{KIND[e.Kind] ?? e.Kind}</td>
+                      <td className="pl-3 font-sans">{STATUS[e.Status] ?? e.Status}</td>
+                      <td className="pl-3 text-right">{e.Cmd?.Item?.Code ?? '-'}</td>
+                      <td className="pl-3 text-right">{f1(e.Cmd?.Item?.InnerDiameter)}</td>
+                      <td className="pl-3 text-right">{f2(e.Delta?.InnerDia)}</td>
+                      <td className="pl-3 text-right">{f2(e.Delta?.Z)}</td>
+                    </tr>
+                    {e.Kind === 1 ? (
+                      <tr>
+                        <td />
+                        <td colSpan={6} className="pb-1 pl-3">
+                          <span className="flex flex-wrap gap-x-4 gap-y-0.5 font-mono tabular-nums">
+                            {ITEM_DATA.map(([i, l]) => (
+                              <span key={i} className="whitespace-nowrap">
+                                <span className="font-sans text-content-muted">{l}</span> {f1(e.Data?.[i])}
+                              </span>
+                            ))}
+                          </span>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
