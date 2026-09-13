@@ -1,10 +1,11 @@
 # 배포 패키지(Windows) — 실행 파일 하나(웹·계약 내장) + 설정 + 안내문을 dist\ 에 묶는다.
 #
-#   pwsh tools/package.ps1            # 또는 `just package`
-#   pwsh tools/package.ps1 -NoWeb     # npm 빌드를 건너뛴다(apps/gr-web/dist 가 이미 최신일 때)
+#   pwsh tools/package.ps1                                   # 또는 `just package`
+#   pwsh tools/package.ps1 -NoWeb                            # npm 빌드를 건너뛴다(apps/gr-web/dist 가 이미 최신일 때)
+#   pwsh tools/package.ps1 -Target x86_64-pc-windows-gnu     # 크로스 빌드(rustup target add … 가 먼저)
 #
 # 결과: dist\gr-console-<버전>+<sha>-<target>\ 와 같은 이름의 .zip. tools/package.sh 와 같은 일이다.
-param([switch]$NoWeb)
+param([switch]$NoWeb, [string]$Target = '')
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
 
@@ -16,15 +17,21 @@ if (-not $NoWeb) {
 }
 if (-not (Test-Path apps/gr-web/dist/index.html)) { throw 'apps/gr-web/dist/index.html 이 없다 — 프런트 빌드가 먼저다' }
 
-cargo build --release -p gr-console --features embed
+if ($Target) {
+  cargo build --release -p gr-console --features embed --target $Target
+  $binDir = "target/$Target/release"
+} else {
+  cargo build --release -p gr-console --features embed
+  $Target = ((rustc -vV) | Select-String '^host: ').Line -replace '^host: ', ''
+  $binDir = 'target/release'
+}
 if ($LASTEXITCODE) { throw 'cargo build failed' }
 
 $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
 $sha = (git rev-parse --short HEAD 2>$null); if (-not $sha) { $sha = 'nogit' }
-$target = ((rustc -vV) | Select-String '^host: ').Line -replace '^host: ', ''
-$name = "gr-console-$version+$sha-$target"
+$name = "gr-console-$version+$sha-$Target"
 $out = Join-Path 'dist' $name
-$bin = if (Test-Path target/release/gr-console.exe) { 'target/release/gr-console.exe' } else { 'target/release/gr-console' }
+$bin = if (Test-Path "$binDir/gr-console.exe") { "$binDir/gr-console.exe" } else { "$binDir/gr-console" }
 
 if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 New-Item -ItemType Directory -Path $out | Out-Null

@@ -39,13 +39,26 @@ gr-console-<버전>+<sha>-<target>/
 tools/package.sh              # Linux/macOS — dist/gr-console-<버전>+<sha>-<target>.zip
 pwsh tools/package.ps1        # Windows      (또는 `just package`)
         --no-web / -NoWeb     # apps/gr-web/dist 가 이미 최신이면 npm 빌드 생략
+        --target <triple> / -Target <triple>   # 크로스 빌드 — 아래 "Linux에서 Windows exe"
 ```
+
+**Linux에서 Windows exe 만들기** (CI·컨테이너에서 Windows 패키지를 낼 때):
+
+```
+sudo apt install mingw-w64
+rustup target add x86_64-pc-windows-gnu
+tools/package.sh --target x86_64-pc-windows-gnu     # → dist/gr-console-…-x86_64-pc-windows-gnu.zip
+```
+
+SQLite(번들 C 소스)와 링크가 mingw로 되고, OPC UA 클라이언트는 순수 Rust라 다른 네이티브 의존이 없다.
+이렇게 만든 exe를 Wine 9에서 빈 폴더에 두고 `--demo`로 켜 계약 추출·화면·API까지 확인했다
+(`base=Z:\…`, 실행 파일 옆 기준). Windows 네이티브 툴체인(`x86_64-pc-windows-msvc`)으로 만들어도 된다.
 
 스크립트가 하는 일: `npm ci && npm run build` → `cargo build --release -p gr-console --features embed`
 → 실행 파일 + `tools/package/gr-console.toml` + `tools/package/README.txt` + 데모 실행 스크립트를
 `dist/`에 모아 zip. **`embed` feature**가 `apps/gr-web/dist`와 `plc/contract`를 `include_dir`로 실행
 파일에 넣는다 — 개발 빌드(feature 없음)는 디스크를 읽으므로 프런트를 안 만들어도 컴파일된다.
-Windows용 exe는 Windows에서(또는 `x86_64-pc-windows-msvc` 타깃으로) 만든다. 실장비 계약이 바뀌면
+Windows용 exe는 Windows에서 직접, 또는 위처럼 Linux에서 크로스 빌드로 만든다. 실장비 계약이 바뀌면
 `plc/contract`를 갱신하고 다시 패키징한다 — 실행 파일과 계약은 항상 한 몸이다.
 
 필요한 도구: Rust 1.87+(C 컴파일러 — SQLite가 번들로 빌드된다), Node 20+, git.
