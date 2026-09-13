@@ -4,6 +4,8 @@
 // PascalCase 필드명을 **그대로** 둔다(오타처럼 보이는 `LowerBidHeight`·`Lenth`도 PLC DB 이름이다).
 // 콘솔이 소유하는 레지스트리(`Item`·`Cell`·`Station`·`Task`…)는 snake_case다.
 
+import type { RecSample } from './record/analysis'
+
 // ── 콘솔·PLC 연결 ─────────────────────────────────────────────────────────────
 
 export interface ConsoleInfo {
@@ -649,4 +651,62 @@ export interface LaserSnapshot {
   zcal: LaserZCal
   entries: LaserDiagEntry[]
   para: Record<string, number>
+}
+
+// ── 측정 기록 (/api/record) ─────────────────────────────────────────────────────
+// 콘솔 소유 레코드라 snake_case. 스냅샷 안의 PLC 값(PARA 멤버, LASERDIAG, MEASLOG Last)은 PLC 이름 그대로.
+
+export interface RecordStart {
+  label: string
+  kind: string
+  note: string
+  rate_ms: number
+}
+
+/** MEASLOG.Last 항목 (LGR_MeasureLog) 중 기록 분석에 쓰는 부분 */
+export interface RecordMeasLog {
+  Seq: number
+  Kind: number
+  Status: number
+  Data: number[]
+  Delta: { InnerDia: number; Height: number; Z: number; Offset: number; Count: number }
+  Cmd?: { Item?: { Code: number; InnerDiameter: number } }
+}
+
+export interface RecordSnapshot {
+  at: string
+  para_task: Record<string, number>
+  para_sensor: Record<string, number>
+  laser: { Total: number; Sensor: LaserSensorHealth[]; ZCal: LaserZCal } | null
+  /** 끝 스냅샷만 : 기록 중 새로 생긴 LASERDIAG.Entry (오래된 것부터) */
+  laser_entries: LaserDiagEntry[] | null
+  measlog_total: number | null
+  /** 끝 스냅샷만 : 기록 중 갱신된 MEASLOG.Last 종류별 항목 */
+  measlog_last: RecordMeasLog[] | null
+}
+
+export interface RecordMeta {
+  id: string
+  label: string
+  kind: string
+  note: string
+  plc: string
+  rate_ms: number
+  started_at: string
+  stopped_at: string | null
+  samples: number
+  marks: number
+  read_errors: number
+  start: RecordSnapshot | null
+  end: RecordSnapshot | null
+}
+
+export interface RecordOverview {
+  active: RecordMeta | null
+  sessions: RecordMeta[]
+}
+
+export interface RecordSession {
+  meta: RecordMeta
+  samples: RecSample[]
 }

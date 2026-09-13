@@ -35,7 +35,7 @@ import type {
   TaskRequest,
   TaskType,
 } from './types'
-import type { LaserSnapshot } from './types'
+import type { LaserSnapshot, RecordMeta, RecordOverview, RecordSession, RecordStart } from './types'
 
 // ── fetch 래퍼 ────────────────────────────────────────────────────────────────
 
@@ -174,6 +174,16 @@ export const api = {
   laser: () => getJson<LaserSnapshot>('/api/laser'),
   laserZCal: (enable: boolean) => postJson<{ ok: boolean; enable: boolean }>('/api/laser/zcal', { enable }),
   laserReset: () => postJson<{ ok: boolean }>('/api/laser/reset'),
+
+  // 측정 기록 (현장 시험)
+  record: () => getJson<RecordOverview>('/api/record'),
+  recordStart: (body: RecordStart) => postJson<RecordMeta>('/api/record/start', body),
+  recordStop: () => postJson<RecordMeta>('/api/record/stop'),
+  recordMark: (text: string) => postJson<{ ok: boolean }>('/api/record/mark', { text }),
+  recordSession: (id: string, max?: number) =>
+    getJson<RecordSession>(`/api/record/${encodeURIComponent(id)}${qs({ max })}`),
+  recordDelete: (id: string) => del(`/api/record/${encodeURIComponent(id)}`),
+  recordCsvUrl: (id: string): string => `/api/record/${encodeURIComponent(id)}/export.csv`,
 
   // 품목
   items: () => getJson<Item[]>('/api/items'),

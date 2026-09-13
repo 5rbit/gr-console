@@ -22,6 +22,7 @@ import { Dashboard } from './Dashboard'
 import { History } from './History'
 import { LaserSensor } from './LaserSensor'
 import { MeasureProgress } from './MeasureProgress'
+import { Recorder } from './Recorder'
 import { Stats } from './Stats'
 import { TaskNow } from './TaskNow'
 import { Trend } from './Trend'
@@ -32,6 +33,7 @@ const SUB = [
   ['axis', '축 / 센서'],
   ['meas', '측정 진행'],
   ['laser', '레이저 센서'],
+  ['rec', '기록·분석'],
   ['hist', '이력'],
   ['trend', '추세'],
   ['code', '규격별'],
@@ -155,6 +157,7 @@ export default function MeasureMonitor() {
         {wm && sub === 'axis' ? <Axes wm={wm} axisHist={measlog.axisHist} /> : null}
         {wm && sub === 'meas' ? <MeasureProgress wm={wm} snap={snap} /> : null}
         {sub === 'laser' ? <LaserSensor /> : null}
+        {sub === 'rec' ? <Recorder /> : null}
         {sub === 'hist' ? (
           <History
             rows={filtered}

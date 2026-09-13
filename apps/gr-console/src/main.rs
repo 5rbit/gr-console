@@ -10,6 +10,7 @@ mod laser;
 mod ledger;
 mod measure;
 mod plc;
+mod record;
 mod registry;
 mod routes;
 mod scenario;
@@ -203,7 +204,8 @@ async fn main() -> anyhow::Result<()> {
         tracing::error!(plc = %cfg.cmd.status_plc, "status PLC not configured");
     }
 
-    let st = AppState { cfg: cfg.clone(), plcs, cmd, robots, task_events, db, ledger, registry, measure, scenario, stock, status, events };
+    let recorder = record::Recorder::new(cfg.paths.data_dir.join("records"));
+    let st = AppState { cfg: cfg.clone(), plcs, cmd, robots, task_events, db, ledger, registry, measure, scenario, stock, recorder, status, events };
 
     // demo: seed registries from the fake PLC tables once they are readable
     if cfg.demo {

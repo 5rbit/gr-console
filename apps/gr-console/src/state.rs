@@ -12,6 +12,7 @@ use crate::error::ApiError;
 use crate::ledger::{Ledger, LedgerEntry, LedgerEvent};
 use crate::measure::MeasureStore;
 use crate::plc::PlcHandle;
+use crate::record::Recorder;
 use crate::registry::Registry;
 use crate::scenario::Runner;
 use crate::status::StatusBus;
@@ -52,6 +53,7 @@ pub struct AppState {
     pub measure: Arc<MeasureStore>,
     pub scenario: Arc<Runner>,
     pub stock: Arc<Stock>,
+    pub recorder: Arc<Recorder>,
     pub status: StatusBus,
     pub events: broadcast::Sender<ConsoleEvent>,
 }

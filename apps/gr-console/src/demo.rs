@@ -88,6 +88,43 @@ const LASER_OFFSETS: [&str; 4] = ["GIDL_ZOffset", "GIDF_ZOffset", "GIDR_ZOffset"
 const LASER_CAL_COUNT: i64 = 5;
 /// Demo mounting height error per direction (PCR L / F / R, mm): gives the bias trend and the calibration something to find.
 const LASER_MOUNT: [f64; 3] = [1.5, -0.5, -1.0];
+/// Laser distance when nothing is in the beam (`PARA.Sensor.ItemDetectDistance_H` clamp).
+const LASER_FAR: f64 = 800.0;
+
+/// Simulated gripper laser distances (L, F, R, B) at gripper height `z` / opening `g` over the task's tire: nothing
+/// above or below the tire, the bead (≈ inner diameter) in the top and bottom bead bands, the wider cavity in between.
+/// The tire stands on the cell floor (`Cell.Position[Z]`, else target Z - lower bead height); B only for TBR sizes (OD ≥ 900).
+fn laser_gid(t: &TaskData, z: f64, g: f64, tick: u64) -> [f64; 4] {
+    let id = f64::from(t.item.inner_diameter);
+    let od = f64::from(t.item.outer_diameter);
+    let mut out = [LASER_FAR; 4];
+    if id <= 0.0 || od <= id {
+        return out;
+    }
+    let height = if t.item.height > 0.0 { f64::from(t.item.height) } else { 200.0 };
+    let floor = if t.cell.position[2] > 0.0 { f64::from(t.cell.position[2]) } else { f64::from(t.position[2]) - f64::from(t.item.lower_bid_height) };
+    let bead = (height * 0.12).clamp(12.0, 30.0);
+    let half = bead / 2.0;
+    for (k, slot) in out.iter_mut().enumerate() {
+        if k == 3 && od < 900.0 {
+            continue;
+        }
+        let r = z + LASER_MOUNT.get(k).copied().unwrap_or(0.0) - floor;
+        if !(0.0..=height).contains(&r) {
+            continue;
+        }
+        let dia = if r >= height - bead {
+            id + 6.0 * ((r - (height - half)) / half).powi(2)
+        } else if r <= bead {
+            id + 6.0 * ((r - half) / half).powi(2)
+        } else {
+            od - 0.15 * (od - id)
+        };
+        let jitter = ((tick as f64 * 12.9898 + k as f64 * 78.233).sin() * 43_758.545).fract() * 0.6;
+        *slot = ((dia - g) / 2.0 + jitter).clamp(0.0, LASER_FAR);
+    }
+    out
+}
 
 fn set(j: &mut Json, ptr: &str, v: Json) {
     if let Some(slot) = j.pointer_mut(ptr) {
@@ -525,6 +562,9 @@ impl DemoWorld {
                 "LastBead": { "Enable": step == 400, "Busy": step == 400, "Done": step > 400, "LastBidPos": 24.6, "PickZTarget": 0.0 }
             })
         };
+        // laser distances over the running task's tire; the gripper stalls on the tire while gripping (step 500)
+        let gid = g.now.as_ref().map(|r| laser_gid(&r.task, f64::from(axis[2]), f64::from(axis[3]), tick)).unwrap_or([LASER_FAR; 4]);
+        let step_secs = g.now.as_ref().map(|r| r.step_at.elapsed().as_secs_f64()).unwrap_or(0.0);
         {
             let w = g.gr2.get_mut("WEBMON").unwrap();
             set(w, "/UpdateTime", json!(ntp));
@@ -541,7 +581,7 @@ impl DemoWorld {
                 set(w, &format!("/Axis/{i}/Enabled"), json!(true));
             }
             set(w, "/Gripper/ItemDetect", json!((500..999).contains(&step)));
-            set(w, "/Gripper/GID", json!([120.1, 121.7, 119.4, 120.9]));
+            set(w, "/Gripper/GID", json!(gid));
             set(w, "/Gripper/FLD", json!(800.0 - (axis[2] - 1500.0)));
             let g_settled = (target[3] - axis[3]).abs() <= 1.0;
             let gripping = (500..999).contains(&step);
@@ -549,7 +589,7 @@ impl DemoWorld {
                 w,
                 "/Gripper/State",
                 json!({ "Commanded": step == 500 || !g_settled, "Stopped": g_settled, "AtCommand": g_settled && !gripping, "TorqueReached": gripping,
-                        "TorqueStop": step == 500, "Stall": false, "StallNoTorque": false, "StallTime": 0.0 }),
+                        "TorqueStop": step == 500, "Stall": step == 500, "StallNoTorque": false, "StallTime": if step == 500 { step_secs } else { 0.0 } }),
             );
             set(w, "/Measure", measure_json);
             set(w, "/MeasLog/Total", json!(meas_total));
@@ -886,4 +926,23 @@ fn trend(m: &mut Json, ptr: &str, v: f32) {
     set(m, &format!("{ptr}/Ema"), json!(ema));
     set(m, &format!("{ptr}/Min"), json!(min));
     set(m, &format!("{ptr}/Max"), json!(max));
+}
+
+#[cfg(test)]
+mod laser_profile_tests {
+    use super::*;
+
+    #[test]
+    fn gid_sees_bead_bands_and_cavity_only_inside_the_tire() {
+        let t = TaskData {
+            item: gr_proto::StockItem { inner_diameter: 400.0, outer_diameter: 700.0, height: 200.0, ..Default::default() },
+            cell: gr_proto::CellInfo { position: [0.0, 0.0, 1500.0], ..Default::default() },
+            ..Default::default()
+        };
+        let at = |z: f64| laser_gid(&t, z - LASER_MOUNT[0], 300.0, 1)[0];
+        assert_eq!(at(1750.0), LASER_FAR);
+        assert!((at(1688.0) - 50.0).abs() < 1.0, "top bead {}", at(1688.0));
+        assert!((at(1600.0) - 177.5).abs() < 1.0, "cavity {}", at(1600.0));
+        assert_eq!(laser_gid(&t, 1600.0, 300.0, 1)[3], LASER_FAR);
+    }
 }
