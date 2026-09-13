@@ -1,0 +1,22 @@
+﻿TYPE "LGR_LaserZCal"
+VERSION : 0.1
+   STRUCT
+      Enable : Bool;   //    켜면 교정 시작. 완료 / 실패 시 자동 해제, 도중에 끄면 취소
+      Busy : Bool;   //    측정 수집 중
+      Done : Bool;   //    PARA 반영 + CSV 저장 요청 완료
+      Error : Bool;   //    실패 (ErrorCode)
+      ErrorCode : Int;   //    0 정상, 1 취소, 2 표준편차 초과 (타이어 기울기·변형 의심), 3 보정량 초과
+      Target : Int;   //    필요한 측정 수 (PARA.Sensor.LaserZCal_SampleCount)
+      Count : Int;   //    반영한 측정 수
+      Skipped : Int;   //    방향 누락으로 건너뛴 측정 수
+      Sum : Array[0..3] of Real;   //    방향별 편차 합
+      SumSq : Array[0..3] of Real;   //    방향별 편차 제곱합
+      Mean : Array[0..3] of Real;   //    방향별 편차 평균 (mm) = 보정량의 반대 부호
+      StdDev : Array[0..3] of Real;   //    방향별 편차 표준편차 (mm)
+      OldOffset : Array[0..3] of Real;   //    교정 시작 시 PARA Z 오프셋 (mm)
+      NewOffset : Array[0..3] of Real;   //    교정 결과 Z 오프셋 (mm)
+      EnableMm : Bool;
+   END_STRUCT;
+
+END_TYPE
+

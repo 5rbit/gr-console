@@ -79,6 +79,13 @@ fn ring_json(ring: &VecDeque<TaskData>) -> Json {
     Json::Array(v)
 }
 
+/// PARA.Sensor Z offsets in LASERDIAG direction order (L, F, R, B).
+const LASER_OFFSETS: [&str; 4] = ["GIDL_ZOffset", "GIDF_ZOffset", "GIDR_ZOffset", "GIDB_ZOffset"];
+/// Measurements per demo Z-offset calibration.
+const LASER_CAL_COUNT: i64 = 5;
+/// Demo mounting height error per direction (PCR L / F / R, mm): gives the bias trend and the calibration something to find.
+const LASER_MOUNT: [f64; 3] = [1.5, -0.5, -1.0];
+
 fn set(j: &mut Json, ptr: &str, v: Json) {
     if let Some(slot) = j.pointer_mut(ptr) {
         *slot = v;
@@ -146,7 +153,7 @@ impl DemoWorld {
             encoded: HashMap::new(),
         };
         // zero models from the contract, then seed constants / registries
-        for db in ["OPCUA", "TASK", "CELL", "STATION", "PARA", "ALARM", "Interface_GRM", "WEBMON", "MEASLOG", "MEASLOG_HIST"] {
+        for db in ["OPCUA", "TASK", "CELL", "STATION", "PARA", "ALARM", "Interface_GRM", "WEBMON", "MEASLOG", "MEASLOG_HIST", "LASERDIAG"] {
             let size = gr2.size_of_db(db)?;
             inner.gr2.insert(db.into(), gr2.decode_db(db, &vec![0u8; size as usize])?);
         }
@@ -154,7 +161,7 @@ impl DemoWorld {
             let size = grm.size_of_db(db)?;
             inner.grm.insert(db.into(), grm.decode_db(db, &vec![0u8; size as usize])?);
         }
-        for db in ["WEBMON", "MEASLOG", "MEASLOG_HIST"] {
+        for db in ["WEBMON", "MEASLOG", "MEASLOG_HIST", "LASERDIAG"] {
             let sig = gr2.layout_sig(db)?;
             set(inner.gr2.get_mut(db).unwrap(), "/LayoutSig", json!(sig));
         }
@@ -515,10 +522,19 @@ impl DemoWorld {
             set(w, "/Gripper/ItemDetect", json!((500..999).contains(&step)));
             set(w, "/Gripper/GID", json!([120.1, 121.7, 119.4, 120.9]));
             set(w, "/Gripper/FLD", json!(800.0 - (axis[2] - 1500.0)));
+            let g_settled = (target[3] - axis[3]).abs() <= 1.0;
+            let gripping = (500..999).contains(&step);
+            set(
+                w,
+                "/Gripper/State",
+                json!({ "Commanded": step == 500 || !g_settled, "Stopped": g_settled, "AtCommand": g_settled && !gripping, "TorqueReached": gripping,
+                        "TorqueStop": step == 500, "Stall": false, "StallNoTorque": false, "StallTime": 0.0 }),
+            );
             set(w, "/Measure", measure_json);
             set(w, "/MeasLog/Total", json!(meas_total));
             set(w, "/MeasLog/Count", json!(meas_count));
         }
+        Self::laser_tick(&mut g);
         self.encode_all(&mut g);
     }
 
@@ -593,6 +609,14 @@ impl DemoWorld {
                     status = 3;
                 }
             }
+        }
+        match kind {
+            1 => {
+                Self::push_laser(g, 2, json!(t.item.code));
+                Self::push_laser(g, 3, json!(t.item.code));
+            }
+            4 => Self::push_laser(g, 1, json!(t.item.code)),
+            _ => {}
         }
         g.meas_total += 1;
         let seq = g.meas_total;
@@ -669,12 +693,12 @@ impl DemoWorld {
         }
     }
 
-    /// Writes every model DB into the fake S7 stores. Tables a client may write over S7 (`CELL`, `STATION`) are
+    /// Writes every model DB into the fake S7 stores. Tables a client may write over S7 (`CELL`, `STATION`, `LASERDIAG`) are
     /// absorbed first: if their bytes changed since the last encode (a push from the console), the model is
     /// re-decoded from them, like a real PLC keeping the written values. Check and encode run under the store
     /// lock, so a concurrent S7 write cannot slip between them.
     fn encode_all(&self, g: &mut Inner) {
-        const ABSORB: [&str; 2] = ["CELL", "STATION"];
+        const ABSORB: [&str; 3] = ["CELL", "STATION", "LASERDIAG"];
         for (side, store, contract) in [(0u8, &self.gr2_store, &self.gr2), (1u8, &self.grm_store, &self.grm)] {
             let mut bytes = store.lock().unwrap_or_else(PoisonError::into_inner);
             let models = if side == 0 { &mut g.gr2 } else { &mut g.grm };
@@ -694,6 +718,126 @@ impl DemoWorld {
                 if absorb {
                     g.encoded.insert((side, n), buf.clone());
                 }
+            }
+        }
+    }
+
+    /// LASERDIAG : `Reset` and Z-offset calibration start / cancel. The console writes `ZCal.Enable` / `Reset` over S7
+    /// (absorbed in `encode_all`); this mirrors `UL_LaserDiag` on the PLC.
+    fn laser_tick(g: &mut Inner) {
+        let offsets: Vec<f64> = LASER_OFFSETS.iter().map(|n| get_f(&g.gr2["PARA"], &format!("/Sensor/{n}"))).collect();
+        let d = g.gr2.get_mut("LASERDIAG").unwrap();
+        let flag = |d: &Json, p: &str| d.pointer(p).and_then(Json::as_bool).unwrap_or(false);
+        if flag(d, "/Reset") {
+            for k in 0..4 {
+                for (m, v) in [
+                    ("BiasEma", json!(0.0)),
+                    ("BiasSamples", json!(0)),
+                    ("LastDev", json!(0.0)),
+                    ("NoRespConsec", json!(0)),
+                    ("UnstableConsec", json!(0)),
+                    ("BiasAlarm", json!(false)),
+                    ("NoRespAlarm", json!(false)),
+                    ("UnstableAlarm", json!(false)),
+                ] {
+                    set(d, &format!("/Sensor/{k}/{m}"), v);
+                }
+            }
+            set(d, "/Head", json!(0));
+            set(d, "/Count", json!(0));
+            set(d, "/Reset", json!(false));
+        }
+        let (enable, mm, busy) = (flag(d, "/ZCal/Enable"), flag(d, "/ZCal/EnableMm"), flag(d, "/ZCal/Busy"));
+        if enable && !mm {
+            for (m, v) in
+                [("Busy", json!(true)), ("Done", json!(false)), ("Error", json!(false)), ("ErrorCode", json!(0)), ("Target", json!(LASER_CAL_COUNT)), ("Count", json!(0)), ("Skipped", json!(0))]
+            {
+                set(d, &format!("/ZCal/{m}"), v);
+            }
+            for m in ["Sum", "SumSq", "Mean", "StdDev", "NewOffset"] {
+                set(d, &format!("/ZCal/{m}"), json!([0.0, 0.0, 0.0, 0.0]));
+            }
+            set(d, "/ZCal/OldOffset", json!(offsets));
+        } else if !enable && mm && busy {
+            set(d, "/ZCal/Busy", json!(false));
+            set(d, "/ZCal/Error", json!(true));
+            set(d, "/ZCal/ErrorCode", json!(1));
+        }
+        set(d, "/ZCal/EnableMm", json!(enable));
+    }
+
+    /// One LASERDIAG entry per laser measurement (1 PICK 하강, 2 들어갈 때, 3 나갈 때): sensor bias EMA and, while
+    /// `ZCal.Busy`, the calibration sums (sources 2 / 3). A finished calibration writes the new offsets to PARA.
+    fn push_laser(g: &mut Inner, source: u8, code: Json) {
+        let offsets: Vec<f64> = LASER_OFFSETS.iter().map(|n| get_f(&g.gr2["PARA"], &format!("/Sensor/{n}"))).collect();
+        // bead height seen by k = true bead - mount error + offset -> deviation from the mean
+        let mut dev = [0f64; 4];
+        for ((slot, mount), off) in dev.iter_mut().zip(LASER_MOUNT).zip(&offsets) {
+            *slot = off - mount + (g.rng.random::<f64>() - 0.5) * 1.2;
+        }
+        let mean = dev[..3].iter().sum::<f64>() / 3.0;
+        for slot in dev.iter_mut().take(3) {
+            *slot -= mean;
+        }
+        let spread = dev[..3].iter().copied().fold(f64::MIN, f64::max) - dev[..3].iter().copied().fold(f64::MAX, f64::min);
+        let stamp: String = now_str().replace('T', " ").chars().take(23).collect();
+        let d = g.gr2.get_mut("LASERDIAG").unwrap();
+        let total = get_f(d, "/Total") as u64 + 1;
+        let head = get_f(d, "/Head") as usize % 50;
+        let count = (get_f(d, "/Count") as usize + 1).min(50);
+        let entry = json!({
+            "TimeStamp": stamp, "Seq": total, "Source": source, "Code": code, "Valid": true, "FitError": 0, "DiagFlags": 0,
+            "BeadDev": dev, "EdgeHeight": [240.2, 240.6, 239.9, 0.0], "Samples": [38, 41, 40, 0], "Jumps": [0, 0, 0, 0],
+            "Spread": spread, "PlanarResidual": 0.0, "ZOffset": offsets,
+        });
+        set(d, &format!("/Entry/{head}"), entry);
+        set(d, "/Head", json!((head + 1) % 50));
+        set(d, "/Count", json!(count));
+        set(d, "/Total", json!(total));
+        for (k, dv) in dev.iter().copied().enumerate().take(3) {
+            let ema = get_f(d, &format!("/Sensor/{k}/BiasEma"));
+            let n = get_f(d, &format!("/Sensor/{k}/BiasSamples")) as i64;
+            let next = if n <= 0 { dv } else { ema + 0.1 * (dv - ema) };
+            set(d, &format!("/Sensor/{k}/BiasEma"), json!(next));
+            set(d, &format!("/Sensor/{k}/BiasSamples"), json!((n + 1).min(30000)));
+            set(d, &format!("/Sensor/{k}/LastDev"), json!(dv));
+            set(d, &format!("/Sensor/{k}/BiasAlarm"), json!(n + 1 >= 20 && next.abs() > 5.0));
+        }
+        let busy = d.pointer("/ZCal/Busy").and_then(Json::as_bool).unwrap_or(false);
+        let mut apply: Option<[f64; 4]> = None;
+        if source >= 2 && busy {
+            for (k, dv) in dev.iter().copied().enumerate().take(3) {
+                let s = get_f(d, &format!("/ZCal/Sum/{k}")) + dv;
+                let sq = get_f(d, &format!("/ZCal/SumSq/{k}")) + dv * dv;
+                set(d, &format!("/ZCal/Sum/{k}"), json!(s));
+                set(d, &format!("/ZCal/SumSq/{k}"), json!(sq));
+            }
+            let cnt = get_f(d, "/ZCal/Count") as i64 + 1;
+            set(d, "/ZCal/Count", json!(cnt));
+            if cnt >= (get_f(d, "/ZCal/Target") as i64).max(2) {
+                let mut new = [0f64; 4];
+                for (k, slot) in new.iter_mut().enumerate() {
+                    let old = get_f(d, &format!("/ZCal/OldOffset/{k}"));
+                    *slot = old;
+                    if k < 3 {
+                        let mean = get_f(d, &format!("/ZCal/Sum/{k}")) / cnt as f64;
+                        let std = (get_f(d, &format!("/ZCal/SumSq/{k}")) / cnt as f64 - mean * mean).max(0.0).sqrt();
+                        set(d, &format!("/ZCal/Mean/{k}"), json!(mean));
+                        set(d, &format!("/ZCal/StdDev/{k}"), json!(std));
+                        *slot = old - mean;
+                    }
+                    set(d, &format!("/ZCal/NewOffset/{k}"), json!(*slot));
+                }
+                for (m, v) in [("Busy", false), ("Done", true), ("Enable", false), ("EnableMm", false)] {
+                    set(d, &format!("/ZCal/{m}"), json!(v));
+                }
+                apply = Some(new);
+            }
+        }
+        if let Some(new) = apply {
+            let p = g.gr2.get_mut("PARA").unwrap();
+            for (name, v) in LASER_OFFSETS.iter().zip(new) {
+                set(p, &format!("/Sensor/{name}"), json!(v));
             }
         }
     }

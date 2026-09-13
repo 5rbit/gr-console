@@ -1,0 +1,241 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Document>
+  <Engineering version="V20" />
+  <SW.Blocks.GlobalDB ID="0">
+    <AttributeList>
+      <AutoNumber>true</AutoNumber>
+      <DBAccessibleFromOPCUA>true</DBAccessibleFromOPCUA>
+      <DBAccessibleFromWebserver>true</DBAccessibleFromWebserver>
+      <HeaderAuthor />
+      <HeaderFamily />
+      <HeaderName />
+      <HeaderVersion>0.1</HeaderVersion>
+      <Interface><Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">
+  <Section Name="Static">
+    <Member Name="Reset" Datatype="Bool" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   센서 상태 / 진단 이력 초기화 (자동 해제). 센서 교체·재취부 후 사용</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="Sensor" Datatype="Array[0..3] of &quot;LGR_LaserSensorHealth&quot;" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   방향별 상태 (0 L, 1 F, 2 R, 3 B)</MultiLanguageText>
+      </Comment>
+      <Sections>
+        <Section Name="None">
+          <Member Name="BiasEma" Datatype="Real" />
+          <Member Name="BiasSamples" Datatype="Int" />
+          <Member Name="LastDev" Datatype="Real" />
+          <Member Name="NoRespConsec" Datatype="Int" />
+          <Member Name="UnstableConsec" Datatype="Int" />
+          <Member Name="BiasAlarm" Datatype="Bool" />
+          <Member Name="NoRespAlarm" Datatype="Bool" />
+          <Member Name="UnstableAlarm" Datatype="Bool" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="ZCal" Datatype="&quot;LGR_LaserZCal&quot;" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   Z 오프셋 자동 교정 : ZCal.Enable 을 켜고 타이어 측정 반복</MultiLanguageText>
+      </Comment>
+      <Sections>
+        <Section Name="None">
+          <Member Name="Enable" Datatype="Bool" />
+          <Member Name="Busy" Datatype="Bool" />
+          <Member Name="Done" Datatype="Bool" />
+          <Member Name="Error" Datatype="Bool" />
+          <Member Name="ErrorCode" Datatype="Int" />
+          <Member Name="Target" Datatype="Int" />
+          <Member Name="Count" Datatype="Int" />
+          <Member Name="Skipped" Datatype="Int" />
+          <Member Name="Sum" Datatype="Array[0..3] of Real" />
+          <Member Name="SumSq" Datatype="Array[0..3] of Real" />
+          <Member Name="Mean" Datatype="Array[0..3] of Real" />
+          <Member Name="StdDev" Datatype="Array[0..3] of Real" />
+          <Member Name="OldOffset" Datatype="Array[0..3] of Real" />
+          <Member Name="NewOffset" Datatype="Array[0..3] of Real" />
+          <Member Name="EnableMm" Datatype="Bool" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="Head" Datatype="Int" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   다음 기록 위치 (0..49 링버퍼, 최신 = Entry[Head-1])</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="Count" Datatype="Int" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   유효 기록 수 (최대 50)</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="Total" Datatype="UDInt" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   누적 기록 수 = 마지막 Seq</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="Entry" Datatype="Array[0..49] of &quot;LGR_LaserDiagEntry&quot;" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   측정별 진단 이력</MultiLanguageText>
+      </Comment>
+      <Sections>
+        <Section Name="None">
+          <Member Name="TimeStamp" Datatype="DTL" Version="1.0" />
+          <Member Name="Seq" Datatype="UDInt" />
+          <Member Name="Source" Datatype="USInt" />
+          <Member Name="Code" Datatype="UDInt" />
+          <Member Name="Valid" Datatype="Bool" />
+          <Member Name="FitError" Datatype="Int" />
+          <Member Name="DiagFlags" Datatype="Word" />
+          <Member Name="BeadDev" Datatype="Array[0..3] of Real" />
+          <Member Name="EdgeHeight" Datatype="Array[0..3] of Real" />
+          <Member Name="Samples" Datatype="Array[0..3] of Int" />
+          <Member Name="Jumps" Datatype="Array[0..3] of Int" />
+          <Member Name="Spread" Datatype="Real" />
+          <Member Name="PlanarResidual" Datatype="Real" />
+          <Member Name="ZOffset" Datatype="Array[0..3] of Real" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="Edge" Datatype="Struct" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   측정 완료 에지 메모리</MultiLanguageText>
+      </Comment>
+      <Member Name="PickDone" Datatype="Bool">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+      </Member>
+      <Member Name="InDone" Datatype="Bool">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+      </Member>
+      <Member Name="OutDone" Datatype="Bool">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+      </Member>
+      <Member Name="ManualDone" Datatype="Bool">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+      </Member>
+    </Member>
+  </Section>
+</Sections></Interface>
+      <IsOnlyStoredInLoadMemory>false</IsOnlyStoredInLoadMemory>
+      <IsWriteProtectedInAS>false</IsWriteProtectedInAS>
+      <MemoryLayout>Standard</MemoryLayout>
+      <Name>LASERDIAG</Name>
+      <Namespace />
+      <Number>64</Number>
+      <ProgrammingLanguage>DB</ProgrammingLanguage>
+    </AttributeList>
+    <ObjectList>
+      <MultilingualText ID="1" CompositionName="Comment">
+        <ObjectList>
+          <MultilingualTextItem ID="2" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text> 표준 접근 : 그리퍼 레이저 센서 진단 (센서별 상태 / Z 오프셋 자동 교정 / 측정별 진단 이력). 갱신은 "UL_LaserDiag"</Text>
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="3" CompositionName="Items">
+            <AttributeList>
+              <Culture>hu-HU</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="4" CompositionName="Items">
+            <AttributeList>
+              <Culture>ko-KR</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+      <MultilingualText ID="5" CompositionName="Title">
+        <ObjectList>
+          <MultilingualTextItem ID="6" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="7" CompositionName="Items">
+            <AttributeList>
+              <Culture>hu-HU</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="8" CompositionName="Items">
+            <AttributeList>
+              <Culture>ko-KR</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+    </ObjectList>
+  </SW.Blocks.GlobalDB>
+</Document>

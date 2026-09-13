@@ -1,4 +1,5 @@
 // 대시보드 — 모드/상태/Task 칩, 진행 중 Task, 알람, 인터록, 축 요약.
+import { alarmLabel } from '../../lib/gr/alarms'
 import { AXIS, modeName } from '../../lib/gr/const'
 import { f1, tt } from '../../lib/meas/format'
 import { Card } from '../../lib/ui/Card'
@@ -12,9 +13,9 @@ function codes(arr: readonly number[] | undefined, tone: 'fault' | 'warn' | 'inf
   return (
     <span className="flex flex-wrap gap-1">
       {list.map((c, i) => (
-        <StatusBadge key={i} status={tone}>
-          {c}
-        </StatusBadge>
+        <span key={i} title={alarmLabel(c)}>
+          <StatusBadge status={tone}>{c}</StatusBadge>
+        </span>
       ))}
     </span>
   )

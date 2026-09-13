@@ -466,7 +466,7 @@ export interface WebMon {
     TaskCode: number[]
   }
   Axis: PlcAxis[]
-  Gripper: { ItemDetect: boolean; GID: number[]; FLD: number; TorqueReachedPosition: number }
+  Gripper: { ItemDetect: boolean; GID: number[]; FLD: number; TorqueReachedPosition: number; State?: GripperState }
   Measure: {
     Item: Record<string, number | boolean>
     Sku: Record<string, number | boolean | number[]>
@@ -474,6 +474,18 @@ export interface WebMon {
     LastBead: Record<string, number | boolean>
   }
   MeasLog: { Total: number; Count: number }
+}
+
+/** "MACHINE".Gripper.State (WEBMON 복사) — GripperState FC 가 매 스캔 갱신. */
+export interface GripperState {
+  Commanded: boolean
+  Stopped: boolean
+  AtCommand: boolean
+  TorqueReached: boolean
+  TorqueStop: boolean
+  Stall: boolean
+  StallNoTorque: boolean
+  StallTime: number
 }
 
 export interface StatusEvent {
@@ -576,4 +588,65 @@ export interface StockZ {
   stock: number
   floor: number
   z: number
+}
+
+/** LASERDIAG.Sensor[k] (LGR_LaserSensorHealth) */
+export interface LaserSensorHealth {
+  BiasEma: number
+  BiasSamples: number
+  LastDev: number
+  NoRespConsec: number
+  UnstableConsec: number
+  BiasAlarm: boolean
+  NoRespAlarm: boolean
+  UnstableAlarm: boolean
+}
+
+/** LASERDIAG.ZCal (LGR_LaserZCal) */
+export interface LaserZCal {
+  Enable: boolean
+  Busy: boolean
+  Done: boolean
+  Error: boolean
+  ErrorCode: number
+  Target: number
+  Count: number
+  Skipped: number
+  Sum: number[]
+  SumSq: number[]
+  Mean: number[]
+  StdDev: number[]
+  OldOffset: number[]
+  NewOffset: number[]
+  EnableMm: boolean
+}
+
+/** LASERDIAG.Entry[i] (LGR_LaserDiagEntry) */
+export interface LaserDiagEntry {
+  TimeStamp: string
+  Seq: number
+  Source: number
+  Code: number
+  Valid: boolean
+  FitError: number
+  DiagFlags: number
+  BeadDev: number[]
+  EdgeHeight: number[]
+  Samples: number[]
+  Jumps: number[]
+  Spread: number
+  PlanarResidual: number
+  ZOffset: number[]
+}
+
+/** GET /api/laser — 최신 진단 이력이 앞, para 는 레이저 관련 PARA.Sensor 멤버만. */
+export interface LaserSnapshot {
+  plc: string
+  at: string
+  total: number
+  count: number
+  sensor: LaserSensorHealth[]
+  zcal: LaserZCal
+  entries: LaserDiagEntry[]
+  para: Record<string, number>
 }

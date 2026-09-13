@@ -20,7 +20,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  [p001 - p099] 장비 파라미터</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   [p001 - p099] 장비 파라미터</MultiLanguageText>
       </Comment>
       <Member Name="ID" Datatype="USInt">
         <AttributeList>
@@ -30,7 +30,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1] Machine ID</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1] Machine ID</MultiLanguageText>
         </Comment>
         <StartValue>2</StartValue>
       </Member>
@@ -42,7 +42,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p2] Machin Type</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p2] Machin Type</MultiLanguageText>
         </Comment>
         <StartValue>2</StartValue>
       </Member>
@@ -54,7 +54,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p3] Gripper Type</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p3] Gripper Type</MultiLanguageText>
         </Comment>
         <StartValue>2</StartValue>
       </Member>
@@ -66,7 +66,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p4]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p4]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p5" Datatype="USInt">
@@ -77,7 +77,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p5]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p5]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p6" Datatype="USInt">
@@ -88,7 +88,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p6]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p6]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p7" Datatype="USInt">
@@ -99,7 +99,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p7]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p7]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="ModuleCount" Datatype="USInt">
@@ -110,7 +110,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p8] Modele Count</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p8] Modele Count</MultiLanguageText>
         </Comment>
         <StartValue>3</StartValue>
       </Member>
@@ -122,7 +122,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p9] AxisCount</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p9] AxisCount</MultiLanguageText>
         </Comment>
         <StartValue>4</StartValue>
       </Member>
@@ -134,7 +134,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p10] X-Axis Axis Length</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p10] X-Axis Axis Length</MultiLanguageText>
         </Comment>
         <StartValue>3000</StartValue>
       </Member>
@@ -146,7 +146,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p11] X-Axis Axis Length Front</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p11] X-Axis Axis Length Front</MultiLanguageText>
         </Comment>
         <StartValue>1903</StartValue>
       </Member>
@@ -158,7 +158,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p12] X-Axis Axis Length Rear</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p12] X-Axis Axis Length Rear</MultiLanguageText>
         </Comment>
         <StartValue>1903</StartValue>
       </Member>
@@ -170,7 +170,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p13] Collision Margin</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p13] Collision Margin</MultiLanguageText>
         </Comment>
         <StartValue>100</StartValue>
       </Member>
@@ -182,7 +182,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p14] Collision Margin</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p14] Collision Margin</MultiLanguageText>
         </Comment>
         <StartValue>200</StartValue>
       </Member>
@@ -194,7 +194,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p15] Collision Margin</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p15] Collision Margin</MultiLanguageText>
         </Comment>
         <StartValue>300</StartValue>
       </Member>
@@ -206,7 +206,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p16] Collision Margin</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p16] Collision Margin</MultiLanguageText>
         </Comment>
         <StartValue>400</StartValue>
       </Member>
@@ -218,7 +218,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p17]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p17]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p18" Datatype="UInt">
@@ -229,7 +229,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p18]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p18]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p19" Datatype="UInt">
@@ -240,7 +240,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p19]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p19]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="Z_Drum_Turn" Datatype="USInt">
@@ -251,7 +251,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p20] Z-Axis Drum Turn</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p20] Z-Axis Drum Turn</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="Z_BeltInitCount" Datatype="USInt">
@@ -262,7 +262,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p21] Z_BeltInitCount</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p21] Z_BeltInitCount</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="Z_BeltThickness" Datatype="Real">
@@ -273,7 +273,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p22] Z_BeltThickness</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p22] Z_BeltThickness</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="Z_Drum_Dia" Datatype="Real">
@@ -284,7 +284,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p23] Z-Axis  Drum Diameter</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p23] Z-Axis  Drum Diameter</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="Z_GripTipHeight" Datatype="Real">
@@ -295,7 +295,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p24] Z-Axis  GripTip Height</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p24] Z-Axis  GripTip Height</MultiLanguageText>
         </Comment>
         <StartValue>10.0</StartValue>
       </Member>
@@ -307,7 +307,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p25]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p25]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p26" Datatype="Real">
@@ -318,7 +318,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p26]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p26]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p27" Datatype="Real">
@@ -329,7 +329,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p27]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p27]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p28" Datatype="Real">
@@ -340,7 +340,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p28]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p28]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p29" Datatype="Real">
@@ -351,7 +351,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p29]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p29]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="G_LinkBase" Datatype="Real">
@@ -362,7 +362,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p30] G-Axis LinkBase Length</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p30] G-Axis LinkBase Length</MultiLanguageText>
         </Comment>
         <StartValue>62.0</StartValue>
       </Member>
@@ -374,7 +374,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p31] G-Axis TipBase Length</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p31] G-Axis TipBase Length</MultiLanguageText>
         </Comment>
         <StartValue>25.6</StartValue>
       </Member>
@@ -386,7 +386,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p32] G-Axis Link Length</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p32] G-Axis Link Length</MultiLanguageText>
         </Comment>
         <StartValue>265.0</StartValue>
       </Member>
@@ -398,7 +398,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p33] G-Axis GHP Length</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p33] G-Axis GHP Length</MultiLanguageText>
         </Comment>
         <StartValue>261.65</StartValue>
       </Member>
@@ -410,7 +410,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p34] G-Axis ACS Offset</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p34] G-Axis ACS Offset</MultiLanguageText>
         </Comment>
         <StartValue>4.76</StartValue>
       </Member>
@@ -422,7 +422,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p35] G-Axis Tip Length</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p35] G-Axis Tip Length</MultiLanguageText>
         </Comment>
         <StartValue>17.0</StartValue>
       </Member>
@@ -434,7 +434,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p36] G-Axis Lead Screw Pitch</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p36] G-Axis Lead Screw Pitch</MultiLanguageText>
         </Comment>
         <StartValue>20.0</StartValue>
       </Member>
@@ -446,7 +446,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p37]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p37]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p38" Datatype="Real">
@@ -457,7 +457,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p38]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p38]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p39" Datatype="Real">
@@ -468,7 +468,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p39]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p39]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p40" Datatype="Real">
@@ -479,7 +479,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p40]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p40]</MultiLanguageText>
         </Comment>
         <StartValue>60.0</StartValue>
       </Member>
@@ -491,7 +491,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p41]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p41]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p42" Datatype="Real">
@@ -502,7 +502,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p42]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p42]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p43" Datatype="Real">
@@ -513,7 +513,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p43]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p43]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p44" Datatype="Real">
@@ -524,7 +524,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p44]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p44]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p45" Datatype="Real">
@@ -535,7 +535,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p45]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p45]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p46" Datatype="Real">
@@ -546,7 +546,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p46]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p46]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p47" Datatype="Real">
@@ -557,7 +557,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p47]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p47]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p48" Datatype="Real">
@@ -568,7 +568,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p48]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p48]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p49" Datatype="Real">
@@ -579,7 +579,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p49]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p49]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="MotorRefTorque" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real">
@@ -590,7 +590,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p50-p53]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p50-p53]</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>69.0</StartValue>
@@ -613,7 +613,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p54]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p54]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p55" Datatype="Real">
@@ -624,7 +624,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p55]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p55]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p56" Datatype="Real">
@@ -635,7 +635,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p56]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p56]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p57" Datatype="Real">
@@ -646,7 +646,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p57]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p57]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p58" Datatype="Real">
@@ -657,7 +657,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p58]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p58]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p59" Datatype="Real">
@@ -668,7 +668,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p59]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p59]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p60" Datatype="Real">
@@ -679,7 +679,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p60]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p60]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p61" Datatype="Real">
@@ -690,7 +690,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p61]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p61]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p62" Datatype="Real">
@@ -701,7 +701,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p62]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p62]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p63" Datatype="Real">
@@ -712,7 +712,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p63]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p63]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p64" Datatype="Real">
@@ -723,7 +723,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p64]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p64]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p65" Datatype="Real">
@@ -734,7 +734,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p65]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p65]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p66" Datatype="Real">
@@ -745,7 +745,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p66]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p66]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p67" Datatype="Real">
@@ -756,7 +756,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p67]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p67]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p68" Datatype="Real">
@@ -767,7 +767,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p68]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p68]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p69" Datatype="Real">
@@ -778,7 +778,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p69]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p69]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p70" Datatype="Real">
@@ -789,7 +789,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p70]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p70]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p71" Datatype="Real">
@@ -800,7 +800,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p71]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p71]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p72" Datatype="Real">
@@ -811,7 +811,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p72]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p72]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p73" Datatype="Real">
@@ -822,7 +822,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p73]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p73]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p74" Datatype="Real">
@@ -833,7 +833,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p74]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p74]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p75" Datatype="Real">
@@ -844,7 +844,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p75]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p75]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p76" Datatype="Real">
@@ -855,7 +855,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p76]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p76]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p77" Datatype="Real">
@@ -866,7 +866,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p77]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p77]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p78" Datatype="Real">
@@ -877,7 +877,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p78]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p78]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p79" Datatype="Real">
@@ -888,7 +888,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p79]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p79]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="HomeDogLen" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real">
@@ -899,7 +899,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p80-p83] Home Dog Length</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p80-p83] Home Dog Length</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>20.0</StartValue>
@@ -922,7 +922,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p84]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p84]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p85" Datatype="Real">
@@ -933,7 +933,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p85]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p85]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p86" Datatype="Real">
@@ -944,7 +944,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p86]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p86]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p87" Datatype="Real">
@@ -955,7 +955,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p87]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p87]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p88" Datatype="Real">
@@ -966,7 +966,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p88]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p88]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p89" Datatype="Real">
@@ -977,7 +977,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p89]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p89]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p90" Datatype="Real">
@@ -988,7 +988,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p90]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p90]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p91" Datatype="Real">
@@ -999,7 +999,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p91]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p91]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p92" Datatype="Real">
@@ -1010,7 +1010,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p92]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p92]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p93" Datatype="Real">
@@ -1021,7 +1021,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p93]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p93]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p94" Datatype="Real">
@@ -1032,7 +1032,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p94]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p94]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p95" Datatype="Real">
@@ -1043,7 +1043,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p95]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p95]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="CellOriginDogLen" Datatype="Array[&quot;X&quot;..&quot;Y&quot;] of Real">
@@ -1054,7 +1054,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p96-p97] Cell Origin Dog Len</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p96-p97] Cell Origin Dog Len</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>20.0</StartValue>
@@ -1071,7 +1071,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p98] StandAlone Range Min</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p98] StandAlone Range Min</MultiLanguageText>
         </Comment>
         <StartValue>4300.0</StartValue>
       </Member>
@@ -1083,7 +1083,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p99] StandAlone Range Max</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p99] StandAlone Range Max</MultiLanguageText>
         </Comment>
         <StartValue>12500.0</StartValue>
       </Member>
@@ -1096,7 +1096,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  [p100 - p149] 네트워크 파라미터</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   [p100 - p149] 네트워크 파라미터</MultiLanguageText>
       </Comment>
       <Member Name="Device" Datatype="Array[0..3] of Byte">
         <AttributeList>
@@ -1227,7 +1227,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  [p150 - p299] DI Config (Reserved 영역 포함)</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   [p150 - p299] DI Config (Reserved 영역 포함)</MultiLanguageText>
       </Comment>
       <Sections>
         <Section Name="None">
@@ -1370,7 +1370,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  [p300 - p399] DQ Config (Reserved 영역 포함)</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   [p300 - p399] DQ Config (Reserved 영역 포함)</MultiLanguageText>
       </Comment>
       <Sections>
         <Section Name="None">
@@ -1449,7 +1449,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  [p400 - p499] Sensor 파라미터</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   [p400 - p499] Sensor 파라미터</MultiLanguageText>
       </Comment>
       <Member Name="ItemDetectDistance_LL" Datatype="Real">
         <AttributeList>
@@ -1459,7 +1459,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p400]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p400]</MultiLanguageText>
         </Comment>
         <StartValue>15.0</StartValue>
       </Member>
@@ -1471,7 +1471,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p401]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p401]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="ItemDetectDistance_M" Datatype="Real">
@@ -1482,7 +1482,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p402]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p402]</MultiLanguageText>
         </Comment>
         <StartValue>300.0</StartValue>
       </Member>
@@ -1494,49 +1494,69 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p403]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p403]</MultiLanguageText>
         </Comment>
         <StartValue>800.0</StartValue>
       </Member>
-      <Member Name="p404" Datatype="Real">
+      <Member Name="LaserDiag_SpreadLimit" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p404] 그리퍼 레이저 진단 : 한 측정의 방향별 비드 높이 편차 폭(최대-최소) 기준 (mm). 0 이면 8</MultiLanguageText>
+        </Comment>
+        <StartValue>8.0</StartValue>
       </Member>
-      <Member Name="p405" Datatype="Real">
+      <Member Name="LaserDiag_PlanarLimit" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p405] 그리퍼 레이저 진단 : TBR 비평면 성분 |(L+R)-(F+B)| 기준 (mm). 0 이면 4</MultiLanguageText>
+        </Comment>
+        <StartValue>4.0</StartValue>
       </Member>
-      <Member Name="p406" Datatype="Real">
+      <Member Name="LaserDiag_JumpDist" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p406] 그리퍼 레이저 진단 : 연속 샘플 거리 급변 기준 (mm). 0 이면 20</MultiLanguageText>
+        </Comment>
+        <StartValue>20.0</StartValue>
       </Member>
-      <Member Name="p407" Datatype="Real">
+      <Member Name="LaserDiag_JumpCountLimit" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p407] 그리퍼 레이저 진단 : 한 측정의 급변 횟수 기준 (회). 0 이면 5</MultiLanguageText>
+        </Comment>
+        <StartValue>5.0</StartValue>
       </Member>
-      <Member Name="p408" Datatype="Real">
+      <Member Name="LaserDiag_ConsecLimit" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p408] 그리퍼 레이저 진단 : 무응답 / 불안정 연속 측정 수 알람 기준 (회). 0 이면 3</MultiLanguageText>
+        </Comment>
+        <StartValue>3.0</StartValue>
       </Member>
       <Member Name="FLD_AntiColDistance" Datatype="Real">
         <AttributeList>
@@ -1546,7 +1566,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p409] FLD_AntiColDistance</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p409] FLD_AntiColDistance</MultiLanguageText>
         </Comment>
         <StartValue>40.0</StartValue>
       </Member>
@@ -1558,7 +1578,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p410] FLDOffset</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p410] FLDOffset</MultiLanguageText>
         </Comment>
         <StartValue>62.0</StartValue>
       </Member>
@@ -1570,7 +1590,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p411] XAC_Front_Offset</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p411] XAC_Front_Offset</MultiLanguageText>
         </Comment>
         <StartValue>755.0</StartValue>
       </Member>
@@ -1582,7 +1602,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p412] XAC_Rear_Offset</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p412] XAC_Rear_Offset</MultiLanguageText>
         </Comment>
         <StartValue>755.0</StartValue>
       </Member>
@@ -1594,7 +1614,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p413] GDL Offset</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p413] GDL Offset</MultiLanguageText>
         </Comment>
         <StartValue>41.0</StartValue>
       </Member>
@@ -1606,7 +1626,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p414] GDF Offset</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p414] GDF Offset</MultiLanguageText>
         </Comment>
         <StartValue>41.0</StartValue>
       </Member>
@@ -1618,7 +1638,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p415] GDR Offset</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p415] GDR Offset</MultiLanguageText>
         </Comment>
         <StartValue>41.0</StartValue>
       </Member>
@@ -1630,7 +1650,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p416] GDB Offset</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p416] GDB Offset</MultiLanguageText>
         </Comment>
         <StartValue>41.0</StartValue>
       </Member>
@@ -1642,85 +1662,121 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
       </Member>
-      <Member Name="p418" Datatype="Real">
+      <Member Name="GIDL_ZOffset" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p418] GDL 높이 오프셋 (mm) : 빔 높이 - 그리퍼 Z 기준. 자동 교정(LASERDIAG.ZCal) 이 기록</MultiLanguageText>
+        </Comment>
       </Member>
-      <Member Name="p419" Datatype="Real">
+      <Member Name="GIDF_ZOffset" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p419] GDF 높이 오프셋 (mm) : 빔 높이 - 그리퍼 Z 기준. 자동 교정(LASERDIAG.ZCal) 이 기록</MultiLanguageText>
+        </Comment>
       </Member>
-      <Member Name="p420" Datatype="Real">
+      <Member Name="GIDR_ZOffset" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p420] GDR 높이 오프셋 (mm) : 빔 높이 - 그리퍼 Z 기준. 자동 교정(LASERDIAG.ZCal) 이 기록</MultiLanguageText>
+        </Comment>
       </Member>
-      <Member Name="p421" Datatype="Real">
+      <Member Name="GIDB_ZOffset" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p421] GDB 높이 오프셋 (mm) : 빔 높이 - 그리퍼 Z 기준. 자동 교정(LASERDIAG.ZCal) 이 기록 (TBR)</MultiLanguageText>
+        </Comment>
       </Member>
-      <Member Name="p422" Datatype="Real">
+      <Member Name="LaserDiag_BiasLimit" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p422] 그리퍼 레이저 진단 : 센서별 높이 편차 이동평균 알람 기준 (mm). 0 이면 5</MultiLanguageText>
+        </Comment>
+        <StartValue>5.0</StartValue>
       </Member>
-      <Member Name="p423" Datatype="Real">
+      <Member Name="LaserDiag_BiasMinSamples" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p423] 그리퍼 레이저 진단 : 높이 편차 알람 판정 최소 측정 수 (회). 0 이면 20</MultiLanguageText>
+        </Comment>
+        <StartValue>20.0</StartValue>
       </Member>
-      <Member Name="p424" Datatype="Real">
+      <Member Name="LaserDiag_BiasAlpha" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p424] 그리퍼 레이저 진단 : 높이 편차 이동평균 계수 (0~1). 0 이면 0.1</MultiLanguageText>
+        </Comment>
+        <StartValue>0.1</StartValue>
       </Member>
-      <Member Name="p425" Datatype="Real">
+      <Member Name="LaserZCal_SampleCount" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p425] 레이저 Z 오프셋 자동 교정 : 측정 횟수 (회). 0 이면 5</MultiLanguageText>
+        </Comment>
+        <StartValue>5.0</StartValue>
       </Member>
-      <Member Name="p426" Datatype="Real">
+      <Member Name="LaserZCal_MaxStdDev" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p426] 레이저 Z 오프셋 자동 교정 : 방향별 편차 표준편차 허용 (mm). 0 이면 2</MultiLanguageText>
+        </Comment>
+        <StartValue>2.0</StartValue>
       </Member>
-      <Member Name="p427" Datatype="Real">
+      <Member Name="LaserZCal_MaxCorrection" Datatype="Real">
         <AttributeList>
           <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   [p427] 레이저 Z 오프셋 자동 교정 : 방향별 보정량 허용 (mm). 0 이면 20</MultiLanguageText>
+        </Comment>
+        <StartValue>20.0</StartValue>
       </Member>
       <Member Name="p428" Datatype="Real">
         <AttributeList>
@@ -1754,7 +1810,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p431] X1RD Offset</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p431] X1RD Offset</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="X2RD_Offset" Datatype="Real">
@@ -1765,7 +1821,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p432] X2RD Offset</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p432] X2RD Offset</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p433" Datatype="Real">
@@ -2313,7 +2369,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  [p500 - p899] Drive</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   [p500 - p899] Drive</MultiLanguageText>
       </Comment>
       <Member Name="SpeedFactor" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real">
         <AttributeList>
@@ -2323,7 +2379,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p500-p515] 축 속도 배율 %</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p500-p515] 축 속도 배율 %</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>1.0</StartValue>
@@ -2346,7 +2402,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p516-p531] 축 정위치 범위</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p516-p531] 축 정위치 범위</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>3.0</StartValue>
@@ -2369,7 +2425,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p532-p547] 축 정위치 해제 범위</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p532-p547] 축 정위치 해제 범위</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>2.0</StartValue>
@@ -2392,7 +2448,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p548-p563]축 정지 결정 속도 (m/s) 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p548-p563]축 정지 결정 속도 (m/s) 파라미터</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>0.5</StartValue>
@@ -2415,7 +2471,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p564-p579] 축 정지 결정 시간 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p564-p579] 축 정지 결정 시간 파라미터</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>0.1</StartValue>
@@ -2438,7 +2494,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p580-p595] 축 포지셔닝 명령 허용 오차 파라미터(mm)</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p580-p595] 축 포지셔닝 명령 허용 오차 파라미터(mm)</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>2.0</StartValue>
@@ -2461,7 +2517,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p596-p611] 축 조그 기동 시 토크 리미트(%) 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p596-p611] 축 조그 기동 시 토크 리미트(%) 파라미터</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>50.0</StartValue>
@@ -2484,7 +2540,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p612-p627] Homing 방향 변경 파라메터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p612-p627] Homing 방향 변경 파라메터</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="RangeMin" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real">
@@ -2495,7 +2551,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p628-p643] 축 가동 최소 범위</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p628-p643] 축 가동 최소 범위</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>4300.0</StartValue>
@@ -2518,7 +2574,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p644-p659] 축 가동 최소 범위</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p644-p659] 축 가동 최소 범위</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>12500.0</StartValue>
@@ -2541,7 +2597,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p660-p675] 축 홈 위치</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p660-p675] 축 홈 위치</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>15000.0</StartValue>
@@ -2564,7 +2620,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p676-p691] 축 Maintenance 위치</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p676-p691] 축 Maintenance 위치</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>15000.0</StartValue>
@@ -2587,7 +2643,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p692-p707] Utility Pos A</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p692-p707] Utility Pos A</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>15000.0</StartValue>
@@ -2607,7 +2663,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p708-p723] Utility Pos B</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p708-p723] Utility Pos B</MultiLanguageText>
         </Comment>
         <Subelement Path="4">
           <StartValue>630.0</StartValue>
@@ -2621,7 +2677,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p756-p757] Cell Layout 원점</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p756-p757] Cell Layout 원점</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>5700.0</StartValue>
@@ -2638,7 +2694,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p772] X1, X2축 동기 오차 Fault 거리 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p772] X1, X2축 동기 오차 Fault 거리 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>30.0</StartValue>
       </Member>
@@ -2650,7 +2706,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p773] X1, X2축 동기 오차 Fault 감지 거리 속도 마진 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p773] X1, X2축 동기 오차 Fault 감지 거리 속도 마진 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>40.0</StartValue>
       </Member>
@@ -2662,7 +2718,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p784..p799] 드라이브 원점 위치 (ACS)</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p784..p799] 드라이브 원점 위치 (ACS)</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>1000.0</StartValue>
@@ -2685,7 +2741,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p800..p849] ACS 변환 계수</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p800..p849] ACS 변환 계수</MultiLanguageText>
         </Comment>
         <Subelement Path="1,1">
           <StartValue>1.0</StartValue>
@@ -2717,7 +2773,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p850..p899] MCS 변환 계수</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p850..p899] MCS 변환 계수</MultiLanguageText>
         </Comment>
         <Subelement Path="1,1">
           <StartValue>1.0</StartValue>
@@ -2750,7 +2806,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  [p900 - p999] Task</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   [p900 - p999] Task</MultiLanguageText>
       </Comment>
       <Member Name="CheckStation" Datatype="Bool">
         <AttributeList>
@@ -2760,7 +2816,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p900] 명령 수행 시 Station Interlock 확인 여부 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p900] 명령 수행 시 Station Interlock 확인 여부 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>TRUE</StartValue>
       </Member>
@@ -2772,7 +2828,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p901] 명령 수행 시 물체 감지 센서 사용 여부, PICK 인 경우 타이어 빠짐 Detection</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p901] 명령 수행 시 물체 감지 센서 사용 여부, PICK 인 경우 타이어 빠짐 Detection</MultiLanguageText>
         </Comment>
         <StartValue>TRUE</StartValue>
       </Member>
@@ -2784,7 +2840,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p902] 명령 수행 시 Cell 사용 여부 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p902] 명령 수행 시 Cell 사용 여부 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>TRUE</StartValue>
       </Member>
@@ -2796,7 +2852,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p903] 명령 수행 시 충돌방지 로직 사용 여부 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p903] 명령 수행 시 충돌방지 로직 사용 여부 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>TRUE</StartValue>
       </Member>
@@ -2808,7 +2864,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p904] 명령 수행 시 PreGrip 사용 여부, PreGrip : PICK 명령 시 Gripper 를 PreGripDelta 거리 만큼 미리 이동 시키는 기능</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p904] 명령 수행 시 PreGrip 사용 여부, PreGrip : PICK 명령 시 Gripper 를 PreGripDelta 거리 만큼 미리 이동 시키는 기능</MultiLanguageText>
         </Comment>
         <StartValue>TRUE</StartValue>
       </Member>
@@ -2820,7 +2876,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p905] PICK 명령 수행 이후 저속 들기 사용 여부 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p905] PICK 명령 수행 이후 저속 들기 사용 여부 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>TRUE</StartValue>
       </Member>
@@ -2832,7 +2888,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p906] DROP 명령 수행 시 저속 내려 놓기 사용 여부 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p906] DROP 명령 수행 시 저속 내려 놓기 사용 여부 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>TRUE</StartValue>
       </Member>
@@ -2844,7 +2900,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p907] 명령 수행 시 일정 구간 Gripper TorqRelease 사용 여부 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p907] 명령 수행 시 일정 구간 Gripper TorqRelease 사용 여부 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>TRUE</StartValue>
       </Member>
@@ -2856,7 +2912,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p908] 명령 수행 전 Initializing 확인 여부 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p908] 명령 수행 전 Initializing 확인 여부 파라미터</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p909" Datatype="Bool">
@@ -2867,7 +2923,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p909]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p909]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p910" Datatype="Bool">
@@ -2878,7 +2934,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p910]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p910]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p911" Datatype="Bool">
@@ -2889,7 +2945,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p911]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p911]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p912" Datatype="Bool">
@@ -2900,7 +2956,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p912]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p912]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p913" Datatype="Bool">
@@ -2911,7 +2967,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p913]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p913]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p914" Datatype="Bool">
@@ -2922,7 +2978,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p914]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p914]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p915" Datatype="Bool">
@@ -2933,7 +2989,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p915]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p915]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p916" Datatype="Bool">
@@ -2944,7 +3000,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p916]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p916]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p917" Datatype="Bool">
@@ -2955,7 +3011,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p917]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p917]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p918" Datatype="Bool">
@@ -2966,7 +3022,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p918]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p918]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p919" Datatype="Bool">
@@ -2977,7 +3033,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p919]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p919]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p920" Datatype="Bool">
@@ -2988,7 +3044,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p920]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p920]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p921" Datatype="Bool">
@@ -2999,7 +3055,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p921]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p921]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p922" Datatype="Bool">
@@ -3010,7 +3066,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p922]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p922]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p923" Datatype="Bool">
@@ -3021,7 +3077,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p923]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p923]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p924" Datatype="Bool">
@@ -3032,7 +3088,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p924]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p924]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p925" Datatype="Bool">
@@ -3043,7 +3099,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p925]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p925]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p926" Datatype="Bool">
@@ -3054,7 +3110,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p926]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p926]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p927" Datatype="Bool">
@@ -3065,7 +3121,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p927]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p927]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p928" Datatype="Bool">
@@ -3076,7 +3132,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p928]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p928]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p929" Datatype="Bool">
@@ -3087,7 +3143,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p929]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p929]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="BlendingDistance" Datatype="Real">
@@ -3098,7 +3154,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p930] XYZ 블랜딩 거리(mm) 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p930] XYZ 블랜딩 거리(mm) 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>500.0</StartValue>
       </Member>
@@ -3110,7 +3166,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p931] XY 동작 허용 Z 높이(mm) 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p931] XY 동작 허용 Z 높이(mm) 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>2700.0</StartValue>
       </Member>
@@ -3122,7 +3178,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p932] Station 다스택 적재 시 타이어 간의 거리 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p932] Station 다스택 적재 시 타이어 간의 거리 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>20.0</StartValue>
       </Member>
@@ -3134,7 +3190,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p933] Station 명령 시 Drag 이동 거리 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p933] Station 명령 시 Drag 이동 거리 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>100.0</StartValue>
       </Member>
@@ -3146,7 +3202,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p934] Station 명령 시 Drag 동작 시작 높이 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p934] Station 명령 시 Drag 동작 시작 높이 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>500.0</StartValue>
       </Member>
@@ -3158,7 +3214,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p935] Station 명령시 Drage 동작 Blending 거리 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p935] Station 명령시 Drage 동작 Blending 거리 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>200.0</StartValue>
       </Member>
@@ -3170,7 +3226,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p936] PICK 명령 수행 저속 운행 거리 여부 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p936] PICK 명령 수행 저속 운행 거리 여부 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>150.0</StartValue>
       </Member>
@@ -3182,7 +3238,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p937] DROP 명령 수행 저속 운행 거리 여부 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p937] DROP 명령 수행 저속 운행 거리 여부 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>150.0</StartValue>
       </Member>
@@ -3194,7 +3250,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p938] DROP 명령 수행 시 Z축 DROP 포지션 Offset 파라미터, 지정된 포지션 + Offset 위치에 DROP 명령을 수행 하게 됨</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p938] DROP 명령 수행 시 Z축 DROP 포지션 Offset 파라미터, 지정된 포지션 + Offset 위치에 DROP 명령을 수행 하게 됨</MultiLanguageText>
         </Comment>
         <StartValue>10.0</StartValue>
       </Member>
@@ -3206,7 +3262,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p939] 명령 수행 중 PREGRIP시 타이어와의 거리 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p939] 명령 수행 중 PREGRIP시 타이어와의 거리 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>100.0</StartValue>
       </Member>
@@ -3218,7 +3274,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p940] DROP 명령 수행 시 Gripper Torq(%)  파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p940] DROP 명령 수행 시 Gripper Torq(%)  파라미터</MultiLanguageText>
         </Comment>
         <StartValue>70.0</StartValue>
       </Member>
@@ -3230,7 +3286,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p941] PICK 명령 수행 시 Gripper Torq(%)  파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p941] PICK 명령 수행 시 Gripper Torq(%)  파라미터</MultiLanguageText>
         </Comment>
         <StartValue>50.0</StartValue>
       </Member>
@@ -3242,7 +3298,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p942] Gripper Torq 리미트 동작 시 Inposition 허용 거리(mm) 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p942] Gripper Torq 리미트 동작 시 Inposition 허용 거리(mm) 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>10.0</StartValue>
       </Member>
@@ -3254,7 +3310,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p943] Gripper Torq Release 동작시 토크 제한 해제 % 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p943] Gripper Torq Release 동작시 토크 제한 해제 % 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>100.0</StartValue>
       </Member>
@@ -3266,7 +3322,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p944] Gripper Torq Release 동작 높이 (mm) 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p944] Gripper Torq Release 동작 높이 (mm) 파라미터</MultiLanguageText>
         </Comment>
         <StartValue>50.0</StartValue>
       </Member>
@@ -3278,7 +3334,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p945] Gripper PICK 명령시 Gripper Position Offset (mm) 파라미터</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p945] Gripper PICK 명령시 Gripper Position Offset (mm) 파라미터</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="G_PickGripOffset_Factor" Datatype="Real">
@@ -3289,7 +3345,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p946] Gripper PICK 명령시 Gripper Position Offset (%) 파라미터, 명령 Position에 대한 추가 %를 의미한다</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p946] Gripper PICK 명령시 Gripper Position Offset (%) 파라미터, 명령 Position에 대한 추가 %를 의미한다</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="PreDropHeight_Factor" Datatype="Real">
@@ -3300,7 +3356,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p947] PreGrip Drop시 명령시 시작 Z 위치</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p947] PreGrip Drop시 명령시 시작 Z 위치</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="PrePickHeight_Factor" Datatype="Real">
@@ -3311,7 +3367,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p948] PreGrip Pick 명령시 타이어 높이 대비 시작 위치 %</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p948] PreGrip Pick 명령시 타이어 높이 대비 시작 위치 %</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="G_TorqDetect_OnRatio" Datatype="Real">
@@ -3322,7 +3378,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p949] Gripper 토크 검출 켜짐 기준(%) 파라미터, 적용 중 토크 제한값 대비. 0 이면 90</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p949] Gripper 토크 검출 켜짐 기준(%) 파라미터, 적용 중 토크 제한값 대비. 0 이면 90</MultiLanguageText>
         </Comment>
         <StartValue>90.0</StartValue>
       </Member>
@@ -3334,7 +3390,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p950] Gripper 토크 검출 꺼짐 기준(%) 파라미터, 적용 중 토크 제한값 대비. 0 이면 70</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p950] Gripper 토크 검출 꺼짐 기준(%) 파라미터, 적용 중 토크 제한값 대비. 0 이면 70</MultiLanguageText>
         </Comment>
         <StartValue>70.0</StartValue>
       </Member>
@@ -3346,7 +3402,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p951] Gripper 토크 검출 켜짐 유지시간(s) 파라미터. 0 이면 0.2</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p951] Gripper 토크 검출 켜짐 유지시간(s) 파라미터. 0 이면 0.2</MultiLanguageText>
         </Comment>
         <StartValue>0.2</StartValue>
       </Member>
@@ -3358,7 +3414,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US"> [p952] 토크 내경 측정 시 Gripper 토크 제한(%) 파라미터. 0 이면 기존값 (자동 측정 G_PickTorq_Factor, 수동 측정 15)</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">  [p952] 토크 내경 측정 시 Gripper 토크 제한(%) 파라미터. 0 이면 기존값 (자동 측정 G_PickTorq_Factor, 수동 측정 15)</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p953" Datatype="Real">
@@ -3369,7 +3425,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p953]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p953]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p954" Datatype="Real">
@@ -3380,7 +3436,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p954]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p954]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p955" Datatype="Real">
@@ -3391,7 +3447,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p955]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p955]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p956" Datatype="Real">
@@ -3402,7 +3458,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p956]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p956]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p957" Datatype="Real">
@@ -3413,7 +3469,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p957]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p957]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p958" Datatype="Real">
@@ -3424,7 +3480,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p958]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p958]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p959" Datatype="Real">
@@ -3435,7 +3491,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p959]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p959]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="pickRetryCountMax" Datatype="USInt">
@@ -3446,7 +3502,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p960]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p960]</MultiLanguageText>
         </Comment>
         <StartValue>1</StartValue>
       </Member>
@@ -3458,7 +3514,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p961]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p961]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p962" Datatype="Real">
@@ -3469,7 +3525,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p962]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p962]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p963" Datatype="Real">
@@ -3480,7 +3536,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p963]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p963]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p964" Datatype="Real">
@@ -3491,7 +3547,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p964]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p964]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p965" Datatype="Real">
@@ -3502,7 +3558,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p965]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p965]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p966" Datatype="Real">
@@ -3513,7 +3569,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p966]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p966]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p967" Datatype="Real">
@@ -3524,7 +3580,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p967]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p967]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p968" Datatype="Real">
@@ -3535,7 +3591,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p968]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p968]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p969" Datatype="Real">
@@ -3546,7 +3602,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p969]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p969]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="Pick_GripExtra" Datatype="Real">
@@ -3557,7 +3613,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p970]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p970]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="Pick_GripBackDelta" Datatype="Real">
@@ -3568,7 +3624,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p971]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p971]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p972" Datatype="Real">
@@ -3579,7 +3635,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p972]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p972]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p973" Datatype="Real">
@@ -3590,7 +3646,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p973]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p973]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p974" Datatype="Real">
@@ -3601,7 +3657,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p974]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p974]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p975" Datatype="Real">
@@ -3612,7 +3668,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p975]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p975]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p976" Datatype="Real">
@@ -3623,7 +3679,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p976]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p976]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p977" Datatype="Real">
@@ -3634,7 +3690,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p977]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p977]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p978" Datatype="Real">
@@ -3645,7 +3701,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p978]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p978]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p979" Datatype="Real">
@@ -3656,7 +3712,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p979]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p979]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p980" Datatype="Real">
@@ -3667,7 +3723,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p980]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p980]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p981" Datatype="Real">
@@ -3678,7 +3734,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p981]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p981]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p982" Datatype="Real">
@@ -3689,7 +3745,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p982]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p982]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p983" Datatype="Real">
@@ -3700,7 +3756,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p983]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p983]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p984" Datatype="Real">
@@ -3711,7 +3767,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p984]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p984]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p985" Datatype="Real">
@@ -3722,7 +3778,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p985]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p985]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p986" Datatype="Real">
@@ -3733,7 +3789,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p986]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p986]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p987" Datatype="Real">
@@ -3744,7 +3800,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p987]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p987]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p988" Datatype="Real">
@@ -3755,7 +3811,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p988]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p988]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p989" Datatype="Real">
@@ -3766,7 +3822,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p989]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p989]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p990" Datatype="Real">
@@ -3777,7 +3833,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p990]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p990]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p991" Datatype="Real">
@@ -3788,7 +3844,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p991]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p991]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p992" Datatype="Real">
@@ -3799,7 +3855,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p992]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p992]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p993" Datatype="Real">
@@ -3810,7 +3866,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p993]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p993]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p994" Datatype="Real">
@@ -3821,7 +3877,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p994]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p994]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p995" Datatype="Real">
@@ -3832,7 +3888,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p995]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p995]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p996" Datatype="Real">
@@ -3843,7 +3899,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p996]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p996]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p997" Datatype="Real">
@@ -3854,7 +3910,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p997]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p997]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p998" Datatype="Real">
@@ -3865,7 +3921,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p998]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p998]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p999" Datatype="Real">
@@ -3876,7 +3932,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p999]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p999]</MultiLanguageText>
         </Comment>
       </Member>
     </Member>
@@ -3888,7 +3944,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  [p1000 - p1099] Timout</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   [p1000 - p1099] Timout</MultiLanguageText>
       </Comment>
       <Member Name="PowerOn" Datatype="Real">
         <AttributeList>
@@ -3898,7 +3954,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1000]  PowerOn 단계에서 TimeOut (ms) 파라미터, 1000ms = 1.0s</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1000]  PowerOn 단계에서 TimeOut (ms) 파라미터, 1000ms = 1.0s</MultiLanguageText>
         </Comment>
         <StartValue>1.0</StartValue>
       </Member>
@@ -3910,7 +3966,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1001]  DriveOn 단계에서 TimeOut (ms) 파라미터, 1000ms = 1.0s</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1001]  DriveOn 단계에서 TimeOut (ms) 파라미터, 1000ms = 1.0s</MultiLanguageText>
         </Comment>
         <StartValue>3.0</StartValue>
       </Member>
@@ -3922,7 +3978,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1002]  IDLE 상태에서 Drive Off 동작 타이머(ms), 1000ms = 1.0s</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1002]  IDLE 상태에서 Drive Off 동작 타이머(ms), 1000ms = 1.0s</MultiLanguageText>
         </Comment>
         <StartValue>60.0</StartValue>
       </Member>
@@ -3934,7 +3990,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1003]  Manual, JOG 동작 시 Drive Off 동작 타이머(ms), 1000ms = 1.0s</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1003]  Manual, JOG 동작 시 Drive Off 동작 타이머(ms), 1000ms = 1.0s</MultiLanguageText>
         </Comment>
         <StartValue>5.0</StartValue>
       </Member>
@@ -3946,7 +4002,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1004]  명령 실행 전 DriveReady TimeOut 파라미터(ms), 1000ms=1.0s</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1004]  명령 실행 전 DriveReady TimeOut 파라미터(ms), 1000ms=1.0s</MultiLanguageText>
         </Comment>
         <StartValue>0.5</StartValue>
       </Member>
@@ -3998,7 +4054,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1010-p1025] 축 원점 이동 Timeout</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1010-p1025] 축 원점 이동 Timeout</MultiLanguageText>
         </Comment>
         <Subelement Path="1">
           <StartValue>1.0</StartValue>
@@ -4027,7 +4083,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1026]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1026]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1027" Datatype="Real">
@@ -4038,7 +4094,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1027]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1027]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1028" Datatype="Real">
@@ -4049,7 +4105,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1028]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1028]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1029" Datatype="Real">
@@ -4060,7 +4116,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1029]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1029]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="BeltTentionOnDlyTime" Datatype="Real">
@@ -4071,7 +4127,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1030]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1030]</MultiLanguageText>
         </Comment>
         <StartValue>0.3</StartValue>
       </Member>
@@ -4083,7 +4139,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1031]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1031]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1032" Datatype="Real">
@@ -4094,7 +4150,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1032]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1032]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1033" Datatype="Real">
@@ -4105,7 +4161,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1033]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1033]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1034" Datatype="Real">
@@ -4116,7 +4172,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1034]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1034]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1035" Datatype="Real">
@@ -4127,7 +4183,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1035]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1035]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1036" Datatype="Real">
@@ -4138,7 +4194,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1036]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1036]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1037" Datatype="Real">
@@ -4149,7 +4205,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1037]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1037]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1038" Datatype="Real">
@@ -4160,7 +4216,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1038]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1038]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1039" Datatype="Real">
@@ -4171,7 +4227,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1039]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1039]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1040" Datatype="Real">
@@ -4182,7 +4238,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1040]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1040]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1041" Datatype="Real">
@@ -4193,7 +4249,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1041]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1041]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1042" Datatype="Real">
@@ -4204,7 +4260,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1042]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1042]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1043" Datatype="Real">
@@ -4215,7 +4271,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1043]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1043]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1044" Datatype="Real">
@@ -4226,7 +4282,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1044]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1044]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1045" Datatype="Real">
@@ -4237,7 +4293,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1045]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1045]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1046" Datatype="Real">
@@ -4248,7 +4304,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1046]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1046]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1047" Datatype="Real">
@@ -4259,7 +4315,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1047]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1047]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1048" Datatype="Real">
@@ -4270,7 +4326,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1048]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1048]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1049" Datatype="Real">
@@ -4281,7 +4337,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1049]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1049]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1050" Datatype="Real">
@@ -4292,7 +4348,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1050]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1050]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1051" Datatype="Real">
@@ -4303,7 +4359,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1051]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1051]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1052" Datatype="Real">
@@ -4314,7 +4370,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1052]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1052]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1053" Datatype="Real">
@@ -4325,7 +4381,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1053]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1053]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1054" Datatype="Real">
@@ -4336,7 +4392,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1054]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1054]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1055" Datatype="Real">
@@ -4347,7 +4403,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1055]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1055]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1056" Datatype="Real">
@@ -4358,7 +4414,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1056]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1056]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1057" Datatype="Real">
@@ -4369,7 +4425,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1057]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1057]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1058" Datatype="Real">
@@ -4380,7 +4436,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1058]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1058]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1059" Datatype="Real">
@@ -4391,7 +4447,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1059]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1059]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="CVInterlock" Datatype="Real">
@@ -4402,7 +4458,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1060]  Station InterLock TimOut 파라미터(ms), 1000ms=1.0s</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1060]  Station InterLock TimOut 파라미터(ms), 1000ms=1.0s</MultiLanguageText>
         </Comment>
         <StartValue>30.0</StartValue>
       </Member>
@@ -4414,7 +4470,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1061]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1061]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1062" Datatype="Real">
@@ -4425,7 +4481,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1062]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1062]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1063" Datatype="Real">
@@ -4436,7 +4492,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1063]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1063]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1064" Datatype="Real">
@@ -4447,7 +4503,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1064]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1064]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1065" Datatype="Real">
@@ -4458,7 +4514,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1065]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1065]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1066" Datatype="Real">
@@ -4469,7 +4525,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1066]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1066]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1067" Datatype="Real">
@@ -4480,7 +4536,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1067]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1067]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1068" Datatype="Real">
@@ -4491,7 +4547,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1068]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1068]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1069" Datatype="Real">
@@ -4502,7 +4558,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1069]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1069]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1070" Datatype="Real">
@@ -4513,7 +4569,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1070]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1070]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1071" Datatype="Real">
@@ -4524,7 +4580,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1071]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1071]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1072" Datatype="Real">
@@ -4535,7 +4591,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1072]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1072]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1073" Datatype="Real">
@@ -4546,7 +4602,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1073]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1073]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1074" Datatype="Real">
@@ -4557,7 +4613,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1074]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1074]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1075" Datatype="Real">
@@ -4568,7 +4624,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1075]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1075]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1076" Datatype="Real">
@@ -4579,7 +4635,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1076]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1076]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1077" Datatype="Real">
@@ -4590,7 +4646,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1077]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1077]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1078" Datatype="Real">
@@ -4601,7 +4657,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1078]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1078]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1079" Datatype="Real">
@@ -4612,7 +4668,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1079]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1079]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1080" Datatype="Real">
@@ -4623,7 +4679,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1080]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1080]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1081" Datatype="Real">
@@ -4634,7 +4690,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1081]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1081]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1082" Datatype="Real">
@@ -4645,7 +4701,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1082]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1082]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1083" Datatype="Real">
@@ -4656,7 +4712,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1083]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1083]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1084" Datatype="Real">
@@ -4667,7 +4723,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1084]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1084]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1085" Datatype="Real">
@@ -4678,7 +4734,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1085]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1085]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1086" Datatype="Real">
@@ -4689,7 +4745,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1086]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1086]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1087" Datatype="Real">
@@ -4700,7 +4756,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1087]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1087]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1088" Datatype="Real">
@@ -4711,7 +4767,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1088]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1088]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1089" Datatype="Real">
@@ -4722,7 +4778,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1089]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1089]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="CommGRM" Datatype="Real">
@@ -4733,7 +4789,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1090]  Mainpanel 통신 TimeOut 파라미터(ms),1000ms=1.0s</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1090]  Mainpanel 통신 TimeOut 파라미터(ms),1000ms=1.0s</MultiLanguageText>
         </Comment>
         <StartValue>3.0</StartValue>
       </Member>
@@ -4745,7 +4801,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1091]  GCS 통신 TimeOut 파라미터(ms),1000ms=1.0s</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1091]  GCS 통신 TimeOut 파라미터(ms),1000ms=1.0s</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="CommFrontGR" Datatype="Real">
@@ -4756,7 +4812,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1092]  GCS 통신 TimeOut 파라미터(ms),1000ms=1.0s</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1092]  GCS 통신 TimeOut 파라미터(ms),1000ms=1.0s</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="CommRearGR" Datatype="Real">
@@ -4767,7 +4823,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1093]  GCS 통신 TimeOut 파라미터(ms),1000ms=1.0s</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1093]  GCS 통신 TimeOut 파라미터(ms),1000ms=1.0s</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1094" Datatype="Real">
@@ -4778,7 +4834,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1094]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1094]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1095" Datatype="Real">
@@ -4789,7 +4845,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1095]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1095]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1096" Datatype="Real">
@@ -4800,7 +4856,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1096]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1096]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="p1097" Datatype="Real">
@@ -4811,7 +4867,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1097]</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1097]</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="CsvImport" Datatype="Real">
@@ -4822,7 +4878,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1098]  파라미터 파일(CSV) 읽기 TimeOut 파라미터(s)</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1098]  파라미터 파일(CSV) 읽기 TimeOut 파라미터(s)</MultiLanguageText>
         </Comment>
         <StartValue>10.0</StartValue>
       </Member>
@@ -4834,7 +4890,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  [p1099]  파라미터 파일(CSV) 쓰기 TimeOut 파라미터(s)</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   [p1099]  파라미터 파일(CSV) 쓰기 TimeOut 파라미터(s)</MultiLanguageText>
         </Comment>
         <StartValue>10.0</StartValue>
       </Member>
@@ -4847,7 +4903,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  [p1100 - p1799] SpeedSet</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   [p1100 - p1799] SpeedSet</MultiLanguageText>
       </Comment>
       <Sections>
         <Section Name="None">

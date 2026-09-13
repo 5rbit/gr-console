@@ -15,6 +15,7 @@ pub fn router(st: AppState) -> Router {
         .route("/api/events", get(events))
         .merge(crate::plc::routes::router())
         .merge(crate::measure::routes::router())
+        .merge(crate::laser::router())
         .merge(crate::registry::routes::router())
         .merge(crate::ledger::routes::router())
         .merge(crate::scenario::routes::router())

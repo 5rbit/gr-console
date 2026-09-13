@@ -118,7 +118,7 @@ impl Default for PlcCfg {
             timeout_ms: 3000,
             fast: vec!["OPCUA".into(), "TASK".into()],
             webmon: vec!["WEBMON".into()],
-            slow: vec!["PARA".into(), "ALARM".into(), "Interface_GRM".into(), "CELL".into(), "STATION".into(), "MEASLOG".into()],
+            slow: vec!["PARA".into(), "ALARM".into(), "Interface_GRM".into(), "CELL".into(), "STATION".into(), "MEASLOG".into(), "LASERDIAG".into()],
             on_demand: vec!["MEASLOG_HIST".into()],
             checks: vec![SemanticCheck { db: "OPCUA".into(), path: "STAT.ComponentID".into(), equals: 4002 }, SemanticCheck { db: "PARA".into(), path: "Machine.ID".into(), equals: 2 }],
         }

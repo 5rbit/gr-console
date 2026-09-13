@@ -5,6 +5,7 @@ mod db;
 mod demo;
 mod error;
 mod issue;
+mod laser;
 mod ledger;
 mod measure;
 mod plc;

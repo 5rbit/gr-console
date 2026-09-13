@@ -1,0 +1,15 @@
+﻿TYPE "LGR_LaserSensorHealth"
+VERSION : 0.1
+   STRUCT
+      BiasEma : Real;   //    비드 높이 편차(BeadDev) 이동평균 (mm). 설치 높이 오차는 같은 쪽으로 계속 남는다
+      BiasSamples : Int;   //    이동평균에 반영한 측정 수
+      LastDev : Real;   //    마지막 측정의 편차 (mm)
+      NoRespConsec : Int;   //    연속 무응답 측정 수 (타이어는 있는데 이 센서만 못 봄)
+      UnstableConsec : Int;   //    연속 불안정 측정 수 (거리 급변 횟수 초과)
+      BiasAlarm : Bool;   //    알람 4201~4204
+      NoRespAlarm : Bool;   //    알람 4205~4208
+      UnstableAlarm : Bool;   //    알람 4209~4212
+   END_STRUCT;
+
+END_TYPE
+

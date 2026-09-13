@@ -35,6 +35,7 @@ import type {
   TaskRequest,
   TaskType,
 } from './types'
+import type { LaserSnapshot } from './types'
 
 // ── fetch 래퍼 ────────────────────────────────────────────────────────────────
 
@@ -170,6 +171,9 @@ export const api = {
   measlogReload: () => postJson<MeasLogSnapshot>('/api/measlog/reload'),
   measlogCsvUrl: (kind?: number, code?: number): string =>
     `/api/measlog/export.csv${qs({ kind, code })}`,
+  laser: () => getJson<LaserSnapshot>('/api/laser'),
+  laserZCal: (enable: boolean) => postJson<{ ok: boolean; enable: boolean }>('/api/laser/zcal', { enable }),
+  laserReset: () => postJson<{ ok: boolean }>('/api/laser/reset'),
 
   // 품목
   items: () => getJson<Item[]>('/api/items'),

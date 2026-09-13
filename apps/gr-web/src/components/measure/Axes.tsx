@@ -1,4 +1,4 @@
-// 축 / 센서 탭 — 축 표, 그리퍼 센서, OPCUA Drive, 선택 축 위치 추이.
+// 축 / 센서 탭 — 축 표, 그리퍼 센서·그리퍼 상태(GripperState), OPCUA Drive, 선택 축 위치 추이.
 import { useState } from 'react'
 import { AXIS } from '../../lib/gr/const'
 import { f1, f2 } from '../../lib/meas/format'
@@ -59,7 +59,16 @@ export function Axes({ wm, axisHist }: { wm: WebMon; axisHist: readonly (readonl
               ['GID L / F / R / B (mm)', (g?.GID ?? []).map(f1).join(' / ')],
               ['FLD (mm)', f1(g?.FLD)],
               ['토크 도달 G 위치', f1(g?.TorqueReachedPosition)],
+              ['토크 검출 / 토크 멈춤', g?.State ? `${g.State.TorqueReached ? '검출' : '-'} / ${g.State.TorqueStop ? '멈춤' : '-'}` : '-'],
+              ['G 멈춤 시간 (s)', g?.State ? f1(g.State.StallTime) : '-'],
             ]}
+          />
+          <h3 className="mt-3 mb-1 text-xs font-semibold text-content-muted">그리퍼 상태 (MACHINE.Gripper.State)</h3>
+          <Chips
+            obj={g?.State as unknown as Record<string, unknown>}
+            keys={['Commanded', 'Stopped', 'AtCommand', 'TorqueReached', 'TorqueStop', 'Stall', 'StallNoTorque']}
+            warn={['Stall']}
+            bad={['StallNoTorque']}
           />
         </Card>
         <Card>

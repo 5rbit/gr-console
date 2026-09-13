@@ -1,0 +1,15 @@
+﻿TYPE "LGR_GripperState"
+VERSION : 0.1
+   STRUCT
+      Commanded : Bool;   //   이동 명령 중 (Cmd.Start)
+      Stopped : Bool;   //   속도가 정지 속도(PARA.Drive.StandStillSpd) 미만
+      AtCommand : Bool;   //   명령 위치(SV.Position) 도착 (isInposByMargin, PIN)
+      TorqueReached : Bool;   //   프로그램 토크 검출 (isDriveTorqueDetected : 적용 중 제한값 대비 비율 + 유지시간)
+      TorqueStop : Bool;   //   이동 명령 중 + 멈춤 + 토크 검출 (드라이브 TorqLimit.Reached 대신)
+      Stall : Bool;   //   이동 명령 중 + 멈춤 + 명령 위치 미도달 (토크 무관)
+      StallNoTorque : Bool;   //   Stall 인데 토크 미검출 (힘을 안 쓰는데 안 움직임)
+      StallTime : Real;   //   Stall 이 이어진 시간 (s). Stall 이 끊기면 0, 최대 3600
+   END_STRUCT;
+
+END_TYPE
+

@@ -1,5 +1,5 @@
 // 측정 모니터 — GrWeb(`tools/GrWeb/index.html`) 이식. 데이터는 `statusFeed`(WEBMON SSE)와 `measlog`
-// 스토어(MEASLOG 스냅샷 + 이력)에서 온다. 하위 탭: 대시보드/Task/축·센서/측정진행/이력/추세/규격별/통계/원본.
+// 스토어(MEASLOG 스냅샷 + 이력)에서 온다. 하위 탭: 대시보드/Task/축·센서/측정진행/레이저 센서/이력/추세/규격별/통계/원본.
 import { Activity } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { statusFeed } from '../../lib/feeds'
@@ -20,6 +20,7 @@ import { Axes } from './Axes'
 import { ByCode } from './ByCode'
 import { Dashboard } from './Dashboard'
 import { History } from './History'
+import { LaserSensor } from './LaserSensor'
 import { MeasureProgress } from './MeasureProgress'
 import { Stats } from './Stats'
 import { TaskNow } from './TaskNow'
@@ -30,6 +31,7 @@ const SUB = [
   ['task', 'Task'],
   ['axis', '축 / 센서'],
   ['meas', '측정 진행'],
+  ['laser', '레이저 센서'],
   ['hist', '이력'],
   ['trend', '추세'],
   ['code', '규격별'],
@@ -138,6 +140,7 @@ export default function MeasureMonitor() {
         {wm && sub === 'task' ? <TaskNow wm={wm} /> : null}
         {wm && sub === 'axis' ? <Axes wm={wm} axisHist={measlog.axisHist} /> : null}
         {wm && sub === 'meas' ? <MeasureProgress wm={wm} snap={snap} /> : null}
+        {sub === 'laser' ? <LaserSensor /> : null}
         {sub === 'hist' ? <History rows={filtered} snap={snap} selected={selected} onSelect={setSelected} allCount={rows.length} /> : null}
         {sub === 'trend' ? (
           <Trend
