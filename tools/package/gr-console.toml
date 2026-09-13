@@ -26,7 +26,7 @@ rack = 0
 slot = 1
 fast = ["OPCUA", "TASK"]
 webmon = ["WEBMON"]
-slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG"]
+slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG", "LASERDIAG"]
 on_demand = ["MEASLOG_HIST"]
 checks = [
   { db = "OPCUA", path = "STAT.ComponentID", equals = 4002 },
