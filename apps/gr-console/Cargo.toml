@@ -31,6 +31,12 @@ calamine = { workspace = true }
 rust_xlsxwriter = { workspace = true }
 csv = { workspace = true }
 rand = "0.9"
+include_dir = { version = "0.7", optional = true }
+mime_guess = { version = "2", optional = true }
+
+[features]
+# 패키지 빌드(tools/package.*)만 켠다 — 웹 빌드와 PLC 계약을 실행 파일에 넣어 파일 하나로 배포한다.
+embed = ["dep:include_dir", "dep:mime_guess"]
 
 [lints]
 workspace = true

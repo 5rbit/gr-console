@@ -9,7 +9,19 @@ use axum::routing::get;
 use tower_http::services::{ServeDir, ServeFile};
 
 pub fn attach(router: Router, web_dir: Option<&Path>) -> (Router, String) {
-    let candidates: Vec<PathBuf> = web_dir.map(|p| vec![p.to_path_buf()]).unwrap_or_default().into_iter().chain([PathBuf::from("apps/gr-web/dist"), PathBuf::from("../gr-web/dist")]).collect();
+    // 명시한 web_dir > 내장 번들 > 개발 체크아웃의 dist. 배포 실행 파일은 옆에 낡은 dist가 있어도
+    // 자기 번들을 쓴다(실행 파일과 화면이 어긋날 수 없게).
+    if let Some(dir) = web_dir
+        && dir.join("index.html").is_file()
+    {
+        let svc = ServeDir::new(dir).not_found_service(ServeFile::new(dir.join("index.html")));
+        return (router.fallback_service(svc), dir.display().to_string());
+    }
+    let router = match crate::bundle::attach_web(router) {
+        Ok(r) => return (r, "bundle".into()),
+        Err(r) => r,
+    };
+    let candidates = [PathBuf::from("apps/gr-web/dist"), PathBuf::from("../gr-web/dist")];
     for dir in candidates {
         if dir.join("index.html").is_file() {
             let index = dir.join("index.html");

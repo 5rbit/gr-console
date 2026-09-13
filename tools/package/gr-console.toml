@@ -1,0 +1,102 @@
+# gr-console 설정 — 이 파일은 실행 파일(gr-console.exe / gr-console) **옆**에 둔다.
+# 실행 파일은 이 파일이 있는 폴더를 기준으로 data/ 를 만든다. 값을 바꾸면 다시 시작한다.
+#
+# 처음 켤 때 할 일은 셋뿐이다:
+#   1. [[plcs]] 의 host — GR2(로봇 상태 PLC) · GRM(GCS 명령 PLC) 의 IP
+#   2. [opcua] endpoint — GRM 의 OPC UA 주소
+#   3. 장비 없이 화면만 보려면: 실행 파일을 `--demo` 로 켠다(데모 실행 파일 참고)
+
+[server]
+bind = "127.0.0.1:8090"     # 다른 PC에서도 열려면 "0.0.0.0:8090" (방화벽 8090/TCP 허용)
+cors = ""
+open_browser = true         # 켜지면 기본 브라우저로 http://127.0.0.1:8090/ 을 연다
+
+[paths]
+data_dir = "data"           # 원장(SQLite) · OPC UA 노드 캐시 · 인증서. 백업은 이 폴더 하나.
+contract_dir = "plc/contract"  # 없으면 실행 파일에 내장된 계약을 data/contract/ 에 풀어 쓴다
+sqlite = "data/gr-console.db"
+
+[[plcs]]
+name = "GR2"
+role = "gr"
+contract = "GR2_PLC"
+host = "192.168.1.102"
+port = 102
+rack = 0
+slot = 1
+fast = ["OPCUA", "TASK"]
+webmon = ["WEBMON"]
+slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG"]
+on_demand = ["MEASLOG_HIST"]
+checks = [
+  { db = "OPCUA", path = "STAT.ComponentID", equals = 4002 },
+  { db = "PARA", path = "Machine.ID", equals = 2 },
+]
+
+[[plcs]]
+name = "GRM"
+role = "grm"
+contract = "GRM_PLC"
+host = "192.168.1.10"
+port = 102
+rack = 0
+slot = 1
+fast = ["OPCUA"]
+webmon = []
+slow = ["STATION", "CELL", "MACHINE"]
+on_demand = []
+checks = [{ db = "OPCUA", path = "GR[2].STAT.ComponentID", equals = 4002 }]
+
+[opcua]
+endpoint = "opc.tcp://192.168.1.10:4840"
+security_policy = "None"
+security_mode = "None"
+user = ""
+ns_hint = 3
+db_name = "OPCUA"
+root_path = "GR[2].CMD"
+
+[poll]
+fast_ms = 200
+webmon_ms = 500
+slow_ms = 5000
+grm_fast_ms = 500
+
+[cmd]
+protocol = 1
+src = 5000
+dst = 4002
+echo_timeout_ms = 5000
+status_plc = "GR2"
+grm_plc = "GRM"
+
+# 로봇 목록 — GRM 뒤에 최대 2대. 비워 두면 [cmd]/[opcua] 의 한 대(GR2) 만 쓴다.
+# 두 대를 쓰려면 아래 주석을 풀고 GR1 의 S7 PLC 도 [[plcs]] 에 추가한다(contract "GR1_PLC", OPCUA/TASK DB, checks ComponentID 4001).
+# [[robots]]
+# id = 1
+# name = "GR1"
+# plc = "GR1"
+# opcua_root = "GR[1].CMD"
+# dst = 4001
+#
+# [[robots]]
+# id = 2
+# name = "GR2"
+# plc = "GR2"
+# opcua_root = "GR[2].CMD"
+# dst = 4002
+
+# GR1 상태 PLC 예시 (두 대 구성일 때 [[robots]] 와 함께 주석 해제; 계약 GR1_PLC 도 실행 파일에 들어 있다)
+# [[plcs]]
+# name = "GR1"
+# role = "gr"
+# contract = "GR1_PLC"
+# host = "192.168.1.101"
+# port = 102
+# rack = 0
+# slot = 1
+# fast = ["OPCUA", "TASK"]
+# webmon = []
+# slow = ["PARA", "ALARM", "CELL", "STATION"]
+# on_demand = []
+# checks = [{ db = "OPCUA", path = "STAT.ComponentID", equals = 4001 }, { db = "PARA", path = "Machine.ID", equals = 1 }]
