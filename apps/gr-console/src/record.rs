@@ -45,7 +45,7 @@ const AREAS: [(&str, &str); 12] = [
 ];
 /// Byte gap below which two read ranges are fetched as one S7 request.
 const MERGE_GAP: u32 = 300;
-const PARA_TASK_KEYS: [&str; 9] = [
+const PARA_TASK_KEYS: [&str; 11] = [
     "G_PickTorq_Factor",
     "G_DropTorq_Factor",
     "G_TorqLimitAllowDistance",
@@ -55,8 +55,10 @@ const PARA_TASK_KEYS: [&str; 9] = [
     "G_MeasureTorq_Factor",
     "pickRetryCountMax",
     "Pick_GripExtra",
+    "G_MeasureTorq_Offset",
+    "G_MeasureTorq_OffsetManual",
 ];
-const PARA_SENSOR_KEYS: [&str; 20] = [
+const PARA_SENSOR_KEYS: [&str; 21] = [
     "ItemDetectDistance_H",
     "GIDL_Offset",
     "GIDF_Offset",
@@ -77,6 +79,7 @@ const PARA_SENSOR_KEYS: [&str; 20] = [
     "LaserZCal_SampleCount",
     "LaserZCal_MaxStdDev",
     "LaserZCal_MaxCorrection",
+    "LaserInnerDia_Offset",
 ];
 const RATE_MIN_MS: u64 = 20;
 const RATE_DEFAULT_MS: u64 = 50;

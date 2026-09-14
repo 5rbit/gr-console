@@ -136,7 +136,7 @@ NON_RETAIN
          LaserZCal_SampleCount : Real;   //   [p425] 레이저 Z 오프셋 자동 교정 : 측정 횟수 (회). 0 이면 5
          LaserZCal_MaxStdDev : Real;   //   [p426] 레이저 Z 오프셋 자동 교정 : 방향별 편차 표준편차 허용 (mm). 0 이면 2
          LaserZCal_MaxCorrection : Real;   //   [p427] 레이저 Z 오프셋 자동 교정 : 방향별 보정량 허용 (mm). 0 이면 20
-         p428 : Real;
+         LaserInnerDia_Offset : Real;   //   [p428] 레이저 원 맞춤 내경 보정 (mm, 부호 포함) : 측정 내경에 더함. PICK / 들어갈 때 / 나갈 때 / 수동 측정 공통, 0 = 보정 없음
          p429 : Real;
          p430 : Real;
          X1RD_Offset : Real;   // [p431] X1RD Offset
@@ -285,8 +285,8 @@ NON_RETAIN
          G_TorqDetect_OffRatio : Real;   // [p950] Gripper 토크 검출 꺼짐 기준(%) 파라미터, 적용 중 토크 제한값 대비. 0 이면 70
          G_TorqDetect_DwellTime : Real;   // [p951] Gripper 토크 검출 켜짐 유지시간(s) 파라미터. 0 이면 0.2
          G_MeasureTorq_Factor : Real;   // [p952] 토크 내경 측정 시 Gripper 토크 제한(%) 파라미터. 0 이면 기존값 (자동 측정 G_PickTorq_Factor, 수동 측정 15)
-         p953 : Real;   // [p953]
-         p954 : Real;   // [p954]
+         G_MeasureTorq_Offset : Real;   // [p953] 토크 내경 측정(자동, MeasureItem) 보정 (mm, 부호 포함) : 반복 평균 G 위치에 더함. 0 = 보정 없음 (기존 고정값 -5)
+         G_MeasureTorq_OffsetManual : Real;   // [p954] 토크 내경 측정(수동) 보정 (mm, 부호 포함) : 토크 도달 G 위치에 더함. 0 = 보정 없음 (기존 고정값 -8)
          p955 : Real;   // [p955]
          p956 : Real;   // [p956]
          p957 : Real;   // [p957]
@@ -768,7 +768,7 @@ BEGIN
    Sensor.LaserZCal_SampleCount := 5.0;
    Sensor.LaserZCal_MaxStdDev := 2.0;
    Sensor.LaserZCal_MaxCorrection := 20.0;
-   Sensor.p428 := 0.0;
+   Sensor.LaserInnerDia_Offset := 0.0;
    Sensor.p429 := 0.0;
    Sensor.p430 := 0.0;
    Sensor.X1RD_Offset := 0.0;
@@ -981,8 +981,8 @@ BEGIN
    Task.G_TorqDetect_OffRatio := 70.0;
    Task.G_TorqDetect_DwellTime := 0.2;
    Task.G_MeasureTorq_Factor := 0.0;
-   Task.p953 := 0.0;
-   Task.p954 := 0.0;
+   Task.G_MeasureTorq_Offset := 0.0;
+   Task.G_MeasureTorq_OffsetManual := 0.0;
    Task.p955 := 0.0;
    Task.p956 := 0.0;
    Task.p957 := 0.0;
