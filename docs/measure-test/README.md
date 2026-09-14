@@ -35,6 +35,7 @@
 | p951 | Task.G_TorqDetect_DwellTime | 0.2 s | 토크 검출 켜짐 유지 시간 |
 | p952 | Task.G_MeasureTorq_Factor | 자동 = p941 G_PickTorq_Factor, 수동 = 15 % | 토크 내경 측정 토크 제한 |
 | p428 | Sensor.LaserInnerDia_Offset | 보정 없음 | 레이저 원 맞춤 내경 보정 (mm, 부호 포함, 측정값에 더함). PICK·들어갈 때·나갈 때·수동 공통 |
+| p429 | Sensor.LaserFit_TbrTolerance | 3 mm | TBR 4점 원 맞춤 검증 허용 : 4번째 점 거리와 반지름 차이 한계 (넘으면 FitError 3) |
 | p953 | Task.G_MeasureTorq_Offset | 보정 없음 | 토크 내경 보정 자동 (mm, 반복 평균 G 위치에 더함). **기존 동작 = -5** |
 | p954 | Task.G_MeasureTorq_OffsetManual | 보정 없음 | 토크 내경 보정 수동 (mm, 토크 도달 G 위치에 더함). **기존 동작 = -8** |
 

@@ -58,7 +58,7 @@ const PARA_TASK_KEYS: [&str; 11] = [
     "G_MeasureTorq_Offset",
     "G_MeasureTorq_OffsetManual",
 ];
-const PARA_SENSOR_KEYS: [&str; 21] = [
+const PARA_SENSOR_KEYS: [&str; 22] = [
     "ItemDetectDistance_H",
     "GIDL_Offset",
     "GIDF_Offset",
@@ -80,6 +80,7 @@ const PARA_SENSOR_KEYS: [&str; 21] = [
     "LaserZCal_MaxStdDev",
     "LaserZCal_MaxCorrection",
     "LaserInnerDia_Offset",
+    "LaserFit_TbrTolerance",
 ];
 const RATE_MIN_MS: u64 = 20;
 const RATE_DEFAULT_MS: u64 = 50;
