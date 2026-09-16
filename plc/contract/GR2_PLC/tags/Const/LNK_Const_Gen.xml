@@ -18,7 +18,7 @@
               <MultilingualTextItem ID="3" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>FRAME header magic &apos;GS&apos;</Text>
+                  <Text>FRAME header magic 'GS'</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="4" CompositionName="Items">
@@ -30,7 +30,7 @@
               <MultilingualTextItem ID="5" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>FRAME 헤더 매직 &apos;GS&apos;</Text>
+                  <Text>FRAME 헤더 매직 'GS'</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -411,9 +411,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="42" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>DWord</DataTypeName>
-          <Name>LNK_SIG_HELLO</Name>
-          <Value>16#BFAD9982</Value>
+          <DataTypeName>UInt</DataTypeName>
+          <Name>LNK_MSG_TRACECFG</Name>
+          <Value>40</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="43" CompositionName="Comment">
@@ -421,7 +421,7 @@
               <MultilingualTextItem ID="44" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>UDT signature LNK_Hello</Text>
+                  <Text>Message id TraceCfg (LNK_TraceCfg)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="45" CompositionName="Items">
@@ -433,7 +433,7 @@
               <MultilingualTextItem ID="46" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>UDT 시그니처 LNK_Hello</Text>
+                  <Text>메시지 ID TraceCfg</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -442,9 +442,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="47" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>DWord</DataTypeName>
-          <Name>LNK_SIG_MEASLOG</Name>
-          <Value>16#DC0B3DF9</Value>
+          <DataTypeName>UInt</DataTypeName>
+          <Name>LNK_MSG_TRACE</Name>
+          <Value>41</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="48" CompositionName="Comment">
@@ -452,7 +452,7 @@
               <MultilingualTextItem ID="49" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>UDT signature LGR_MeasureLog</Text>
+                  <Text>Message id Trace (LNK_Trace)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="4A" CompositionName="Items">
@@ -464,7 +464,7 @@
               <MultilingualTextItem ID="4B" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>UDT 시그니처 LGR_MeasureLog</Text>
+                  <Text>메시지 ID Trace</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -474,8 +474,8 @@
       <SW.Tags.PlcUserConstant ID="4C" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DWord</DataTypeName>
-          <Name>LNK_SIG_STATUS</Name>
-          <Value>16#2FE5346B</Value>
+          <Name>LNK_SIG_HELLO</Name>
+          <Value>16#BFAD9982</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="4D" CompositionName="Comment">
@@ -483,7 +483,7 @@
               <MultilingualTextItem ID="4E" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>UDT signature LNK_GR_Status</Text>
+                  <Text>UDT signature LNK_Hello</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="4F" CompositionName="Items">
@@ -495,7 +495,7 @@
               <MultilingualTextItem ID="50" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>UDT 시그니처 LNK_GR_Status</Text>
+                  <Text>UDT 시그니처 LNK_Hello</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -505,8 +505,8 @@
       <SW.Tags.PlcUserConstant ID="51" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DWord</DataTypeName>
-          <Name>LNK_SIG_COMMAND</Name>
-          <Value>16#1DAD3C95</Value>
+          <Name>LNK_SIG_MEASLOG</Name>
+          <Value>16#DC0B3DF9</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="52" CompositionName="Comment">
@@ -514,7 +514,7 @@
               <MultilingualTextItem ID="53" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>UDT signature LGR_Interface_GR_Command</Text>
+                  <Text>UDT signature LGR_MeasureLog</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="54" CompositionName="Items">
@@ -526,7 +526,7 @@
               <MultilingualTextItem ID="55" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>UDT 시그니처 LGR_Interface_GR_Command</Text>
+                  <Text>UDT 시그니처 LGR_MeasureLog</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -536,8 +536,8 @@
       <SW.Tags.PlcUserConstant ID="56" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DWord</DataTypeName>
-          <Name>LNK_SIG_COMMANDRESULT</Name>
-          <Value>16#04088012</Value>
+          <Name>LNK_SIG_STATUS</Name>
+          <Value>16#2FE5346B</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="57" CompositionName="Comment">
@@ -545,7 +545,7 @@
               <MultilingualTextItem ID="58" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>UDT signature LGR_Command_Response</Text>
+                  <Text>UDT signature LNK_GR_Status</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="59" CompositionName="Items">
@@ -557,7 +557,7 @@
               <MultilingualTextItem ID="5A" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>UDT 시그니처 LGR_Command_Response</Text>
+                  <Text>UDT 시그니처 LNK_GR_Status</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -567,8 +567,8 @@
       <SW.Tags.PlcUserConstant ID="5B" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DWord</DataTypeName>
-          <Name>LNK_SIG_ACK</Name>
-          <Value>16#FF5482FF</Value>
+          <Name>LNK_SIG_COMMAND</Name>
+          <Value>16#3B38A0EF</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="5C" CompositionName="Comment">
@@ -576,7 +576,7 @@
               <MultilingualTextItem ID="5D" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>UDT signature LNK_Ack</Text>
+                  <Text>UDT signature LGR_Interface_GR_Command</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="5E" CompositionName="Items">
@@ -588,7 +588,7 @@
               <MultilingualTextItem ID="5F" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>UDT 시그니처 LNK_Ack</Text>
+                  <Text>UDT 시그니처 LGR_Interface_GR_Command</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -597,9 +597,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="60" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_LEN_HELLO</Name>
-          <Value>28</Value>
+          <DataTypeName>DWord</DataTypeName>
+          <Name>LNK_SIG_COMMANDRESULT</Name>
+          <Value>16#6D851FD2</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="61" CompositionName="Comment">
@@ -607,7 +607,7 @@
               <MultilingualTextItem ID="62" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Serialized size LNK_Hello (bytes)</Text>
+                  <Text>UDT signature LGR_Command_Response</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="63" CompositionName="Items">
@@ -619,7 +619,7 @@
               <MultilingualTextItem ID="64" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>직렬화 크기 LNK_Hello (B)</Text>
+                  <Text>UDT 시그니처 LGR_Command_Response</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -628,9 +628,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="65" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_LEN_MEASLOG</Name>
-          <Value>236</Value>
+          <DataTypeName>DWord</DataTypeName>
+          <Name>LNK_SIG_ACK</Name>
+          <Value>16#FF5482FF</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="66" CompositionName="Comment">
@@ -638,7 +638,7 @@
               <MultilingualTextItem ID="67" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Serialized size LGR_MeasureLog (bytes)</Text>
+                  <Text>UDT signature LNK_Ack</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="68" CompositionName="Items">
@@ -650,7 +650,7 @@
               <MultilingualTextItem ID="69" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>직렬화 크기 LGR_MeasureLog (B)</Text>
+                  <Text>UDT 시그니처 LNK_Ack</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -659,9 +659,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="6A" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_LEN_STATUS</Name>
-          <Value>220</Value>
+          <DataTypeName>DWord</DataTypeName>
+          <Name>LNK_SIG_TRACECFG</Name>
+          <Value>16#76E981D2</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="6B" CompositionName="Comment">
@@ -669,7 +669,7 @@
               <MultilingualTextItem ID="6C" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Serialized size LNK_GR_Status (bytes)</Text>
+                  <Text>UDT signature LNK_TraceCfg</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="6D" CompositionName="Items">
@@ -681,7 +681,7 @@
               <MultilingualTextItem ID="6E" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>직렬화 크기 LNK_GR_Status (B)</Text>
+                  <Text>UDT 시그니처 LNK_TraceCfg</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -690,9 +690,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="6F" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_LEN_COMMAND</Name>
-          <Value>186</Value>
+          <DataTypeName>DWord</DataTypeName>
+          <Name>LNK_SIG_TRACE</Name>
+          <Value>16#DA67BF12</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="70" CompositionName="Comment">
@@ -700,7 +700,7 @@
               <MultilingualTextItem ID="71" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Serialized size LGR_Interface_GR_Command (bytes)</Text>
+                  <Text>UDT signature LNK_Trace</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="72" CompositionName="Items">
@@ -712,7 +712,7 @@
               <MultilingualTextItem ID="73" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>직렬화 크기 LGR_Interface_GR_Command (B)</Text>
+                  <Text>UDT 시그니처 LNK_Trace</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -722,8 +722,8 @@
       <SW.Tags.PlcUserConstant ID="74" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_LEN_COMMANDRESULT</Name>
-          <Value>174</Value>
+          <Name>LNK_LEN_HELLO</Name>
+          <Value>28</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="75" CompositionName="Comment">
@@ -731,7 +731,7 @@
               <MultilingualTextItem ID="76" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Serialized size LGR_Command_Response (bytes)</Text>
+                  <Text>Serialized size LNK_Hello (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="77" CompositionName="Items">
@@ -743,7 +743,7 @@
               <MultilingualTextItem ID="78" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>직렬화 크기 LGR_Command_Response (B)</Text>
+                  <Text>직렬화 크기 LNK_Hello (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -753,8 +753,8 @@
       <SW.Tags.PlcUserConstant ID="79" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_LEN_ACK</Name>
-          <Value>48</Value>
+          <Name>LNK_LEN_MEASLOG</Name>
+          <Value>236</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="7A" CompositionName="Comment">
@@ -762,7 +762,7 @@
               <MultilingualTextItem ID="7B" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Serialized size LNK_Ack (bytes)</Text>
+                  <Text>Serialized size LGR_MeasureLog (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="7C" CompositionName="Items">
@@ -774,7 +774,7 @@
               <MultilingualTextItem ID="7D" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>직렬화 크기 LNK_Ack (B)</Text>
+                  <Text>직렬화 크기 LGR_MeasureLog (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -784,8 +784,8 @@
       <SW.Tags.PlcUserConstant ID="7E" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_JMAX_HELLO</Name>
-          <Value>236</Value>
+          <Name>LNK_LEN_STATUS</Name>
+          <Value>220</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="7F" CompositionName="Comment">
@@ -793,7 +793,7 @@
               <MultilingualTextItem ID="80" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Max JSON envelope length Hello (bytes)</Text>
+                  <Text>Serialized size LNK_GR_Status (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="81" CompositionName="Items">
@@ -805,7 +805,7 @@
               <MultilingualTextItem ID="82" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>JSON 엔벨로프 최대 길이 Hello (B)</Text>
+                  <Text>직렬화 크기 LNK_GR_Status (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -815,8 +815,8 @@
       <SW.Tags.PlcUserConstant ID="83" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_JMAX_MEASLOG</Name>
-          <Value>1693</Value>
+          <Name>LNK_LEN_COMMAND</Name>
+          <Value>186</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="84" CompositionName="Comment">
@@ -824,7 +824,7 @@
               <MultilingualTextItem ID="85" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Max JSON envelope length MeasLog (bytes)</Text>
+                  <Text>Serialized size LGR_Interface_GR_Command (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="86" CompositionName="Items">
@@ -836,7 +836,7 @@
               <MultilingualTextItem ID="87" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>JSON 엔벨로프 최대 길이 MeasLog (B)</Text>
+                  <Text>직렬화 크기 LGR_Interface_GR_Command (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -846,8 +846,8 @@
       <SW.Tags.PlcUserConstant ID="88" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_JMAX_STATUS</Name>
-          <Value>1905</Value>
+          <Name>LNK_LEN_COMMANDRESULT</Name>
+          <Value>174</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="89" CompositionName="Comment">
@@ -855,7 +855,7 @@
               <MultilingualTextItem ID="8A" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Max JSON envelope length Status (bytes)</Text>
+                  <Text>Serialized size LGR_Command_Response (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="8B" CompositionName="Items">
@@ -867,7 +867,7 @@
               <MultilingualTextItem ID="8C" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>JSON 엔벨로프 최대 길이 Status (B)</Text>
+                  <Text>직렬화 크기 LGR_Command_Response (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -877,8 +877,8 @@
       <SW.Tags.PlcUserConstant ID="8D" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_JMAX_COMMAND</Name>
-          <Value>2451</Value>
+          <Name>LNK_LEN_ACK</Name>
+          <Value>48</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="8E" CompositionName="Comment">
@@ -886,7 +886,7 @@
               <MultilingualTextItem ID="8F" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Max JSON envelope length Command (bytes)</Text>
+                  <Text>Serialized size LNK_Ack (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="90" CompositionName="Items">
@@ -898,7 +898,7 @@
               <MultilingualTextItem ID="91" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>JSON 엔벨로프 최대 길이 Command (B)</Text>
+                  <Text>직렬화 크기 LNK_Ack (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -908,8 +908,8 @@
       <SW.Tags.PlcUserConstant ID="92" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_JMAX_COMMANDRESULT</Name>
-          <Value>2421</Value>
+          <Name>LNK_LEN_TRACECFG</Name>
+          <Value>330</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="93" CompositionName="Comment">
@@ -917,7 +917,7 @@
               <MultilingualTextItem ID="94" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Max JSON envelope length CommandResult (bytes)</Text>
+                  <Text>Serialized size LNK_TraceCfg (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="95" CompositionName="Items">
@@ -929,7 +929,7 @@
               <MultilingualTextItem ID="96" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>JSON 엔벨로프 최대 길이 CommandResult (B)</Text>
+                  <Text>직렬화 크기 LNK_TraceCfg (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -939,8 +939,8 @@
       <SW.Tags.PlcUserConstant ID="97" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>DInt</DataTypeName>
-          <Name>LNK_JMAX_ACK</Name>
-          <Value>347</Value>
+          <Name>LNK_LEN_TRACE</Name>
+          <Value>8160</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="98" CompositionName="Comment">
@@ -948,7 +948,7 @@
               <MultilingualTextItem ID="99" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Max JSON envelope length Ack (bytes)</Text>
+                  <Text>Serialized size LNK_Trace (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="9A" CompositionName="Items">
@@ -960,7 +960,7 @@
               <MultilingualTextItem ID="9B" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>JSON 엔벨로프 최대 길이 Ack (B)</Text>
+                  <Text>직렬화 크기 LNK_Trace (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -969,9 +969,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="9C" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>DWord</DataTypeName>
-          <Name>LNK_REGISTRY_HASH</Name>
-          <Value>16#F2BA8A22</Value>
+          <DataTypeName>DInt</DataTypeName>
+          <Name>LNK_JMAX_HELLO</Name>
+          <Value>236</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="9D" CompositionName="Comment">
@@ -979,7 +979,7 @@
               <MultilingualTextItem ID="9E" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Message registry hash (crc32, wire-spec 5)</Text>
+                  <Text>Max JSON envelope length Hello (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="9F" CompositionName="Items">
@@ -991,7 +991,7 @@
               <MultilingualTextItem ID="A0" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>메시지 레지스트리 해시 (crc32)</Text>
+                  <Text>JSON 엔벨로프 최대 길이 Hello (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1000,9 +1000,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="A1" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>LNK_ERR_OK</Name>
-          <Value>0</Value>
+          <DataTypeName>DInt</DataTypeName>
+          <Name>LNK_JMAX_MEASLOG</Name>
+          <Value>1693</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="A2" CompositionName="Comment">
@@ -1010,7 +1010,7 @@
               <MultilingualTextItem ID="A3" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Link error: OK</Text>
+                  <Text>Max JSON envelope length MeasLog (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="A4" CompositionName="Items">
@@ -1022,7 +1022,7 @@
               <MultilingualTextItem ID="A5" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>링크 오류: 정상</Text>
+                  <Text>JSON 엔벨로프 최대 길이 MeasLog (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1031,9 +1031,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="A6" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>LNK_ERR_BAD_MAGIC</Name>
-          <Value>1</Value>
+          <DataTypeName>DInt</DataTypeName>
+          <Name>LNK_JMAX_STATUS</Name>
+          <Value>1905</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="A7" CompositionName="Comment">
@@ -1041,7 +1041,7 @@
               <MultilingualTextItem ID="A8" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Link error: bad FRAME magic</Text>
+                  <Text>Max JSON envelope length Status (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="A9" CompositionName="Items">
@@ -1053,7 +1053,7 @@
               <MultilingualTextItem ID="AA" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>링크 오류: FRAME 매직 불일치</Text>
+                  <Text>JSON 엔벨로프 최대 길이 Status (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1062,9 +1062,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="AB" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>LNK_ERR_BAD_VERSION</Name>
-          <Value>2</Value>
+          <DataTypeName>DInt</DataTypeName>
+          <Name>LNK_JMAX_COMMAND</Name>
+          <Value>2448</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="AC" CompositionName="Comment">
@@ -1072,7 +1072,7 @@
               <MultilingualTextItem ID="AD" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Link error: bad FRAME version</Text>
+                  <Text>Max JSON envelope length Command (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="AE" CompositionName="Items">
@@ -1084,7 +1084,7 @@
               <MultilingualTextItem ID="AF" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>링크 오류: FRAME 버전 불일치</Text>
+                  <Text>JSON 엔벨로프 최대 길이 Command (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1093,9 +1093,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="B0" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>LNK_ERR_UNKNOWN_TYPE</Name>
-          <Value>3</Value>
+          <DataTypeName>DInt</DataTypeName>
+          <Name>LNK_JMAX_COMMANDRESULT</Name>
+          <Value>2418</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="B1" CompositionName="Comment">
@@ -1103,7 +1103,7 @@
               <MultilingualTextItem ID="B2" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Link error: unknown message type</Text>
+                  <Text>Max JSON envelope length CommandResult (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="B3" CompositionName="Items">
@@ -1115,7 +1115,7 @@
               <MultilingualTextItem ID="B4" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>링크 오류: 알 수 없는 메시지</Text>
+                  <Text>JSON 엔벨로프 최대 길이 CommandResult (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1124,9 +1124,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="B5" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>LNK_ERR_SIG_MISMATCH</Name>
-          <Value>4</Value>
+          <DataTypeName>DInt</DataTypeName>
+          <Name>LNK_JMAX_ACK</Name>
+          <Value>347</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="B6" CompositionName="Comment">
@@ -1134,7 +1134,7 @@
               <MultilingualTextItem ID="B7" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Link error: BIN layout signature mismatch</Text>
+                  <Text>Max JSON envelope length Ack (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="B8" CompositionName="Items">
@@ -1146,7 +1146,7 @@
               <MultilingualTextItem ID="B9" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>링크 오류: BIN 시그니처 불일치</Text>
+                  <Text>JSON 엔벨로프 최대 길이 Ack (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1155,9 +1155,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="BA" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>LNK_ERR_BAD_LENGTH</Name>
-          <Value>5</Value>
+          <DataTypeName>DInt</DataTypeName>
+          <Name>LNK_JMAX_TRACECFG</Name>
+          <Value>2316</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="BB" CompositionName="Comment">
@@ -1165,7 +1165,7 @@
               <MultilingualTextItem ID="BC" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Link error: bad length</Text>
+                  <Text>Max JSON envelope length TraceCfg (bytes)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="BD" CompositionName="Items">
@@ -1177,7 +1177,7 @@
               <MultilingualTextItem ID="BE" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>링크 오류: 길이 오류</Text>
+                  <Text>JSON 엔벨로프 최대 길이 TraceCfg (B)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1186,9 +1186,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="BF" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>LNK_ERR_PARSE</Name>
-          <Value>6</Value>
+          <DataTypeName>DWord</DataTypeName>
+          <Name>LNK_REGISTRY_HASH</Name>
+          <Value>16#8E7B313C</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="C0" CompositionName="Comment">
@@ -1196,7 +1196,7 @@
               <MultilingualTextItem ID="C1" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Link error: parse error</Text>
+                  <Text>Message registry hash (crc32, wire-spec 5)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="C2" CompositionName="Items">
@@ -1208,7 +1208,7 @@
               <MultilingualTextItem ID="C3" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>링크 오류: 파싱 오류</Text>
+                  <Text>메시지 레지스트리 해시 (crc32)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1218,8 +1218,8 @@
       <SW.Tags.PlcUserConstant ID="C4" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>LNK_ERR_FORMAT_NOT_ALLOWED</Name>
-          <Value>7</Value>
+          <Name>LNK_ERR_OK</Name>
+          <Value>0</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="C5" CompositionName="Comment">
@@ -1227,7 +1227,7 @@
               <MultilingualTextItem ID="C6" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Link error: format not allowed (BIN over NDJSON)</Text>
+                  <Text>Link error: OK</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="C7" CompositionName="Items">
@@ -1239,7 +1239,7 @@
               <MultilingualTextItem ID="C8" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>링크 오류: 허용되지 않는 포맷 (NDJSON 위 BIN)</Text>
+                  <Text>링크 오류: 정상</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1249,8 +1249,8 @@
       <SW.Tags.PlcUserConstant ID="C9" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>LNK_ERR_DIR_NOT_ALLOWED</Name>
-          <Value>8</Value>
+          <Name>LNK_ERR_BAD_MAGIC</Name>
+          <Value>1</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="CA" CompositionName="Comment">
@@ -1258,7 +1258,7 @@
               <MultilingualTextItem ID="CB" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Link error: direction not allowed</Text>
+                  <Text>Link error: bad FRAME magic</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="CC" CompositionName="Items">
@@ -1270,7 +1270,7 @@
               <MultilingualTextItem ID="CD" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>링크 오류: 허용되지 않는 방향</Text>
+                  <Text>링크 오류: FRAME 매직 불일치</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1280,8 +1280,8 @@
       <SW.Tags.PlcUserConstant ID="CE" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>LNK_ERR_BUSY</Name>
-          <Value>9</Value>
+          <Name>LNK_ERR_BAD_VERSION</Name>
+          <Value>2</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="CF" CompositionName="Comment">
@@ -1289,7 +1289,7 @@
               <MultilingualTextItem ID="D0" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Link error: busy</Text>
+                  <Text>Link error: bad FRAME version</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="D1" CompositionName="Items">
@@ -1301,7 +1301,7 @@
               <MultilingualTextItem ID="D2" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>링크 오류: 처리 중</Text>
+                  <Text>링크 오류: FRAME 버전 불일치</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1311,8 +1311,8 @@
       <SW.Tags.PlcUserConstant ID="D3" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>LNK_ERR_NO_PENDING</Name>
-          <Value>10</Value>
+          <Name>LNK_ERR_UNKNOWN_TYPE</Name>
+          <Value>3</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="D4" CompositionName="Comment">
@@ -1320,7 +1320,7 @@
               <MultilingualTextItem ID="D5" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Link error: nothing pending</Text>
+                  <Text>Link error: unknown message type</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="D6" CompositionName="Items">
@@ -1330,6 +1330,223 @@
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="D7" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>링크 오류: 알 수 없는 메시지</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="D8" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>Int</DataTypeName>
+          <Name>LNK_ERR_SIG_MISMATCH</Name>
+          <Value>4</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="D9" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="DA" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text>Link error: BIN layout signature mismatch</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="DB" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="DC" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>링크 오류: BIN 시그니처 불일치</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="DD" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>Int</DataTypeName>
+          <Name>LNK_ERR_BAD_LENGTH</Name>
+          <Value>5</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="DE" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="DF" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text>Link error: bad length</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="E0" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="E1" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>링크 오류: 길이 오류</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="E2" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>Int</DataTypeName>
+          <Name>LNK_ERR_PARSE</Name>
+          <Value>6</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="E3" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="E4" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text>Link error: parse error</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="E5" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="E6" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>링크 오류: 파싱 오류</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="E7" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>Int</DataTypeName>
+          <Name>LNK_ERR_FORMAT_NOT_ALLOWED</Name>
+          <Value>7</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="E8" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="E9" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text>Link error: format not allowed (BIN over NDJSON)</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="EA" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="EB" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>링크 오류: 허용되지 않는 포맷 (NDJSON 위 BIN)</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="EC" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>Int</DataTypeName>
+          <Name>LNK_ERR_DIR_NOT_ALLOWED</Name>
+          <Value>8</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="ED" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="EE" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text>Link error: direction not allowed</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="EF" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="F0" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>링크 오류: 허용되지 않는 방향</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="F1" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>Int</DataTypeName>
+          <Name>LNK_ERR_BUSY</Name>
+          <Value>9</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="F2" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="F3" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text>Link error: busy</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="F4" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="F5" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>링크 오류: 처리 중</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="F6" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>Int</DataTypeName>
+          <Name>LNK_ERR_NO_PENDING</Name>
+          <Value>10</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="F7" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="F8" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text>Link error: nothing pending</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="F9" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="FA" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
                   <Text>링크 오류: 대기 항목 없음</Text>

@@ -112,6 +112,8 @@ Real/LReal writer algorithm (both sides identical; work in f64, Real converted e
 | 20 | Command | `LGR_Interface_GR_Command` | PC→PLC | reply = CommandResult (or Ack with error) |
 | 21 | CommandResult | `LGR_Command_Response` | PLC→PC | yes |
 | 30 | Ack | `LNK_Ack` | both | no |
+| 40 | TraceCfg | `LNK_TraceCfg` | PC→PLC | yes |
+| 41 | Trace | `LNK_Trace` | PLC→PC | no |
 
 ```
 TYPE "LNK_Hello"  STRUCT Plc : String[16]; Proto : USInt; Formats : Byte; RegistryHash : DWord; HeartbeatMs : UDInt; END_STRUCT END_TYPE
@@ -121,7 +123,13 @@ TYPE "LNK_Ack"    STRUCT RefType : UInt; RefSeq : UInt; Code : Int; Text : Strin
 
 Error / Ack codes: 0 OK, 1 BAD_MAGIC, 2 BAD_VERSION, 3 UNKNOWN_TYPE, 4 SIG_MISMATCH, 5 BAD_LENGTH, 6 PARSE,
 7 FORMAT_NOT_ALLOWED, 8 DIR_NOT_ALLOWED, 9 BUSY, 10 NO_PENDING. PLC runtime-internal codes are >= 100 and may also
-appear in `Ack.Code` for rejected commands (100 CMD_DISABLED, 101 HEADER, 102 SRC, 103 DST, 104 UNSUPPORTED, 105 MASKED).
+appear in `Ack.Code` for rejected commands (100 CMD_DISABLED, 101 HEADER, 102 SRC, 103 DST, 104 UNSUPPORTED, 105 MASKED)
+and for rejected trace configurations (110 TRACE_BAD_CFG, 111 TRACE_NOT_ALLOWED).
+
+`Trace` is the only BIN-only message: its payload is one fixed-size chunk (a 2032-element DWord array), so no JSON
+envelope, no `JsonW_` / `JsonR_` closure and no golden envelope text are generated for it, and `registry.json` lists
+its member table as empty (read the layout from the contract UDT instead). A `Trace` sent as JSON is refused with
+FORMAT_NOT_ALLOWED. See section 6.
 
 ## 4. Sequence numbers, session
 - `Seq` u16 per sender, starts at 1, wraps 65535 → 1; 0 = none.
@@ -137,3 +145,51 @@ appear in `Ack.Code` for rejected commands (100 CMD_DISABLED, 101 HEADER, 102 SR
   value a DB with exactly those fields would get.
 - Registry hash = `crc32` of the concatenation, over messages sorted by id, of `"{id}:{name}:{sig:08X}:{size};"`
   (sig/size = 0 for Heartbeat).
+
+## 6. Trace (messages 40 / 41)
+
+The PC picks up to 32 PLC variables, the PLC samples them every cycle (or every n-th cycle) and pushes fixed-size
+chunks. Only areas the PLC can read with `PEEK` are addressable: standard-access (non-optimized) data blocks and the
+I / Q / M areas. Optimized DBs cannot be traced.
+
+### 6.1 TraceCfg (PC → PLC, id 40, JSON or BIN, acked)
+```
+TYPE "LNK_TraceChan" STRUCT Area : Byte; Width : Byte; Bit : Byte; DbNo : UInt; Offset : UDInt; END_STRUCT END_TYPE
+TYPE "LNK_TraceCfg"  STRUCT Cmd : Byte; CfgId : UInt; ChanCount : UInt; Divider : UInt; FlushMs : UInt;
+                            Chan : Array[0..31] of "LNK_TraceChan"; END_STRUCT END_TYPE
+```
+- `Cmd` 0 stop, 1 start. A start clears the chunk ring and the statistics.
+- `CfgId` is chosen by the PC and echoed in every chunk, so chunks of an earlier configuration are recognisable.
+- `Divider` 1 = every PLC cycle, n = every n-th cycle. `FlushMs` (>= 20) sends a partly filled chunk.
+- `Area` 0x81 I, 0x82 Q, 0x83 M, 0x84 DB. `DbNo` is non-zero only for 0x84.
+- `Width` 0 bit (with `Bit` 0..7), 1 byte, 2 word, 4 double word. `Offset` is the byte offset inside the area.
+- Only the first `ChanCount` entries of `Chan` are used.
+
+The PLC answers with `Ack`: code 0 accepted, 110 `TRACE_BAD_CFG` (a field is out of range, or the address cannot be
+read), 111 `TRACE_NOT_ALLOWED` (the slot does not allow trace, or its framing is not FRAME). The Ack arrives one PLC
+cycle after the message, because the sampler validates the configuration before the session answers.
+
+### 6.2 Trace (PLC → PC, id 41, BIN only, not acked)
+```
+TYPE "LNK_Trace" STRUCT CfgId : UInt; ChanCount : UInt; Divider : UInt; Count : UInt; RowWords : UInt; Overrun : UInt;
+                        FirstCycle : UDInt; Tick0 : DInt; Time0 : DTL; Data : Array[0..2031] of DWord; END_STRUCT END_TYPE
+```
+Fixed 8160 B, so `Length` and `LayoutSig` follow the usual BIN rules. Rows are packed into `Data`:
+
+| Element | Meaning |
+|---|---|
+| `Data[i * RowWords]` | sample tick of row `i` in ms (bit pattern of a DInt, the PLC's `TIME_TCK`) |
+| `Data[i * RowWords + 1 + c]` | value of channel `c` as a raw 32-bit word |
+
+`RowWords = 1 + ChanCount` and `Count` is the number of valid rows, so `Count * RowWords <= 2032`. A value is the raw
+memory it was read from: a Real is its IEEE-754 bit pattern, a Bool is 0 or 1, narrower integers are zero-extended.
+Rows are in sampling order, `Data` beyond `Count * RowWords` is stale and must be ignored.
+
+- `FirstCycle` is the PLC cycle counter (`"SOCK".CycleNo`) of row 0. With `Divider` the reader can check that no
+  chunk was lost: the next chunk starts at `FirstCycle + Count * Divider`.
+- `Tick0` is the tick of row 0 (the same value as `Data[0]`), `Time0` the PLC wall clock of row 0. Ticks wrap at 2^31.
+- `Overrun` counts the samples dropped *before* this chunk started, which happens only when the chunk ring is full
+  because the link cannot keep up. `Overrun = 0` in every chunk means the trace is lossless.
+
+The PLC sends at most one message per cycle per slot, so a chunk occupies one cycle of the send path and the TCP
+transfer runs in the background. Trace is selected after MeasLog and before Status.

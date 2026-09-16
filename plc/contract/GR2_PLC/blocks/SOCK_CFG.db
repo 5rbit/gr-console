@@ -1,0 +1,57 @@
+﻿DATA_BLOCK "SOCK_CFG"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+// 표준 접근 : PLC 소켓 링크 설정 (retain). Conn[1] 기본 Active NDJSON, Conn[2] 기본 Passive HTTP, 둘 다 Enable FALSE
+   STRUCT 
+      LayoutSig : DWord;   //   레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
+      PlcName : String[16];   //    HTTP 경로 /api/plc/<PlcName>/..., Hello.Plc
+      Conn : Array[1..2] of "LNK_ConnCfg";   //    슬롯 설정 (LnkSess1 / LnkSess2)
+   END_STRUCT;
+
+
+BEGIN
+   LayoutSig := 16#0000_0000;
+   PlcName := 'GR2';
+   Conn[1].SendMeasLog := TRUE;
+   Conn[1].SendStatus := TRUE;
+   Conn[1].Role := 1;
+   Conn[1].Framing := 3;
+   Conn[1].Format := 1;
+   Conn[1].InterfaceId := 64;
+   Conn[1].ConnId := 16#0120;
+   Conn[1].RemoteIP[1] := 16#00C0;
+   Conn[1].RemoteIP[2] := 16#00A8;
+   Conn[1].RemoteIP[3] := 16#0001;
+   Conn[1].RemoteIP[4] := 16#0032;
+   Conn[1].RemotePort := 2000;
+   Conn[1].LocalPort := 2001;
+   Conn[1].PollMs := 1000;
+   Conn[1].ReportMs := 1000;
+   Conn[1].HeartbeatMs := 5000;
+   Conn[1].ConnectTimeoutMs := 5000;
+   Conn[1].AckTimeoutMs := 3000;
+   Conn[1].CmdWaitMs := 2000;
+   Conn[1].IdleCloseMs := 30000;
+   Conn[2].SendMeasLog := TRUE;
+   Conn[2].SendStatus := TRUE;
+   Conn[2].Role := 2;
+   Conn[2].Framing := 2;
+   Conn[2].Format := 1;
+   Conn[2].InterfaceId := 64;
+   Conn[2].ConnId := 16#0121;
+   Conn[2].RemoteIP[1] := 16#00C0;
+   Conn[2].RemoteIP[2] := 16#00A8;
+   Conn[2].RemoteIP[3] := 16#0001;
+   Conn[2].RemoteIP[4] := 16#0032;
+   Conn[2].RemotePort := 2000;
+   Conn[2].LocalPort := 8080;
+   Conn[2].PollMs := 1000;
+   Conn[2].ReportMs := 1000;
+   Conn[2].HeartbeatMs := 5000;
+   Conn[2].ConnectTimeoutMs := 5000;
+   Conn[2].AckTimeoutMs := 3000;
+   Conn[2].CmdWaitMs := 2000;
+   Conn[2].IdleCloseMs := 30000;
+
+END_DATA_BLOCK
+

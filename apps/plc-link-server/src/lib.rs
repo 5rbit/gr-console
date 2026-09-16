@@ -3,7 +3,7 @@
 //! * [`server`]   hub + PLC port + passive PLC clients + control API
 //! * [`hub`]      shared state: links, last messages, commands, log ring, events
 //! * [`plc_port`] listener for active PLCs (framing sniffing, HTTP-active routes)
-//! * [`session`]  FRAME / NDJSON session (Hello, Heartbeat, Ack, commands)
+//! * [`session`]  hub driver of a `plc_link::io::LinkSession` (FRAME / NDJSON)
 //! * [`client`]   `--connect` clients for passive PLCs
 //! * [`api`]      control REST / SSE / HTML
 //! * [`sim`]      PLC simulator (active and passive)

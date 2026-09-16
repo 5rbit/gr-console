@@ -6,8 +6,14 @@ rust-version.workspace = true
 license.workspace = true
 description = "Sans-io PLC socket link: message registry, frame header, framings (FRAME/NDJSON/HTTP), byte-exact wire JSON and codec"
 
+[features]
+default = []
+# tokio transport (src/io): everything that owns a TcpStream. Off by default so the codec stays sans-io.
+io = ["dep:tokio"]
+
 [dependencies]
 plc-layout = { path = "../plc-layout" }
+tokio = { version = "1", optional = true, default-features = false, features = ["io-util", "macros", "net", "sync", "time"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }

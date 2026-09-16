@@ -20,9 +20,9 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US"> 레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">  레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)</MultiLanguageText>
       </Comment>
-      <StartValue>16#4853_A87B</StartValue>
+      <StartValue>16#6306_CEEE</StartValue>
     </Member>
     <Member Name="UpdateTime" Datatype="DTL" Version="1.0" Remanence="NonRetain" Accessibility="Public">
       <AttributeList>
@@ -32,7 +32,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  갱신 시각 (PLC 로컬)</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   갱신 시각 (PLC 로컬)</MultiLanguageText>
       </Comment>
     </Member>
     <Member Name="Mode" Datatype="Word" Remanence="NonRetain" Accessibility="Public">
@@ -43,7 +43,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  "MACHINE".Mode (MODE_* : 0 Boot, 1 Init, 2 Maint, 4 Standby, 8 Manual, 16 Ready, 32 Auto, 128 Fault, 256 Teach)</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   "MACHINE".Mode (MODE_* : 0 Boot, 1 Init, 2 Maint, 4 Standby, 8 Manual, 16 Ready, 32 Auto, 128 Fault, 256 Teach)</MultiLanguageText>
       </Comment>
     </Member>
     <Member Name="Stat" Datatype="&quot;LGR_Interface_GR_Status&quot;" Remanence="NonRetain" Accessibility="Public">
@@ -54,7 +54,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  "OPCUA".STAT 복사 (모드 / 상태 / StatusCode / Task Now·Queue·Completed·Canceled·Rejected / 측정 / 인터록 / 신호 / 드라이브)</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   "OPCUA".STAT 복사 (모드 / 상태 / StatusCode / Task Now·Queue·Completed·Canceled·Rejected / 측정 / 인터록 / 신호 / 드라이브)</MultiLanguageText>
       </Comment>
       <Sections>
         <Section Name="None">
@@ -900,7 +900,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  "TASK".Proc (진행 스텝 / 경과 시간 / 메시지)</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   "TASK".Proc (진행 스텝 / 경과 시간 / 메시지)</MultiLanguageText>
       </Comment>
       <Sections>
         <Section Name="None">
@@ -925,7 +925,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  "MACHINE".Alarm 최근 코드</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   "MACHINE".Alarm 최근 코드</MultiLanguageText>
       </Comment>
       <Member Name="Fault" Datatype="Bool">
         <AttributeList>
@@ -984,7 +984,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  "DRIVE".Axis 요약 (X, Y, Z, G)</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   "DRIVE".Axis 요약 (X, Y, Z, G)</MultiLanguageText>
       </Comment>
       <Member Name="Position" Datatype="Real">
         <AttributeList>
@@ -994,7 +994,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  PV.Position (mm)</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   PV.Position (mm)</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="Target" Datatype="Real">
@@ -1005,7 +1005,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  SV.Position (mm)</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   SV.Position (mm)</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="Speed" Datatype="Real">
@@ -1024,7 +1024,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  % mot</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   % mot</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="LagError" Datatype="Real">
@@ -1107,7 +1107,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  레이저 거리 (L, F, R, B)</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   레이저 거리 (L, F, R, B)</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="FLD" Datatype="Real">
@@ -1118,7 +1118,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US">  바닥 거리</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">   바닥 거리</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="TorqueReachedPosition" Datatype="Real">
@@ -1129,6 +1129,29 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
       </Member>
+      <Member Name="State" Datatype="&quot;LGR_GripperState&quot;">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+        </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">   "MACHINE".Gripper.State (그리퍼 종합 상태 : TorqueReached / TorqueStop / Stall / StallTime …)</MultiLanguageText>
+        </Comment>
+        <Sections>
+          <Section Name="None">
+            <Member Name="Commanded" Datatype="Bool" />
+            <Member Name="Stopped" Datatype="Bool" />
+            <Member Name="AtCommand" Datatype="Bool" />
+            <Member Name="TorqueReached" Datatype="Bool" />
+            <Member Name="TorqueStop" Datatype="Bool" />
+            <Member Name="Stall" Datatype="Bool" />
+            <Member Name="StallNoTorque" Datatype="Bool" />
+            <Member Name="StallTime" Datatype="Real" />
+          </Section>
+        </Sections>
+      </Member>
     </Member>
     <Member Name="Measure" Datatype="Struct" Remanence="NonRetain" Accessibility="Public">
       <AttributeList>
@@ -1138,7 +1161,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  "FUNC" 측정 진행 상태</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   "FUNC" 측정 진행 상태</MultiLanguageText>
       </Comment>
       <Member Name="Item" Datatype="Struct">
         <AttributeList>
@@ -1477,7 +1500,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  "MEASLOG" 요약</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   "MEASLOG" 요약</MultiLanguageText>
       </Comment>
       <Member Name="Total" Datatype="UDInt">
         <AttributeList>

@@ -1,0 +1,16 @@
+﻿TYPE "LNK_Inject"
+VERSION : 0.1
+   STRUCT
+      Phase : USInt;   //    LNK_PH_IDLE 0 / LNK_PH_INJECTED 1 (다음 사이클 복원)
+      Slot : USInt;   //    명령을 받은 슬롯 (1..2)
+      CanInject : Bool;   //    이번 사이클 주입 가능 (IDLE, GRM 수신 없음, BOOT 아님)
+      Snapshot : "LGR_Command_Command";   //    주입 직전 "GRM".Command (다음 사이클 복원용)
+      Work : "LGR_Interface_GR_Command";   //    UL_ParseOpcUaCommand 입력으로 쓰는 소켓 명령
+      Injected : UDInt;   //    주입 횟수
+      Deferred : UDInt;   //    GRM 수신과 겹쳐 미룬 횟수
+      Restored : UDInt;   //    Snapshot 복원 횟수
+      Overwritten : UDInt;   //    복원 사이클에 GRM 새 명령이 있어 복원 생략한 횟수
+   END_STRUCT;
+
+END_TYPE
+

@@ -91,24 +91,31 @@ const PLACEHOLDER_CONSTS: &[(&str, &str)] = &[
     ("LNK_MSG_COMMAND", "UInt"),
     ("LNK_MSG_COMMANDRESULT", "UInt"),
     ("LNK_MSG_ACK", "UInt"),
+    ("LNK_MSG_TRACECFG", "UInt"),
+    ("LNK_MSG_TRACE", "UInt"),
     ("LNK_SIG_HELLO", "DWord"),
     ("LNK_SIG_MEASLOG", "DWord"),
     ("LNK_SIG_STATUS", "DWord"),
     ("LNK_SIG_COMMAND", "DWord"),
     ("LNK_SIG_COMMANDRESULT", "DWord"),
     ("LNK_SIG_ACK", "DWord"),
+    ("LNK_SIG_TRACECFG", "DWord"),
+    ("LNK_SIG_TRACE", "DWord"),
     ("LNK_LEN_HELLO", "DInt"),
     ("LNK_LEN_MEASLOG", "DInt"),
     ("LNK_LEN_STATUS", "DInt"),
     ("LNK_LEN_COMMAND", "DInt"),
     ("LNK_LEN_COMMANDRESULT", "DInt"),
     ("LNK_LEN_ACK", "DInt"),
+    ("LNK_LEN_TRACECFG", "DInt"),
+    ("LNK_LEN_TRACE", "DInt"),
     ("LNK_JMAX_HELLO", "DInt"),
     ("LNK_JMAX_MEASLOG", "DInt"),
     ("LNK_JMAX_STATUS", "DInt"),
     ("LNK_JMAX_COMMAND", "DInt"),
     ("LNK_JMAX_COMMANDRESULT", "DInt"),
     ("LNK_JMAX_ACK", "DInt"),
+    ("LNK_JMAX_TRACECFG", "DInt"),
     ("LNK_REGISTRY_HASH", "DWord"),
     ("LNK_ERR_OK", "Int"),
     ("LNK_ERR_BAD_MAGIC", "Int"),
@@ -375,11 +382,30 @@ fn gr2_contract_generates_against_the_plc_runtime() {
     }
 
     let of_kind = |k: BlockKind| out.blocks.iter().filter(|b| b.kind == k).map(|b| b.from.as_str()).collect::<BTreeSet<_>>();
-    assert_eq!(of_kind(BlockKind::EnvelopeFc), BTreeSet::from(["Hello", "Heartbeat", "MeasLog", "Status", "Command", "CommandResult", "Ack"]));
+    assert_eq!(of_kind(BlockKind::EnvelopeFc), BTreeSet::from(["Hello", "Heartbeat", "MeasLog", "Status", "Command", "CommandResult", "Ack", "TraceCfg"]));
     assert_eq!(
         of_kind(BlockKind::ReaderFc),
-        BTreeSet::from(["LNK_Hello", "LNK_Ack", "LGR_Interface_GR_Command", "LGR_Command_Header", "LGR_Command_Command", "LGR_Task_Data", "LGR_Stock_Item", "LGR_Cell_Info"])
+        BTreeSet::from([
+            "LNK_Hello",
+            "LNK_Ack",
+            "LNK_TraceCfg",
+            "LNK_TraceChan",
+            "LGR_Interface_GR_Command",
+            "LGR_Command_Header",
+            "LGR_Command_Command",
+            "LGR_Task_Data",
+            "LGR_Stock_Item",
+            "LGR_Cell_Info"
+        ])
     );
+    // Trace is BIN only: no envelope, no JSON closure for its payload, no golden vector text.
+    let trace = r.by_name("Trace").unwrap();
+    assert!(!trace.allows(plc_link::Format::Json) && trace.json_max == 0);
+    for kind in [BlockKind::EnvelopeFc, BlockKind::WriterFc, BlockKind::ReaderFc] {
+        assert!(!of_kind(kind).contains("Trace") && !of_kind(kind).contains("LNK_Trace"), "{kind:?} generated for Trace");
+    }
+    assert!(!lf_text(&out.file(Target::Scl, "LNK_TestVectors.db").unwrap().bytes).contains("Trace_Val"));
+    assert!(out.file(Target::Pc, "schema/Trace.schema.json").is_none() && out.file(Target::Pc, "vectors/Trace.json").is_none());
     for u in ["LNK_Hello", "LNK_Ack", "LNK_GR_Status", "LGR_Equip_Status", "LGR_MeasureLog", "LGR_Command_Response", "LGR_Task_Data"] {
         assert!(of_kind(BlockKind::WriterFc).contains(u), "writer for {u}");
     }

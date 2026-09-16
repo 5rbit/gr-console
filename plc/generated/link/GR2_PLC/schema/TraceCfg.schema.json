@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gr-link:GR2_PLC:TraceCfg",
+  "title": "TraceCfg (LNK_TraceCfg)",
+  "description": "Link message TraceCfg (id 40, pc_to_plc), JSON envelope (docs/link/wire-spec.md section 2). data = UDT \"LNK_TraceCfg\" (sig 0x76E981D2, 330 B standard layout)",
+  "type": "object",
+  "properties": {
+    "type": {
+      "description": "message name (readers also accept the numeric id)",
+      "anyOf": [
+        {"const": "TraceCfg"},
+        {"const": 40}
+      ]
+    },
+    "seq": {"type": "integer", "minimum": 0, "maximum": 65535},
+    "sig": {
+      "description": "UDT signature (0 = not checked)",
+      "enum": [0, 1995014610]
+    },
+    "data": {"$ref": "#/$defs/LNK_TraceCfg"}
+  },
+  "required": ["type", "data"],
+  "$defs": {
+    "LNK_TraceCfg": {
+      "title": "UDT \"LNK_TraceCfg\"",
+      "type": "object",
+      "properties": {
+        "Cmd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "description": "0 정지, 1 시작 (시작은 링을 비우고 새 CfgId 로 시작)"
+        },
+        "CfgId": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "PC 가 부여한 설정 번호, Trace 청크 헤더로 되돌아옴"
+        },
+        "ChanCount": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "채널 수 (1 .. LNK_TRACE_CH_MAX)"},
+        "Divider": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "샘플 주기 : 1 = 매 사이클, n = n 사이클마다"
+        },
+        "FlushMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "청크가 차지 않아도 이 시간 뒤 송신 (ms, LNK_TRACE_FLUSH_MIN 이상)"
+        },
+        "Chan": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {"$ref": "#/$defs/LNK_TraceChan"},
+          "description": "채널 정의 (앞에서 ChanCount 개만 사용)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LNK_TraceChan": {
+      "title": "UDT \"LNK_TraceChan\"",
+      "type": "object",
+      "properties": {
+        "Area": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "description": "PEEK 영역 : 16#81 I, 16#82 Q, 16#83 M, 16#84 DB (표준 접근 DB 만)"
+        },
+        "Width": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "description": "값 폭 : 0 비트, 1 바이트, 2 워드, 4 더블워드"
+        },
+        "Bit": {"type": "integer", "minimum": 0, "maximum": 255, "description": "Width 0 일 때 비트 번호 (0..7)"},
+        "DbNo": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "Area 16#84 일 때 DB 번호"},
+        "Offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "description": "영역 시작 기준 바이트 오프셋"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

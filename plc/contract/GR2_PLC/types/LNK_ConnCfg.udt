@@ -1,0 +1,27 @@
+﻿TYPE "LNK_ConnCfg"
+VERSION : 0.1
+   STRUCT
+      Enable : Bool;   //     슬롯 사용
+      AcceptCommand : Bool;   //     이 슬롯에서 Command 수신 허용 ("SOCK".CmdEnable 과 AND)
+      SendMeasLog : Bool;   //     MeasLog 푸시
+      SendStatus : Bool;   //     Status 주기 보고
+      AllowTrace : Bool;   //     트레이스 청크 송신 허용 (FRAME 프레이밍에서만, TraceCfg 수신도 이 비트로 결정)
+      Role : USInt;   //     LNK_ROLE_ACTIVE 1 (PLC 가 연결) / LNK_ROLE_PASSIVE 2 (PLC 가 대기)
+      Framing : USInt;   //     LNK_FRM_FRAME 1 / LNK_FRM_HTTP 2 / LNK_FRM_NDJSON 3
+      Format : USInt;   //     송신 포맷 LNK_FMT_JSON 1 / LNK_FMT_BIN 2 (NDJSON 은 JSON 고정)
+      InterfaceId : HW_ANY;   //     PROFINET 인터페이스 HW ID (X1 = 64)
+      ConnId : CONN_OUC;   //     연결 ID (LNK_CONNID_1 16#120 / LNK_CONNID_2 16#121)
+      RemoteIP : Array[1..4] of Byte;   //     Active : 서버 IP, Passive : 허용 피어 IP
+      RemotePort : UInt;   //     Active : 서버 포트
+      LocalPort : UInt;   //     Passive : 수신 대기 포트
+      PollMs : UDInt;   //     HTTP Active : GET command 폴링 주기 (ms)
+      ReportMs : UDInt;   //     Status 보고 주기 (ms, 500 이상)
+      HeartbeatMs : UDInt;   //     무송신 시 Heartbeat 주기 (ms), 3 배 무수신 시 끊음
+      ConnectTimeoutMs : UDInt;   //     연결 수립 제한 시간 (ms)
+      AckTimeoutMs : UDInt;   //     Ack 대기 제한 시간 (ms)
+      CmdWaitMs : UDInt;   //     명령 주입 대기 제한 (초과 시 Ack BUSY)
+      IdleCloseMs : UDInt;   //     Passive 무통신 시 연결 종료 (ms)
+   END_STRUCT;
+
+END_TYPE
+

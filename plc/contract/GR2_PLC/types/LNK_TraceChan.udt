@@ -1,0 +1,12 @@
+﻿TYPE "LNK_TraceChan"
+VERSION : 0.1
+   STRUCT
+      Area : Byte;   //     PEEK 영역 : 16#81 I, 16#82 Q, 16#83 M, 16#84 DB (표준 접근 DB 만)
+      Width : Byte;   //     값 폭 : 0 비트, 1 바이트, 2 워드, 4 더블워드
+      Bit : Byte;   //     Width 0 일 때 비트 번호 (0..7)
+      DbNo : UInt;   //     Area 16#84 일 때 DB 번호
+      Offset : UDInt;   //     영역 시작 기준 바이트 오프셋
+   END_STRUCT;
+
+END_TYPE
+

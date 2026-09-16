@@ -66,7 +66,7 @@ pub(crate) fn constants(r: &Registry, msgs: &[&MessageSpec]) -> Vec<ConstDef> {
     for (m, u) in &payload {
         out.push(def(format!("{p}LEN_{}", upper(m)), "DInt", m.size.to_string(), format!("Serialized size {u} (bytes)"), format!("직렬화 크기 {u} (B)")));
     }
-    for (m, _) in &payload {
+    for (m, _) in payload.iter().filter(|(m, _)| m.allows(Format::Json)) {
         out.push(def(format!("{p}JMAX_{}", upper(m)), "DInt", m.json_max.to_string(), format!("Max JSON envelope length {} (bytes)", m.name), format!("JSON 엔벨로프 최대 길이 {} (B)", m.name)));
     }
     out.push(def(format!("{p}REGISTRY_HASH"), "DWord", format!("16#{:08X}", r.hash()), "Message registry hash (crc32, wire-spec 5)", "메시지 레지스트리 해시 (crc32)"));

@@ -4,12 +4,12 @@ VERSION : 0.1
 NON_RETAIN
 // 표준 접근 : 외부 S7 통신(gr-console) 읽기용, 레이아웃은 LayoutSig 로 검증
    STRUCT 
-      LayoutSig : DWord := 16#6306CEEE;   //  레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
-      UpdateTime {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;   //   갱신 시각 (PLC 로컬)
-      Mode : Word;   //   "MACHINE".Mode (MODE_* : 0 Boot, 1 Init, 2 Maint, 4 Standby, 8 Manual, 16 Ready, 32 Auto, 128 Fault, 256 Teach)
-      Stat : "LGR_Interface_GR_Status";   //   "OPCUA".STAT 복사 (모드 / 상태 / StatusCode / Task Now·Queue·Completed·Canceled·Rejected / 측정 / 인터록 / 신호 / 드라이브)
-      Proc : "LGR_Proc_component";   //   "TASK".Proc (진행 스텝 / 경과 시간 / 메시지)
-      Alarm : Struct   //   "MACHINE".Alarm 최근 코드
+      LayoutSig : DWord;   //   레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
+      UpdateTime {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;   //    갱신 시각 (PLC 로컬)
+      Mode : Word;   //    "MACHINE".Mode (MODE_* : 0 Boot, 1 Init, 2 Maint, 4 Standby, 8 Manual, 16 Ready, 32 Auto, 128 Fault, 256 Teach)
+      Stat : "LGR_Interface_GR_Status";   //    "OPCUA".STAT 복사 (모드 / 상태 / StatusCode / Task Now·Queue·Completed·Canceled·Rejected / 측정 / 인터록 / 신호 / 드라이브)
+      Proc : "LGR_Proc_component";   //    "TASK".Proc (진행 스텝 / 경과 시간 / 메시지)
+      Alarm : Struct   //    "MACHINE".Alarm 최근 코드
          Fault : Bool;
          Warn : Bool;
          FaultCode : Array[0..9] of UDInt;
@@ -17,11 +17,11 @@ NON_RETAIN
          EventCode : Array[0..9] of UDInt;
          TaskCode : Array[0..9] of UDInt;
       END_STRUCT;
-      Axis : Array["X".."G"] of Struct   //   "DRIVE".Axis 요약 (X, Y, Z, G)
-         Position : Real;   //   PV.Position (mm)
-         Target : Real;   //   SV.Position (mm)
+      Axis : Array["X".."G"] of Struct   //    "DRIVE".Axis 요약 (X, Y, Z, G)
+         Position : Real;   //    PV.Position (mm)
+         Target : Real;   //    SV.Position (mm)
          Speed : Real;
-         Torque : Real;   //   % mot
+         Torque : Real;   //    % mot
          LagError : Real;
          Ready : Bool;
          Enabled : Bool;
@@ -32,12 +32,12 @@ NON_RETAIN
       END_STRUCT;
       Gripper : Struct
          ItemDetect : Bool;
-         GID : Array[0..3] of Real;   //   레이저 거리 (L, F, R, B)
-         FLD : Real;   //   바닥 거리
+         GID : Array[0..3] of Real;   //    레이저 거리 (L, F, R, B)
+         FLD : Real;   //    바닥 거리
          TorqueReachedPosition : Real;
-         State : "LGR_GripperState";   //   "MACHINE".Gripper.State (그리퍼 종합 상태 : TorqueReached / TorqueStop / Stall / StallTime …)
+         State : "LGR_GripperState";   //    "MACHINE".Gripper.State (그리퍼 종합 상태 : TorqueReached / TorqueStop / Stall / StallTime …)
       END_STRUCT;
-      Measure : Struct   //   "FUNC" 측정 진행 상태
+      Measure : Struct   //    "FUNC" 측정 진행 상태
          Item : Struct
             Busy : Bool;
             Done : Bool;
@@ -84,7 +84,7 @@ NON_RETAIN
             PickZTarget : Real;
          END_STRUCT;
       END_STRUCT;
-      MeasLog : Struct   //   "MEASLOG" 요약
+      MeasLog : Struct   //    "MEASLOG" 요약
          Total : UDInt;
          Count : Int;
       END_STRUCT;
@@ -92,7 +92,7 @@ NON_RETAIN
 
 
 BEGIN
-   LayoutSig : DWord := 16#6306CEEE;   // 레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
+   LayoutSig := 16#6306_CEEE;
 
 END_DATA_BLOCK
 

@@ -1,0 +1,21 @@
+﻿DATA_BLOCK "SOCK"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+// 표준 접근 : PLC 소켓 링크 운용 데이터 (gr-console 읽기용, 레이아웃은 LayoutSig 로 검증)
+   STRUCT 
+      LayoutSig : DWord;   //   레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
+      CmdEnable : Bool;   //    소켓 명령 수신 허용 (비retain : 전원 재투입 시 FALSE)
+      AllowManual : Bool;   //    Reset / Initializing / ChangeMode 명령 허용
+      JsonToken : Bool;   //    이번 사이클 JSON 인코드/디코드 1 건 허용 토큰
+      CycleNo : UDInt;   //    IL_LnkMain 실행 사이클 카운터
+      Stat : Array[1..2] of "LNK_ConnStat";   //    슬롯별 상태 / 카운터
+      Inject : "LNK_Inject";   //    명령 주입 상태
+   END_STRUCT;
+
+
+BEGIN
+   LayoutSig := 16#0000_0000;
+
+END_DATA_BLOCK
+

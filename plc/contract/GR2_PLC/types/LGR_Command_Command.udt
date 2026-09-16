@@ -14,11 +14,11 @@ VERSION : 0.1
       Common : Struct
          Reset : Bool;
          Initializing : Bool;
-         Spare_X2 : Bool;
+         Start : Bool;   //    Ready -> Auto 시작 명령
          Spare_X3 : Bool;
          Spare_X4 : Bool;
-         Spare_X5 : Bool;   //   (legacy TaskComplete - 미사용, Task.Complete.WorkId 로 판별)
-         Spare_X6 : Bool;   //   (legacy TaskDelete - 미사용, Task.Delete.WorkId 로 판별)
+         Spare_X5 : Bool;   //    (legacy TaskComplete - 미사용, Task.Complete.WorkId 로 판별)
+         Spare_X6 : Bool;   //    (legacy TaskDelete - 미사용, Task.Delete.WorkId 로 판별)
          BuzzerStop : Bool;
       END_STRUCT;
       Task : Struct

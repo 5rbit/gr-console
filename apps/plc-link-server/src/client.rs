@@ -15,7 +15,7 @@ use tokio::sync::mpsc;
 use crate::httpc::HttpConn;
 use crate::hub::{Hub, Mode, Outbound};
 use crate::log::Dir;
-use crate::session::{self, SessionParams, error_entry, hello_info, report_warnings};
+use crate::session::{self, SessionParams, error_entry, hello_data, report_warnings};
 use crate::util::SeqGen;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -168,14 +168,14 @@ impl Poller<'_> {
 
     async fn hello(&mut self) -> anyhow::Result<bool> {
         let Some((m, raw, report)) = self.get("/api/hello").await? else { return Ok(false) };
-        let (data, _, ok, _) = hello_info(self.hub.codec(), &m);
+        let h = self.hub.codec().hello_info(&m);
         let mut e = self.hub.msg_entry(&self.spec.name, Dir::Rx, Framing::Http, raw.format, &m, raw.payload.len(), Some(&self.spec.addr));
         e.warnings = report_warnings(&report);
-        if !ok {
+        if !h.registry_ok {
             e.warnings.push("registry hash mismatch (contract_mismatch, BIN refused)".into());
         }
         self.hub.log(e, Some(&m));
-        self.hub.set_hello(&self.spec.name, data, ok);
+        self.hub.set_hello(&self.spec.name, hello_data(&h), h.registry_ok);
         Ok(true)
     }
 

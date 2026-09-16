@@ -5,14 +5,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use plc_link::framing::http::CONTINUE_100;
-use plc_link::framing::{ContentLength, HttpRequestDecoder, Sniff, sniff_detail, write_response};
+use plc_link::framing::{ContentLength, HttpRequestDecoder, write_response};
+use plc_link::io::{SniffFailure, sniff_framing};
 use plc_link::{ErrCode, Format, Framing, LinkError, RawFrame, Role, Strictness};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::hub::{Hub, Mode};
 use crate::log::{Dir, LogEntry};
-use crate::session::{self, SessionParams, error_entry, hello_info, report_warnings};
+use crate::session::{self, SessionParams, error_entry, hello_data, report_warnings};
 use crate::wire::ref_of;
 
 /// Accept loop (runs until the task is dropped).
@@ -33,26 +34,18 @@ pub async fn serve(listener: TcpListener, hub: Arc<Hub>) {
 
 async fn handle(hub: Arc<Hub>, mut s: TcpStream, peer: String) {
     let _ = s.set_nodelay(true);
-    let mut initial = Vec::new();
-    let mut buf = [0u8; 4096];
-    let framing = loop {
-        match sniff_detail(&initial) {
-            Sniff::Found(f) => break f,
-            Sniff::Unknown => {
-                let mut e = LogEntry::new(&peer, Dir::Rx);
-                e.ok = false;
-                e.error = Some(format!("unknown framing (first bytes {})", crate::util::hex(&initial[..initial.len().min(8)])));
-                e.peer = Some(peer.clone());
-                e.len = initial.len();
-                hub.log(e, None);
-                return;
-            }
-            Sniff::NeedMore => {}
+    let (framing, initial) = match sniff_framing(&mut s, Duration::from_secs(30)).await {
+        Ok(x) => x,
+        Err(SniffFailure::Unknown(initial)) => {
+            let mut e = LogEntry::new(&peer, Dir::Rx);
+            e.ok = false;
+            e.error = Some(format!("unknown framing (first bytes {})", crate::util::hex(&initial[..initial.len().min(8)])));
+            e.peer = Some(peer.clone());
+            e.len = initial.len();
+            hub.log(e, None);
+            return;
         }
-        match tokio::time::timeout(Duration::from_secs(30), s.read(&mut buf)).await {
-            Ok(Ok(n)) if n > 0 => initial.extend_from_slice(&buf[..n]),
-            _ => return,
-        }
+        Err(_) => return,
     };
     tracing::debug!(%peer, ?framing, "PLC connection");
     match framing {
@@ -162,12 +155,12 @@ fn handle_request(hub: &Hub, raw: &RawFrame, peer: &str) -> Vec<u8> {
             let mut entry = hub.msg_entry(plc, Dir::Rx, Framing::Http, raw.format, &m, wire_len, Some(peer));
             entry.warnings = report_warnings(&report);
             if codec.registry().by_name("Hello").is_some_and(|h| h.id == m.id) {
-                let (data, _, ok, _) = hello_info(codec, &m);
-                if !ok {
+                let h = codec.hello_info(&m);
+                if !h.registry_ok {
                     entry.warnings.push(format!("registry hash mismatch: PC 0x{:08X} (contract_mismatch, BIN refused)", codec.registry().hash()));
                 }
                 hub.log(entry, Some(&m));
-                hub.set_hello(plc, data, ok);
+                hub.set_hello(plc, hello_data(&h), h.registry_ok);
             } else {
                 hub.log(entry, Some(&m));
                 hub.command_reply(plc, &m);

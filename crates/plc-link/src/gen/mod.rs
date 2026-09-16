@@ -28,6 +28,7 @@ use plc_layout::Contract;
 use plc_layout::ast::TypeRef;
 
 use crate::error::{ErrCode, LinkError};
+use crate::header::Format;
 use crate::registry::{Direction, MessageSpec, Registry};
 use crate::wire_json::check_supported;
 
@@ -155,8 +156,11 @@ pub fn generate(c: &Contract, r: &Registry, opts: &GenOpts) -> Result<GenOutput,
         }
         msgs.push(m);
     }
-    let payload_udts = |keep: &dyn Fn(Direction) -> bool| -> Vec<&str> { msgs.iter().filter(|m| keep(m.dir)).filter_map(|m| m.udt.as_deref()).collect() };
-    // Every generated message gets an envelope writer, so the writer closure also covers PC → PLC payloads.
+    // A message that does not allow JSON gets no envelope and no JsonW_ / JsonR_ closure: its payload only ever
+    // travels as Serialize bytes (Trace, whose chunk is a 2032-element DWord array).
+    let json_msgs: Vec<&MessageSpec> = msgs.iter().copied().filter(|m| m.allows(Format::Json)).collect();
+    let payload_udts = |keep: &dyn Fn(Direction) -> bool| -> Vec<&str> { json_msgs.iter().filter(|m| keep(m.dir)).filter_map(|m| m.udt.as_deref()).collect() };
+    // Every message with an envelope gets an envelope writer, so the writer closure also covers PC → PLC payloads.
     let writers = udt_closure(c, payload_udts(&|_| true))?;
     let readers = udt_closure(c, payload_udts(&|d| d != Direction::PlcToPc))?;
 
@@ -174,14 +178,14 @@ pub fn generate(c: &Contract, r: &Registry, opts: &GenOpts) -> Result<GenOutput,
         let src = scl::reader_fc(c, &names, &u, &name)?;
         out.add(block(&name, BlockKind::ReaderFc, Target::Scl, format!("{name}.scl"), &u), text::tia_bytes(&src));
     }
-    for m in &msgs {
+    for m in &json_msgs {
         let name = names.envelope(&m.name)?;
         let src = envelope::envelope_fc(&names, m, &name)?;
         out.add(block(&name, BlockKind::EnvelopeFc, Target::Scl, format!("{name}.scl"), &m.name), text::tia_bytes(&src));
     }
-    if msgs.iter().any(|m| m.udt.is_some()) {
+    if json_msgs.iter().any(|m| m.udt.is_some()) {
         let db = names.test_db();
-        let src = testvec::render(c, &msgs, &db, r.hash())?;
+        let src = testvec::render(c, &json_msgs, &db, r.hash())?;
         out.add(block(&db, BlockKind::GlobalDb, Target::Scl, format!("{db}.db"), "registry"), text::tia_bytes(&src));
     }
     let mut seen = BTreeSet::new();
@@ -193,7 +197,7 @@ pub fn generate(c: &Contract, r: &Registry, opts: &GenOpts) -> Result<GenOutput,
 
     let registry = pc::registry_json(c, r, &msgs, opts, &out.blocks)?;
     out.files.push(GenFile { target: Target::Pc, path: "registry.json".to_string(), bytes: text::pc_bytes(&registry) });
-    for m in &msgs {
+    for m in &json_msgs {
         let schema = pc::schema_json(c, m, opts)?;
         out.files.push(GenFile { target: Target::Pc, path: format!("schema/{}.schema.json", m.name), bytes: text::pc_bytes(&schema) });
         let vector = pc::vector_json(c, m)?;

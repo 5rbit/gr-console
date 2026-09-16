@@ -15,7 +15,7 @@ name = "plc-link"
 path = "src/main.rs"
 
 [dependencies]
-plc-link = { path = "../../crates/plc-link" }
+plc-link = { path = "../../crates/plc-link", features = ["io"] }
 plc-layout = { path = "../../crates/plc-layout" }
 tokio = { workspace = true }
 tokio-stream = { version = "0.1", features = ["sync"] }

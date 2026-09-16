@@ -254,13 +254,18 @@ impl RegistryDoc {
                 available: true,
                 unavailable_reason: None,
             };
+            if !m.formats.contains(&Format::Json) {
+                spec.json_max = 0; // BIN only: no envelope is ever written for this message
+            }
             if !m.udt.is_empty() {
                 let ty = TypeRef::Udt(m.udt.clone());
                 match check_supported(c, &ty) {
                     Ok(()) => {
                         spec.sig = c.udt_sig(&m.udt).map_err(LinkError::from)?;
                         spec.size = c.size_of_udt(&m.udt).map_err(LinkError::from)?;
-                        spec.json_max = envelope_max_len(&m.name, max_json_len(c, &ty)?);
+                        if spec.allows(Format::Json) {
+                            spec.json_max = envelope_max_len(&m.name, max_json_len(c, &ty)?);
+                        }
                     }
                     Err(e) if e.code == ErrCode::UnknownType => {
                         spec.available = false;
@@ -300,7 +305,7 @@ pub struct MessageSpec {
     pub sig: u32,
     /// UDT size in bytes (0 without payload or when unavailable).
     pub size: u32,
-    /// Worst-case JSON envelope length.
+    /// Worst-case JSON envelope length (0 when the message does not allow JSON).
     pub json_max: usize,
     pub available: bool,
     pub unavailable_reason: Option<String>,

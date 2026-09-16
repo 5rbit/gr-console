@@ -1,0 +1,443 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Document>
+  <Engineering version="V20" />
+  <SW.Blocks.GlobalDB ID="0">
+    <AttributeList>
+      <AutoNumber>true</AutoNumber>
+      <DBAccessibleFromOPCUA>true</DBAccessibleFromOPCUA>
+      <DBAccessibleFromWebserver>true</DBAccessibleFromWebserver>
+      <HeaderAuthor />
+      <HeaderFamily />
+      <HeaderName />
+      <HeaderVersion>0.1</HeaderVersion>
+      <Interface><Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">
+  <Section Name="Static">
+    <Member Name="LayoutSig" Datatype="DWord" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">  레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)</MultiLanguageText>
+      </Comment>
+      <StartValue>16#0000_0000</StartValue>
+    </Member>
+    <Member Name="CmdEnable" Datatype="Bool" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   소켓 명령 수신 허용 (비retain : 전원 재투입 시 FALSE)</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="AllowManual" Datatype="Bool" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   Reset / Initializing / ChangeMode 명령 허용</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="JsonToken" Datatype="Bool" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   이번 사이클 JSON 인코드/디코드 1 건 허용 토큰</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="CycleNo" Datatype="UDInt" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   IL_LnkMain 실행 사이클 카운터</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="Stat" Datatype="Array[1..2] of &quot;LNK_ConnStat&quot;" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   슬롯별 상태 / 카운터</MultiLanguageText>
+      </Comment>
+      <Sections>
+        <Section Name="None">
+          <Member Name="State" Datatype="USInt" />
+          <Member Name="Up" Datatype="Bool" />
+          <Member Name="PeerHello" Datatype="Bool" />
+          <Member Name="LastErr" Datatype="Int" />
+          <Member Name="LastStatus" Datatype="Word" />
+          <Member Name="Reconnects" Datatype="UDInt" />
+          <Member Name="RxMsg" Datatype="UDInt" />
+          <Member Name="TxMsg" Datatype="UDInt" />
+          <Member Name="RxErr" Datatype="UDInt" />
+          <Member Name="TxErr" Datatype="UDInt" />
+          <Member Name="AckTimeouts" Datatype="UDInt" />
+          <Member Name="MeasSent" Datatype="UDInt" />
+          <Member Name="MeasLost" Datatype="UDInt" />
+          <Member Name="CmdRx" Datatype="UDInt" />
+          <Member Name="CmdRejected" Datatype="UDInt" />
+          <Member Name="CmdDeferred" Datatype="UDInt" />
+          <Member Name="TraceTx" Datatype="UDInt" />
+          <Member Name="MaxRunUs" Datatype="UDInt" />
+          <Member Name="LastRxSeq" Datatype="UInt" />
+          <Member Name="LastTxSeq" Datatype="UInt" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="Inject" Datatype="&quot;LNK_Inject&quot;" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   명령 주입 상태</MultiLanguageText>
+      </Comment>
+      <Sections>
+        <Section Name="None">
+          <Member Name="Phase" Datatype="USInt" />
+          <Member Name="Slot" Datatype="USInt" />
+          <Member Name="CanInject" Datatype="Bool" />
+          <Member Name="Snapshot" Datatype="&quot;LGR_Command_Command&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Stop" Datatype="Struct">
+                  <Member Name="Normal" Datatype="Bool" />
+                  <Member Name="Fast" Datatype="Bool" />
+                  <Member Name="Cycle" Datatype="Bool" />
+                  <Member Name="Spare_X3" Datatype="Bool" />
+                  <Member Name="Spare_X4" Datatype="Bool" />
+                  <Member Name="Spare_X5" Datatype="Bool" />
+                  <Member Name="Spare_X6" Datatype="Bool" />
+                  <Member Name="Spare_X7" Datatype="Bool" />
+                </Member>
+                <Member Name="Common" Datatype="Struct">
+                  <Member Name="Reset" Datatype="Bool" />
+                  <Member Name="Initializing" Datatype="Bool" />
+                  <Member Name="Start" Datatype="Bool" />
+                  <Member Name="Spare_X3" Datatype="Bool" />
+                  <Member Name="Spare_X4" Datatype="Bool" />
+                  <Member Name="Spare_X5" Datatype="Bool" />
+                  <Member Name="Spare_X6" Datatype="Bool" />
+                  <Member Name="BuzzerStop" Datatype="Bool" />
+                </Member>
+                <Member Name="Task" Datatype="Struct">
+                  <Member Name="Complete" Datatype="Struct">
+                    <Member Name="WorkId" Datatype="UDInt" />
+                    <Member Name="TaskId" Datatype="UDInt" />
+                  </Member>
+                  <Member Name="Delete" Datatype="Struct">
+                    <Member Name="WorkId" Datatype="UDInt" />
+                    <Member Name="TaskId" Datatype="UDInt" />
+                  </Member>
+                </Member>
+                <Member Name="Jog" Datatype="Struct">
+                  <Member Name="xPositive" Datatype="Bool" />
+                  <Member Name="xNegative" Datatype="Bool" />
+                  <Member Name="yPositive" Datatype="Bool" />
+                  <Member Name="yNegative" Datatype="Bool" />
+                  <Member Name="zPositive" Datatype="Bool" />
+                  <Member Name="zNegative" Datatype="Bool" />
+                  <Member Name="gPositive" Datatype="Bool" />
+                  <Member Name="gNegative" Datatype="Bool" />
+                </Member>
+                <Member Name="B3_Spare" Datatype="Struct">
+                  <Member Name="Spare_X0" Datatype="Bool" />
+                  <Member Name="Spare_X1" Datatype="Bool" />
+                  <Member Name="Spare_X2" Datatype="Bool" />
+                  <Member Name="Spare_X3" Datatype="Bool" />
+                  <Member Name="Spare_X4" Datatype="Bool" />
+                  <Member Name="Spare_X5" Datatype="Bool" />
+                  <Member Name="Spare_X6" Datatype="Bool" />
+                  <Member Name="Spare_X7" Datatype="Bool" />
+                </Member>
+                <Member Name="Home" Datatype="Struct">
+                  <Member Name="X" Datatype="Bool" />
+                  <Member Name="Y" Datatype="Bool" />
+                  <Member Name="Z" Datatype="Bool" />
+                  <Member Name="G" Datatype="Bool" />
+                  <Member Name="Spare_X4" Datatype="Bool" />
+                  <Member Name="Spare_X5" Datatype="Bool" />
+                  <Member Name="Spare_X6" Datatype="Bool" />
+                  <Member Name="Spare_X7" Datatype="Bool" />
+                </Member>
+                <Member Name="MaintPos" Datatype="Struct">
+                  <Member Name="X" Datatype="Bool" />
+                  <Member Name="Y" Datatype="Bool" />
+                  <Member Name="Z" Datatype="Bool" />
+                  <Member Name="G" Datatype="Bool" />
+                  <Member Name="Spare_X4" Datatype="Bool" />
+                  <Member Name="Spare_X5" Datatype="Bool" />
+                  <Member Name="Spare_X6" Datatype="Bool" />
+                  <Member Name="Spare_X7" Datatype="Bool" />
+                </Member>
+                <Member Name="CellOrigin" Datatype="Struct">
+                  <Member Name="X" Datatype="Bool" />
+                  <Member Name="Y" Datatype="Bool" />
+                  <Member Name="Spare_X2" Datatype="Bool" />
+                  <Member Name="Spare_X3" Datatype="Bool" />
+                  <Member Name="Spare_X4" Datatype="Bool" />
+                  <Member Name="Spare_X5" Datatype="Bool" />
+                  <Member Name="Spare_X6" Datatype="Bool" />
+                  <Member Name="Spare_X7" Datatype="Bool" />
+                </Member>
+                <Member Name="ChangeMode" Datatype="Byte" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="Work" Datatype="&quot;LGR_Interface_GR_Command&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="NTP" Datatype="DTL" Version="1.0" />
+                <Member Name="Header" Datatype="&quot;LGR_Command_Header&quot;">
+                  <Sections>
+                    <Section Name="None">
+                      <Member Name="Protocol" Datatype="Byte" />
+                      <Member Name="CMD_ID" Datatype="Byte" />
+                      <Member Name="CMD" Datatype="Byte" />
+                      <Member Name="SRC" Datatype="Word" />
+                      <Member Name="DST" Datatype="Word" />
+                      <Member Name="SEQ" Datatype="Word" />
+                    </Section>
+                  </Sections>
+                </Member>
+                <Member Name="Command" Datatype="&quot;LGR_Command_Command&quot;">
+                  <Sections>
+                    <Section Name="None">
+                      <Member Name="Stop" Datatype="Struct">
+                        <Member Name="Normal" Datatype="Bool" />
+                        <Member Name="Fast" Datatype="Bool" />
+                        <Member Name="Cycle" Datatype="Bool" />
+                        <Member Name="Spare_X3" Datatype="Bool" />
+                        <Member Name="Spare_X4" Datatype="Bool" />
+                        <Member Name="Spare_X5" Datatype="Bool" />
+                        <Member Name="Spare_X6" Datatype="Bool" />
+                        <Member Name="Spare_X7" Datatype="Bool" />
+                      </Member>
+                      <Member Name="Common" Datatype="Struct">
+                        <Member Name="Reset" Datatype="Bool" />
+                        <Member Name="Initializing" Datatype="Bool" />
+                        <Member Name="Start" Datatype="Bool" />
+                        <Member Name="Spare_X3" Datatype="Bool" />
+                        <Member Name="Spare_X4" Datatype="Bool" />
+                        <Member Name="Spare_X5" Datatype="Bool" />
+                        <Member Name="Spare_X6" Datatype="Bool" />
+                        <Member Name="BuzzerStop" Datatype="Bool" />
+                      </Member>
+                      <Member Name="Task" Datatype="Struct">
+                        <Member Name="Complete" Datatype="Struct">
+                          <Member Name="WorkId" Datatype="UDInt" />
+                          <Member Name="TaskId" Datatype="UDInt" />
+                        </Member>
+                        <Member Name="Delete" Datatype="Struct">
+                          <Member Name="WorkId" Datatype="UDInt" />
+                          <Member Name="TaskId" Datatype="UDInt" />
+                        </Member>
+                      </Member>
+                      <Member Name="Jog" Datatype="Struct">
+                        <Member Name="xPositive" Datatype="Bool" />
+                        <Member Name="xNegative" Datatype="Bool" />
+                        <Member Name="yPositive" Datatype="Bool" />
+                        <Member Name="yNegative" Datatype="Bool" />
+                        <Member Name="zPositive" Datatype="Bool" />
+                        <Member Name="zNegative" Datatype="Bool" />
+                        <Member Name="gPositive" Datatype="Bool" />
+                        <Member Name="gNegative" Datatype="Bool" />
+                      </Member>
+                      <Member Name="B3_Spare" Datatype="Struct">
+                        <Member Name="Spare_X0" Datatype="Bool" />
+                        <Member Name="Spare_X1" Datatype="Bool" />
+                        <Member Name="Spare_X2" Datatype="Bool" />
+                        <Member Name="Spare_X3" Datatype="Bool" />
+                        <Member Name="Spare_X4" Datatype="Bool" />
+                        <Member Name="Spare_X5" Datatype="Bool" />
+                        <Member Name="Spare_X6" Datatype="Bool" />
+                        <Member Name="Spare_X7" Datatype="Bool" />
+                      </Member>
+                      <Member Name="Home" Datatype="Struct">
+                        <Member Name="X" Datatype="Bool" />
+                        <Member Name="Y" Datatype="Bool" />
+                        <Member Name="Z" Datatype="Bool" />
+                        <Member Name="G" Datatype="Bool" />
+                        <Member Name="Spare_X4" Datatype="Bool" />
+                        <Member Name="Spare_X5" Datatype="Bool" />
+                        <Member Name="Spare_X6" Datatype="Bool" />
+                        <Member Name="Spare_X7" Datatype="Bool" />
+                      </Member>
+                      <Member Name="MaintPos" Datatype="Struct">
+                        <Member Name="X" Datatype="Bool" />
+                        <Member Name="Y" Datatype="Bool" />
+                        <Member Name="Z" Datatype="Bool" />
+                        <Member Name="G" Datatype="Bool" />
+                        <Member Name="Spare_X4" Datatype="Bool" />
+                        <Member Name="Spare_X5" Datatype="Bool" />
+                        <Member Name="Spare_X6" Datatype="Bool" />
+                        <Member Name="Spare_X7" Datatype="Bool" />
+                      </Member>
+                      <Member Name="CellOrigin" Datatype="Struct">
+                        <Member Name="X" Datatype="Bool" />
+                        <Member Name="Y" Datatype="Bool" />
+                        <Member Name="Spare_X2" Datatype="Bool" />
+                        <Member Name="Spare_X3" Datatype="Bool" />
+                        <Member Name="Spare_X4" Datatype="Bool" />
+                        <Member Name="Spare_X5" Datatype="Bool" />
+                        <Member Name="Spare_X6" Datatype="Bool" />
+                        <Member Name="Spare_X7" Datatype="Bool" />
+                      </Member>
+                      <Member Name="ChangeMode" Datatype="Byte" />
+                    </Section>
+                  </Sections>
+                </Member>
+                <Member Name="Data" Datatype="Array[0..15] of Byte" />
+                <Member Name="TaskData" Datatype="&quot;LGR_Task_Data&quot;">
+                  <Sections>
+                    <Section Name="None">
+                      <Member Name="WorkId" Datatype="UDInt" />
+                      <Member Name="TaskId" Datatype="UDInt" />
+                      <Member Name="TaskType" Datatype="Byte" />
+                      <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+                      <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+                        <Sections>
+                          <Section Name="None">
+                            <Member Name="Code" Datatype="UDInt" />
+                            <Member Name="Count" Datatype="USInt" />
+                            <Member Name="InnerDiameter" Datatype="Real" />
+                            <Member Name="OuterDiameter" Datatype="Real" />
+                            <Member Name="LowerBidHeight" Datatype="Real" />
+                            <Member Name="UpperBidHeight" Datatype="Real" />
+                            <Member Name="Height" Datatype="Real" />
+                            <Member Name="DeflectionFactor" Datatype="Real" />
+                          </Section>
+                        </Sections>
+                      </Member>
+                      <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+                        <Sections>
+                          <Section Name="None">
+                            <Member Name="Use" Datatype="Bool" />
+                            <Member Name="BlendUse" Datatype="Bool" />
+                            <Member Name="Id" Datatype="UInt" />
+                            <Member Name="Section" Datatype="UInt" />
+                            <Member Name="Row" Datatype="UInt" />
+                            <Member Name="Col" Datatype="UInt" />
+                            <Member Name="Lenth" Datatype="Real" />
+                            <Member Name="Width" Datatype="Real" />
+                            <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+                          </Section>
+                        </Sections>
+                      </Member>
+                      <Member Name="BlendUpDistance" Datatype="UInt" />
+                      <Member Name="BlendDownDistance" Datatype="UInt" />
+                      <Member Name="DragOutHeight" Datatype="UInt" />
+                      <Member Name="DragOutDist" Datatype="UInt" />
+                      <Member Name="DragOutDir" Datatype="Byte" />
+                      <Member Name="DragInHeight" Datatype="UInt" />
+                      <Member Name="DragInDist" Datatype="UInt" />
+                      <Member Name="DragInDir" Datatype="Byte" />
+                      <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+                      <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+                      <Member Name="LiftUpHeight" Datatype="UInt" />
+                      <Member Name="PreGripDelta" Datatype="UInt" />
+                      <Member Name="GripBackDelta" Datatype="UInt" />
+                      <Member Name="GripHeight" Datatype="UInt" />
+                      <Member Name="UseDragOut" Datatype="Bool" />
+                      <Member Name="UseDragIn" Datatype="Bool" />
+                      <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+                      <Member Name="LiftUpPartial" Datatype="Bool" />
+                      <Member Name="MeasureFloor" Datatype="Bool" />
+                      <Member Name="MeasureItem" Datatype="Bool" />
+                      <Member Name="MeasureSku" Datatype="Bool" />
+                      <Member Name="AdjustCenter" Datatype="Bool" />
+                      <Member Name="FindStationItem" Datatype="Bool" />
+                      <Member Name="Avoid" Datatype="Bool" />
+                      <Member Name="Outbound" Datatype="Bool" />
+                    </Section>
+                  </Sections>
+                </Member>
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="Injected" Datatype="UDInt" />
+          <Member Name="Deferred" Datatype="UDInt" />
+          <Member Name="Restored" Datatype="UDInt" />
+          <Member Name="Overwritten" Datatype="UDInt" />
+        </Section>
+      </Sections>
+    </Member>
+  </Section>
+</Sections></Interface>
+      <IsOnlyStoredInLoadMemory>false</IsOnlyStoredInLoadMemory>
+      <IsWriteProtectedInAS>false</IsWriteProtectedInAS>
+      <MemoryLayout>Standard</MemoryLayout>
+      <Name>SOCK</Name>
+      <Namespace />
+      <Number>45</Number>
+      <ProgrammingLanguage>DB</ProgrammingLanguage>
+    </AttributeList>
+    <ObjectList>
+      <MultilingualText ID="1" CompositionName="Comment">
+        <ObjectList>
+          <MultilingualTextItem ID="2" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text> 표준 접근 : PLC 소켓 링크 운용 데이터 (gr-console 읽기용, 레이아웃은 LayoutSig 로 검증)</Text>
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="3" CompositionName="Items">
+            <AttributeList>
+              <Culture>hu-HU</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="4" CompositionName="Items">
+            <AttributeList>
+              <Culture>ko-KR</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+      <MultilingualText ID="5" CompositionName="Title">
+        <ObjectList>
+          <MultilingualTextItem ID="6" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="7" CompositionName="Items">
+            <AttributeList>
+              <Culture>hu-HU</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="8" CompositionName="Items">
+            <AttributeList>
+              <Culture>ko-KR</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+    </ObjectList>
+  </SW.Blocks.GlobalDB>
+</Document>

@@ -34,6 +34,19 @@ pub struct Message {
 /// HTTP header lines (name, value) and body.
 pub type HttpParts = (Vec<(String, String)>, Vec<u8>);
 
+/// What a received `Hello` says (wire-spec section 4).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct HelloInfo {
+    /// Wire JSON text of the Hello data, if it could be rendered.
+    pub data: Option<String>,
+    /// `Hello.Plc`, if not empty.
+    pub plc: Option<String>,
+    /// The peer's `RegistryHash` equals ours; `false` marks the link `contract_mismatch` (BIN refused).
+    pub registry_ok: bool,
+    /// `Hello.HeartbeatMs`, if > 0.
+    pub heartbeat_ms: Option<u64>,
+}
+
 /// Next sender sequence number: 1, 2, … 65535, 1 (0 = none).
 pub fn next_seq(seq: u16) -> u16 {
     if seq == u16::MAX { 1 } else { seq + 1 }
@@ -325,6 +338,19 @@ impl Codec {
         let (mut m, _) = self.from_json_data("Hello", &v, Strictness::Lenient)?;
         m.seq = seq;
         Ok(m)
+    }
+
+    /// Reads a received `Hello`: its data text, `Plc`, whether the registry hash matches and `HeartbeatMs`.
+    /// A Hello that cannot be rendered yields the default (no name, hash mismatch).
+    pub fn hello_info(&self, m: &Message) -> HelloInfo {
+        let text = self.data_json_text(m).ok();
+        let v: Value = text.as_deref().and_then(|t| serde_json::from_str(t).ok()).unwrap_or_default();
+        HelloInfo {
+            plc: v["Plc"].as_str().filter(|s| !s.is_empty()).map(str::to_string),
+            registry_ok: v["RegistryHash"].as_u64() == Some(self.registry.hash() as u64),
+            heartbeat_ms: v["HeartbeatMs"].as_u64().filter(|x| *x > 0),
+            data: text,
+        }
     }
 
     /// Heartbeat message (no payload).

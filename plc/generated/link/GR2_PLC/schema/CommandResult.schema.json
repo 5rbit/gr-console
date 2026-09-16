@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:gr-link:GR2_PLC:CommandResult",
   "title": "CommandResult (LGR_Command_Response)",
-  "description": "Link message CommandResult (id 21, plc_to_pc), JSON envelope (docs/link/wire-spec.md section 2). data = UDT \"LGR_Command_Response\" (sig 0x04088012, 174 B standard layout)",
+  "description": "Link message CommandResult (id 21, plc_to_pc), JSON envelope (docs/link/wire-spec.md section 2). data = UDT \"LGR_Command_Response\" (sig 0x6D851FD2, 174 B standard layout)",
   "type": "object",
   "properties": {
     "type": {
@@ -15,7 +15,7 @@
     "seq": {"type": "integer", "minimum": 0, "maximum": 65535},
     "sig": {
       "description": "UDT signature (0 = not checked)",
-      "enum": [0, 67665938]
+      "enum": [0, 1837440978]
     },
     "data": {"$ref": "#/$defs/LGR_Command_Response"}
   },
@@ -74,7 +74,7 @@
           "properties": {
             "Reset": {"type": "boolean"},
             "Initializing": {"type": "boolean"},
-            "Spare_X2": {"type": "boolean"},
+            "Start": {"type": "boolean", "description": "Ready -> Auto 시작 명령"},
             "Spare_X3": {"type": "boolean"},
             "Spare_X4": {"type": "boolean"},
             "Spare_X5": {"type": "boolean", "description": "(legacy TaskComplete - 미사용, Task.Complete.WorkId 로 판별)"},

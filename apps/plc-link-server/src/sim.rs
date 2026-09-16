@@ -11,6 +11,7 @@ use plc_layout::Contract;
 use plc_layout::layout::size_of;
 use plc_link::framing::http::{CONTINUE_100, write_get};
 use plc_link::framing::{ContentLength, HttpRequestDecoder, PLC_MAX_PAYLOAD, encode_frame, encode_ndjson, write_request, write_response};
+use plc_link::trace::{TRACE_CH_MAX, TraceChunk, TraceLayout};
 use plc_link::vectors::{golden_value, zero_value};
 use plc_link::wire_json::zero_udt_bytes;
 use plc_link::{Codec, ErrCode, Format, Framing, Message, RawFrame, Role, Strictness};
@@ -55,6 +56,12 @@ pub struct SimConfig {
     pub ack_code: i16,
     /// Every N-th command is answered with Ack(BUSY) (HTTP passive: 503 Ack).
     pub busy_every: Option<u64>,
+    /// Trace chunk period in ms; 0 = the simulator traces only while a `TraceCfg` runs one, and then uses
+    /// the configuration's `FlushMs`.
+    pub trace_ms: u64,
+    /// Channels of the trace the simulator starts by itself (only with `trace_ms` > 0); a `TraceCfg`
+    /// replaces it with its own channel count.
+    pub trace_channels: u16,
     pub fault: Option<Fault>,
     pub reconnect: Duration,
 }
@@ -75,6 +82,8 @@ impl SimConfig {
             ack_every: None,
             ack_code: 104,
             busy_every: None,
+            trace_ms: 0,
+            trace_channels: 4,
             fault: None,
             reconnect: Duration::from_secs(1),
         }
@@ -87,6 +96,9 @@ impl SimConfig {
         }
         if self.measlog_ms == 0 || self.status_ms == 0 || self.poll_ms == 0 {
             return Err("intervals must be > 0 ms".into());
+        }
+        if self.trace_channels == 0 || self.trace_channels > TRACE_CH_MAX {
+            return Err(format!("--trace-channels {} must be 1..{TRACE_CH_MAX}", self.trace_channels));
         }
         Ok(())
     }
@@ -108,6 +120,11 @@ pub struct SimStats {
     /// Commands answered with an Ack (`--ack-every`, `--busy-every`).
     pub command_acks: u64,
     pub heartbeats_rx: u64,
+    pub trace_cfg_rx: u64,
+    /// TraceCfg answered with Ack 110 / 111.
+    pub trace_cfg_rejected: u64,
+    pub trace_sent: u64,
+    pub trace_rows_sent: u64,
     pub bad_magic_sent: u64,
     pub errors: u64,
     pub last_error: Option<String>,
@@ -239,6 +256,39 @@ struct Gen {
     cmd_n: u64,
     latest_meas: Option<Message>,
     seq: SeqGen,
+    /// Trace message id and chunk layout, when the contract has `LNK_Trace`.
+    trace_msg: Option<(u16, TraceLayout)>,
+    trace: Option<TraceRun>,
+}
+
+/// Ack codes of a rejected trace configuration (wire-spec section 6.1).
+const TRACE_BAD_CFG: i16 = 110;
+const TRACE_NOT_ALLOWED: i16 = 111;
+/// Simulated PLC cycle: one sample every 10 ms × Divider.
+const TRACE_CYCLE_MS: i32 = 10;
+
+/// A trace the simulator is pushing.
+#[derive(Clone, Debug)]
+struct TraceRun {
+    cfg_id: u16,
+    chan_count: u16,
+    divider: u16,
+    period: Duration,
+    /// `FirstCycle` of the next chunk.
+    cycle: u32,
+    /// Tick of the next row in ms.
+    tick: i32,
+}
+
+/// Plausible sample of channel `c` at `tick` ms: even channels are a Real sine (IEEE-754 bit pattern), odd
+/// channels a zero-extended integer ramp.
+fn trace_sample(c: u16, tick: i32) -> u32 {
+    if c.is_multiple_of(2) {
+        let hz = 0.5 + 0.25 * c as f32;
+        ((tick as f32 / 1000.0 * hz * std::f32::consts::TAU).sin() * (10 * (c + 1)) as f32).to_bits()
+    } else {
+        (tick / TRACE_CYCLE_MS + c as i32).rem_euclid(1000) as u32
+    }
 }
 
 /// Byte offset and size of a member path inside a UDT.
@@ -266,7 +316,75 @@ impl Gen {
         for m in ["Hello", "Ack", "MeasLog", "Status", "Command", "CommandResult"] {
             codec.spec_by_name(m).with_context(|| format!("simulator needs message {m}"))?;
         }
-        Ok(Gen { codec, plc: plc.to_string(), meas_n: 0, cmd_n: 0, latest_meas: None, seq: SeqGen::default() })
+        // Trace is optional: a contract without LNK_Trace answers every TraceCfg with TRACE_NOT_ALLOWED
+        let trace_id = codec.spec_by_name("Trace").ok().map(|s| s.id);
+        let trace_msg = trace_id.zip(TraceLayout::for_message(&codec, "Trace").ok());
+        Ok(Gen { codec, plc: plc.to_string(), meas_n: 0, cmd_n: 0, latest_meas: None, seq: SeqGen::default(), trace_msg, trace: None })
+    }
+
+    /// Chunk period of the running trace, if any.
+    fn trace_period(&self) -> Option<Duration> {
+        self.trace.as_ref().map(|t| t.period)
+    }
+
+    /// Starts (or stops) the trace a new session begins with: `--trace-ms` runs one without a TraceCfg.
+    fn trace_reset(&mut self, cfg: &SimConfig) {
+        self.trace = (cfg.trace_ms > 0 && self.trace_msg.is_some() && cfg.framing == Framing::Frame).then(|| TraceRun {
+            cfg_id: 0,
+            chan_count: cfg.trace_channels,
+            divider: 1,
+            period: Duration::from_millis(cfg.trace_ms),
+            cycle: 0,
+            tick: 0,
+        });
+    }
+
+    /// Applies a received TraceCfg → the Ack code and text (0 = accepted).
+    fn on_trace_cfg(&mut self, m: &Message, cfg: &SimConfig) -> anyhow::Result<(i16, String)> {
+        if self.trace_msg.is_none() {
+            return Ok((TRACE_NOT_ALLOWED, "contract without LNK_Trace".into()));
+        }
+        if cfg.framing != Framing::Frame {
+            return Ok((TRACE_NOT_ALLOWED, "trace needs FRAME framing".into()));
+        }
+        let v = self.codec.data_value(m)?;
+        let num = |k: &str| v[k].as_u64().unwrap_or(0);
+        if num("Cmd") == 0 {
+            self.trace = None;
+            return Ok((0, String::new()));
+        }
+        let (chan, div) = (num("ChanCount"), num("Divider"));
+        if chan == 0 || chan > TRACE_CH_MAX as u64 {
+            return Ok((TRACE_BAD_CFG, format!("ChanCount {chan} (1..{TRACE_CH_MAX})")));
+        }
+        if div == 0 || div > u16::MAX as u64 {
+            return Ok((TRACE_BAD_CFG, format!("Divider {div} (1..65535)")));
+        }
+        let flush = num("FlushMs").max(20);
+        let period = Duration::from_millis(if cfg.trace_ms > 0 { cfg.trace_ms } else { flush });
+        self.trace = Some(TraceRun { cfg_id: num("CfgId") as u16, chan_count: chan as u16, divider: div as u16, period, cycle: 0, tick: 0 });
+        Ok((0, String::new()))
+    }
+
+    /// Next Trace chunk (seq 0: assigned when sent) and its row count, or `None` while no trace runs.
+    fn trace_chunk(&mut self) -> anyhow::Result<Option<(Message, usize)>> {
+        let (Some((id, layout)), Some(run)) = (&self.trace_msg, &mut self.trace) else { return Ok(None) };
+        let step = TRACE_CYCLE_MS * run.divider.max(1) as i32;
+        let want = (run.period.as_millis() as i32 / step).max(1) as usize;
+        let n = want.min(layout.rows_per_chunk(run.chan_count));
+        let rows: Vec<Vec<u32>> = (0..n)
+            .map(|r| {
+                let tick = run.tick.wrapping_add(r as i32 * step);
+                std::iter::once(tick as u32).chain((0..run.chan_count).map(|c| trace_sample(c, tick))).collect()
+            })
+            .collect();
+        let mut chunk = TraceChunk::from_rows(run.cfg_id, run.chan_count, run.divider, rows);
+        chunk.header.first_cycle = run.cycle;
+        chunk.header.time0 = dtl_now_text();
+        let payload = layout.encode(&chunk)?;
+        run.cycle = run.cycle.wrapping_add(n as u32 * run.divider.max(1) as u32);
+        run.tick = run.tick.wrapping_add(n as i32 * step);
+        Ok(Some((Message { id: *id, seq: 0, payload }, n)))
     }
 
     fn hello(&self, framing: Framing) -> anyhow::Result<Message> {
@@ -445,6 +563,15 @@ impl StreamSim<'_> {
                     }
                 });
             }
+            "TraceCfg" => {
+                with(self.stats, |s| s.trace_cfg_rx += 1);
+                let (code, text) = self.g.on_trace_cfg(&m, self.cfg)?;
+                if code != 0 {
+                    with(self.stats, |s| s.trace_cfg_rejected += 1);
+                }
+                let ack = codec.ack(m.id, m.seq, code, &text, 0)?;
+                self.send(ack, false, false).await?;
+            }
             "Command" => {
                 with(self.stats, |s| s.commands_rx += 1);
                 match self.g.reply(&m, self.cfg)? {
@@ -494,12 +621,26 @@ impl StreamSim<'_> {
         with(self.stats, |s| s.status_sent += 1);
         Ok(())
     }
+
+    /// Sends one chunk. Trace is BIN only, whatever format the rest of the session uses.
+    async fn trace(&mut self) -> anyhow::Result<()> {
+        let Some((mut m, rows)) = self.g.trace_chunk()? else { return Ok(()) };
+        m.seq = self.seq.next();
+        let bytes = crate::wire::encode(&self.g.codec, self.cfg.framing, Format::Bin, &m)?;
+        self.put(&bytes).await?;
+        with(self.stats, |s| {
+            s.trace_sent += 1;
+            s.trace_rows_sent += rows as u64;
+        });
+        Ok(())
+    }
 }
 
 /// Returns Ok(true) when `--count` is reached.
 async fn stream_session(s: TcpStream, g: &mut Gen, cfg: &SimConfig, stats: &Stats, opener: bool, first: bool) -> anyhow::Result<bool> {
     let (mut rd, w) = s.into_split();
     let hb = Duration::from_millis(g.codec.registry().heartbeat_ms() as u64);
+    g.trace_reset(cfg);
     let mut dec = StreamDecoder::new(cfg.framing, PLC_MAX_PAYLOAD)?;
     let mut ss = StreamSim { g, cfg, stats, w, buf: Vec::new(), seq: SeqGen::default(), last_tx: Instant::now(), opener, hello_seen: false };
     if opener {
@@ -514,7 +655,10 @@ async fn stream_session(s: TcpStream, g: &mut Gen, cfg: &SimConfig, stats: &Stat
     let mut tick = tokio::time::interval(Duration::from_millis(200));
     let mut last_rx = Instant::now();
     let mut buf = vec![0u8; 8192];
+    // when the next Trace chunk is due; None while no trace runs
+    let mut next_trace: Option<tokio::time::Instant> = None;
     loop {
+        let due = next_trace;
         tokio::select! {
             r = rd.read(&mut buf) => {
                 let n = r.context("read")?;
@@ -550,6 +694,15 @@ async fn stream_session(s: TcpStream, g: &mut Gen, cfg: &SimConfig, stats: &Stat
                 }
             }
             _ = status.tick(), if ss.hello_seen => ss.status().await?,
+            _ = async move {
+                match due {
+                    Some(t) => tokio::time::sleep_until(t).await,
+                    None => std::future::pending().await,
+                }
+            }, if ss.hello_seen => {
+                ss.trace().await?;
+                next_trace = None;
+            }
             _ = tick.tick() => {
                 if ss.last_tx.elapsed() >= hb {
                     let m = ss.g.codec.heartbeat(0)?;
@@ -561,6 +714,12 @@ async fn stream_session(s: TcpStream, g: &mut Gen, cfg: &SimConfig, stats: &Stat
             }
         }
         ss.flush().await?;
+        // keep the trace timer in step with the running configuration (a TraceCfg may have started one)
+        next_trace = match (ss.g.trace_period(), next_trace) {
+            (Some(p), None) => Some(tokio::time::Instant::now() + p),
+            (Some(_), t) => t,
+            (None, _) => None,
+        };
     }
 }
 

@@ -1,0 +1,13 @@
+﻿TYPE "LNK_TraceCfg"
+VERSION : 0.1
+   STRUCT
+      Cmd : Byte;   //     0 정지, 1 시작 (시작은 링을 비우고 새 CfgId 로 시작)
+      CfgId : UInt;   //     PC 가 부여한 설정 번호, Trace 청크 헤더로 되돌아옴
+      ChanCount : UInt;   //     채널 수 (1 .. LNK_TRACE_CH_MAX)
+      Divider : UInt;   //     샘플 주기 : 1 = 매 사이클, n = n 사이클마다
+      FlushMs : UInt;   //     청크가 차지 않아도 이 시간 뒤 송신 (ms, LNK_TRACE_FLUSH_MIN 이상)
+      Chan : Array[0..31] of "LNK_TraceChan";   //     채널 정의 (앞에서 ChanCount 개만 사용)
+   END_STRUCT;
+
+END_TYPE
+

@@ -119,10 +119,17 @@ fn repo_registry_resolves_against_gr2_contract() {
     assert_eq!((doc.magic, doc.proto_version, doc.max_payload, doc.heartbeat_ms), (0x4753, 1, 65535, 5000));
     assert_eq!((doc.const_prefix.as_str(), doc.writer_prefix.as_str(), doc.reader_prefix.as_str(), doc.envelope_prefix.as_str()), ("LNK_", "JsonW_", "JsonR_", "LnkJ_"));
     assert_eq!(doc.errors.iter().filter(|e| !e.runtime).count(), 11);
+    assert_eq!(doc.errors.iter().filter(|e| e.runtime).count(), 8);
     let c = gr2_contract();
     let r = doc.resolve(&c).unwrap();
     let names: Vec<(u16, &str)> = r.messages.iter().map(|m| (m.id, m.name.as_str())).collect();
-    assert_eq!(names, vec![(1, "Hello"), (2, "Heartbeat"), (10, "MeasLog"), (11, "Status"), (20, "Command"), (21, "CommandResult"), (30, "Ack")]);
+    assert_eq!(names, vec![(1, "Hello"), (2, "Heartbeat"), (10, "MeasLog"), (11, "Status"), (20, "Command"), (21, "CommandResult"), (30, "Ack"), (40, "TraceCfg"), (41, "Trace")]);
+    // Trace carries one fixed-size chunk as Serialize bytes only: no JSON, so no worst-case envelope length
+    let trace = r.by_name("Trace").unwrap();
+    assert!(trace.available && !trace.ack && trace.allows(Format::Bin) && !trace.allows(Format::Json));
+    assert_eq!((trace.size, trace.json_max), (c.size_of_udt("LNK_Trace").unwrap(), 0));
+    assert_eq!(trace.size, 8160);
+    assert!(r.by_name("TraceCfg").unwrap().json_max > 0);
     let meas = r.by_name("MeasLog").unwrap();
     assert!(meas.available && meas.ack);
     assert_eq!((meas.size, meas.sig), (236, c.udt_sig("LGR_MeasureLog").unwrap()));

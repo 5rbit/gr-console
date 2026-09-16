@@ -177,8 +177,10 @@ pub(crate) fn registry_json(c: &Contract, r: &Registry, selected: &[&MessageSpec
     let mut messages = Vec::new();
     for m in &r.messages {
         let generated = selected.iter().any(|s| s.id == m.id);
+        // Members are listed for the messages whose JSON envelope is generated. A BIN-only message (Trace) carries a
+        // large fixed array; its layout is read from the contract UDT instead of being repeated here.
         let mut members = Vec::new();
-        if let (Some(u), true) = (&m.udt, generated) {
+        if let (Some(u), true) = (&m.udt, generated && m.allows(Format::Json)) {
             for x in c.layout_udt(u)?.members {
                 members.push(J::obj(vec![("path", J::s(x.path)), ("offset", J::num(x.offset)), ("bit", x.bit.map_or(J::Null, J::num)), ("type", J::s(x.prim.name())), ("size", J::num(x.size))]));
             }

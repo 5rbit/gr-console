@@ -132,6 +132,74 @@ async fn bad_magic_closes_then_reconnects() {
     .await;
 }
 
+/// TraceCfg → Ack, then Trace chunks the PC can decode; a bad configuration is rejected with Ack 110.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn trace_cfg_starts_chunks_and_bad_cfg_is_rejected() {
+    within(60, async {
+        let mut srv = server().await;
+        let hub = srv.hub.clone();
+        let codec = hub.codec().clone();
+        let c = case(Mode::Active, Framing::Frame, Format::Json);
+        let name = c.plc_name();
+        let sim = start_case_sim(&mut srv, &c, |_| {}).await.unwrap();
+        assert!(wait_until(Duration::from_secs(8), || hub.plc(&name).is_some_and(|p| p.connected && p.registry_ok == Some(true))).await);
+        assert_eq!(sim.stats().trace_sent, 0, "no trace without --trace-ms and without a TraceCfg");
+
+        let cfg_msg = |body: Value| codec.from_json_data("TraceCfg", &body, Strictness::Lenient).unwrap().0;
+        hub.send(&name, cfg_msg(json!({"Cmd": 1, "CfgId": 9, "ChanCount": 3, "Divider": 2, "FlushMs": 100}))).unwrap();
+        let trace_id = codec.spec_by_name("Trace").unwrap().id;
+        let ok = wait_until(Duration::from_secs(10), || sim.stats().trace_cfg_rx >= 1 && sim.stats().trace_sent >= 2 && hub.last(&name, trace_id).is_some()).await;
+        assert!(ok, "{:?}", sim.stats());
+
+        let layout = plc_link::trace::TraceLayout::for_message(&codec, "Trace").unwrap();
+        let chunk = layout.decode(&hub.last(&name, trace_id).unwrap().msg.payload).unwrap();
+        assert_eq!((chunk.header.cfg_id, chunk.header.chan_count, chunk.header.divider, chunk.header.row_words, chunk.header.overrun), (9, 3, 2, 4, 0));
+        assert_eq!(chunk.rows.len(), chunk.header.count as usize);
+        assert!(chunk.header.count > 0 && chunk.header.first_cycle > 0, "{:?}", chunk.header);
+        assert!(chunk.header.time0.starts_with("20"), "{:?}", chunk.header);
+        let first = plc_link::TraceChunk::tick_of(&chunk.rows[0]);
+        assert_eq!(first, chunk.header.tick0);
+        assert!(chunk.rows.iter().any(|r| plc_link::TraceChunk::channel_of(r, 0) != Some(0)), "a channel changes");
+
+        // 40 channels and Divider 0 are refused, and the running trace keeps going
+        for bad in [json!({"Cmd": 1, "CfgId": 10, "ChanCount": 40, "Divider": 1}), json!({"Cmd": 1, "CfgId": 11, "ChanCount": 2, "Divider": 0})] {
+            hub.send(&name, cfg_msg(bad)).unwrap();
+        }
+        assert!(wait_until(Duration::from_secs(10), || sim.stats().trace_cfg_rejected >= 2).await, "{:?}", sim.stats());
+        let acks: Vec<i64> = hub
+            .log_query(&Default::default())
+            .iter()
+            .filter(|e| e.plc == name && e.dir == plc_link_server::log::Dir::Rx && e.name.as_deref() == Some("Ack"))
+            .filter_map(|e| serde_json::from_str::<Value>(e.data_text.as_deref().unwrap_or("null")).ok())
+            .filter_map(|v| v["Code"].as_i64())
+            .collect();
+        assert!(acks.contains(&110), "{acks:?}");
+
+        // Cmd = 0 stops
+        hub.send(&name, cfg_msg(json!({"Cmd": 0, "CfgId": 9}))).unwrap();
+        assert!(wait_until(Duration::from_secs(5), || sim.stats().trace_cfg_rx >= 4).await);
+        let sent = sim.stats().trace_sent;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        assert_eq!(sim.stats().trace_sent, sent, "stopped");
+        let errors: Vec<_> = hub.log_query(&Default::default()).into_iter().filter(|e| e.plc == name && !e.ok).collect();
+        assert!(errors.is_empty(), "{errors:?}");
+
+        // --trace-ms / --trace-channels trace without any TraceCfg (CfgId 0)
+        let c2 = case(Mode::Active, Framing::Frame, Format::Bin);
+        let sim2 = start_case_sim(&mut srv, &c2, |cfg| {
+            cfg.trace_ms = 80;
+            cfg.trace_channels = 2;
+        })
+        .await
+        .unwrap();
+        let name2 = c2.plc_name();
+        assert!(wait_until(Duration::from_secs(10), || sim2.stats().trace_sent >= 2 && hub.last(&name2, trace_id).is_some()).await, "{:?}", sim2.stats());
+        let chunk = layout.decode(&hub.last(&name2, trace_id).unwrap().msg.payload).unwrap();
+        assert_eq!((chunk.header.cfg_id, chunk.header.chan_count, chunk.header.row_words, chunk.header.divider), (0, 2, 3, 1));
+    })
+    .await;
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn strict_api_errors_and_queue() {
     within(60, async {

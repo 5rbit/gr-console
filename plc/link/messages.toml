@@ -78,6 +78,25 @@ dir = "both"
 formats = ["json", "bin"]
 ack = false
 
+# Trace: PC selects up to LNK_TRACE_CH_MAX channels (PEEK descriptors), the PLC samples them every cycle and
+# pushes fixed-size chunks. BIN only - the chunk is a 2032-element DWord array, so a JSON envelope would be
+# pointless and far over the PLC line limit. See docs/link/wire-spec.md section 6.
+[[message]]
+id = 40
+name = "TraceCfg"
+udt = "LNK_TraceCfg"
+dir = "pc_to_plc"
+formats = ["json", "bin"]
+ack = true
+
+[[message]]
+id = 41
+name = "Trace"
+udt = "LNK_Trace"
+dir = "plc_to_pc"
+formats = ["bin"]
+ack = false
+
 # Error / Ack codes (wire-spec section 3). PLC runtime-internal codes (>= 100) are listed for display only.
 [[error]]
 code = 0
@@ -151,6 +170,16 @@ runtime = true
 [[error]]
 code = 105
 name = "MASKED"
+runtime = true
+
+[[error]]
+code = 110
+name = "TRACE_BAD_CFG"
+runtime = true
+
+[[error]]
+code = 111
+name = "TRACE_NOT_ALLOWED"
 runtime = true
 
 # HTTP routes (wire-spec section 1.3). role = PLC role; `{plc}` = SOCK_CFG.PlcName, `{msg}` = lower-case message name.

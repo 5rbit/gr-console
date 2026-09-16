@@ -16,13 +16,17 @@ PLC Passive ← --connect NAME=ip:port,... ─────┘  (상태·큐·로
 
 - 계약: `plc/contract/<PLC>`(기본 `GR2_PLC`) + `plc/link/messages.toml`. 계약에 `LNK_Hello` / `LNK_Ack` /
   `LNK_GR_Status` 가 없으면 서버에 내장된 사본을 채워 넣는다(`/api/health` 의 `server.fallback_udts`).
-  현재 GR2_PLC 는 동기화되어 있어 레지스트리 해시 `0xF2BA8A22` (PLC `LNK_REGISTRY_HASH`) 와 같다.
+  현재 GR2_PLC 는 동기화되어 있어 레지스트리 해시 `0x8E7B313C` (PLC `LNK_REGISTRY_HASH`) 와 같다.
+  해시는 `plc/generated/link/<PLC>/registry.json` 의 `registry_hash_hex` 가 정본이다.
 - 수신 메시지는 모두 UDT 바이트(표준 레이아웃)로 정규화해서 저장하고, JSON 은 선언 순서로 표시한다.
 - 세션 규칙(와이어 사양 4절): 연결을 연 쪽이 Hello 먼저, RegistryHash 불일치 → `contract_mismatch`(BIN 거부 =
   Ack 7, JSON 허용), 송신 없이 HeartbeatMs 경과 → Heartbeat, 3 × HeartbeatMs 무수신 → 끊음, MeasLog /
   CommandResult 는 Ack, 페이로드 오류 → Ack(code) 후 링크 유지, 프레이밍 오류(bad magic/version, 최대 길이 초과)
   → Ack 후 끊음.
 - PC → PLC 메시지는 PLC 가 Hello(첫 메시지)에 쓴 포맷으로 보낸다(계약 불일치 시 JSON).
+- 소켓을 쥐는 부분(프레이밍 판별, Hello, Heartbeat, 자동 Ack)은 `crates/plc-link/src/io` 의 `LinkSession`
+  (cargo feature `io`) 이고, 서버는 그 이벤트/명령 채널을 Hub 에 연결하기만 한다. Hub 없이 같은 세션을 쓰는 앱
+  (gr-console) 도 같은 코드를 쓴다.
 
 ## 실행
 
@@ -75,7 +79,15 @@ plc-link serve --connect GR2=127.0.0.1:2101,framing=frame,format=bin
 | `--reject-every N` | N 번째 CommandResult 마다 `Data[0]` = 16#80 (평소 `Data[2]` = 1, Task = TaskData) |
 | `--ack-every N --ack-code C` | N 번째 명령마다 Ack(C) 응답 (기본 104 UNSUPPORTED, HTTP Passive = 200 Ack) |
 | `--busy-every N` | N 번째 명령마다 Ack(BUSY=9) (HTTP Passive = 503 Ack) |
+| `--trace-ms MS` | Trace 청크 주기(ms). 0(기본) = TraceCfg 가 시작한 트레이스만 보내고 주기는 그 `FlushMs` |
+| `--trace-channels N` | `--trace-ms` 로 스스로 시작하는 트레이스의 채널 수(1..32, 기본 4). TraceCfg 는 자기 `ChanCount` 를 쓴다 |
 | `--fault split-writes\|coalesce\|bad-sig\|bad-magic` | 1–3 바이트 분할 쓰기 / 여러 메시지 한 번에 쓰기 / MeasLog 시그니처 오류 / 첫 연결에서 bad magic |
+
+트레이스(와이어 사양 6절)는 FRAME 프레이밍에서만 동작한다. `TraceCfg`(`Cmd` 1 시작 / 0 정지)를 받으면 한 사이클 뒤
+`Ack(0, RefType = TraceCfg, RefSeq = 그 seq)` 로 답하고 `CfgId` 를 그대로 되돌려주는 `Trace` 청크(BIN)를 밀어 올린다.
+행은 `[Tick(ms), 채널값 …]` 이고 짝수 채널은 Real 사인파, 홀수 채널은 정수 램프이며 `FirstCycle` 은 `Count × Divider`
+만큼 증가한다. `ChanCount` 가 32 를 넘거나 `Divider` 가 0 이면 `Ack(110 TRACE_BAD_CFG)`, FRAME 이 아니거나 계약에
+`LNK_Trace` 가 없으면 `Ack(111 TRACE_NOT_ALLOWED)` 로 거부한다.
 
 HTTP 쓰기는 PLC 와 같게 `Content-Length: NNNNN`(5 자리), 204 에도 `Content-Length: 00000` 을 쓴다.
 NDJSON × BIN 조합은 거부된다(FORMAT_NOT_ALLOWED).

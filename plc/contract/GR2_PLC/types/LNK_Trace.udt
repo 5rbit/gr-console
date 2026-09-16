@@ -1,0 +1,17 @@
+﻿TYPE "LNK_Trace"
+VERSION : 0.1
+   STRUCT
+      CfgId : UInt;   //     이 청크를 만든 설정 번호 (LNK_TraceCfg.CfgId)
+      ChanCount : UInt;   //     채널 수
+      Divider : UInt;   //     적용된 샘플 분주
+      Count : UInt;   //     유효 행 수 (0 .. LNK_TRACE_ROWS / RowWords)
+      RowWords : UInt;   //     한 행의 DWord 수 (1 + ChanCount)
+      Overrun : UInt;   //     직전 청크 이후 버린 샘플 수 (0 = 무손실)
+      FirstCycle : UDInt;   //     첫 행의 "SOCK".CycleNo
+      Tick0 : DInt;   //     첫 행의 TIME_TCK (ms)
+      Time0 {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;   //     첫 행의 PLC 시각
+      Data : Array[0..2031] of DWord;   //     행 = [Tick(ms, DInt 비트), 채널값 ...] 을 RowWords 간격으로
+   END_STRUCT;
+
+END_TYPE
+

@@ -129,6 +129,12 @@ struct SimArgs {
     /// Every N-th command is answered with Ack(BUSY=9) (HTTP passive: 503 Ack)
     #[arg(long)]
     busy_every: Option<u64>,
+    /// Trace chunk period in ms (0 = only while a TraceCfg runs one, then its FlushMs). FRAME only
+    #[arg(long, default_value_t = 0)]
+    trace_ms: u64,
+    /// Channels of the trace started by --trace-ms (1..32); a TraceCfg brings its own count
+    #[arg(long, default_value_t = 4)]
+    trace_channels: u16,
     /// split-writes | coalesce | bad-sig | bad-magic
     #[arg(long, value_parser = parse_fault)]
     fault: Option<Fault>,
@@ -202,6 +208,8 @@ async fn simulate(a: SimArgs) -> anyhow::Result<i32> {
     cfg.ack_every = a.ack_every;
     cfg.ack_code = a.ack_code;
     cfg.busy_every = a.busy_every;
+    cfg.trace_ms = a.trace_ms;
+    cfg.trace_channels = a.trace_channels;
     cfg.fault = a.fault;
     cfg.reconnect = Duration::from_millis(a.reconnect_ms.max(50));
     let sim = sim::start(loaded.codec, cfg).await?;
