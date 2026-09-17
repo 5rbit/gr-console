@@ -156,6 +156,26 @@ CSV 열 : `t_ms, at, mark, mode, step, task_type, code, id, od, height, cell_z, 
 - 그리퍼 상태 변화 : 토크 멈춤 켜짐 → 아이템 감지 순서, 멈춤 시간이 타임아웃보다 충분히 짧다.
 - 경계 조건 기록에서는 범위 밖 멈춤과 4025 가 같은 구간에 나온다.
 
+## E. SKU 스택 측정 — 높이 · 정렬 진단 (2026-09-17)
+
+**흐름 (FB_MeasureSku_V2)** : MEASURE(MeasureSku) 리프트업 중 방향별로 비드 교차와 이탈(센서가 본 지름 ≥ 외경)을 기록한다. 경계·비드 높이는 상태가 바뀐 첫 샘플의 Z 를 p430 지연만큼 역계산하고 방향별 Z 오프셋(p418~p421)을 더한다 — MeasureItem 나갈 때와 같은 조건. 안을 봤던 방향이 모두 빠져나가면 완료, 먼저 리프트 목표에 도착하면 그때까지 본 경계로 확정. 스택 높이 = 방향별 이탈 높이 중앙값. 단수·비드 위치·단당 높이는 결과 센서(기본 F).
+정렬 진단 (완료 시) : X0 방향별 단수 불일치, X1 이탈 높이 편차, X2 비드 높이 편차(경고), X3 TBR 비평면(경고), X4 단별 편심 — 비드 구간마다 방향별 최소 거리 반지름으로 원 맞춤한 중심끼리 최대 거리, X5 구간 원 맞춤 실패(경고), X6 리프트 끝 확정, X7 경계 없음. X0·X1·X4·X6·X7 이면 무효 → OPC UA SKU Status 를 원인별 세부 값으로 보고 (작업은 멈추지 않음) : 5 단수 불일치 / 6 높이 편차 / 7 단별 편심 / 8 리프트 끝 / 9 경계 없음, 원인이 여럿이면 9 > 8 > 5 > 7 > 6 순. 기존 4 Mismatch 는 Item 전용, SKU.Data[15] = DiagFlags, [16] = 단별 편심 최대. 한계값은 `FUNC.MeasureSku.Limit` (HeightSpread 15 / BeadSpread 15 / Planar 10 / LayerOffset 20 mm). 비트 정의는 사양서 R10_260917 ENUM 표 7-1.
+
+**절차**
+
+1. 기록 시작 — 시험 `SKU 스택`. `FUNC` 는 콘솔 계약에 없으므로 TIA 감시 테이블에 `"FUNC".MeasureSku.Status / Valid / DiagFlags / HeightSpread / BeadSpread / PlanarMax / LayerOffsetMax / Layer / BySensor` 를 함께 띄운다.
+2. 반듯하게 쌓은 스택(3~5 단) MEASURE(MeasureSku) 3 회.
+3. 한 단을 한쪽으로 밀어 쌓은 스택 (어긋남 약 10 / 20 / 40 mm, 위치는 가운데 단·맨 위 단) 각 2 회. 어긋난 방향·크기를 메모.
+4. (TBR) 맨 위 단만 기울인 스택 2 회.
+5. 기록 정지.
+
+**확인**
+
+- 반듯한 스택 : Valid = TRUE, DiagFlags = 0, 스택 높이가 실측(줄자) ± 5 mm (제안), 방향별 `BySensor[k].StackCount` 가 모두 같다.
+- 밀어 쌓은 스택 : `Layer[j]` 중심이 어긋난 단 근처에서 밀린 방향으로 움직이고, `LayerOffsetMax` 가 어긋남 크기에 비례한다. 가운데 단은 이웃 단과 섞여 실제의 절반쯤으로 나올 수 있다.
+- 한계값 정하기 : 반듯한 스택의 최대값 (HeightSpread / BeadSpread / LayerOffsetMax) 과 위험하다고 볼 어긋남에서 나온 값 사이로 `FUNC.MeasureSku.Limit.*` 를 정한다. 오판이 잦으면 X0 (단수 불일치) 가 어떤 방향에서 나는지 먼저 본다.
+- 무효일 때 GCS 에 세부 상태 (5~9) 와 DiagFlags 가 보고되는지 OPC UA 로 확인. 측정 이력(MEASLOG Sku) 상태도 같은 값.
+
 ## 결과 정리
 
 - 기록 이름 : `<시험>-<코드>-<조건>` (예 : `A-1001-정상`, `C-1001-p952=20`).
