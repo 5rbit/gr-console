@@ -4,27 +4,33 @@ VERSION : 0.1
 NON_RETAIN
 // 표준 접근 : 그리퍼 레이저 센서 진단 (센서별 상태 / Z 오프셋 자동 교정 / 측정별 진단 이력). 갱신은 "UL_LaserDiag". gr-console 이 읽고 ZCal.Enable / Reset 을 쓴다, 레이아웃은 LayoutSig 로 검증
    STRUCT 
-      LayoutSig : DWord;   //     레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
-      Reset : Bool;   //       센서 상태 / 진단 이력 초기화 (자동 해제). 센서 교체·재취부 후 사용
-      Sensor : Array[0..3] of "LGR_LaserSensorHealth";   //       방향별 상태 (0 L, 1 F, 2 R, 3 B)
-      ZCal : "LGR_LaserZCal";   //       Z 오프셋 자동 교정 : ZCal.Enable 을 켜고 타이어 측정 반복
-      Head : Int;   //       다음 기록 위치 (0..49 링버퍼, 최신 = Entry[Head-1])
-      Count : Int;   //       유효 기록 수 (최대 50)
-      Total : UDInt;   //       누적 기록 수 = 마지막 Seq
-      Entry : Array[0..49] of "LGR_LaserDiagEntry";   //       측정별 진단 이력
-      AutoCal : Struct   //       Z 오프셋 상시 자동 보정 : Enable 을 켜 두면 편차 이동평균(Sensor[k].BiasEma) 으로 조금씩 보정
-         Enable : Bool;   //       자동 보정 사용
-         Ready : Bool;   //       지금 보정 조건을 만족 (표본 충분 + 데드밴드 초과)
-         MinSamples : Int;   //       방향별 최소 표본 수 (0 이면 30)
-         Deadband : Real;   //       이 값 이하의 편차는 두고 본다 (mm, 0 이면 1.0)
-         MaxStep : Real;   //       1 회 보정량 한계 (mm, 0 이면 0.5)
-         MaxTotal : Real;   //       자동 보정 누적 한계 (mm, 0 이면 PARA.Sensor.LaserZCal_MaxCorrection p427)
-         Count : UDInt;   //       보정 횟수
-         ErrorCode : Int;   //       0 정상, 1 누적 한계 초과로 보정 중단
-         Delta : Array[0..3] of Real;   //       마지막 보정량 (mm)
-         Applied : Array[0..3] of Real;   //       자동 보정 누적량 (mm)
+      LayoutSig : DWord := 16#793EF0AC;   //      레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
+      Reset : Bool;   //        센서 상태 / 진단 이력 초기화 (자동 해제). 센서 교체·재취부 후 사용
+      Sensor : Array[0..3] of "LGR_LaserSensorHealth";   //        방향별 상태 (0 L, 1 F, 2 R, 3 B)
+      ZCal : "LGR_LaserZCal";   //        Z 오프셋 자동 교정 : ZCal.Enable 을 켜고 타이어 측정 반복
+      Head : Int;   //        다음 기록 위치 (0..49 링버퍼, 최신 = Entry[Head-1])
+      Count : Int;   //        유효 기록 수 (최대 50)
+      Total : UDInt;   //        누적 기록 수 = 마지막 Seq
+      Entry : Array[0..49] of "LGR_LaserDiagEntry";   //        측정별 진단 이력
+      AutoCal : Struct   //        Z 오프셋 상시 자동 보정 : Enable 을 켜 두면 편차 이동평균(Sensor[k].BiasEma) 으로 조금씩 보정
+         Enable : Bool;   //        자동 보정 사용
+         Ready : Bool;   //        지금 보정 조건을 만족 (표본 충분 + 데드밴드 초과)
+         MinSamples : Int;   //        방향별 최소 표본 수 (0 이면 30)
+         Deadband : Real;   //        이 값 이하의 편차는 두고 본다 (mm, 0 이면 1.0)
+         MaxStep : Real;   //        1 회 보정량 한계 (mm, 0 이면 0.5)
+         MaxTotal : Real;   //        자동 보정 누적 한계 (mm, 0 이면 PARA.Sensor.LaserZCal_MaxCorrection p427)
+         Count : UDInt;   //        보정 횟수
+         ErrorCode : Int;   //        0 정상, 1 누적 한계 초과로 보정 중단
+         Delta : Array[0..3] of Real;   //        마지막 보정량 (mm)
+         Applied : Array[0..3] of Real;   //        자동 보정 누적량 (mm)
       END_STRUCT;
-      Edge : Struct   //       측정 완료 에지 메모리
+      CenterCheck : Struct   //        센터 측정 작업 센서 사전 점검 (경고 4214~4217, "UL_LaserDiag")
+         Active : Bool;   //        센터(편심) 를 재는 작업 중
+         ActiveMm : Bool;
+         LostTime : Array[0..3] of Real;   //        방향별 연속 미감지 시간 (s)
+         Lost : Array[0..3] of Bool;   //        방향별 미감지 (다음 센터 측정 작업 시작 / Reset 까지 유지)
+      END_STRUCT;
+      Edge : Struct   //        측정 완료 에지 메모리
          PickDone : Bool;
          InDone : Bool;
          OutDone : Bool;
@@ -35,7 +41,7 @@ NON_RETAIN
 
 
 BEGIN
-   LayoutSig := 16#2917_602B;
+   LayoutSig := 16#793E_F0AC;
 
 END_DATA_BLOCK
 
