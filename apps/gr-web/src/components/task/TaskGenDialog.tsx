@@ -5,6 +5,7 @@ import { Pencil, Plus, Send, Trash2 } from 'lucide-react'
 import {
   EMPTY_WEIGHTS,
   actionLabel,
+  metricsLine,
   breakdownText,
   formatMap,
   newRule,
@@ -25,6 +26,9 @@ import { Dialog, FormDialog } from '../../lib/ui/Dialog'
 import { Input } from '../../lib/ui/Input'
 import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
+import { Segmented } from '../../lib/ui/Segmented'
+import { ParamsPanel } from './ParamsPanel'
+import type { CellPick } from '../../lib/taskgen'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
 
@@ -69,7 +73,7 @@ function RuleDialog({
   const error =
     !r.id.trim() || !r.name.trim()
       ? 'Id · Name 이 필요합니다'
-      : (a.kind === 'transfer' && (!a.from.id || !a.to.id)) ||
+      : (a.kind === 'transfer' && ((!a.from_auto && !a.from.id) || (!a.to_auto && !a.to.id))) ||
           (a.kind === 'move' && !a.to.id) ||
           (a.kind === 'measure' && !a.target.id)
         ? '대상 Id 가 필요합니다'
@@ -99,7 +103,7 @@ function RuleDialog({
                 ? { kind: 'manual' }
                 : k === 'cell_stock'
                   ? { kind: 'cell_stock', cell: 0, min: 1, item: null }
-                  : ({ kind: k, station: 0 } as GenTrigger),
+                  : ({ kind: k, station: 0, require_cvok: true } as GenTrigger),
             )
           }
         >
@@ -109,11 +113,20 @@ function RuleDialog({
           <option value="cell_stock">cell_stock</option>
         </Select>
         {t.kind === 'station_req' || t.kind === 'station_item' ? (
-          <Input
-            label="Trigger.Station"
-            value={t.station}
-            onValueChange={(x) => setT({ ...t, station: num(x) })}
-          />
+          <div className="grid grid-cols-2 items-end gap-2">
+            <Input
+              label="Trigger.Station"
+              value={t.station}
+              onValueChange={(x) => setT({ ...t, station: num(x) })}
+            />
+            <Switch
+              inline
+              label="RequireCVOK"
+              title="컨베이어 준비(PI.CVOK)도 켜져 있어야 조건 참"
+              checked={t.require_cvok !== false}
+              onCheckedChange={(v) => setT({ ...t, require_cvok: v })}
+            />
+          </div>
         ) : t.kind === 'cell_stock' ? (
           <div className="grid grid-cols-3 gap-2">
             <Input
@@ -167,8 +180,26 @@ function RuleDialog({
       <div className="mt-2 flex flex-col gap-2">
         {a.kind === 'transfer' ? (
           <>
-            {targetInputs('from', 'From')}
-            {targetInputs('to', 'To')}
+            <PlaceEditor
+              label="From"
+              auto={a.from_auto ?? null}
+              source
+              fixed={targetInputs('from', 'From')}
+              onAuto={(p) => setA({ ...a, from_auto: p })}
+            />
+            <PlaceEditor
+              label="To"
+              auto={a.to_auto ?? null}
+              fixed={targetInputs('to', 'To')}
+              onAuto={(p) => setA({ ...a, to_auto: p })}
+            />
+            <Switch
+              inline
+              label="PalletAuto"
+              title="도착이 팔렛 스테이션 — 다음 슬롯을 자동으로(자리 없으면 후보 아님)"
+              checked={!!a.pallet_auto}
+              onCheckedChange={(v) => setA({ ...a, pallet_auto: v })}
+            />
             <div className="grid grid-cols-2 gap-2">
               <Input
                 label="Item"
@@ -214,6 +245,87 @@ function RuleDialog({
   )
 }
 
+/** 출발·도착 — 고정 대상 또는 자동 선택(구역·행·열 필터, 순서). */
+function PlaceEditor({
+  label,
+  auto,
+  fixed,
+  source = false,
+  onAuto,
+}: {
+  label: string
+  auto: CellPick | null
+  fixed: React.ReactNode
+  source?: boolean
+  onAuto: (p: CellPick | null) => void
+}) {
+  const p = auto ?? {}
+  const n = (x: string) => (x.trim() === '' ? null : num(x))
+  return (
+    <div className="flex flex-col gap-2 rounded border border-line-default p-2">
+      <Select
+        label={`${label}.Mode`}
+        value={auto ? 'auto' : 'fixed'}
+        onValueChange={(m) =>
+          onAuto(m === 'auto' ? { order: source ? 'oldest' : 'nearest' } : null)
+        }
+      >
+        <option value="fixed">fixed</option>
+        <option value="auto">auto</option>
+      </Select>
+      {auto ? (
+        <div className="grid grid-cols-3 gap-2">
+          <Input
+            label="Section"
+            value={p.section ?? ''}
+            onValueChange={(x) => onAuto({ ...p, section: n(x) })}
+          />
+          <Input
+            label="RowMin"
+            value={p.row_min ?? ''}
+            onValueChange={(x) => onAuto({ ...p, row_min: n(x) })}
+          />
+          <Input
+            label="RowMax"
+            value={p.row_max ?? ''}
+            onValueChange={(x) => onAuto({ ...p, row_max: n(x) })}
+          />
+          <Input
+            label="ColMin"
+            value={p.col_min ?? ''}
+            onValueChange={(x) => onAuto({ ...p, col_min: n(x) })}
+          />
+          <Input
+            label="ColMax"
+            value={p.col_max ?? ''}
+            onValueChange={(x) => onAuto({ ...p, col_max: n(x) })}
+          />
+          {source ? (
+            <Select
+              label="Order"
+              value={p.order ?? 'oldest'}
+              onValueChange={(o) => onAuto({ ...p, order: o })}
+            >
+              <option value="oldest">oldest</option>
+              <option value="nearest">nearest</option>
+            </Select>
+          ) : (
+            <Switch
+              inline
+              label="SameItemFirst"
+              title="같은 품목이 쌓인 셀 먼저(아니면 빈 셀 먼저)"
+              checked={!!p.same_item_first}
+              onCheckedChange={(v) => onAuto({ ...p, same_item_first: v })}
+            />
+          )}
+        </div>
+      ) : (
+        fixed
+      )}
+    </div>
+  )
+}
+
 function WeightsDialog({
   cfg,
   onClose,
@@ -227,9 +339,6 @@ function WeightsDialog({
   const [target, setTarget] = useState(formatMap(w.target))
   const [item, setItem] = useState(formatMap(w.item))
   const [robot, setRobot] = useState(formatMap(w.robot))
-  const [age, setAge] = useState(String(w.age_per_min))
-  const [dist, setDist] = useState(String(w.distance_per_m))
-  const [pen, setPen] = useState(String(w.blocked_penalty))
   const maps = [parseMap(target), parseMap(item), parseMap(robot)]
   const bad = maps.find((m) => 'error' in m) as { error: string } | undefined
   return (
@@ -246,14 +355,7 @@ function WeightsDialog({
         const [t, i, r] = maps as { ok: Record<string, number> }[]
         onSave({
           ...cfg,
-          weights: {
-            target: t.ok,
-            item: i.ok,
-            robot: r.ok,
-            age_per_min: num(age),
-            distance_per_m: num(dist),
-            blocked_penalty: num(pen),
-          },
+          weights: { target: t.ok, item: i.ok, robot: r.ok },
         })
       }}
       testid="taskgen-weights-dialog"
@@ -267,11 +369,6 @@ function WeightsDialog({
         />
         <Input label="Weights.Item" placeholder="2011:5" value={item} onValueChange={setItem} />
         <Input label="Weights.Robot" placeholder="2:1" value={robot} onValueChange={setRobot} />
-        <div className="grid grid-cols-3 gap-2">
-          <Input label="AgePerMin" value={age} onValueChange={setAge} />
-          <Input label="DistancePerM" value={dist} onValueChange={setDist} />
-          <Input label="BlockedPenalty" value={pen} onValueChange={setPen} />
-        </div>
       </div>
     </FormDialog>
   )
@@ -287,6 +384,7 @@ export function TaskGenDialog({
   const [state, setState] = useState<GenState | null>(null)
   const [editing, setEditing] = useState<GenRule | null>(null)
   const [weightsOpen, setWeightsOpen] = useState(false)
+  const [tab, setTab] = useState<'rules' | 'params'>('rules')
   const load = useCallback(() => {
     taskgenApi
       .get()
@@ -412,7 +510,19 @@ export function TaskGenDialog({
       closeLabel="닫기"
       testid="taskgen-dialog"
     >
-      {cfg ? (
+      <Segmented
+        ariaLabel="생성 설정"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { id: 'rules', label: 'Rules' },
+          { id: 'params', label: 'Parameters' },
+        ]}
+        className="mb-2"
+      />
+      {tab === 'params' ? (
+        <ParamsPanel />
+      ) : cfg ? (
         <div className="flex flex-col gap-3 text-xs">
           <div className="flex flex-wrap items-center gap-2">
             <Switch
@@ -480,6 +590,20 @@ export function TaskGenDialog({
               </>
             )}
           />
+          {state?.metrics ? (
+            <span className="text-2xs text-content-faint" data-testid="taskgen-metrics">
+              {metricsLine(state.metrics)}
+            </span>
+          ) : null}
+          {state?.skipped.length ? (
+            <span
+              className="truncate text-2xs text-warn-fg"
+              title={state.skipped.map((x) => `${x.rule}: ${x.reason}`).join('\n')}
+            >
+              후보 못 됨 {state.skipped.length}건 — {state.skipped[0].rule}:{' '}
+              {state.skipped[0].reason}
+            </span>
+          ) : null}
           <DataTable
             rows={state?.candidates ?? []}
             columns={candCols}

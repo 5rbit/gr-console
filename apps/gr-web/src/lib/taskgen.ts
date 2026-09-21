@@ -4,12 +4,32 @@ import type { Target } from './types'
 
 export type GenTrigger =
   | { kind: 'manual' }
-  | { kind: 'station_req'; station: number }
-  | { kind: 'station_item'; station: number }
+  | { kind: 'station_req'; station: number; require_cvok?: boolean }
+  | { kind: 'station_item'; station: number; require_cvok?: boolean }
   | { kind: 'cell_stock'; cell: number; item?: number | null; min?: number }
 
+/** 셀 자동 선택 — 구역·행·열 필터와 순서(출발 oldest/nearest, 도착 같은 품목 먼저). */
+export interface CellPick {
+  section?: number | null
+  row_min?: number | null
+  row_max?: number | null
+  col_min?: number | null
+  col_max?: number | null
+  order?: string
+  same_item_first?: boolean
+}
+
 export type GenAction =
-  | { kind: 'transfer'; from: Target; to: Target; item?: number | null; count?: number }
+  | {
+      kind: 'transfer'
+      from: Target
+      to: Target
+      item?: number | null
+      count?: number
+      from_auto?: CellPick | null
+      to_auto?: CellPick | null
+      pallet_auto?: boolean
+    }
   | { kind: 'move'; to: Target }
   | { kind: 'measure'; target: Target; item?: number | null }
 
@@ -24,13 +44,11 @@ export interface GenRule {
   manual_requests?: number
 }
 
+/** 규칙 설정과 함께 저장하는 상황별 가중(대기 가점·거리 감점 같은 전역 값은 Parameters). */
 export interface GenWeights {
   target: Record<string, number>
   item: Record<string, number>
   robot: Record<string, number>
-  age_per_min: number
-  distance_per_m: number
-  blocked_penalty: number
 }
 
 export interface GenConfig {
@@ -48,6 +66,8 @@ export interface GenCandidate {
   score: number
   breakdown: [string, number][]
   area: { lo: number; hi: number }
+  first?: Target
+  second?: Target | null
   age_min: number
   order: number
   /** 없으면 이번에 생성 */
@@ -68,11 +88,24 @@ export interface GenItem {
   note: string | null
 }
 
+export interface GenMetrics {
+  started_at: string
+  generated: number
+  issued: number
+  completed_items: number
+  aborted: number
+  submit_failures: number
+  waits: Record<string, number>
+}
+
 export interface GenState {
   config: GenConfig
   candidates: GenCandidate[]
+  /** 후보조차 못 된 규칙(자동 셀 없음 · 팔렛 자리 없음 · 거리 초과) */
+  skipped: { rule: string; reason: string }[]
   queue: GenItem[]
   note: string | null
+  metrics: GenMetrics
   separation_mm: number
 }
 
@@ -86,13 +119,16 @@ export const taskgenApi = {
   removeQueued: (id: string) => del(`/api/taskgen/queue/${encodeURIComponent(id)}`),
 }
 
-export const EMPTY_WEIGHTS: GenWeights = {
-  target: {},
-  item: {},
-  robot: {},
-  age_per_min: 0,
-  distance_per_m: 0,
-  blocked_penalty: 0,
+export const EMPTY_WEIGHTS: GenWeights = { target: {}, item: {}, robot: {} }
+
+/** 지표 한 줄. */
+export function metricsLine(m: GenMetrics): string {
+  const waits = Object.entries(m.waits)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([k, v]) => `${k} ${v}`)
+    .join(' · ')
+  return `생성 ${m.generated} · 발행 ${m.issued} · 끝남 ${m.completed_items} · 중단 ${m.aborted} · 제출 실패 ${m.submit_failures}${waits ? ` — 대기 ${waits}` : ''}`
 }
 
 const where = (t: Target) => `${t.kind === 'station' ? 'Station' : 'Cell'} ${t.id}`
@@ -102,9 +138,9 @@ export function triggerLabel(t: GenTrigger): string {
     case 'manual':
       return 'Manual'
     case 'station_req':
-      return `Station ${t.station} Req`
+      return `Station ${t.station} Req${t.require_cvok === false ? '' : ' + CVOK'}`
     case 'station_item':
-      return `Station ${t.station} ItemExist`
+      return `Station ${t.station} ItemExist${t.require_cvok === false ? '' : ' + CVOK'}`
     case 'cell_stock':
       return `Cell ${t.cell} ≥ ${t.min ?? 1}${t.item ? ` (Item ${t.item})` : ''}`
   }
@@ -112,8 +148,11 @@ export function triggerLabel(t: GenTrigger): string {
 
 export function actionLabel(a: GenAction): string {
   switch (a.kind) {
-    case 'transfer':
-      return `PICK ${where(a.from)} → DROP ${where(a.to)}${a.item ? ` · ${a.item}` : ''} ×${a.count ?? 1}`
+    case 'transfer': {
+      const from = a.from_auto ? `Auto(${a.from_auto.order || 'oldest'})` : where(a.from)
+      const to = a.to_auto ? 'Auto' : where(a.to)
+      return `PICK ${from} → DROP ${to}${a.pallet_auto ? ' (Pallet)' : ''}${a.item ? ` · ${a.item}` : ''} ×${a.count ?? 1}`
+    }
     case 'move':
       return `MOVE ${where(a.to)}`
     case 'measure':

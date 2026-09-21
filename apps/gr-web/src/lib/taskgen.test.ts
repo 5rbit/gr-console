@@ -12,7 +12,10 @@ describe('taskgen helpers', () => {
   })
 
   it('labels and score explanation', () => {
-    expect(triggerLabel({ kind: 'station_req', station: 2101 })).toBe('Station 2101 Req')
+    expect(triggerLabel({ kind: 'station_req', station: 2101 })).toBe('Station 2101 Req + CVOK')
+    expect(triggerLabel({ kind: 'station_req', station: 2101, require_cvok: false })).toBe(
+      'Station 2101 Req',
+    )
     expect(triggerLabel({ kind: 'cell_stock', cell: 401, min: 2, item: 2011 })).toBe(
       'Cell 401 ≥ 2 (Item 2011)',
     )
