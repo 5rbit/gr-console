@@ -233,7 +233,9 @@ async fn main() -> anyhow::Result<()> {
                     auth: if o.user.is_empty() { opcua_cmd::Auth::Anonymous } else { opcua_cmd::Auth::UserPass { user: o.user.clone(), pass: o.pass.clone() } },
                     ns_hint: o.ns_hint,
                     db_name: o.db_name.clone(),
-                    root_path: r.opcua_root.clone(),
+                    // 설정·S7 해석은 PLC 첨자(`GR[2]`), OPC UA 서버는 구조체 배열도 0 기준(`"GR"[1]`) — 2026-09-21
+                    // 실기에서 `"GR"[2]` 에 쓴 명령이 PLC GR[3] 에 들어가 GR2 에 가지 않았다.
+                    root_path: grm_for_opc.as_deref().map(|g| opc_server_root(g, &o.db_name, &r.opcua_root)).unwrap_or_else(|| r.opcua_root.clone()),
                     connect_timeout_ms: o.connect_timeout_ms,
                     write_timeout_ms: o.write_timeout_ms,
                     session_timeout_ms: o.session_timeout_ms,
@@ -642,4 +644,22 @@ fn cors_layer(extra: &str) -> CorsLayer {
 
 fn robots_is_multi(cfg: &Config) -> bool {
     cfg.robots.len() > 1
+}
+
+/// `opcua_root`(PLC 첨자, `GR[2].CMD`) → OPC UA 서버의 요소 이름(`GR[1].CMD`). 하한은 GRM 계약에서 읽는다.
+fn opc_server_root(grm: &Contract, db: &str, root: &str) -> String {
+    match grm.layout_db(db) {
+        Ok(l) => {
+            let bases = opcua_cmd::array_bases_from_paths(l.members.iter().map(|m| m.path.as_str()));
+            let s = opcua_cmd::server_root_path(root, &bases);
+            if s != root {
+                tracing::info!(plc_root = root, server_root = %s, "OPC UA root: PLC index → server 0-based element");
+            }
+            s
+        }
+        Err(e) => {
+            tracing::warn!(db, error = %e, "OPC UA root: GRM layout unavailable — using the PLC index as is");
+            root.to_string()
+        }
+    }
 }

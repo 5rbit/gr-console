@@ -1,9 +1,10 @@
 //! In-process OPC UA server that mimics the GRM S7-1500 address space for `"OPCUA".GR[n].CMD`.
 //!
 //! The node tree is generated from the GRM contract layout, so bit structs (`Command.Stop.Normal`),
-//! arrays and data types match the real UDT instead of a hand-written list. Like the S7-1500 server, arrays of
-//! structs keep the PLC index (`GR[2]`) while arrays of elementary types are named 0-based from the declared
-//! lower bound (`Array[1..4] of Real` → `Position[0]..[3]`), so the console must rebase them (`array_bases`).
+//! arrays and data types match the real UDT instead of a hand-written list. Like the S7-1500 server,
+//! every array is named 0-based from the declared lower bound, struct arrays (`GR[2]` → `"GR"[1]`) and
+//! elementary ones (`Array[1..4] of Real` → `Position[0]..[3]`), like the S7-1500 server; the console
+//! translates its root (`server_root_path`) and rebases member keys (`array_bases`).
 //! Writes land in the demo world's GRM `OPCUA` model — the very bytes the console reads back over
 //! S7 — and a completed Header write is relayed to the demo robot at that `GR[n]` the way GRM does
 //! (`DemoWorld::grm_opcua_write`).
@@ -65,7 +66,7 @@ pub async fn start(world: Arc<DemoWorld>, grm: &Contract, roots: &[String], pki_
     let mut leaves = 0usize;
     {
         let mut space = nm.address_space().write();
-        let mut t = Tree { space: &mut space, nm: &nm, ns, nodes: HashMap::new() };
+        let mut t = Tree { space: &mut space, nm: &nm, ns, nodes: HashMap::new(), all: &all };
         let objects: NodeId = ObjectId::ObjectsFolder.into();
         let plc = t.object(&objects, "GRM_PLC", "GRM_PLC");
         let dbs = t.object(&plc, "GRM_PLC.DataBlocksGlobal", "DataBlocksGlobal");
@@ -76,7 +77,7 @@ pub async fn start(world: Arc<DemoWorld>, grm: &Contract, roots: &[String], pki_
             for m in layout.members.iter().filter(|m| m.path.starts_with(&prefix)) {
                 let ptr = json_pointer(&all, &m.path, &mut bounds);
                 // Elementary-type array element (`...Position[1]` as the leaf): the S7-1500 server names it
-                // 0-based from the declared lower bound (`Position[0]`); struct arrays keep the PLC index.
+                // 0-based from the declared lower bound (`Position[0]`), as are struct arrays (see `ensure`).
                 let elem_lb = match m.path.rfind('[') {
                     Some(i) if m.path.ends_with(']') && !m.path[i..].contains('.') => lower_bound(&all, &m.path[..i]),
                     _ => 0,
@@ -104,6 +105,8 @@ struct Tree<'a> {
     ns: u16,
     /// member path → (node id, S7 string id)
     nodes: HashMap<String, (NodeId, String)>,
+    /// every layout path of the DB (declared lower bounds of struct arrays)
+    all: &'a [String],
 }
 
 impl Tree<'_> {
@@ -139,6 +142,8 @@ impl Tree<'_> {
             Some(i) => {
                 let array_path = if parent_path.is_empty() { name.to_string() } else { format!("{parent_path}.{name}") };
                 let (array, array_sid) = self.ensure_array(&array_path, &parent, &parent_sid, name);
+                // struct arrays are 0-based on the server too (`GR[2]` → `"GR"[1]`), like elementary ones
+                let i = i - lower_bound(self.all, &array_path);
                 let sid = format!("{array_sid}[{i}]");
                 (self.container(&array, &sid, &format!("{name}[{i}]")), sid)
             }
@@ -350,7 +355,8 @@ mod tests {
         let cfg = OpcUaConfig {
             endpoint: sim.endpoint.clone(),
             ns_hint: sim.ns,
-            root_path: "GR[2].CMD".into(),
+            // PLC GR[2] is the server element "GR"[1] — same translation as `main`
+            root_path: crate::opc_server_root(&grm, DB, "GR[2].CMD"),
             pki_dir: Some(tmp.join("client")),
             trust_server_cert: true,
             connect_timeout_ms: 5_000,

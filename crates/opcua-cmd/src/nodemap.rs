@@ -137,11 +137,34 @@ pub fn array_bases_from_paths<'a>(paths: impl IntoIterator<Item = &'a str>) -> B
     out
 }
 
+/// Root path with PLC indices (`GR[2].CMD`) → the S7-1500 OPC UA server's element names, which
+/// are 0-based from the declared lower bound for arrays of structs as well: `GR : Array[1..3]`
+/// exposes PLC `GR[2]` as `"GR"[1]` (live GRM 2026-09-21: `"GR"[2]` was PLC `GR[3]`).
+/// `bases`: array path without indices, relative to the DB (`GR` → 1), from
+/// [`array_bases_from_paths`] over the DB's contract paths. Arrays not in `bases` are kept.
+pub fn server_root_path(root: &str, bases: &BTreeMap<String, i64>) -> String {
+    let Ok(segs) = crate::path::parse_path(root) else { return root.to_string() };
+    let mut out = Vec::with_capacity(segs.len());
+    for d in 0..segs.len() {
+        let seg = &segs[d];
+        let mut s = seg.name.clone();
+        let lb = bases.get(&strip_indices(&segs[..=d])).copied().unwrap_or(0);
+        for (k, i) in seg.indices.iter().enumerate() {
+            // only the first dimension carries the collected lower bound
+            let v = if k == 0 { i64::from(*i) - lb } else { i64::from(*i) };
+            s.push_str(&format!("[{}]", v.max(0)));
+        }
+        out.push(s);
+    }
+    out.join(".")
+}
+
 /// Index rebasing for servers that expose arrays 0-based (offset from the declared lower bound).
 ///
-/// The S7-1500 OPC UA server keeps the PLC index for arrays of structs (`GR[2]`) but exposes
-/// arrays of elementary types 0-based: `Position : Array[1..4] of Real` browses as
-/// `Position[0]..[3]`. The writer looks members up by PLC index, so such keys are rewritten
+/// The S7-1500 OPC UA server exposes arrays 0-based: `Position : Array[1..4] of Real` browses as
+/// `Position[0]..[3]`, and struct arrays too (see [`server_root_path`]; the root is translated
+/// before browsing, so member keys under it never carry a struct index). The writer looks members
+/// up by PLC index, so such keys are rewritten
 /// `P[k]` → `P[k + lb]` using `bases` (array path without indices → declared lower bound).
 ///
 /// Decided per array instance from the index set that is present: an array is rebased only
@@ -206,6 +229,19 @@ mod tests {
 
     fn bases() -> BTreeMap<String, i64> {
         [("TaskData.Position", 1), ("TaskData.Cell.Position", 1), ("Data", 0), ("GR", 1)].iter().map(|(k, v)| (k.to_string(), *v)).collect()
+    }
+
+    #[test]
+    fn server_root_is_zero_based_for_struct_arrays() {
+        let b: BTreeMap<String, i64> = [("GR".to_string(), 1)].into_iter().collect();
+        assert_eq!(server_root_path("GR[2].CMD", &b), "GR[1].CMD");
+        assert_eq!(server_root_path("GR[1].CMD", &b), "GR[0].CMD");
+        // array not in the contract → unchanged; plain path unchanged
+        assert_eq!(server_root_path("X[3].CMD", &b), "X[3].CMD");
+        assert_eq!(server_root_path("GRM.CMD", &b), "GRM.CMD");
+        // bases built from DB-relative contract paths
+        let from = array_bases_from_paths(["GR[1].CMD.Header.CMD", "GR[3].STAT.Mode"]);
+        assert_eq!(server_root_path("GR[2].CMD", &from), "GR[1].CMD");
     }
 
     #[test]

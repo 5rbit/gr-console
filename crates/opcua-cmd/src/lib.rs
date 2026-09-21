@@ -16,7 +16,7 @@ mod writer;
 
 use std::path::PathBuf;
 
-pub use nodemap::{NodeMapInfo, array_bases_from_paths, rebase_array_keys};
+pub use nodemap::{NodeMapInfo, array_bases_from_paths, rebase_array_keys, server_root_path};
 pub use path::normalize_path;
 pub use value::PlcKind;
 pub use writer::CmdWriter;

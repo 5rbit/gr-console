@@ -439,6 +439,14 @@ async fn synth_map(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str) -> 
     Err(OpcError::Config(format!("fallback probe failed for [{}]", tried.join(", "))))
 }
 
+/// A cached map was resolved for this `root_path`: its S7 string root id ends with the synthesized
+/// root (either index style). Numeric / non-S7 ids cannot be compared and are accepted.
+fn cache_root_matches(root_nodeid: &str, cfg: &OpcUaConfig) -> bool {
+    let Some(sid) = root_nodeid.split_once(";s=").map(|(_, s)| s) else { return true };
+    let Ok(segments) = parse_path(&cfg.root_path) else { return true };
+    [false, true].into_iter().any(|q| sid == synth_root(&cfg.db_name, &segments, q))
+}
+
 /// Rewrite 0-based elementary-array keys to PLC indices (`cfg.array_bases`).
 fn rebase(map: &mut NodeMap, cfg: &OpcUaConfig) {
     let n = map.rebase_arrays(&cfg.array_bases);
@@ -455,7 +463,9 @@ pub async fn resolve(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str, u
         && let Some(mut map) = NodeMap::load(path)
     {
         rebase(&mut map, cfg);
-        if verify(session, cfg, &map).await {
+        if !cache_root_matches(&map.root_nodeid, cfg) {
+            tracing::warn!(?path, cached = %map.root_nodeid, root = %cfg.root_path, "node cache is for another root; re-browsing");
+        } else if verify(session, cfg, &map).await {
             tracing::info!(?path, count = map.members.len(), "node cache verified");
             return Ok(map);
         }
@@ -487,6 +497,16 @@ pub async fn resolve(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str, u
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cache_root_must_match_root_path() {
+        let cfg = OpcUaConfig { root_path: "GR[1].CMD".into(), ..OpcUaConfig::default() };
+        assert!(cache_root_matches("ns=3;s=\"OPCUA\".\"GR\"[1].\"CMD\"", &cfg));
+        assert!(cache_root_matches("ns=3;s=\"OPCUA\".\"GR[1]\".\"CMD\"", &cfg));
+        // the 2026-09-21 cache (PLC index used as server index) is refused
+        assert!(!cache_root_matches("ns=3;s=\"OPCUA\".\"GR\"[2].\"CMD\"", &cfg));
+        assert!(cache_root_matches("ns=3;i=1234", &cfg));
+    }
 
     #[test]
     fn synth_forms() {
