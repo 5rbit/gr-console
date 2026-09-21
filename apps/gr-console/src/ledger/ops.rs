@@ -247,7 +247,14 @@ pub fn pair_cancel(entries: &[LedgerEntry], e: &LedgerEntry) -> (Vec<LedgerEntry
         Some(gr_proto::TaskType::Drop) => match partner {
             Some(p) if matches!(p.state, TaskState::Draft | TaskState::Submitted | TaskState::Accepted | TaskState::Queued) => (vec![p.clone()], None),
             Some(p) => (Vec::new(), Some(format!("짝 PICK #{} 이 {} — DROP 만 취소하면 타이어가 그리퍼(Hand)에 남습니다 (이송 지시 {to})", p.seq, p.state.as_str()))),
-            None if done_pick() => (Vec::new(), Some(format!("짝 PICK 은 이미 완료 — PLC 가 DROP 삭제와 함께 그리퍼 화물 데이터를 지우므로 콘솔 Hand 도 비우고 이송 지시 {to} 를 중단합니다"))),
+            None if done_pick() => (
+                Vec::new(),
+                Some(if e.state == TaskState::Running {
+                    format!("짝 PICK 은 이미 완료 — 실행 중 DROP 을 지우면 PLC 가 그리퍼 화물 데이터를 지우므로 콘솔 Hand 도 비우고 이송 지시 {to} 를 중단합니다")
+                } else {
+                    format!("짝 PICK 은 이미 완료 — 대기 중 DROP 을 지워도 PLC 는 화물 데이터를 유지합니다. 타이어는 Hand 에 남고 이송 지시 {to} 는 in_hand")
+                }),
+            ),
             None => (Vec::new(), None),
         },
         _ => (Vec::new(), None),

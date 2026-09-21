@@ -87,8 +87,12 @@ pub struct Reservation {
     pub holds_pair: bool,
 }
 
-pub fn reservation(robot: u8, name: &str, current: Option<f32>, pending_targets: &[f32], pair_drop: Option<f32>) -> Option<Reservation> {
-    let area = hull(current.into_iter().chain(pending_targets.iter().copied()).chain(pair_drop))?;
+/// `committed` = PLC 가 받은(Accepted/Queued/Running) 명령이 있다 — 그 로봇은 목표로 떠나기로 했으므로 **지금 X 는 빼고**
+/// 목표들만 잡는다. 두 로봇은 X 에서 서로를 건너지 못하므로 목표가 비켜 있으면 가는 길도 비켜 있다. 뒤 호기의 명령은
+/// 앞 호기가 명령을 받은 뒤에야 나간다(사용자 규칙 2026-09-21: "상대로봇 명령 수령 확인 후 뒤 호기 명령 생성").
+pub fn reservation(robot: u8, name: &str, current: Option<f32>, pending_targets: &[f32], committed: bool, pair_drop: Option<f32>) -> Option<Reservation> {
+    let here = if committed && !pending_targets.is_empty() { None } else { current };
+    let area = hull(here.into_iter().chain(pending_targets.iter().copied()).chain(pair_drop))?;
     Some(Reservation { robot, name: name.into(), area, idle: pending_targets.is_empty() && pair_drop.is_none(), holds_pair: pair_drop.is_some() })
 }
 
@@ -169,6 +173,11 @@ pub fn pending_targets(r: &RobotCtx) -> Vec<f32> {
     v.iter().filter_map(entry_x).collect()
 }
 
+/// PLC 가 받은 명령(Accepted/Queued/Running)이 있나.
+pub fn committed(r: &RobotCtx) -> bool {
+    r.ledger.list().iter().any(|e| matches!(e.state, TaskState::Accepted | TaskState::Queued | TaskState::Running) && entry_x(e).is_some())
+}
+
 /// 대상(셀·스테이션)의 레지스트리 X.
 pub fn target_x(st: &AppState, t: &Target) -> Option<f32> {
     match t.kind.as_str() {
@@ -180,7 +189,7 @@ pub fn target_x(st: &AppState, t: &Target) -> Option<f32> {
 
 /// `me` 를 뺀 로봇들이 잡은 영역. `pair_drop` = 로봇별 걸린 짝의 DROP 목표 X(실행기가 들고 있다).
 pub fn others(st: &AppState, me: u8, pair_drop: &std::collections::BTreeMap<u8, f32>) -> Vec<Reservation> {
-    st.robots.iter().filter(|r| r.id != me).filter_map(|r| reservation(r.id, &r.name, robot_x(st, r), &pending_targets(r), pair_drop.get(&r.id).copied())).collect()
+    st.robots.iter().filter(|r| r.id != me).filter_map(|r| reservation(r.id, &r.name, robot_x(st, r), &pending_targets(r), committed(r), pair_drop.get(&r.id).copied())).collect()
 }
 
 /// 로봇 `r` 이 목표 `x`(짝이면 DROP 목표까지)로 가도 되나 — 막는 로봇과 이 Task 영역, 또는 `None`.
@@ -229,7 +238,7 @@ mod tests {
     #[test]
     fn reservation_and_blocking() {
         // GR2: 지금 12000, 대기 Task 목표 9000 → 9000..12000
-        let gr2 = reservation(2, "GR2", Some(12000.0), &[9000.0], None).unwrap();
+        let gr2 = reservation(2, "GR2", Some(12000.0), &[9000.0], false, None).unwrap();
         assert!(!gr2.idle);
         let mine = Interval::span(2000.0, 6000.0);
         assert!(blocker(mine, std::slice::from_ref(&gr2), SEP).is_none(), "gap 3000 >= 2403");
@@ -237,22 +246,36 @@ mod tests {
         let b = blocker(mine, std::slice::from_ref(&gr2), SEP).unwrap();
         assert!(wait_reason(b, mine, SEP).contains("GR2 X 9000..12000"));
         // 걸린 짝의 DROP 목표도 잡는다
-        let holding = reservation(2, "GR2", Some(12000.0), &[], Some(6000.0)).unwrap();
+        let holding = reservation(2, "GR2", Some(12000.0), &[], false, Some(6000.0)).unwrap();
         assert!(holding.holds_pair && !holding.idle && holding.area.lo == 6000.0);
+    }
+
+    /// 앞 호기가 명령을 받으면(committed) 지금 X 는 빼고 목표만 잡는다 — 뒤 호기가 그 뒤에 나갈 수 있다.
+    #[test]
+    fn committed_robot_reserves_only_its_targets() {
+        let mine = Interval::span(4000.0, 7000.0);
+        let parked = reservation(2, "GR2", Some(8000.0), &[12000.0], false, None).unwrap();
+        assert!(blocker(mine, std::slice::from_ref(&parked), SEP).is_some(), "not yet accepted: still at 8000");
+        let leaving = reservation(2, "GR2", Some(8000.0), &[12000.0], true, None).unwrap();
+        assert_eq!(leaving.area, Interval::point(12000.0));
+        assert!(blocker(mine, std::slice::from_ref(&leaving), SEP).is_none());
+        // 받은 명령의 목표가 내 쪽이면 여전히 막힌다
+        let coming = reservation(2, "GR2", Some(12000.0), &[8000.0], true, None).unwrap();
+        assert!(blocker(mine, std::slice::from_ref(&coming), SEP).is_some());
     }
 
     /// 교착 풀기: 짝을 잡은 로봇의 DROP 이 뒤에 있으면 먼저 내고, 서 있는 로봇이 막으면 멈춘다, 움직이는 중이면 기다린다.
     #[test]
     fn deadlock_is_resolved_deterministically() {
         let mine = Interval::span(8000.0, 11000.0);
-        let holding = reservation(2, "GR2", Some(10000.0), &[], Some(9000.0)).unwrap();
+        let holding = reservation(2, "GR2", Some(10000.0), &[], false, Some(9000.0)).unwrap();
         assert_eq!(resolve(&holding, Some(6), 4, mine, SEP), Resolve::RunAhead(6));
-        let parked = reservation(2, "GR2", Some(10000.0), &[], None).unwrap();
+        let parked = reservation(2, "GR2", Some(10000.0), &[], false, None).unwrap();
         match resolve(&parked, None, 4, mine, SEP) {
             Resolve::Deadlock(m) => assert!(m.contains("GR2") && m.contains("스텝 4") && m.contains("2403")),
             r => panic!("{r:?}"),
         }
-        let moving = reservation(2, "GR2", Some(10000.0), &[12000.0], None).unwrap();
+        let moving = reservation(2, "GR2", Some(10000.0), &[12000.0], false, None).unwrap();
         assert_eq!(resolve(&moving, None, 4, mine, SEP), Resolve::Wait);
     }
 

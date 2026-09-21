@@ -334,12 +334,18 @@ impl Stock {
         let picked = o.pick_state == Some(TaskState::Completed);
         if transfer::apply_task_state(&mut o, tt, &e.id, e.state) {
             transfer::save(&self.db, &o)?;
-            // PLC 에서 DROP 을 지우면 PLC 가 그리퍼 화물 데이터(GRIPPER.Item)도 지운다(CL_Common_Command) — 콘솔 Hand 도 비운다.
+            // PLC 는 **실행 중(TASK.Now)인 DROP** 을 지울 때만 그리퍼 화물 데이터(GRIPPER.Item)를 지운다(CL_Common_Command).
+            // 그때만 콘솔 Hand 도 비운다. 대기 중이던 DROP 을 지우면 PLC 는 계속 들고 있다 — 지시는 in_hand 로 되돌린다.
             if tt == TaskType::Drop && e.state == TaskState::Canceled && picked {
-                let h = self.hand(&e.plc_name)?;
-                if h.count > 0 && h.transfer_order_id.as_deref().is_none_or(|x| x == id) {
-                    let reason = format!("task-delete: DROP #{}:{} 취소 — PLC 가 그리퍼 화물 데이터를 지움", e.work_id, e.task_id);
-                    self.set_hand(&e.plc_name, 0, 0, &reason, Some(&e.id), Some(id))?;
+                if dropped_while_running(e) {
+                    let h = self.hand(&e.plc_name)?;
+                    if h.count > 0 && h.transfer_order_id.as_deref().is_none_or(|x| x == id) {
+                        let reason = format!("task-delete: 실행 중 DROP #{}:{} 취소 — PLC 가 그리퍼 화물 데이터를 지움", e.work_id, e.task_id);
+                        self.set_hand(&e.plc_name, 0, 0, &reason, Some(&e.id), Some(id))?;
+                    }
+                } else {
+                    transfer::set_state(&mut o, transfer::OrderState::InHand, "대기 중 DROP 취소 — PLC 가 그리퍼 화물 데이터를 유지, 타이어는 Hand 에");
+                    transfer::save(&self.db, &o)?;
                 }
             }
             return Ok(Some(o));
@@ -554,6 +560,11 @@ impl Projection {
         }
         (!parts.is_empty()).then(|| parts.join(" · "))
     }
+}
+
+/// 취소 직전 상태가 `Running`(PLC `TASK.Now`)이었나 — 원장 이력의 마지막 `→ Canceled` 전이의 출발 상태.
+pub fn dropped_while_running(e: &LedgerEntry) -> bool {
+    e.history.iter().rev().find(|t| t.to == TaskState::Canceled && t.from != Some(TaskState::Canceled)).and_then(|t| t.from) == Some(TaskState::Running)
 }
 
 /// 재고에 아직 없는, 끝나면 접힐 상태.
@@ -884,13 +895,30 @@ mod tests {
         s.apply_task(&pick).unwrap();
         s.on_task(&pick).unwrap();
         s.on_task(&with(entry("d", 2, TaskType::Drop, 402, 2011, 2, TaskState::Running))).unwrap();
-        s.on_task(&with(entry("d", 2, TaskType::Drop, 402, 2011, 2, TaskState::Canceled))).unwrap();
+        let mut canceled = with(entry("d", 2, TaskType::Drop, 402, 2011, 2, TaskState::Canceled));
+        canceled.history.push(crate::ledger::Transition { from: Some(TaskState::Running), to: TaskState::Canceled, at: now_str(), by: crate::ledger::Actor::Plc, note: None });
+        s.on_task(&canceled).unwrap();
         assert_eq!(s.order(&o.id).unwrap().unwrap().state, O::Aborted);
         let h = s.hand("GR2").unwrap();
         assert_eq!((h.count, h.transfer_order_id), (0, None));
         assert_eq!(s.get(401).unwrap().unwrap().count, 3, "cell keeps the PICK");
         let last = s.order_changes(&o.id).unwrap().pop().unwrap();
         assert!(last.reason.starts_with("task-delete") && last.kind == "hand" && last.count_after == 0, "{last:?}");
+
+        // 대기 중(Queued) DROP 을 지우면 PLC 는 계속 들고 있다 — Hand 그대로, 지시는 in_hand
+        let o2 = s.open_order(transfer::NewOrder { plc: "GR2".into(), item_code: 2011, count: 1, ..Default::default() }).unwrap();
+        let with2 = |mut e: LedgerEntry| {
+            e.transfer_order_id = Some(o2.id.clone());
+            e
+        };
+        let pick = with2(entry("p2", 3, TaskType::Pick, 401, 2011, 1, TaskState::Completed));
+        s.apply_task(&pick).unwrap();
+        s.on_task(&pick).unwrap();
+        let mut canceled = with2(entry("d2", 4, TaskType::Drop, 402, 2011, 1, TaskState::Canceled));
+        canceled.history.push(crate::ledger::Transition { from: Some(TaskState::Queued), to: TaskState::Canceled, at: now_str(), by: crate::ledger::Actor::Plc, note: None });
+        s.on_task(&canceled).unwrap();
+        assert_eq!(s.order(&o2.id).unwrap().unwrap().state, O::InHand);
+        assert_eq!(s.hand("GR2").unwrap().count, 1);
     }
 
     /// 완료 반영: Task id 로 정확히 한 번, 원장 순서로, 완료 뒤 손 정정이 있으면 멈추고(가드) 사람이 반영/무시.
