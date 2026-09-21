@@ -212,7 +212,7 @@ export function validateScenario(
 }
 
 /** 실행 화면의 스텝 상태 — 아직 안 보낸 스텝은 **예정**. */
-export type StepPhase = '예정' | '제출됨' | '실행 중' | '완료' | '실패'
+export type StepPhase = '예정' | '제출됨' | '실행 중' | '완료' | '실패' | '삭제'
 
 export function phaseOf(state: TaskState | null | undefined): StepPhase {
   switch (state) {
@@ -243,13 +243,52 @@ export function stepPhases(
   iteration: number,
   results: readonly StepResultView[],
   live: (taskId: string) => TaskState | null | undefined,
+  skipped: readonly [number, number][] = [],
 ): StepPhase[] {
   const out: StepPhase[] = Array.from({ length: stepCount }, () => '예정')
   for (const r of results) {
     if (r.iteration !== iteration || r.step_index < 0 || r.step_index >= stepCount) continue
     out[r.step_index] = r.task_id ? phaseOf(live(r.task_id) ?? r.state) : '실패'
   }
+  for (const [it, i] of skipped) if (it === iteration && i >= 0 && i < stepCount) out[i] = '삭제'
   return out
+}
+
+/**
+ * 예정 스텝 지우기(백엔드 `runner::skip_set` 과 같은 규칙) — 짝까지 묶은 스텝 목록, 또는 지울 수 없는 사유.
+ * 보낸 스텝(지난 스텝 · 지금 보낸 스텝 · 결과에 Task 가 있는 스텝)은 Task 취소로. PICK 을 지우면 같은 로봇의 짝 DROP 도,
+ * 아직 안 나간 PICK 의 DROP 을 지우면 그 PICK 도.
+ */
+export function skipSet(
+  steps: readonly { type: TaskType; robot?: number | null }[],
+  runRobot: number | null,
+  cur: { iteration: number; step_index: number; sent: boolean },
+  results: readonly StepResultView[],
+  idx: number,
+): { steps: number[] } | { error: string } {
+  const robotOf = (i: number) => steps[i].robot ?? runRobot
+  const sent = (i: number) =>
+    i < cur.step_index ||
+    (i === cur.step_index && cur.sent) ||
+    results.some((r) => r.iteration === cur.iteration && r.step_index === i && !!r.task_id)
+  if (idx < 0 || idx >= steps.length) return { error: `스텝 ${idx + 1} 없음` }
+  if (sent(idx)) return { error: `스텝 ${idx + 1} 은 이미 로봇에 보냄 — Task 취소로 지우세요` }
+  const out = [idx]
+  if (steps[idx].type === 'PICK') {
+    const j = steps.findIndex((_, k) => k > idx && robotOf(k) === robotOf(idx))
+    if (j >= 0 && steps[j].type === 'DROP') out.push(j)
+  } else if (steps[idx].type === 'DROP') {
+    let p = idx - 1
+    while (p >= 0 && robotOf(p) !== robotOf(idx)) p--
+    if (p >= 0 && steps[p].type === 'PICK') {
+      if (sent(p))
+        return {
+          error: `짝 PICK(스텝 ${p + 1}) 이 이미 나감 — DROP 만 지우면 타이어가 그리퍼에 남습니다. Task 취소로 처리하세요`,
+        }
+      out.push(p)
+    }
+  }
+  return { steps: out.sort((a, b) => a - b) }
 }
 
 /** "완료 3 · 실행 중 1 · 예정 4" — 0 인 것은 뺀다. */

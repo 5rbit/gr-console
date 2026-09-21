@@ -270,7 +270,7 @@ describe('pairCancel', () => {
     const r = pairCancel([t('p', 1, 0x41, 'running'), drop], drop)
     expect(r.with).toEqual([])
     expect(r.warning).toContain('Hand')
-    expect(pairCancel([t('p', 1, 0x41, 'completed'), drop], drop).warning).toContain('복구')
+    expect(pairCancel([t('p', 1, 0x41, 'completed'), drop], drop).warning).toContain('Hand 도 비우고')
     expect(pairCancel([drop, t('x', 3, 0x41, 'queued', 'TO-2')], drop)).toEqual({
       with: [],
       warning: null,

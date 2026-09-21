@@ -139,7 +139,7 @@ export function pairCancel(
     if (mates.some((t) => t.state === 'completed'))
       return {
         with: [],
-        warning: `짝 PICK 이 이미 완료 — 타이어가 그리퍼(Hand)에 남습니다 (이송 지시 ${to}). 복구: 단독 DROP 또는 Hand 비움`,
+        warning: `짝 PICK 은 이미 완료 — PLC 가 DROP 삭제와 함께 그리퍼 화물 데이터를 지우므로 콘솔 Hand 도 비우고 이송 지시 ${to} 를 중단합니다`,
       }
   }
   return { with: [], warning: null }

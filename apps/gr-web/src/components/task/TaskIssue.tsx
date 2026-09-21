@@ -168,6 +168,20 @@ export default function TaskIssue() {
       live = false
     }
   }, [stockStore.map, stockStore.hands, activeKey])
+  // 두 로봇 영역 간격(백엔드 설정, 기본 PLC PARA 합 2403 mm) — 계획 표의 정적 경고.
+  const [anticolSep, setAnticolSep] = useState<number | null>(null)
+  useEffect(() => {
+    let live = true
+    api
+      .anticol()
+      .then((a) => {
+        if (live) setAnticolSep(a.enabled && robots.list.length > 1 ? a.separation_mm : null)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [robots.list.length])
   const stockPlan = useMemo<ReadonlyMap<number, StockEntry>>(
     () => (projected ? new Map(projected.cells.map((c) => [c.cell_id, c])) : stockStore.map),
     [projected, stockStore.map],
@@ -484,6 +498,7 @@ export default function TaskIssue() {
                 hand={projected?.hands.find((h) => h.robot === robots.selected) ?? null}
                 handNow={robots.current ? stockStore.hand(robots.current.plc) : null}
                 sync={robots.current ? stockStore.syncIssues(robots.current.plc) : []}
+                anticolSep={anticolSep}
                 gate={gate}
                 robot={chip}
                 onFocus={(s) => {

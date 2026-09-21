@@ -19,6 +19,7 @@ import {
   simulateStock,
   foldStock,
   pairIssues,
+  removeWithPair,
   stackZ,
   stepForClick,
   toScenario,
@@ -255,6 +256,47 @@ describe('plan', () => {
     // 짝 위반은 행 경고로도 선다
     const rows = planRows([st('a', 'PICK', 1001), st('m', 'MOVE', null)], ctx)
     expect(rows[0].warnings.some((w) => w.includes('짝 DROP'))).toBe(true)
+  })
+
+  it('removeWithPair deletes the pair together (same robot)', () => {
+    const st = (id: string, type: PlanStep['type'], robot?: number): PlanStep => ({
+      id,
+      type,
+      target: { kind: 'cell', id: 101 },
+      item_code: 1,
+      count: 1,
+      note: '',
+      robot,
+    })
+    const steps = [st('a', 'PICK', 1), st('m', 'MOVE', 2), st('b', 'DROP', 1), st('c', 'MOVE', 1)]
+    expect(removeWithPair(steps, 'a').next.map((s) => s.id)).toEqual(['m', 'c'])
+    expect(removeWithPair(steps, 'b').removed.map((s) => s.id)).toEqual(['a', 'b'])
+    expect(removeWithPair(steps, 'm').next.map((s) => s.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('planRows warns when neighbouring steps of two robots are closer than the separation', () => {
+    const cellsX = [
+      { ...ctx.cells[0], id: 501, position: [4000, 0, 1500] },
+      { ...ctx.cells[0], id: 502, position: [5500, 0, 1500] },
+      { ...ctx.cells[0], id: 503, position: [9000, 0, 1500] },
+    ] as typeof ctx.cells
+    const mv = (id: string, cell: number, robot: number): PlanStep => ({
+      id,
+      type: 'MOVE',
+      target: { kind: 'cell', id: cell },
+      item_code: null,
+      count: 1,
+      note: '',
+      robot,
+    })
+    const rows = planRows([mv('a', 501, 1), mv('b', 502, 2), mv('c', 503, 1)], {
+      ...ctx,
+      cells: cellsX,
+      anticolSep: 2403,
+      robotName: (id) => `GR${id}`,
+    })
+    expect(rows[1].warnings.some((w) => w.includes('GR1 X 4000') && w.includes('2403'))).toBe(true)
+    expect(rows[2].warnings.some((w) => w.includes('영역'))).toBe(false)
   })
 
   it('planRows starts from the robot hand (tires already on the gripper)', () => {

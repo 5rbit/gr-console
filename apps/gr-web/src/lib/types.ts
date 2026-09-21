@@ -644,6 +644,8 @@ export interface ScenarioRun {
   ended_at: string | null
   error: string | null
   results: StepResult[]
+  /** 사람이 지운 예정 스텝 `[회차, 스텝]` */
+  skipped?: [number, number][]
 }
 
 // ── PLC 미러 페이로드 — PLC PascalCase 그대로 ─────────────────────────────────
@@ -923,6 +925,8 @@ export interface SyncIssue {
   transfer_order_id: string | null
   /** 한 번에 고치는 동작 — `clear_hand` · `adopt_plc`(콘솔 DB 만 고친다) */
   actions: string[]
+  /** `apply_task`/`ignore_task` 대상 Task */
+  task_id?: string | null
   candidate?: [number, number]
   since: string
 }

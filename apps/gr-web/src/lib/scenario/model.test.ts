@@ -7,6 +7,7 @@ import {
   newStep,
   paramCount,
   phaseSummary,
+  skipSet,
   stepPhases,
   stepSummary,
   validateScenario,
@@ -133,6 +134,21 @@ describe('PICK/DROP 짝 · 스텝 상태', () => {
     expect(phaseSummary(p)).toBe('완료 1 · 실행 중 1 · 제출됨 1 · 예정 1 · 실패 1')
     // 다른 회차의 결과는 보지 않는다
     expect(stepPhases(2, 2, [r(0, 't0')], (id) => live[id])).toEqual(['예정', '예정'])
+  })
+})
+
+describe('skipSet (예정 스텝 지우기)', () => {
+  const s = (type: 'PICK' | 'DROP' | 'MOVE', robot?: number) => ({ type, robot })
+  const steps = [s('PICK', 1), s('MOVE', 2), s('DROP', 1), s('PICK', 1), s('DROP', 1)]
+  const at = (step_index: number, sent = false) => ({ iteration: 1, step_index, sent })
+  it('짝을 같이, 보낸 스텝은 거부', () => {
+    expect(skipSet(steps, null, at(0), [], 3)).toEqual({ steps: [3, 4] })
+    expect(skipSet(steps, null, at(0), [], 2)).toEqual({ steps: [0, 2] })
+    expect(skipSet(steps, null, at(0, true), [], 2)).toMatchObject({ error: expect.stringContaining('짝 PICK') })
+    expect(skipSet(steps, null, at(2), [], 1)).toMatchObject({ error: expect.stringContaining('이미') })
+  })
+  it('지운 스텝은 상태가 삭제', () => {
+    expect(stepPhases(3, 1, [], () => null, [[1, 2]])).toEqual(['예정', '예정', '삭제'])
   })
 })
 

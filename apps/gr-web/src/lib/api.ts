@@ -33,7 +33,6 @@ import type {
   Station,
   StationUpsert,
   StatusEvent,
-  HandEntry,
   HandView,
   SyncIssue,
   StockEntry,
@@ -355,8 +354,10 @@ export const api = {
       '/api/stock/sync',
     ),
   /** 동기화 경고를 한 번에 고친다(콘솔 DB 만) */
-  stockSyncResolve: (robot: number, action: string) =>
-    postJson<HandEntry>(`/api/stock/sync/${robot}/resolve`, { action }),
+  stockSyncResolve: (robot: number, action: string, task_id?: string | null) =>
+    postJson<unknown>(`/api/stock/sync/${robot}/resolve`, { action, task_id: task_id ?? undefined }),
+  /** 두 로봇 영역 간격(기본 PLC PARA 합 2403 mm) */
+  anticol: () => getJson<{ separation_mm: number; enabled: boolean }>('/api/anticol'),
   /** 이송 지시 목록(최신 먼저) */
   transferOrders: (
     q: { robot?: number | null; state?: string; cell?: number; limit?: number } = {},

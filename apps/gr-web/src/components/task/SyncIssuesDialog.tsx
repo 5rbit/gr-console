@@ -12,12 +12,15 @@ import { RobotChip } from '../shared/RobotChip'
 const ACTION_LABEL: Record<string, string> = {
   clear_hand: 'Hand 비움',
   adopt_plc: 'PLC 기준으로 Hand 맞춤',
+  apply_task: '반영',
+  ignore_task: '무시',
 }
 
 const ACTION_HINT: Record<string, string> = {
   clear_hand: '콘솔 Hand 를 비우고 걸려 있던 이송 지시를 중단으로 남깁니다 (PLC 는 그대로)',
-  adopt_plc:
-    'PLC Completed 링의 마지막 PICK 품목·개수로 Hand 를 채우고 이송 지시를 엽니다 (PLC 는 그대로)',
+  apply_task: '손 정정 뒤에 끝난 Task 완료를 재고에 반영합니다 (한 번만)',
+  ignore_task: '반영하지 않고 무시로 기록합니다 (다시 뜨지 않음)',
+  adopt_plc: 'PLC 링의 마지막 PICK 으로 Hand 를 채우고 이송 지시를 엽니다 (PLC 는 그대로)',
 }
 
 export function SyncIssuesDialog({
@@ -34,11 +37,11 @@ export function SyncIssuesDialog({
   issues: readonly SyncIssue[]
 }) {
   const [busy, setBusy] = useState<string | null>(null)
-  async function resolve(action: string) {
+  async function resolve(action: string, taskId?: string | null) {
     if (robotId === null) return
     setBusy(action)
     try {
-      await api.stockSyncResolve(robotId, action)
+      await api.stockSyncResolve(robotId, action, taskId)
       toast.ok(`${robot.name}: ${ACTION_LABEL[action] ?? action} — 콘솔 재고를 고쳤습니다`)
       onOpenChange(false)
     } catch (e) {
@@ -62,7 +65,10 @@ export function SyncIssuesDialog({
           <span className="text-content-faint">경고 없음 — 로봇 상태와 콘솔 재고가 맞습니다</span>
         ) : (
           issues.map((i) => (
-            <div key={`${i.code}-${i.transfer_order_id ?? ''}`} className="flex flex-col gap-1">
+            <div
+              key={`${i.code}-${i.transfer_order_id ?? ''}-${i.task_id ?? ''}`}
+              className="flex flex-col gap-1"
+            >
               <span className="text-content-primary">{i.message}</span>
               <span className="text-2xs text-content-faint">
                 {i.since.replace('T', ' ').slice(5, 19)}
@@ -78,7 +84,7 @@ export function SyncIssuesDialog({
                       loading={busy === a}
                       disabled={busy !== null || robotId === null}
                       title={ACTION_HINT[a]}
-                      onClick={() => void resolve(a)}
+                      onClick={() => void resolve(a, i.task_id)}
                       data-testid={`sync-${a}`}
                     >
                       {ACTION_LABEL[a] ?? a}

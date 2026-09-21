@@ -20,6 +20,7 @@ import {
   GRIP_REFS,
   move,
   pairIssues,
+  removeWithPair,
   patch,
   planRows,
   remove,
@@ -155,6 +156,8 @@ export interface PlanCardProps {
   handNow?: HandEntry | null
   /** 이 로봇의 동기화 경고(PLC 실제 상태 vs Hand · 이송 지시). */
   sync?: readonly SyncIssue[]
+  /** 두 로봇 영역 간격(mm) — 이웃한 다른 로봇 스텝의 X 거리 경고. */
+  anticolSep?: number | null
 }
 
 export function PlanCard({
@@ -179,13 +182,27 @@ export function PlanCard({
   hand = null,
   handNow = null,
   sync = [],
+  anticolSep = null,
 }: PlanCardProps) {
   const [syncOpen, setSyncOpen] = useState(false)
+  // 지울 스텝(짝은 같이) — 확인 창이 로봇과 짝을 말한다.
+  const [deleting, setDeleting] = useState<string | null>(null)
   useStore(robots)
   const runRobot = robots.selected
   const rows = useMemo(
-    () => planRows(steps, { cells, stations, items, stockNow, gripRef, robot: runRobot, hand }),
-    [steps, cells, stations, items, stockNow, gripRef, runRobot, hand],
+    () =>
+      planRows(steps, {
+        cells,
+        stations,
+        items,
+        stockNow,
+        gripRef,
+        robot: runRobot,
+        hand,
+        anticolSep,
+        robotName: (id) => (id === null ? robot.name : robots.nameOf(id)),
+      }),
+    [steps, cells, stations, items, stockNow, gripRef, runRobot, hand, anticolSep, robot.name],
   )
   // PICK/DROP 짝이 어긋난 계획은 실행하지 않는다(백엔드도 시작 때 거부) — 저장은 된다.
   const pairs = useMemo(() => pairIssues(steps, runRobot), [steps, runRobot])
@@ -617,7 +634,9 @@ export function PlanCard({
                   title="삭제"
                   onClick={(e) => {
                     e.stopPropagation()
-                    onChange(remove(steps, r.id))
+                    // 짝이 없는 스텝은 바로, PICK/DROP 은 짝을 같이 지우므로 한 번 묻는다.
+                    if (r.type === 'PICK' || r.type === 'DROP') setDeleting(r.id)
+                    else onChange(remove(steps, r.id))
                   }}
                   data-testid={`plan-del-${r.no}`}
                 />
@@ -739,6 +758,44 @@ export function PlanCard({
         />
       ) : null}
 
+      {deleting
+        ? (() => {
+            const plan = removeWithPair(steps, deleting, runRobot)
+            const s = steps.find((x) => x.id === deleting)
+            const chip =
+              s?.robot !== null && s?.robot !== undefined ? robots.chipOf(s.robot) : robot
+            return (
+              <ConfirmDialog
+                open
+                onOpenChange={(o) => {
+                  if (!o) setDeleting(null)
+                }}
+                scope="single"
+                title={`스텝 삭제 — ${chip.name}`}
+                confirmLabel="삭제"
+                onConfirm={() => {
+                  onChange(plan.next)
+                  setDeleting(null)
+                }}
+              >
+                <div className="flex flex-col gap-2 text-xs">
+                  <span className="flex items-center gap-2">
+                    <RobotChip chip={chip} title={robotLabel(chip)} />
+                    {plan.removed
+                      .map(
+                        (x) =>
+                          `${steps.indexOf(x) + 1}. ${x.type} ${x.target.kind === 'cell' ? 'Cell' : 'Station'} #${x.target.id}`,
+                      )
+                      .join(' · ')}
+                  </span>
+                  {plan.removed.length > 1 ? (
+                    <span className="text-warn-fg">PICK/DROP 짝이라 같이 지웁니다</span>
+                  ) : null}
+                </div>
+              </ConfirmDialog>
+            )
+          })()
+        : null}
       <SyncIssuesDialog
         open={syncOpen}
         onOpenChange={setSyncOpen}

@@ -41,6 +41,7 @@ import {
 } from '../../lib/scenario/model'
 import { RunDialog } from './RunDialog'
 import { TaskActions } from '../taskmgr/TaskActions'
+import { ScheduledStepsDialog } from './ScheduledStepsDialog'
 
 export interface ScenarioRunnerProps {
   /** 편집 중인(저장된) 시나리오 — 실행 대상. */
@@ -131,8 +132,17 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
   // 결과는 도달 때(접수) 상태로 남는다 — 미리 넣은 Task 는 그 뒤에도 움직이므로 원장의 **지금** 상태로 본다.
   const live = (id: string) => taskStore.get(id)
   const phases = run
-    ? stepPhases(run.step_count, run.iteration, run.results, (id) => live(id)?.state)
+    ? stepPhases(
+        run.step_count,
+        run.iteration,
+        run.results,
+        (id) => live(id)?.state,
+        (run as { skipped?: [number, number][] }).skipped ?? [],
+      )
     : []
+  const [schedOpen, setSchedOpen] = useState(false)
+  const sameScenario = !!(run && scenario && run.scenario_id === scenario.id)
+  const scheduled = phases.filter((p) => p === '예정').length
   const results = (run?.results ?? []).slice().reverse()
   const last = run?.results.length ? run.results[run.results.length - 1] : null
   const lastAck = last?.ack
@@ -395,11 +405,29 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
                 run: () => setLogOpen(true),
               },
               { label: '실행 이력 (최근 50)', run: () => void openHistory() },
+              {
+                label: `예정 스텝 (${scheduled})…`,
+                disabled: !active
+                  ? '실행 중이 아닙니다'
+                  : !sameScenario
+                    ? '실행 중인 시나리오를 열어야 합니다'
+                    : undefined,
+                run: () => setSchedOpen(true),
+              },
             ]}
           />
         </span>
       </div>
 
+      {run && scenario && sameScenario ? (
+        <ScheduledStepsDialog
+          open={schedOpen}
+          onOpenChange={setSchedOpen}
+          run={run as unknown as ScenarioRun}
+          scenario={scenario}
+          phases={phases}
+        />
+      ) : null}
       <RunDialog
         open={runOpen}
         scenario={scenario}

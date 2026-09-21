@@ -19,6 +19,9 @@ export const scenarioApi = {
   pause: () => postJson<ScenarioRun>('/api/scenarios/run/pause'),
   resume: () => postJson<ScenarioRun>('/api/scenarios/run/resume'),
   stop: () => postJson<ScenarioRun>('/api/scenarios/run/stop'),
+  /** 예정(아직 안 보낸) 스텝 지우기 — 짝(PICK/DROP)은 서버가 같이 지운다. */
+  skip: (step_index: number) =>
+    postJson<ScenarioRun>('/api/scenarios/run/skip', { step_index }),
   runNow: () => getJson<ScenarioRun>('/api/scenarios/run'),
   runs: (limit = 50) => getJson<ScenarioRun[]>(`/api/scenarios/runs?limit=${limit}`),
   /** 저장본(`draft` 없음) 또는 편집 중 문서(`draft`)를 검증한다. 미저장 문서는 id 자리에 `_`. */

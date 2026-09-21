@@ -283,6 +283,39 @@ export interface PlanContext {
   robot?: number | null
   /** 계획 시작 때 로봇이 들고 있는 화물(예상 Hand) — 첫 스텝의 "들고 있음" 판단에 쓴다. */
   hand?: { item_code: number; count: number } | null
+  /** 두 로봇 영역 간격(mm, 백엔드 `/api/anticol`) — 있으면 이웃한 다른 로봇 스텝의 X 거리를 본다. */
+  anticolSep?: number | null
+  /** 로봇 이름(경고 문구). */
+  robotName?: (id: number | null) => string
+}
+
+/** 계획 스텝의 대상 X(레지스트리). */
+function targetX(s: PlanStep, ctx: PlanContext): number | null {
+  if (s.target.kind === 'cell') return ctx.cells.find((c) => c.id === s.target.id)?.position[0] ?? null
+  return ctx.stations.find((c) => c.id === s.target.id)?.info.position[0] ?? null
+}
+
+/**
+ * 짝과 함께 지우기 — PICK 을 지우면 같은 로봇의 짝 DROP 도, DROP 을 지우면 그 짝 PICK 도(계획은 아직 콘솔에만 있다).
+ */
+export function removeWithPair(
+  steps: readonly PlanStep[],
+  id: string,
+  runRobot: number | null = null,
+): { next: PlanStep[]; removed: PlanStep[] } {
+  const i = steps.findIndex((s) => s.id === id)
+  if (i < 0) return { next: [...steps], removed: [] }
+  const robotOf = (k: number) => steps[k].robot ?? runRobot
+  const ids = new Set([id])
+  if (steps[i].type === 'PICK') {
+    const j = steps.findIndex((_, k) => k > i && robotOf(k) === robotOf(i))
+    if (j >= 0 && steps[j].type === 'DROP') ids.add(steps[j].id)
+  } else if (steps[i].type === 'DROP') {
+    let p = i - 1
+    while (p >= 0 && robotOf(p) !== robotOf(i)) p--
+    if (p >= 0 && steps[p].type === 'PICK') ids.add(steps[p].id)
+  }
+  return { next: steps.filter((s) => !ids.has(s.id)), removed: steps.filter((s) => ids.has(s.id)) }
 }
 
 /** PICK/DROP 짝 위반 한 줄(백엔드 `scenario::io::validate_pairs` 와 같은 규칙). */
@@ -358,6 +391,19 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
     pairs.set(p.id, [...(pairs.get(p.id) ?? []), p.message])
   steps.forEach((s, i) => {
     const warnings: string[] = [...(pairs.get(s.id) ?? [])]
+    // 두 로봇 영역(정적) — 바로 앞 스텝이 다른 로봇이고 목표 X 가 간격 안이면 실행 때 영역 대기가 된다.
+    const prev = i > 0 ? steps[i - 1] : null
+    const sep = ctx.anticolSep ?? null
+    if (prev && sep !== null && (prev.robot ?? ctx.robot ?? null) !== (s.robot ?? ctx.robot ?? null)) {
+      const xa = targetX(prev, ctx)
+      const xb = targetX(s, ctx)
+      if (xa !== null && xb !== null && Math.abs(xa - xb) < sep) {
+        const name = ctx.robotName ?? ((id: number | null) => (id === null ? '기본 로봇' : `로봇 ${id}`))
+        warnings.push(
+          `${name(prev.robot ?? ctx.robot ?? null)} X ${xa.toFixed(0)} 와 ${name(s.robot ?? ctx.robot ?? null)} X ${xb.toFixed(0)} 거리 ${Math.abs(xa - xb).toFixed(0)} < ${sep.toFixed(0)} mm — 영역 대기 예정`,
+        )
+      }
+    }
     const cell = s.target.kind === 'cell' ? ctx.cells.find((c) => c.id === s.target.id) : null
     const station =
       s.target.kind === 'station' ? ctx.stations.find((c) => c.id === s.target.id) : null
