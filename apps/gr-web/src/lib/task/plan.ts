@@ -361,7 +361,11 @@ export function redo(h: History): History {
 
 // ── 변환 ────────────────────────────────────────────────────────────────────
 
-export function toRequest(s: PlanStep): TaskRequest {
+/**
+ * 계획 스텝 → 작업 요청. **로봇을 반드시 싣는다** — 스텝에 고정한 로봇이 있으면 그것, 없으면 `fallback`(카드의 선택 로봇).
+ * 전에는 로봇을 빼먹어 서버가 첫 로봇(GR1)으로 보냈다(2026-09-21 GR2 선택 중 GR1 로 제출된 사고).
+ */
+export function toRequest(s: PlanStep, fallback: number | null = null): TaskRequest {
   return {
     type: s.type,
     target: s.target,
@@ -371,6 +375,7 @@ export function toRequest(s: PlanStep): TaskRequest {
     position_override: null,
     note: s.note,
     source: null,
+    robot: s.robot ?? fallback ?? null,
     ...(s.pallet ? { pallet: s.pallet } : {}),
   }
 }

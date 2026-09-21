@@ -68,7 +68,7 @@ const TYPE_BAR: Record<string, string> = {
 function StepPreview({ row }: { row: PlanRow }) {
   const [p, setP] = useState<ComposePreview | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const req = toRequest(row)
+  const req = toRequest(row, robots.selected)
   const before = row.stockBefore
   useEffect(() => {
     let alive = true
@@ -365,7 +365,7 @@ export function PlanCard({
     if (!first) return
     setBusy(true)
     try {
-      const t = await api.taskCreate(toRequest(first), true)
+      const t = await api.taskCreate(toRequest(first, robots.selected), true)
       // 스텝이 제 로봇을 들고 있으면(계획 표의 Robot 열) 그쪽, 아니면 카드 대상.
       const who = first.robot === null || first.robot === undefined ? robot : robots.chipOf(first.robot)
       toast.info(

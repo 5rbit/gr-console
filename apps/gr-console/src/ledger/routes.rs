@@ -117,6 +117,13 @@ struct CreateQuery {
 
 /// `POST /api/tasks` — composes via the issue slice, then submits (default) or leaves a Draft.
 async fn create(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::Json(req): axum::Json<TaskRequest>) -> ApiResult<LedgerEntry> {
+    // 로봇이 둘 이상이면 대상을 반드시 받는다 — 빠지면 첫 로봇으로 몰래 가던 사고(2026-09-21, GR2 선택 중 GR1 로 제출).
+    if req.robot.is_none() && st.robots.len() > 1 {
+        return Err(ApiError::BadRequest(format!(
+            "대상 로봇을 지정해야 합니다 (robot: {})",
+            st.robots.iter().map(|r| format!("{}={}", r.id, r.name)).collect::<Vec<_>>().join(", ")
+        )));
+    }
     let r = st.robot(req.robot)?;
     let composed = crate::issue::compose(&st, &req)?;
     let origin = if req.source.is_some() { Origin::Scenario } else { Origin::Console };
