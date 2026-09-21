@@ -1,9 +1,12 @@
-// 측정 로그 스토어 — 스냅샷·최근 항목·축 위치 이력.
+// 측정 로그 스토어 — 스냅샷·최근 항목·축 위치 이력. **사이드바에서 고른 로봇** 것만 든다.
 //
-// 새 측정이 들어왔는지는 `statusFeed`의 `webmon.MeasLog.Total`로 안다 — 그 값이 바뀔 때만 스냅샷을
+// 새 측정이 들어왔는지는 그 로봇 상태 피드의 `webmon.MeasLog.Total`로 안다 — 그 값이 바뀔 때만 스냅샷을
 // 다시 받는다(폴링 없음). 축 위치 이력(`axisHist`)은 상태 메시지마다 링에 쌓는다(축 4개 × 300점).
+// 로봇 선택이 바뀌면 모두 비우고 새 로봇 피드로 갈아탄 뒤 다시 받는다 — 옛 로봇 응답이 늦게 도착해도
+// 세대(`#gen`)가 달라 버린다(GR1 표에 GR2 값이 섞이지 않게).
 import { api } from './api'
-import { statusFeed } from './feeds'
+import { statusFeedFor } from './feeds'
+import { robots } from './robots'
 import { frameThrottle } from './sse'
 import { Store } from './store'
 import { toast } from './ui/toast'
@@ -22,8 +25,13 @@ class MeasLog extends Store {
   #error: string | null = null
   #loading = false
   #refs = 0
+  /** 지금 따라가는 로봇(`undefined` = 아직 붙지 않음, `null` = 기본 로봇). */
+  #robot: number | null | undefined = undefined
+  #gen = 0
   #release: (() => void) | null = null
   #off: (() => void) | null = null
+  #offRobots: (() => void) | null = null
+  #releaseRobots: (() => void) | null = null
   #flush = frameThrottle(() => this.notify())
 
   get snapshot(): MeasLogSnapshot | null {
@@ -43,21 +51,29 @@ class MeasLog extends Store {
   get loading(): boolean {
     return this.#loading
   }
+  /** 이 스토어가 보이는 로봇 id(null = 기본 로봇). */
+  get robot(): number | null {
+    return this.#robot ?? null
+  }
 
   /** 스냅샷·최근 항목을 다시 받는다. */
   async refetch(): Promise<void> {
+    const gen = this.#gen
+    const robot = this.robot
     this.#loading = true
     this.notify()
     try {
       const [snap, ent] = await Promise.all([
-        api.measlogSnapshot(),
-        api.measlogEntries(undefined, undefined, undefined, ENTRIES_LIMIT),
+        api.measlogSnapshot(robot),
+        api.measlogEntries(undefined, undefined, undefined, ENTRIES_LIMIT, robot),
       ])
+      if (gen !== this.#gen) return
       this.#snapshot = snap
       this.#entries = ent.entries
       this.#lastTotal = snap.total
       this.#error = null
     } catch (e) {
+      if (gen !== this.#gen) return
       this.#error = e instanceof Error ? e.message : String(e)
     }
     this.#loading = false
@@ -67,11 +83,12 @@ class MeasLog extends Store {
   /** 다시 읽기 — `full`이면 백엔드가 PLC에서 로그 전체를 다시 긁은 뒤 받는다. */
   async reload(full = false): Promise<void> {
     if (!full) return this.refetch()
-    const tid = toast.pending('측정 로그를 PLC에서 다시 읽는 중…')
+    const name = robots.nameOf(this.robot)
+    const tid = toast.pending(`${name} 측정 로그를 PLC에서 다시 읽는 중…`)
     try {
-      await api.measlogReload()
+      await api.measlogReload(this.robot)
       await this.refetch()
-      toast.resolve(tid, 'ok', `측정 로그 ${this.#snapshot?.total ?? 0}건`)
+      toast.resolve(tid, 'ok', `${name} 측정 로그 ${this.#snapshot?.total ?? 0}건`)
     } catch (e) {
       toast.resolve(tid, 'error', e instanceof Error ? e.message : String(e))
     }
@@ -96,13 +113,34 @@ class MeasLog extends Store {
     this.#flush()
   }
 
+  /** 선택된 로봇으로 갈아탄다(같으면 아무것도 안 함). */
+  #follow(): void {
+    const next = robots.selected
+    if (next === this.#robot) return
+    this.#off?.()
+    this.#release?.()
+    this.#robot = next
+    this.#gen++
+    this.#snapshot = null
+    this.#entries = []
+    this.#axisHist = Array.from({ length: AXES }, () => [])
+    this.#lastTotal = null
+    this.#error = null
+    this.#loading = false
+    const feed = statusFeedFor(next)
+    this.#off = feed.onMessage((ev) => this.#onStatus(ev))
+    this.#release = feed.start()
+    this.notify()
+    void this.refetch()
+  }
+
   /** 구독 수요 등록 — 해제 함수를 돌려준다. */
   start(): () => void {
     this.#refs++
     if (this.#refs === 1) {
-      this.#off = statusFeed.onMessage((ev) => this.#onStatus(ev))
-      this.#release = statusFeed.start()
-      void this.refetch()
+      this.#releaseRobots = robots.start()
+      this.#offRobots = robots.subscribe(() => this.#follow())
+      this.#follow()
     }
     let released = false
     return () => {
@@ -116,10 +154,15 @@ class MeasLog extends Store {
     if (this.#refs === 0) return
     this.#refs--
     if (this.#refs === 0) {
+      this.#offRobots?.()
+      this.#releaseRobots?.()
+      this.#offRobots = null
+      this.#releaseRobots = null
       this.#off?.()
       this.#off = null
       this.#release?.()
       this.#release = null
+      this.#robot = undefined
       this.#flush.cancel()
     }
   }

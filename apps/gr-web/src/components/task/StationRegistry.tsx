@@ -1,5 +1,5 @@
 // 스테이션 레지스트리 — 셀과 같은 틀, 열이 더 많다(컨베이어·그룹·연결·센서).
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Factory } from 'lucide-react'
 import { api } from '../../lib/api'
 import { taskApi } from '../../lib/task/api'
@@ -9,13 +9,14 @@ import { DataTable } from '../../lib/ui/DataTable'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
 import type { Station, StationUpsert } from '../../lib/types'
+import { FIELD, USE_FALSE } from '../../lib/fieldNames'
 import { RowBadge } from './CellRegistry'
 import { EMPTY_STATION, StationForm } from './forms'
 import { RegistryToolbar, type RegistryIo } from './RegistryToolbar'
 
 const f1 = (n: number) => (Math.round(n * 10) / 10).toString()
 export const stationSummary = (s: Station): string =>
-  `CV${s.conv_no} T${s.task_type} G${s.group}-${s.group_index} ${s.info.use ? '' : '(미사용)'} · S${s.info.section} R${s.info.row} C${s.info.col} · ${s.info.position.map(f1).join('/')} · IO${s.io_block_no}`
+  `CV${s.conv_no} T${s.task_type} G${s.group}-${s.group_index} ${s.info.use ? '' : `(${USE_FALSE})`} · S${s.info.section} R${s.info.row} C${s.info.col} · ${s.info.position.map(f1).join('/')} · IO${s.io_block_no}`
 
 export function toStationUpsert(s: Station): StationUpsert {
   return {
@@ -70,6 +71,14 @@ export function StationRegistry({
 }: StationRegistryProps) {
   const [selLocal, setSelLocal] = useState<number | null>(null)
   const selected = selectedId !== undefined ? selectedId : selLocal
+  // 맵에서 고른 스테이션이 스크롤 밖이면 선택 행을 끌어온다.
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (selected === null) return
+    box.current
+      ?.querySelector('[data-testid="dt-row"].bg-accent-soft')
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
   const setSelected = (id: number | null) => {
     if (selectedId === undefined) setSelLocal(id)
     onSelect?.(id)
@@ -91,30 +100,35 @@ export function StationRegistry({
     { key: 'id', label: 'Id', get: (s) => s.id, numeric: true, class: 'font-mono', priority: 1 },
     {
       key: 'state',
-      label: '상태',
+      label: FIELD.state,
       get: (s) => (s.dirty ? 1 : s.source === 'plc' ? 0 : 2),
       cell: (s) => <RowBadge source={s.source} dirty={s.dirty} />,
       priority: 1,
     },
-    { key: 'conv', label: '컨베이어', get: (s) => s.conv_no, numeric: true, priority: 2 },
-    { key: 'type', label: '작업', get: (s) => s.task_type, numeric: true, priority: 2 },
-    { key: 'rot', label: '회전', get: (s) => s.rotate_type, numeric: true, priority: 3 },
-    { key: 'grp', label: '그룹', get: (s) => `${s.group}-${s.group_index}`, priority: 3 },
+    { key: 'conv', label: FIELD.conv_no, get: (s) => s.conv_no, numeric: true, priority: 2 },
+    { key: 'type', label: FIELD.task_type, get: (s) => s.task_type, numeric: true, priority: 2 },
+    { key: 'rot', label: FIELD.rotate_type, get: (s) => s.rotate_type, numeric: true, priority: 3 },
+    {
+      key: 'grp',
+      label: 'Group-GroupIndex',
+      get: (s) => `${s.group}-${s.group_index}`,
+      priority: 3,
+    },
     {
       key: 'conn',
-      label: '연결',
+      label: 'ConnectionPrev→Next',
       get: (s) => `${s.connection_prev}→${s.connection_next}`,
       class: 'font-mono',
       priority: 3,
     },
     {
       key: 'use',
-      label: '사용',
+      label: FIELD.use,
       get: (s) => (s.info.use ? 1 : 0),
       cell: (s) => (s.info.use ? 'Y' : <span className="text-content-faint">N</span>),
       priority: 2,
     },
-    { key: 'sec', label: '구역', get: (s) => s.info.section, numeric: true, priority: 3 },
+    { key: 'sec', label: FIELD.section, get: (s) => s.info.section, numeric: true, priority: 3 },
     {
       key: 'x',
       label: 'X',
@@ -139,10 +153,10 @@ export function StationRegistry({
       cell: (s) => f1(s.info.position[2]),
       priority: 3,
     },
-    { key: 'io', label: 'IO블록', get: (s) => s.io_block_no, numeric: true, priority: 3 },
+    { key: 'io', label: FIELD.io_block_no, get: (s) => s.io_block_no, numeric: true, priority: 3 },
     {
       key: 'sensor',
-      label: '센서',
+      label: 'IOLinkMasterModule/Port_L/Port_R',
       get: (s) =>
         `${s.sensor.io_link_master_module}/${s.sensor.io_link_master_port_l}/${s.sensor.io_link_master_port_r}`,
       class: 'font-mono text-content-muted',
@@ -193,7 +207,7 @@ export function StationRegistry({
         }
         onDelete={() => setDel(true)}
       />
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto" ref={box}>
         {reg.error ? <p className="p-2 text-xs text-fault-fg">{reg.error}</p> : null}
         <DataTable
           rows={rows}
@@ -204,7 +218,9 @@ export function StationRegistry({
           loading={reg.loading}
           empty={q ? '검색 결과 없음' : '스테이션 없음'}
           emptyHint={
-            q ? undefined : 'PLC 읽기로 STATION 테이블을 가져오거나 추가/Excel 가져오기로 만드세요.'
+            q
+              ? '검색어를 지우거나 Id·ConvNo·Group 의 다른 조각으로 찾으세요.'
+              : 'PLC 읽기로 STATION 테이블을 가져오거나 추가/Excel 가져오기로 만드세요.'
           }
           testid="station-table"
         />

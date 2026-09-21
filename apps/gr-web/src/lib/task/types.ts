@@ -19,6 +19,75 @@ export interface ComposePreview {
   task: PlcTask
   params: TaskParams
   warnings: string[]
+  /** 스테이션 대상 PICK/DROP/MEASURE 일 때만 — GRM 트래킹 보정(`docs/station-offset.md`). */
+  station_offset?: StationOffsetAudit | null
+  /** 스택 Z 근거(셀 대상 PICK/DROP/MEASURE, 위치 덮어쓰기 없을 때) — 백엔드 `registry::spec::StackZ`. */
+  stack_z?: StackZAudit | null
+  /** 셀 단수 Max 검사(품목 단수 Max > 0) — 백엔드 `issue::StackLimit`. */
+  stack_limit?: StackLimitAudit | null
+}
+
+export interface StackZAudit {
+  z: number
+  z_source: 'profile' | 'curve' | 'computed'
+  /** 잡는 타이어의 단 */
+  level: number
+  below: number
+  /** 잡는 타이어 위에 얹힌 타이어 수(눌림 계산 기준) */
+  above: number
+  base: number
+  grip: number
+  /** 실제로 쓴 그립 기준 — `pick_bead` 를 시켰어도 잰 비드가 없으면 `mid` 로 내려간다 */
+  grip_ref: 'mid' | 'pick_bead'
+  /** 쓴 눌림양(mm/개) */
+  compression: number
+  /** 그립 기준이 된 상부 비드(타이어 바닥 기준, 눌림 반영) */
+  upper_bead: number | null
+  pick_bead_offset: number | null
+  /** 표에서 쓴 값들(`stack_height[2]=470`) */
+  used: string[]
+  /** 제한(클램프)이 걸린 곳 */
+  warnings: string[]
+}
+
+export interface StackLimitAudit {
+  stack_max: number
+  stock: number | null
+  count_after: number
+  over_limit: boolean
+  ignored: boolean
+  /** 있으면 제출이 거부된다(409) */
+  blocked: string | null
+}
+
+/** 백엔드 `issue::station_offset::StationOffsetAudit` — 미리보기와 원장(`Task.station_offset`)에 같은 모양. */
+export interface StationOffsetAudit {
+  station_id: number
+  /** PLC 슬롯 = id MOD 100 (범위 밖이면 0) */
+  slot: number
+  rotate_type: number
+  /** GRM 측정 OD(`Tracking.Now.OutterDiameter`) — 없으면 0 */
+  od: number
+  /** 실제로 보정에 쓴 외경(측정값 또는 등록 품목 스펙). 예전 원장 기록에는 없다. */
+  od_used?: number
+  /** 그 외경의 출처 — 측정 / 등록 품목 스펙 폴백 / 없음 */
+  od_source?: 'tracking' | 'item_spec' | 'none'
+  now_tx: number
+  now_ty: number
+  tx_applied: number
+  ty_applied: number
+  base_xy: [number, number]
+  final_xy: [number, number]
+  /** `OPCUA`(fast) | `STATION`(slow) | null(스냅샷 없음) */
+  source: string | null
+  snapshot_at: string | null
+  age_ms: number | null
+  mode: 'auto' | 'override' | 'off'
+  warnings: string[]
+  /** 있으면 제출이 거부된다(409). */
+  blocked: string | null
+  gr2_expected_xy: [number, number] | null
+  gr2_margin: number | null
 }
 
 /** 파일 가져오기 응답(`ImportResult` + 미리보기용 부가 필드). */
@@ -29,11 +98,12 @@ export interface FileImportResult {
   skipped: number
   errors: { row: number; sheet?: string; message: string }[]
   dry_run?: boolean
-  counts?: { cells: number; stations: number; items: number }
+  counts?: { cells: number; stations: number; items: number; item_profiles?: number }
 }
 
-/** PLC 쓰기/읽기 대상 — 백엔드 `?plc=` 값. */
-export type PlcTarget = 'GR2' | 'GRM' | 'both'
+/** PLC 쓰기/읽기 대상 — 백엔드 `?plc=` 값. 설정 이름(`GR1`·`GR2`·`GRM` …) 또는 쓰기 전체 `all`
+ *  (옛 `both` = 상태 PLC + GRM 도 받는다). 선택지는 `lib/task/plcTarget.ts`가 `/api/plcs`에서 만든다. */
+export type PlcTarget = string
 
 /** 작성 카드의 초안 — `TaskRequest`가 되기 전의 폼 상태. */
 export interface Draft {
@@ -43,4 +113,8 @@ export interface Draft {
   count: number
   params: Partial<TaskParams>
   note: string
+  /** 스테이션 보정 — 없거나 `true` 면 켜짐, `false` 면 요청에 `station_offset: 'off'`. */
+  station_offset?: boolean
+  /** 단수 Max 무시 — `true` 면 요청에 `ignore_stack_max: true`. */
+  ignore_stack_max?: boolean
 }

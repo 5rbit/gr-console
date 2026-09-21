@@ -20,7 +20,7 @@ export function ItemPicker({
   value,
   onChange,
   items,
-  label = '품목',
+  label = 'ItemCode',
   disabled = false,
   dense = false,
   allowNone = true,

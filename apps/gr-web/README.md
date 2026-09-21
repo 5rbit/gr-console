@@ -45,7 +45,7 @@ src/
     density.ts              전역 표시 밀도(표준·조밀) — `<html data-density>` + app.css 토큰
     gr/const.ts             TASK_TYPE_CODE · MODE_NAME · KIND · STATUS · AXIS · PARAM_LABELS · STATE_LABEL/TONE
     store.ts, poll.ts, congestion.ts, share.ts, utils.ts, keys.ts, clipboard.ts, panels.ts, theme.ts
-    ui/                     UI 킷(Button·Input·Select·Switch·StatusDot·StatusBadge·JsonView·DataGrid·Modal·Toaster·ScreenHeader·…; 모델은 *Model.ts)
+    ui/                     UI 킷(Button·Input·Select·Switch·StatusDot·StatusBadge·JsonView·DataGrid·Toaster·ScreenHeader·Dialog·DataTable·Section·Pair·InfoChip·HelpTip·…; 모델은 *Model.ts)
   components/
     Sidebar.tsx, StatusBar.tsx, PanelHost.tsx, CommandPalette.tsx
     workspace/              존 격자(WorkspaceShell) · 탭 띠·도킹·레일·창 메뉴(DockZone) · Splitter · paneRegistry(패널 등록)
@@ -56,6 +56,50 @@ src/
     measure/MeasureMonitor.tsx 측정 모니터 (스텁)
     scenario/ScenarioPage.tsx 시나리오     (스텁)
 ```
+
+## UI 킷에 새로 든 것 (2026-09-18 — 조작·요소 줄이기)
+
+화면에서 **보이는 요소와 누르는 횟수를 줄이려고** 다섯이 들어왔다. 전부 **덧붙이기**라 기존 컴포넌트의
+prop·동작은 그대로다. 화면이 각자 만들던 폼 팝업·`⋯` 메뉴·통계 카드 격자를 여기로 모은다.
+
+| 것 | 파일 | 쓰는 자리 |
+| --- | --- | --- |
+| `Dialog` · `FormDialog` · `useUnsavedGuard` | `lib/ui/Dialog.tsx`(+`dialogModel.ts`) | **입력·편집을 팝업으로** 옮기는 자리. 열리자마자 본문 첫 입력에 포커스 · Enter 제출 · Escape 취소 · 입력이 남아 있으면 바닥 띠가 한 번 되묻는다(두 번째 모달을 겹치지 않는다). 폭은 `sm/md/lg/xl` 넷 |
+| `OverflowMenu` | `lib/ui/OverflowMenu.tsx` | 도구 띠·머리띠 **오른쪽 끝**의 `⋯`. 가끔 쓰는 조작을 걷어 낸다. 우클릭 도구 상자(`lib/ui/menu.ts`)를 그대로 열어 우클릭과 같은 모양이 뜬다. 표의 행에는 두지 않는다 |
+| `StatRow` | `lib/ui/StatRow.tsx` | 화면 머리의 **숫자 한 줄**. 통계 카드 격자(카드 하나에 값 하나)를 대신한다 — 면을 만들지 않아 예산을 쓰지 않고, 값이 한 축에 서서 세로로 훑힌다 |
+| `Field` | `lib/ui/Field.tsx` | 라벨+컨트롤+힌트 **간격 한 벌**. `Input`·`Select` 밖의 컨트롤(스위치·세그먼트·읽기 값)에 라벨을 붙일 때. `inline`이면 왼쪽 라벨 + 오른쪽 컨트롤 |
+| `DataTable`의 `density`·`stickyHeader`·`zebra`·`className` | `lib/ui/DataTable.tsx` | 긴 표를 조밀하게(세로 여백만 줄인다 — 글자 크기는 그대로), 스크롤 상자 안에서 머리글 고정, 열이 여덟을 넘을 때만 줄무늬. `className`은 스크롤 상자에 붙는다(`max-h-96 overflow-y-auto`) |
+
+### 마무리 판에서 더 든 것 (2026-09-18 — 화면 넷이 각자 만들던 것을 킷으로)
+
+화면 정리 네 판이 끝나고 **같은 물건을 네 번 만든 자리**가 드러났다. 아래는 그것을 킷으로 올린 것과,
+킷이 못 받아 줘서 화면이 우회하던 자리를 받아 준 prop 들이다. 전부 덧붙이기다(기존 호출부는 그대로).
+
+| 것 | 파일 | 쓰는 자리 |
+| --- | --- | --- |
+| `Pairs` · `InfoRows` | `lib/ui/Pair.tsx` | **라벨+값 짝**. `Pairs`는 한 줄 띠(요약·대화상자 머리·캔버스 눈금), `InfoRows`는 두 열 표(팝오버 안). 팔렛이 손으로 짜던 `<dl>` 넷과 화물 규격의 사본을 대신한다 |
+| `InfoChip` · `ChipPopover` | `lib/ui/InfoChip.tsx` | 값 한 조각을 띠에 세우고(`InfoChip`), 전체 표는 눌러서 연다(`ChipPopover`). 설명 문단을 걷어 낸 자리에 서는 것 |
+| `Section` | `lib/ui/Section.tsx` | 카드 **안**의 소제목(제목 · `?` · 오른쪽 값 하나). 카드를 쪼개지 않고 1px 선으로 가른다. 측정 화면의 사본을 올린 것 |
+| `useDismiss` | `lib/ui/useDismiss.ts` | 바깥 클릭·Escape 로 닫기. `IconPopover`·`HelpTip`·`ChipPopover`가 같은 규칙을 쓴다(전에는 두 벌이 `mousedown`/`click`으로 갈려 있었다) |
+| `HelpTip`의 `sections`·`children` | `lib/ui/HelpTip.tsx` | `?` 안에 **소제목+본문 여러 칸**(공식·키 풀이·한계)이나 표를 넣는다. 이게 없어서 화면이 제 `HelpDot`을 만들었다 |
+| `Column.label: ReactNode` · `Column.name` · `Column.help` | `lib/ui/table.ts` | 머리글에 노드를 세우고, 열 옆에 `?`를 단다. 읽어 주는 이름은 `name`(없으면 글자 라벨/`key`) |
+| `DataTable`의 `emptyDense`·`rowDetail` | `lib/ui/DataTable.tsx` | 반 높이 카드의 **한 줄 빈 상태**, 그리고 행을 펼쳤을 때의 자세히(미리보기·PLC 구조). 액션 열은 언제나 `w-px whitespace-nowrap`이라 행 버튼이 0 폭으로 접히지 않는다 |
+| `EmptyState`의 `compact` | `lib/ui/EmptyState.tsx` | `min-h-60` 없이 한 줄로 — 좁은 패널과 `<td colSpan>` 안 |
+| `Input`의 `dense` | `lib/ui/Input.tsx` | 표 셀 안의 입력을 `Select dense`와 **같은 높이**(28px)로 |
+| `OverflowMenu`의 `disabledReason` · `MenuItem.testid` | `lib/ui/OverflowMenu.tsx`·`menu.ts` | 잠근 `⋯`는 이유를 말한다(4절 ⑥). 항목의 testid 는 라벨 문구가 바뀌어도 스모크가 안 깨지게 |
+| `StatItem`의 `help` | `lib/ui/StatRow.tsx` | 머리 숫자 옆 `?` — 네이티브 `title`은 지연이 길고 줄바꿈이 안 된다 |
+| `Dialog`의 `closeLabel` | `lib/ui/Dialog.tsx` | **바로 적용되는 설정 팝업**의 바닥 띠(닫기 하나). "적용/취소"가 거짓말인 자리 |
+| `ItemFields` · `FormErrors` | `components/task/forms.tsx` | 품목 입력 칸을 대화상자 껍데기에서 뗀 것 — 재고 팝업이 **모달 위 모달** 대신 같은 상자의 다음 단계로 쓴다 |
+
+쓰는 규칙 셋(`docs/DESIGN.md` 3·4·5절의 연장):
+
+- **주 조작은 한 번에 닿는다.** 화면의 주 조작은 띠에 하나(accent 하나 예산), 나머지는 `⋯`나 대화상자로.
+  같은 값을 다시 보여 주기만 하는 중간 토글은 두지 않는다.
+- **팝업은 갇히지 않는다.** `FormDialog`는 Enter 제출·Escape 취소가 기본이고, 저장 안 한 입력을
+  조용히 버리지 않는다. 읽기용 팝업은 `Dialog`에 `footer` 없이 쓴다.
+- **머리 숫자는 화면당 한 줄.** 하위 탭이 있어도 띠는 하나이고 자리가 바뀌지 않는다(측정 모니터가 그 예:
+  `components/measure/MeasureMonitorModel.ts`의 `bandItems`가 순수 함수로 그 줄을 만든다).
+
 
 ## 소유 규칙
 

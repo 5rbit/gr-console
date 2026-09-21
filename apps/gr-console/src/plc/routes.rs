@@ -30,6 +30,12 @@ pub struct MismatchView {
 #[derive(Serialize)]
 pub struct PlcStatusView {
     pub id: String,
+    /// Config name (`GR1`) — S7 only; the registry toolbar lists these as PLC targets.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// `gr` / `grm` — S7 only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<crate::config::PlcRole>,
     pub label: String,
     pub kind: &'static str,
     pub endpoint: String,
@@ -64,6 +70,8 @@ pub fn plc_status_views(st: &AppState) -> Vec<PlcStatusView> {
             .collect();
         out.push(PlcStatusView {
             id: format!("{}_s7", name.to_ascii_lowercase()),
+            name: Some(name.clone()),
+            role: Some(h.cfg.role),
             label: format!("{name} S7"),
             kind: "s7",
             endpoint: format!("{}:{}", h.cfg.host, h.cfg.port),
@@ -84,6 +92,8 @@ pub fn plc_status_views(st: &AppState) -> Vec<PlcStatusView> {
         let cs = r.cmd.status();
         out.push(PlcStatusView {
             id: if i == 0 { "grm_opcua".into() } else { format!("grm_opcua_{}", r.name.to_ascii_lowercase()) },
+            name: None,
+            role: None,
             label: format!("GRM OPC UA → {} ({})", r.name, r.opcua_root),
             kind: "opcua",
             endpoint: cs.endpoint,
@@ -190,25 +200,36 @@ async fn plc_events(State(st): State<AppState>, Path(plc): Path<String>) -> Resu
     Ok(broadcast_sse(h.events.subscribe(), "plc", None))
 }
 
-async fn status_now(State(st): State<AppState>) -> ApiResult<Json> {
-    st.status.latest().map(axum::Json).ok_or_else(|| ApiError::PlcUnavailable("no WEBMON snapshot yet".into()))
+/// `?robot=<id>` — absent = default robot (`robots[0]`).
+#[derive(Deserialize)]
+struct RobotQuery {
+    robot: Option<u8>,
 }
 
-async fn status_stream(State(st): State<AppState>) -> impl IntoResponse {
-    broadcast_sse(st.status.tx.subscribe(), "status", st.status.latest())
+/// `GET /api/status?robot=` — the robot's latest WEBMON event.
+async fn status_now(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> ApiResult<Json> {
+    let r = st.robot(q.robot)?;
+    r.status.latest().map(axum::Json).ok_or_else(|| ApiError::PlcUnavailable(format!("{} ({}) WEBMON snapshot not read yet", r.name, r.plc)))
 }
 
-async fn opcua_state(State(st): State<AppState>) -> ApiResult<Json> {
-    Ok(axum::Json(serde_json::to_value(st.cmd.status())?))
+/// `GET /api/status/stream?robot=` — SSE `event: status` of that robot only.
+async fn status_stream(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> Result<impl IntoResponse, ApiError> {
+    let r = st.robot(q.robot)?;
+    Ok(broadcast_sse(r.status.tx.subscribe(), "status", r.status.latest()))
 }
 
-async fn opcua_nodes(State(st): State<AppState>) -> ApiResult<Json> {
-    Ok(axum::Json(st.cmd.nodes()))
+async fn opcua_state(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> ApiResult<Json> {
+    Ok(axum::Json(serde_json::to_value(st.robot(q.robot)?.cmd.status())?))
 }
 
-async fn opcua_rebrowse(State(st): State<AppState>) -> ApiResult<Json> {
-    st.cmd.rebrowse().await;
-    Ok(axum::Json(serde_json::to_value(st.cmd.status())?))
+async fn opcua_nodes(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> ApiResult<Json> {
+    Ok(axum::Json(st.robot(q.robot)?.cmd.nodes()))
+}
+
+async fn opcua_rebrowse(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> ApiResult<Json> {
+    let r = st.robot(q.robot)?;
+    r.cmd.rebrowse().await;
+    Ok(axum::Json(serde_json::to_value(r.cmd.status())?))
 }
 
 pub fn router() -> Router<AppState> {

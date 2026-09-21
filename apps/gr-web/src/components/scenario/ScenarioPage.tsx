@@ -1,7 +1,10 @@
-// 시나리오 화면 — 왼쪽 목록 레일 · 가운데 편집기 · 오른쪽 실행 판넬.
+// 시나리오 화면 — **목록 레일 + 편집기**. 실행 판넬은 편집기 위의 한 줄(`ScenarioRunner`)로 접혔다.
 //
 // draft(편집 중 문서)의 진실원은 이 페이지다. 다른 시나리오로 옮기거나 새로 만들 때 저장하지 않은 변경이
 // 있으면 확인을 받는다. `nav.goScenario(id)`로 들어오면 그 시나리오를 연다.
+//
+// 새로 만들기·복제는 **설정 대화상자를 바로 연다** — 새 문서에서 제일 먼저 정하는 것이 이름이고,
+// 이름 없는 문서는 저장이 막힌다. 열자마자 이름 칸에 포커스가 가고 Enter로 닫힌다.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ListOrdered } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -10,14 +13,24 @@ import { nav } from '../../lib/nav'
 import { useRegistry } from '../../lib/registry'
 import { useSse } from '../../lib/sse'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
+import { useUnsavedGuard } from '../../lib/ui/Dialog'
+import { FieldList } from '../../lib/ui/FieldList'
 import { ScreenHeader } from '../../lib/ui/ScreenHeader'
 import { toast } from '../../lib/ui/toast'
 import type { Cell, Item, Scenario, ScenarioUpsert, Station } from '../../lib/types'
 import { scenarioApi } from '../../lib/scenario/api'
-import { RUN_ACTIVE, RUN_STATE_LABEL, duplicateScenario, newScenario, toUpsert, validateScenario, type ValidationIssue } from '../../lib/scenario/model'
+import {
+  RUN_ACTIVE,
+  duplicateScenario,
+  newScenario,
+  toUpsert,
+  validateScenario,
+  type ValidationIssue,
+} from '../../lib/scenario/model'
 import { ScenarioEditor } from './ScenarioEditor'
 import { ScenarioList } from './ScenarioList'
 import { ScenarioRunner } from './ScenarioRunner'
+import { ScenarioSettingsDialog } from './ScenarioSettingsDialog'
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -35,20 +48,24 @@ export default function ScenarioPage() {
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [issues, setIssues] = useState<ValidationIssue[]>([])
+  const [settingsOpen, setSettingsOpen] = useState(false)
   // 저장하지 않은 변경을 버리는 이동 — 확인 뒤에 실행할 동작을 들고 있는다.
+  // 되묻는 규칙 자체는 킷의 `useUnsavedGuard` 하나다(대화상자와 같은 규칙을 손으로 한 벌 더 쓰면
+  // 한쪽만 고쳐진다). 여기서는 "닫기" 자리에 **들고 있던 이동**을 끼운다.
   const pending = useRef<(() => void) | null>(null)
-  const [discardOpen, setDiscardOpen] = useState(false)
-
+  const runPending = useCallback(() => {
+    const a = pending.current
+    pending.current = null
+    a?.()
+  }, [])
+  const unsaved = useUnsavedGuard(dirty, runPending)
+  const request = unsaved.request
   const guard = useCallback(
     (action: () => void) => {
-      if (!dirty) {
-        action()
-        return
-      }
       pending.current = action
-      setDiscardOpen(true)
+      request('cancel')
     },
-    [dirty],
+    [request],
   )
 
   const open = useCallback((s: Scenario) => {
@@ -93,6 +110,7 @@ export default function ScenarioPage() {
     if (local.some((i) => i.step_index === null && i.field === 'name')) {
       setIssues(local)
       toast.warn('이름을 입력하세요')
+      setSettingsOpen(true)
       return
     }
     setSaving(true)
@@ -116,7 +134,10 @@ export default function ScenarioPage() {
     try {
       const remote = await scenarioApi.validate(draft)
       const seen = new Set(local.map((i) => `${i.step_index}:${i.field}:${i.message}`))
-      merged = [...local, ...remote.filter((i) => !seen.has(`${i.step_index}:${i.field}:${i.message}`))]
+      merged = [
+        ...local,
+        ...remote.filter((i) => !seen.has(`${i.step_index}:${i.field}:${i.message}`)),
+      ]
     } catch (e) {
       toast.warn(`서버 검증 실패(로컬 결과만 표시) — ${errMsg(e)}`)
     }
@@ -162,20 +183,27 @@ export default function ScenarioPage() {
     }
   }
 
+  /** 새 문서(새로 만들기·복제) — 이름부터 묻는다. */
+  const startDraft = (next: ScenarioUpsert) => {
+    setSelectedId(null)
+    setDraft(next)
+    setDirty(true)
+    setIssues([])
+    setSettingsOpen(true)
+  }
+
   const selectedSaved = selectedId ? (list.items.find((s) => s.id === selectedId) ?? null) : null
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="screen-scenario">
+      {/* 실행 상태는 아래 실행 띠가 점·게이지로 말한다 — 머리띠에서 같은 말을 두 번 하지 않는다. */}
       <ScreenHeader
         title="시나리오"
         icon={<ListOrdered className="h-4 w-4" />}
-        items={[
-          { label: '시나리오', value: String(list.items.length) },
-          { label: '실행', value: run ? `${RUN_STATE_LABEL[run.state]}${runningId ? ` · ${run.scenario_name}` : ''}` : feed.connected ? '대기' : '연결 중' },
-        ]}
+        items={[{ label: '시나리오', value: String(list.items.length) }]}
       />
       <div className="flex min-h-0 flex-1">
-        <div className="w-80 flex-none border-r border-line-default">
+        <div className="w-72 flex-none border-r border-line-default">
           <ScenarioList
             items={list.items}
             loading={list.loading}
@@ -185,70 +213,75 @@ export default function ScenarioPage() {
               const s = list.items.find((x) => x.id === id)
               if (s && s.id !== selectedId) guard(() => open(s))
             }}
-            onNew={() =>
-              guard(() => {
-                setSelectedId(null)
-                setDraft(newScenario())
-                setDirty(true)
-                setIssues([])
-              })
-            }
-            onDuplicate={(s) =>
-              guard(() => {
-                setSelectedId(null)
-                setDraft(duplicateScenario(s))
-                setDirty(true)
-                setIssues([])
-              })
-            }
+            onNew={() => guard(() => startDraft(newScenario()))}
+            onDuplicate={(s) => guard(() => startDraft(duplicateScenario(s)))}
             onDelete={(s) => void remove(s)}
           />
         </div>
-        <div className="min-w-0 flex-1">
-          <ScenarioEditor
-            draft={draft}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* 실행은 이 화면의 주 조작이라 편집기보다 위에 선다 — 한 줄이고, 돌지 않을 때는 버튼 하나다. */}
+          <ScenarioRunner
+            scenario={selectedSaved}
             dirty={dirty}
-            saving={saving}
-            issues={issues}
-            cells={cells.items}
-            stations={stations.items}
-            items={items.items}
-            running={!!draft?.id && draft.id === runningId}
-            onChange={change}
-            onSave={() => void save()}
-            onValidate={() => void validate()}
-            onImportFile={importFile}
-            onExport={exportAs}
+            onOpenScenario={(id) => {
+              const s = list.items.find((x) => x.id === id)
+              if (s) guard(() => open(s))
+              else toast.warn('그 시나리오는 삭제되었습니다')
+            }}
           />
+          <div className="min-h-0 flex-1">
+            <ScenarioEditor
+              draft={draft}
+              dirty={dirty}
+              saving={saving}
+              issues={issues}
+              cells={cells.items}
+              stations={stations.items}
+              items={items.items}
+              running={!!draft?.id && draft.id === runningId}
+              onChange={change}
+              onSave={() => void save()}
+              onValidate={() => void validate()}
+              onImportFile={importFile}
+              onExport={exportAs}
+              onOpenSettings={() => setSettingsOpen(true)}
+            />
+          </div>
         </div>
-        <ScenarioRunner
-          scenario={selectedSaved}
-          dirty={dirty}
-          onOpenScenario={(id) => {
-            const s = list.items.find((x) => x.id === id)
-            if (s) guard(() => open(s))
-            else toast.warn('그 시나리오는 삭제되었습니다')
-          }}
-        />
       </div>
 
+      <ScenarioSettingsDialog
+        open={settingsOpen}
+        draft={draft}
+        onOpenChange={setSettingsOpen}
+        onApply={change}
+      />
+
       <ConfirmDialog
-        open={discardOpen}
+        open={unsaved.asking}
         onOpenChange={(o) => {
-          setDiscardOpen(o)
-          if (!o) pending.current = null
+          if (o) return
+          pending.current = null
+          unsaved.keepEditing()
         }}
         scope="single"
         title="변경 버리기"
         danger
         confirmLabel="버리고 이동"
-        onConfirm={() => {
-          const a = pending.current
-          pending.current = null
-          a?.()
-        }}
+        onConfirm={unsaved.discard}
       >
-        <p className="m-0">저장하지 않은 변경이 있습니다. 버리고 계속할까요?</p>
+        <div className="flex flex-col gap-2 text-xs">
+          <p className="m-0">저장하지 않은 변경을 버릴까요?</p>
+          <FieldList
+            columns={2}
+            dense
+            labelWidth={56}
+            items={[
+              { label: '문서', value: draft?.name ?? '', missing: '이름 없음' },
+              { label: '스텝', value: `${draft?.steps.length ?? 0}개` },
+            ]}
+          />
+        </div>
       </ConfirmDialog>
     </div>
   )

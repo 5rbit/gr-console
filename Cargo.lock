@@ -950,6 +950,7 @@ dependencies = [
  "mime_guess",
  "opcua-cmd",
  "plc-layout",
+ "plc-link",
  "rand 0.9.5",
  "rusqlite",
  "rust_xlsxwriter",

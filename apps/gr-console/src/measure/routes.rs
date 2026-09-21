@@ -1,4 +1,4 @@
-//! `/api/measlog/*`
+//! `/api/measlog/*` — every route takes `?robot=<id>` (absent = default robot).
 
 use axum::Router;
 use axum::extract::{Query, State};
@@ -13,29 +13,38 @@ use crate::state::AppState;
 
 #[derive(Deserialize)]
 struct EntriesQuery {
+    robot: Option<u8>,
     since: Option<u32>,
     kind: Option<u8>,
     code: Option<u32>,
     limit: Option<usize>,
 }
 
-async fn snapshot(State(st): State<AppState>) -> ApiResult<Json> {
-    Ok(axum::Json(st.measure.snapshot()?))
+#[derive(Deserialize)]
+struct RobotQuery {
+    robot: Option<u8>,
+}
+
+async fn snapshot(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> ApiResult<Json> {
+    Ok(axum::Json(st.robot(q.robot)?.measure.snapshot()?))
 }
 
 async fn entries(State(st): State<AppState>, Query(q): Query<EntriesQuery>) -> ApiResult<Json> {
-    let (entries, total) = st.measure.entries(q.since, q.kind, q.code, q.limit.unwrap_or(200).clamp(1, 5000))?;
-    Ok(axum::Json(json!({ "total": total, "entries": entries })))
+    let r = st.robot(q.robot)?;
+    let (entries, total) = r.measure.entries(q.since, q.kind, q.code, q.limit.unwrap_or(200).clamp(1, 5000))?;
+    Ok(axum::Json(json!({ "plc": r.plc, "total": total, "entries": entries })))
 }
 
-async fn reload(State(st): State<AppState>) -> ApiResult<Json> {
-    let h = st.status_plc()?;
-    let n = st.measure.sync(h).await?;
-    Ok(axum::Json(json!({ "added": n, "snapshot": st.measure.snapshot()? })))
+async fn reload(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> ApiResult<Json> {
+    let (r, h) = st.robot_and_plc(q.robot)?;
+    crate::plc::ensure_db(h, "MEASLOG_HIST")?;
+    let n = r.measure.sync(h).await?;
+    Ok(axum::Json(json!({ "added": n, "snapshot": r.measure.snapshot()? })))
 }
 
 async fn export_csv(State(st): State<AppState>, Query(q): Query<EntriesQuery>) -> Result<impl IntoResponse, ApiError> {
-    let (entries, _) = st.measure.entries(None, q.kind, q.code, 100000)?;
+    let r = st.robot(q.robot)?;
+    let (entries, _) = r.measure.entries(None, q.kind, q.code, 100000)?;
     let mut out =
         String::from("\u{feff}seq,time,kind,status,work_id,task_id,task_type,cell_id,code,cmd_count,cmd_id,cmd_od,cmd_height,cmd_x,cmd_y,cmd_z,cmd_g,cell_z,d_inner_dia,d_height,d_z,d_offset,d_count");
     for i in 0..20 {
@@ -81,7 +90,9 @@ async fn export_csv(State(st): State<AppState>, Query(q): Query<EntriesQuery>) -
         }
         out.push('\n');
     }
-    Ok(([(header::CONTENT_TYPE, "text/csv; charset=utf-8"), (header::CONTENT_DISPOSITION, "attachment; filename=\"measlog.csv\"")], out))
+    let safe: String = r.plc.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').collect();
+    let disposition = format!("attachment; filename=\"measlog-{safe}.csv\"");
+    Ok(([(header::CONTENT_TYPE, "text/csv; charset=utf-8".to_string()), (header::CONTENT_DISPOSITION, disposition)], out))
 }
 
 pub fn router() -> Router<AppState> {

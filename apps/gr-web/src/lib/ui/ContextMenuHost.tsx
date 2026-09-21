@@ -62,7 +62,7 @@ export function ContextMenuHost({ className }: ContextMenuHostProps = {}) {
             role="menuitem"
             disabled={!!it.disabled}
             title={it.disabled}
-            data-testid={`ctx-${it.label}`}
+            data-testid={it.testid ?? `ctx-${it.label}`}
             onClick={() => {
               const run = it.run
               ctxMenu.close()

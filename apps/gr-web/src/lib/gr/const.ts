@@ -45,38 +45,51 @@ export function modeName(mode: number): string {
 export const KIND = ['', 'Item', 'Sku', 'Floor', 'Pick', 'Manual'] as const
 
 /** 측정 로그 `Status` 코드 → 이름. */
-export const STATUS = ['None', 'Busy', 'Done', 'Error', 'Mismatch'] as const
+export const STATUS = [
+  'None',
+  'Busy',
+  'Done',
+  'Error',
+  'Mismatch',
+  // 5~9 : Sku 스택 정렬 진단 무효 세부 (PLC MEAS_STAT_SKU_*)
+  'SkuCountMismatch',
+  'SkuHeightSpread',
+  'SkuLayerOffset',
+  'SkuLiftEnd',
+  'SkuNoEdge',
+  'SkuCmdCount',
+] as const
 
 /** 축 이름(인덱스 = `WebMon.Axis` 순서). */
 export const AXIS = ['X', 'Y', 'Z', 'G'] as const
 
-/** 작업 파라미터의 한글 라벨. */
+/** 작업 파라미터의 표시 이름 — PLC `LGR_Task_Data` 멤버 이름 그대로. */
 export const PARAM_LABELS: Record<keyof TaskParams, string> = {
-  lift_up_height: '리프트 상승 높이',
-  grip_height: '그립 높이',
-  pre_grip_delta: '그립 전 오프셋',
-  grip_back_delta: '그립 후 후퇴',
-  blend_up_distance: '블렌드 상승 거리',
-  blend_down_distance: '블렌드 하강 거리',
-  lift_up_creep_distance: '상승 크리프 거리',
-  lift_down_creep_distance: '하강 크리프 거리',
-  lift_up_after_complete: '완료 후 상승',
-  lift_up_partial: '부분 상승',
-  measure_floor: '바닥 측정',
-  measure_item: '품목 측정',
-  measure_sku: 'SKU 측정',
-  adjust_center: '중심 보정',
-  find_station_item: '스테이션 품목 탐색',
-  avoid: '회피',
-  outbound: '출고',
-  use_drag_out: '드래그 아웃 사용',
-  drag_out_height: '드래그 아웃 높이',
-  drag_out_dist: '드래그 아웃 거리',
-  drag_out_dir: '드래그 아웃 방향',
-  use_drag_in: '드래그 인 사용',
-  drag_in_height: '드래그 인 높이',
-  drag_in_dist: '드래그 인 거리',
-  drag_in_dir: '드래그 인 방향',
+  lift_up_height: 'LiftUpHeight',
+  grip_height: 'GripHeight',
+  pre_grip_delta: 'PreGripDelta',
+  grip_back_delta: 'GripBackDelta',
+  blend_up_distance: 'BlendUpDistance',
+  blend_down_distance: 'BlendDownDistance',
+  lift_up_creep_distance: 'LiftUpCreepDistance',
+  lift_down_creep_distance: 'LiftDownCreepDistance',
+  lift_up_after_complete: 'LiftUpAfterComplete',
+  lift_up_partial: 'LiftUpPartial',
+  measure_floor: 'MeasureFloor',
+  measure_item: 'MeasureItem',
+  measure_sku: 'MeasureSku',
+  adjust_center: 'AdjustCenter',
+  find_station_item: 'FindStationItem',
+  avoid: 'Avoid',
+  outbound: 'Outbound',
+  use_drag_out: 'UseDragOut',
+  drag_out_height: 'DragOutHeight',
+  drag_out_dist: 'DragOutDist',
+  drag_out_dir: 'DragOutDir',
+  use_drag_in: 'UseDragIn',
+  drag_in_height: 'DragInHeight',
+  drag_in_dist: 'DragInDist',
+  drag_in_dir: 'DragInDir',
 }
 
 /** Task 상태의 한글 라벨. */

@@ -15,8 +15,20 @@ import type { ReactNode } from 'react'
 export type Column<R> = {
   /** 식별자(정렬 키이자 리스트 키). */
   key: string
-  /** 헤더에 보일 이름 — **사람의 말로**. DB 컬럼명을 그대로 쓰지 않는다. */
-  label: string
+  /**
+   * 헤더에 보일 이름 — **사람의 말로**. DB 컬럼명을 그대로 쓰지 않는다.
+   *
+   * 노드도 받는다(단위를 흐리게 붙인 이름 따위). 글자가 아니면 정렬 버튼의 `aria-label` 과
+   * 접힌 열의 라벨은 `name`(없으면 `key`)을 쓴다 — 읽어 주는 이름은 언제나 글자여야 한다.
+   */
+  label: ReactNode
+  /** 라벨이 노드일 때의 **글자 이름** — 스크린 리더·접힌 열 손잡이가 읽는다. */
+  name?: string
+  /**
+   * 머리글 옆 `?` — 이 열을 읽는 법(단위의 출처 · 계산식 · 빈 값의 뜻). 열 이름에 문장을 붙이는
+   * 대신 접는다(`docs/DESIGN.md` 4절 ②·③).
+   */
+  help?: string
   /** 정렬·기본 표시에 쓸 값. 없으면 그 열은 정렬 불가. */
   get?: (row: R) => string | number | null | undefined
   /** 셀 렌더(선택) — 배지·진행률처럼 값만으로 안 되는 것. */
@@ -36,6 +48,17 @@ export type Column<R> = {
 
 /** 열 우선순위 — 1 항상 · 2 보통 폭부터 · 3 넓을 때만. */
 export type ColumnPriority = 1 | 2 | 3
+
+/**
+ * 열의 **글자 이름** — 라벨이 노드면 `name`, 그것도 없으면 `key`.
+ *
+ * 읽어 주는 자리(정렬 버튼의 `aria-label`, 접힌 열 손잡이의 `title`)는 언제나 글자여야 한다.
+ * 노드를 그대로 넘기면 `[object Object]` 가 읽힌다.
+ */
+export function columnName<R>(c: Column<R>): string {
+  if (c.name) return c.name
+  return typeof c.label === 'string' ? c.label : c.key
+}
 
 /**
  * 우선순위별로 열이 살아나는 **컨테이너 폭**(px).

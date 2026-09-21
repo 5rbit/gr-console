@@ -10,6 +10,7 @@ export const LASER_SOURCE: Record<number, string> = {
   2: '들어갈 때',
   3: '나갈 때',
   4: '수동 측정',
+  5: 'SKU 스택',
 }
 
 /** LGR_LaserZCal.ErrorCode */
@@ -38,7 +39,9 @@ export function diagFlagLabels(flags: number): string[] {
 export type ZCalPhase = 'idle' | 'busy' | 'done' | 'error'
 
 /** 교정 진행 단계 — Busy 가 가장 우선, 그다음 Error, Done. */
-export function zcalPhase(z: Pick<LaserZCal, 'Busy' | 'Done' | 'Error'> | null | undefined): ZCalPhase {
+export function zcalPhase(
+  z: Pick<LaserZCal, 'Busy' | 'Done' | 'Error'> | null | undefined,
+): ZCalPhase {
   if (!z) return 'idle'
   if (z.Busy) return 'busy'
   if (z.Error) return 'error'

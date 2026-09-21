@@ -91,24 +91,24 @@ pub fn join_child(parent: &str, child_browse_name: &str) -> String {
 
     // `[2]` or `2`
     let bare = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']')).map(str::trim).unwrap_or(trimmed);
-    if !parent.is_empty() {
-        if let Ok(idx) = bare.parse::<u32>() {
-            if bare.chars().all(|c| c.is_ascii_digit()) {
-                return format!("{parent}[{idx}]");
-            }
-        }
+    if !parent.is_empty()
+        && let Ok(idx) = bare.parse::<u32>()
+        && bare.chars().all(|c| c.is_ascii_digit())
+    {
+        return format!("{parent}[{idx}]");
     }
 
     // `GR[2]` under `GR`, `Position[1]` under `Position`, `GR[2][3]` under `GR[2]`
-    if let (Ok(child_seg), Ok(parent_segs)) = (parse_segment(trimmed), parse_path(parent)) {
-        if let Some(last) = parent_segs.last() {
-            if child_seg.name == last.name && child_seg.indices.len() > last.indices.len() && child_seg.indices[..last.indices.len()] == last.indices[..] {
-                let mut segs = parent_segs;
-                segs.pop();
-                segs.push(child_seg);
-                return render(&segs);
-            }
-        }
+    if let (Ok(child_seg), Ok(parent_segs)) = (parse_segment(trimmed), parse_path(parent))
+        && let Some(last) = parent_segs.last()
+        && child_seg.name == last.name
+        && child_seg.indices.len() > last.indices.len()
+        && child_seg.indices[..last.indices.len()] == last.indices[..]
+    {
+        let mut segs = parent_segs;
+        segs.pop();
+        segs.push(child_seg);
+        return render(&segs);
     }
 
     let child_norm = normalize_path(trimmed).unwrap_or_else(|_| trimmed.to_string());

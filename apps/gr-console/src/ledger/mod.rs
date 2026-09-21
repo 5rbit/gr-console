@@ -146,9 +146,19 @@ pub struct TaskRequest {
     /// Robot to send to (`None` = default robot).
     #[serde(default)]
     pub robot: Option<u8>,
-    /// Grip reference override: `mid` (tire centre) | `bead` (upper bead height). `None` = `Defaults.grip_ref`.
+    /// Grip reference override: `mid` (tire centre) | `pick_bead` (measured upper bead − PickBeadOffset,
+    /// `bead+offset` on screen). `None` = `Defaults.grip_ref`. 옛 값 `bead` 는 `pick_bead` 로 읽힌다.
     #[serde(default)]
     pub grip_ref: Option<String>,
+    /// 스테이션 보정(GRM StationCenterAdjust 재현) — 기본 켜짐. `false` / `"off"` 로 끈다.
+    #[serde(default, skip_serializing_if = "crate::issue::station_offset::OffsetSwitch::is_default")]
+    pub station_offset: crate::issue::station_offset::OffsetSwitch,
+    /// 셀 단수 Max(품목 `spec.stack_max`)를 넘는 DROP 도 제출한다 — 기본은 제출 거부(409).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ignore_stack_max: bool,
+    /// 팔렛 슬롯(`{seq, level}` 또는 `{auto: true}`) — 켜진 팔렛 프로파일이 있는 스테이션 대상에만.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pallet: Option<crate::pallet::compose::PalletRef>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -187,6 +197,12 @@ pub struct LedgerEntry {
     pub plc: Option<PlcSeen>,
     pub error: Option<String>,
     pub history: Vec<Transition>,
+    /// 마지막으로 계산한 스테이션 보정 감사 기록(제출 시점 값). doc_json 에 같이 저장되므로 마이그레이션 없음.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub station_offset: Option<crate::issue::station_offset::StationOffsetAudit>,
+    /// 팔렛 슬롯 근거(`pallet::compose::PalletAudit`) — auto 로 고른 seq/단도 여기서 고정된다. doc_json 에 같이 저장.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pallet: Option<crate::pallet::compose::PalletAudit>,
 }
 
 impl LedgerEntry {
@@ -353,6 +369,8 @@ impl Ledger {
             plc: None,
             error: None,
             history: vec![Transition { from: None, to: TaskState::Draft, at: now, by: Actor::Ui, note: None }],
+            station_offset: None,
+            pallet: None,
         };
         self.upsert(e)
     }
@@ -381,6 +399,8 @@ impl Ledger {
             plc: None,
             error: None,
             history: vec![Transition { from: None, to: state, at: now, by: Actor::Plc, note: Some("seen on PLC".into()) }],
+            station_offset: None,
+            pallet: None,
         };
         self.upsert(e)
     }

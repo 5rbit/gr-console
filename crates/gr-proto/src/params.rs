@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::task::TaskData;
 
+/// 드래그 거리 기본값(mm) — 운전자 결정(2026-09-18). 요청·기본값이 거리를 안 정하면 이 값을 쓴다.
+pub const DEFAULT_DRAG_DIST: u16 = 150;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TaskParams {
@@ -57,11 +60,11 @@ impl Default for TaskParams {
             outbound: false,
             use_drag_out: false,
             drag_out_height: 0,
-            drag_out_dist: 0,
+            drag_out_dist: DEFAULT_DRAG_DIST,
             drag_out_dir: 0,
             use_drag_in: false,
             drag_in_height: 0,
-            drag_in_dist: 0,
+            drag_in_dist: DEFAULT_DRAG_DIST,
             drag_in_dir: 0,
         }
     }

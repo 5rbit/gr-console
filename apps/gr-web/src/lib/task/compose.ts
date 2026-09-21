@@ -63,6 +63,9 @@ export function buildRequest(d: Draft): TaskRequest {
     source: null,
     robot: robots.selected,
     grip_ref: null,
+    // 기본(켜짐)은 싣지 않는다 — 요청 JSON 이 예전과 같게.
+    ...(d.station_offset === false ? { station_offset: 'off' as const } : {}),
+    ...(d.ignore_stack_max ? { ignore_stack_max: true } : {}),
   }
 }
 
@@ -117,11 +120,11 @@ export function previewFields(p: ComposePreview | null): { label: string; value:
     { label: 'Z', value: f(pos[2]) },
     { label: 'G', value: f(pos[3]) },
     { label: 'TaskType', value: `0x${t.TaskType.toString(16).toUpperCase()}` },
-    { label: '셀 Id', value: t.Cell?.Id ? String(t.Cell.Id) : '' },
-    { label: '셀 위치', value: t.Cell?.Id ? (t.Cell.Position ?? []).map(f).join(' / ') : '' },
-    { label: '품목', value: t.Item?.Code ? `${t.Item.Code} × ${t.Item.Count}` : '' },
+    { label: 'Cell.Id', value: t.Cell?.Id ? String(t.Cell.Id) : '' },
+    { label: 'Cell.Position', value: t.Cell?.Id ? (t.Cell.Position ?? []).map(f).join(' / ') : '' },
+    { label: 'Item (Code × Count)', value: t.Item?.Code ? `${t.Item.Code} × ${t.Item.Count}` : '' },
     {
-      label: '내경/높이',
+      label: 'InnerDiameter / Height',
       value: t.Item?.Code ? `${f(t.Item.InnerDiameter)} / ${f(t.Item.Height)}` : '',
     },
     { label: PARAM_LABELS.grip_height, value: String(p.params.grip_height) },
@@ -132,7 +135,7 @@ export function previewFields(p: ComposePreview | null): { label: string; value:
   const flags = PARAM_KEYS.filter((k) => BOOL_PARAMS.has(k) && p.params[k] === true).map(
     (k) => PARAM_LABELS[k],
   )
-  out.push({ label: '켜진 플래그', value: flags.join(', ') })
+  out.push({ label: 'Flags', value: flags.join(', ') })
   return out
 }
 
@@ -140,11 +143,11 @@ export function previewFields(p: ComposePreview | null): { label: string; value:
 
 export type DefaultsCol = 'base' | 'PICK.cell' | 'PICK.station' | 'DROP.cell' | 'DROP.station'
 export const DEFAULTS_COLS: readonly { id: DefaultsCol; header: string }[] = [
-  { id: 'base', header: '공통' },
-  { id: 'PICK.cell', header: 'PICK · 셀' },
-  { id: 'PICK.station', header: 'PICK · 스테이션' },
-  { id: 'DROP.cell', header: 'DROP · 셀' },
-  { id: 'DROP.station', header: 'DROP · 스테이션' },
+  { id: 'base', header: 'Base' },
+  { id: 'PICK.cell', header: 'PICK · Cell' },
+  { id: 'PICK.station', header: 'PICK · Station' },
+  { id: 'DROP.cell', header: 'DROP · Cell' },
+  { id: 'DROP.station', header: 'DROP · Station' },
 ]
 
 export interface DefaultsRow {

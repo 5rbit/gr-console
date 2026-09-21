@@ -2,6 +2,8 @@
 // 취소·완료 처리는 로봇에 물리적 결과가 있어 `single-robot`, 나머지는 `single`.
 import { useState } from 'react'
 import { Ban, CheckCircle2, RotateCw, Send, Trash2, XOctagon } from 'lucide-react'
+import { OverflowMenu } from '../../lib/ui/OverflowMenu'
+import type { MenuItem } from '../../lib/ui/menu'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { FieldList, type FieldItem } from '../../lib/ui/FieldList'
@@ -37,6 +39,15 @@ export interface TaskActionsProps {
    * 허용하지 않는 쪽은 사유를 달고 비활성(자리를 비우면 열이 흔들려 세로로 훑을 수 없다).
    */
   row?: boolean
+  /**
+   * `only`에 없는 나머지 조작을 `⋯` 하나로 모은다(제출·재제출·실패 표시·기록 삭제).
+   *
+   * **표의 행에는 쓰지 않는다.** 킷의 `OverflowMenu` 가 제 머리글에 적어 둔 규칙이고(`⋯` 는 도구
+   * 띠와 화면 머리띠의 오른쪽 끝에만 선다), 이유는 자리다: 행 액션 열은 **고정 너비 둘**이 줄마다
+   * 같은 x 에 서야 세로로 훑을 수 있는데, 손잡이가 하나 더 붙으면 상태에 따라 열 폭이 흔들린다.
+   * 행에서 못 하게 된 조작은 **행을 눌러 열리는 상세 시트**의 같은 `⋯` 에 그대로 있다(클릭 하나 더).
+   */
+  overflow?: boolean
   /** `data-testid` 접두 — 상세(`action-*`)와 행(`row-action-*`)이 한 화면에 같이 선다. */
   testid?: string
 }
@@ -52,6 +63,15 @@ const ICON: Record<TaskAction, React.ReactNode> = {
 
 const DANGER: ReadonlySet<TaskAction> = new Set<TaskAction>(['cancel', 'fail', 'delete'])
 const ROW_DEFAULT: readonly TaskAction[] = ['cancel', 'complete']
+/** 넘침 메뉴의 순서 — 보내는 것부터 지우는 것까지. */
+const ALL_ACTIONS: readonly TaskAction[] = [
+  'submit',
+  'resubmit',
+  'cancel',
+  'complete',
+  'fail',
+  'delete',
+]
 /** 행 버튼의 짧은 글자 — 폭이 고정이라 `완료 처리`는 들어가지 않는다. 대화상자 제목은 긴 이름을 쓴다. */
 const ROW_LABEL: Partial<Record<TaskAction, string>> = { cancel: '취소', complete: '완료' }
 /** 행 모드에서 비활성인 이유 — 회색으로 침묵하는 버튼은 고장으로 읽힌다(DESIGN.md 4절 ⑥). */
@@ -93,26 +113,26 @@ function identity(task: Task): FieldItem[] {
   const item = task.plc_task?.Item
   const req = task.request
   return [
-    { label: '종류', value: typeName(task.plc_task?.TaskType) || req?.type?.toUpperCase() || null },
-    { label: '대상', value: t ? `${t.kind === 'station' ? '스테이션' : '셀'} ${t.id}` : null },
+    { label: 'TaskType', value: typeName(task.plc_task?.TaskType) || req?.type?.toUpperCase() || null },
+    { label: 'Target', value: t ? `${t.kind === 'station' ? 'Station' : 'Cell'} ${t.id}` : null },
     {
-      label: '품목',
+      label: 'Item',
       value: item?.Code
         ? `${item.Code} × ${item.Count ?? 1}`
         : req?.item_code
           ? `${req.item_code} × ${req.count ?? 1}`
           : null,
     },
-    { label: '치수 ID/OD/H', value: dimsLabel(task) || null, mono: true },
-    { label: '로봇', value: task.plc_name ?? null },
-    { label: '상태', value: STATE_LABEL[task.state] },
+    { label: 'InnerDiameter/OuterDiameter/Height', value: dimsLabel(task) || null, mono: true },
+    { label: 'Robot', value: task.plc_name ?? null },
+    { label: 'State', value: STATE_LABEL[task.state] },
     {
       label: 'WorkId / TaskId',
       value: task.work_id ? `${task.work_id} / ${task.task_id}` : null,
       mono: true,
       wide: true,
     },
-    ...(req?.note ? [{ label: '메모', value: req.note, wide: true } as FieldItem] : []),
+    ...(req?.note ? [{ label: 'Note', value: req.note, wide: true } as FieldItem] : []),
   ]
 }
 
@@ -123,6 +143,7 @@ export function TaskActions({
   only,
   icons = true,
   row = false,
+  overflow = false,
   testid = 'action',
 }: TaskActionsProps) {
   const [pending, setPending] = useState<TaskAction | null>(null)
@@ -134,7 +155,18 @@ export function TaskActions({
   const actions = row
     ? [...(only ?? ROW_DEFAULT)]
     : allowed.filter((a) => !only || only.includes(a))
-  if (actions.length === 0) return null
+  // 넘침 메뉴 — 버튼으로 서지 않은 조작. 상태가 허용하지 않는 것도 **사유를 달아 남긴다**
+  // (회색으로 침묵하는 대신 왜 안 되는지 말한다 — DESIGN.md 4절 ⑥).
+  // 행 모드에서는 `overflow` 를 무시한다 — 자리 규칙(위 `overflow` 주석)이 코드에서도 한 번 더 막는다.
+  const rest: MenuItem[] = overflow && !row
+    ? ALL_ACTIONS.filter((a) => !actions.includes(a)).map((a) => ({
+        label: ACTION_LABEL[a],
+        danger: DANGER.has(a),
+        disabled: allowed.includes(a) ? undefined : whyNot(a, task.state),
+        run: () => setPending(a),
+      }))
+    : []
+  if (actions.length === 0 && rest.length === 0) return null
   const tail = pending === 'cancel' && task.state !== 'draft' ? cascadeAfter(tasks.list, task) : []
 
   const run = async (a: TaskAction) => {
@@ -175,6 +207,9 @@ export function TaskActions({
             {row ? (ROW_LABEL[a] ?? ACTION_LABEL[a]) : ACTION_LABEL[a]}
           </Button>
         ))}
+        {rest.length > 0 ? (
+          <OverflowMenu items={rest} title="다른 조작" testid={`${testid}-more`} />
+        ) : null}
       </div>
       {pending ? (
         <ConfirmDialog

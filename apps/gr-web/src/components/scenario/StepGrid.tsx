@@ -6,6 +6,8 @@
 import { useMemo, useState } from 'react'
 import { DataGrid, type DataGridColumn } from '../../lib/ui/datagrid/DataGrid'
 import { TASK_TYPES } from '../../lib/gr/const'
+import { robots } from '../../lib/robots'
+import { useStore } from '../../lib/store'
 import type { Cell, Item, ScenarioStep, Station, TaskType } from '../../lib/types'
 import {
   ON_FAILURE_LABEL,
@@ -37,8 +39,10 @@ const FAIL_OPTIONS = [ON_FAILURE_LABEL.stop, ON_FAILURE_LABEL.skip, ON_FAILURE_L
 
 function kindOf(v: string): 'cell' | 'station' | null {
   const s = v.trim().toLowerCase()
-  if (s === 'cell' || s === TARGET_KIND_LABEL.cell) return 'cell'
-  if (s === 'station' || s === TARGET_KIND_LABEL.station) return 'station'
+  // 예전 붙여넣기 호환: 한글 라벨(셀/스테이션)도 받는다.
+  if (s === 'cell' || s === TARGET_KIND_LABEL.cell.toLowerCase() || s === '셀') return 'cell'
+  if (s === 'station' || s === TARGET_KIND_LABEL.station.toLowerCase() || s === '스테이션')
+    return 'station'
   return null
 }
 function waitOf(v: string): ScenarioStep['wait_for'] | null {
@@ -61,6 +65,17 @@ function typeOf(v: string): TaskType | null {
 function intOf(v: string): number | null {
   const n = Number(v.trim())
   return v.trim() !== '' && Number.isFinite(n) ? Math.trunc(n) : null
+}
+/** 로봇 칸 값 → id. `—`/빈칸 = null(실행 로봇), 이름(`GR1`)·id(`1`) 모두 받는다. 모르면 undefined. */
+function robotOf(v: string): number | null | undefined {
+  const s = v.trim()
+  if (s === '' || s === NONE) return null
+  const r = robots.list.find(
+    (x) => x.name.toLowerCase() === s.toLowerCase() || String(x.id) === s.replace(/^gr/i, ''),
+  )
+  if (r) return r.id
+  const n = intOf(s.replace(/^gr/i, ''))
+  return n !== null && n > 0 ? n : undefined
 }
 
 /** 한 칸의 편집을 스텝에 적용한다(모르는 값은 무시 — 붙여넣기가 엉뚱한 값을 심지 않게). */
@@ -107,6 +122,10 @@ export function applyEdit(step: ScenarioStep, colId: string, value: string): Sce
       const f = failOf(value)
       return f ? { ...step, on_failure: f } : step
     }
+    case 'robot': {
+      const r = robotOf(value)
+      return r === undefined ? step : { ...step, robot: r }
+    }
     default:
       return step
   }
@@ -140,7 +159,7 @@ function PickList({
     <div className="absolute top-0 left-0 z-40 w-72 rounded-md border border-line-default bg-surface-panel p-1 shadow-lg">
       <input
         tabIndex={0}
-        className="mb-1 h-7 w-full rounded border border-line-strong bg-transparent px-2 text-xs outline-none focus:border-focus"
+        className="mb-1 h-control-sm w-full rounded border border-line-strong bg-transparent px-2 text-xs outline-none focus:border-focus"
         placeholder="검색 — Enter로 첫 항목 선택"
         value={q}
         onChange={(e) => setQ(e.currentTarget.value)}
@@ -193,6 +212,13 @@ export function StepGrid({
   onEditParams,
   disabled = false,
 }: StepGridProps) {
+  useStore(robots)
+  // 목록은 폴마다 새 배열이라 이름 문자열로 메모한다(열이 2초마다 다시 만들어지지 않게).
+  const robotNames = robots.list.map((r) => r.name).join('\n')
+  const robotOptions = useMemo(
+    () => [NONE, ...robotNames.split('\n').filter(Boolean)],
+    [robotNames],
+  )
   const index = useMemo(() => new Map(steps.map((s, i) => [s.id, i])), [steps])
   const idx = (s: ScenarioStep): number => index.get(s.id) ?? -1
   const err = (s: ScenarioStep, field: string): string | null =>
@@ -225,10 +251,10 @@ export function StepGrid({
         text: (s) => String(idx(s) + 1),
         sortValue: (s) => idx(s),
       },
-      { id: 'label', header: '라벨', width: '9rem', editor: 'text', text: (s) => s.label },
+      { id: 'label', header: 'Label', width: '9rem', editor: 'text', text: (s) => s.label },
       {
         id: 'type',
-        header: '종류',
+        header: 'Type',
         width: '6.5rem',
         editor: 'select',
         options: TASK_TYPES,
@@ -237,8 +263,25 @@ export function StepGrid({
         coercePaste: (v) => typeOf(v),
       },
       {
+        id: 'robot',
+        header: 'Robot',
+        width: '5rem',
+        editor: 'select',
+        options: robotOptions,
+        text: (s) => (s.robot === null || s.robot === undefined ? NONE : robots.nameOf(s.robot)),
+        title: (s) =>
+          s.robot === null || s.robot === undefined
+            ? '비움 — 실행할 때 고른 로봇으로 보냅니다'
+            : `${robots.nameOf(s.robot)} 로 보냅니다`,
+        invalid: (s) => err(s, 'robot'),
+        coercePaste: (v) => {
+          const r = robotOf(v)
+          return r === undefined ? null : r === null ? NONE : robots.nameOf(r)
+        },
+      },
+      {
         id: 'target_kind',
-        header: '대상 종류',
+        header: 'TargetKind',
         width: '6rem',
         editor: 'select',
         options: KIND_OPTIONS,
@@ -248,7 +291,7 @@ export function StepGrid({
       },
       {
         id: 'target_id',
-        header: '대상',
+        header: 'Target',
         width: '11rem',
         editor: 'picker',
         nowrap: true,
@@ -257,17 +300,17 @@ export function StepGrid({
           if (!s.target) return ''
           if (s.target.kind === 'cell') {
             const c = cellById.get(s.target.id)
-            return c ? cellText(c) : `셀 ${s.target.id} (레지스트리에 없음)`
+            return c ? cellText(c) : `Cell ${s.target.id} (레지스트리에 없음)`
           }
           const st = stationById.get(s.target.id)
-          return st ? stationText(st) : `스테이션 ${s.target.id} (레지스트리에 없음)`
+          return st ? stationText(st) : `Station ${s.target.id} (레지스트리에 없음)`
         },
         invalid: (s) => err(s, 'target'),
         coercePaste: (v) => (v.trim() === '' ? '' : intOf(v) === null ? null : String(intOf(v))),
       },
       {
         id: 'item_code',
-        header: '품목',
+        header: 'ItemCode',
         width: '10rem',
         editor: 'picker',
         nowrap: true,
@@ -275,13 +318,13 @@ export function StepGrid({
         title: (s) =>
           s.item_code === null
             ? ''
-            : (itemByCode.get(s.item_code)?.name ?? `품목 ${s.item_code} (레지스트리에 없음)`),
+            : (itemByCode.get(s.item_code)?.name ?? `ItemCode ${s.item_code} (레지스트리에 없음)`),
         invalid: (s) => err(s, 'item_code'),
         coercePaste: (v) => (v.trim() === '' ? '' : intOf(v) === null ? null : String(intOf(v))),
       },
       {
         id: 'count',
-        header: '수량',
+        header: 'Count',
         width: '4rem',
         align: 'right',
         editor: 'number',
@@ -292,7 +335,7 @@ export function StepGrid({
       },
       {
         id: 'wait_for',
-        header: '대기 조건',
+        header: 'WaitFor',
         width: '5.5rem',
         editor: 'select',
         options: WAIT_OPTIONS,
@@ -301,9 +344,8 @@ export function StepGrid({
       },
       {
         id: 'wait_after_ms',
-        header: '후 대기',
-        headerSub: 'ms',
-        width: '5.5rem',
+        header: 'WaitAfterMs',
+        width: '6rem',
         align: 'right',
         editor: 'number',
         decimals: 0,
@@ -313,7 +355,7 @@ export function StepGrid({
       },
       {
         id: 'on_failure',
-        header: '실패 시',
+        header: 'OnFailure',
         width: '5.5rem',
         editor: 'select',
         options: FAIL_OPTIONS,
@@ -322,17 +364,17 @@ export function StepGrid({
       },
       {
         id: 'params',
-        header: '파라미터',
+        header: 'Params',
         width: '7rem',
         editor: 'none',
         text: (s) => paramsToKv(s.params),
         title: (s) => paramsToKv(s.params) || '기본값 사용',
         invalid: (s) => err(s, 'params'),
       },
-      { id: 'note', header: '메모', width: '12rem', editor: 'text', text: (s) => s.note },
+      { id: 'note', header: 'Note', width: '12rem', editor: 'text', text: (s) => s.note },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- idx/err는 index/issues에서만 파생
-    [index, issues, cellById, stationById, itemByCode],
+    [index, issues, cellById, stationById, itemByCode, robotOptions],
   )
 
   function edit(rowId: string, colId: string, value: string) {

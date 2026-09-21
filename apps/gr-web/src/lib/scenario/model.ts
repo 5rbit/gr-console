@@ -50,7 +50,7 @@ export const ON_FAILURE_LABEL: Record<ScenarioStep['on_failure'], string> = {
   skip: '건너뜀',
   retry: '재시도',
 }
-export const TARGET_KIND_LABEL = { cell: '셀', station: '스테이션' } as const
+export const TARGET_KIND_LABEL = { cell: 'Cell', station: 'Station' } as const
 
 /** 품목이 필수인 작업 종류. */
 export const NEEDS_ITEM: ReadonlySet<TaskType> = new Set<TaskType>(['PICK', 'DROP', 'MEASURE'])
@@ -142,7 +142,7 @@ export function paramCount(step: ScenarioStep): number {
   return Object.keys(step.params).length
 }
 
-/** 한 줄 요약 — "PICK 셀#101 ×2 · 1001". */
+/** 한 줄 요약 — "PICK Cell#101 ×2 · 1001". */
 export function stepSummary(step: ScenarioStep): string {
   const parts: string[] = [step.type]
   if (step.target) parts.push(`${TARGET_KIND_LABEL[step.target.kind] ?? step.target.kind}#${step.target.id}`)

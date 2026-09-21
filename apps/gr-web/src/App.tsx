@@ -38,9 +38,12 @@ import { CommandPalette } from './components/CommandPalette'
 import { WorkspaceShell } from './components/workspace/WorkspaceShell'
 import { PANES } from './components/workspace/paneRegistry'
 import TaskIssue from './components/task/TaskIssue'
+import ItemsPage from './components/items/ItemsPage'
 import TaskManager from './components/taskmgr/TaskManager'
 import MeasureMonitor from './components/measure/MeasureMonitor'
 import ScenarioPage from './components/scenario/ScenarioPage'
+import PalletPage from './components/pallet/PalletPage'
+import TracePage from './components/trace/TracePage'
 import { ContextMenuHost } from './lib/ui/ContextMenuHost'
 import { Toaster } from './lib/ui/Toaster'
 import { ErrorBoundary } from './lib/ui/ErrorBoundary'
@@ -59,12 +62,18 @@ function groupCls(active: boolean, open: boolean): string {
 /** 탭 id → 화면. 탭이 늘 때 손댈 자리가 한 곳이다. */
 function Screen({ tab }: { tab: Tab }) {
   switch (tab) {
+    case 'items':
+      return <ItemsPage />
     case 'taskmgr':
       return <TaskManager />
     case 'measure':
       return <MeasureMonitor />
     case 'scenario':
       return <ScenarioPage />
+    case 'pallet':
+      return <PalletPage />
+    case 'trace':
+      return <TracePage />
     case 'task':
     default:
       return <TaskIssue />
@@ -250,7 +259,9 @@ export function App() {
   /** 초기 URL 반영 전에는 되쓰기 금지(기본값이 URL을 덮어쓰지 않게). */
   const urlApplied = useRef(false)
 
-  const tabs = info ? ALL_TABS.filter((t) => info.tabs.includes(t.id)) : ALL_TABS
+  // `local` 탭은 Profile 에 없어도 남는다(`lib/tabs.ts` 의 주석 — 백엔드 라우터는 있는데 목록에만
+  // 안 실린 화면이 통째로 닿지 않는 것을 막는다).
+  const tabs = info ? ALL_TABS.filter((t) => t.local || info.tabs.includes(t.id)) : ALL_TABS
 
   // 메뉴바 — 보이는 탭이 하나도 없는 그룹은 버튼 자체를 내린다.
   const groups = TAB_GROUPS.map((g) => ({
@@ -326,7 +337,12 @@ export function App() {
         setInfo(i)
         // 백엔드가 안 내는 화면의 **탭이 레이아웃에 남지 않게** 한 번 걷어 낸다(보조 패널은 늘 있다).
         workspace.setAvailable(
-          PANES.filter((p) => p.kind === 'aux' || i.tabs.includes(p.id)).map((p) => p.id),
+          PANES.filter(
+            (p) =>
+              p.kind === 'aux' ||
+              i.tabs.includes(p.id) ||
+              ALL_TABS.some((t) => t.id === p.id && t.local),
+          ).map((p) => p.id),
           i.default_tab,
         )
         // 백엔드 기본 탭은 **URL이 없을 때만** 적용한다(공유 링크가 이겨야 한다).

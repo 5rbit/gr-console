@@ -8,6 +8,7 @@ import { useRegistry } from '../../lib/registry'
 import { Input } from '../../lib/ui/Input'
 import { Select } from '../../lib/ui/Select'
 import type { Cell, Station, Target, TargetKind } from '../../lib/types'
+import { TARGET_NAME, USE_FALSE } from '../../lib/fieldNames'
 
 export interface TargetPickerProps {
   value: Target | null
@@ -21,10 +22,10 @@ export interface TargetPickerProps {
   dense?: boolean
 }
 
-const KIND_LABEL: Record<TargetKind, string> = { cell: '셀', station: '스테이션' }
+const KIND_LABEL: Record<TargetKind, string> = TARGET_NAME
 
 export function cellText(c: Cell): string {
-  return `#${c.id} · S${c.section} R${c.row} C${c.col}${c.use ? '' : ' (미사용)'}`
+  return `#${c.id} · S${c.section} R${c.row} C${c.col}${c.use ? '' : ` (${USE_FALSE})`}`
 }
 export function stationText(s: Station): string {
   return `#${s.id} · CV${s.conv_no} G${s.group}-${s.group_index}`
@@ -70,7 +71,7 @@ export function TargetPicker({
   return (
     <div className="flex flex-wrap items-end gap-2" data-testid="target-picker">
       <Select
-        label="대상 종류"
+        label="TargetKind"
         dense={dense}
         value={kind}
         disabled={disabled || kinds.length <= 1}
@@ -91,7 +92,7 @@ export function TargetPicker({
       </Select>
       <Input
         label="검색"
-        placeholder={kind === 'cell' ? 'id·구역·행·열' : 'id·컨베이어·그룹'}
+        placeholder={kind === 'cell' ? 'Id·Section·Row·Col' : 'Id·ConvNo·Group'}
         value={q}
         disabled={disabled}
         data-testid="target-search"

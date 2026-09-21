@@ -279,9 +279,11 @@ class Workspace extends Store {
  */
 export const ALL_PANE_IDS: readonly string[] = [
   'task',
+  'items',
   'taskmgr',
   'measure',
   'scenario',
+  'pallet',
   'robots',
   'plcs',
   'status',

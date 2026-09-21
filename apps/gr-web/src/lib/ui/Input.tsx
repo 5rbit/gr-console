@@ -13,6 +13,12 @@ export interface InputProps extends Omit<
   hint?: string
   placeholder?: string
   mono?: boolean
+  /**
+   * 조밀한 자리용(28px) — `Select` 의 `dense` 와 같은 계약이다. 표 셀 안에 서는 입력은 옆 칸의
+   * `Select dense` 와 **같은 높이**여야 행이 흔들리지 않는다(기본 32px 와 섞이면 행마다 4px 씩
+   * 어긋난다). 폼에서는 쓰지 않는다 — 폼 입력은 손가락이 닿는 크기가 먼저다.
+   */
+  dense?: boolean
   type?: string
   className?: string
 }
@@ -24,6 +30,7 @@ export function Input({
   hint = '',
   placeholder = '',
   mono = false,
+  dense = false,
   type = 'text',
   className = '',
   onChange,
@@ -42,9 +49,9 @@ export function Input({
           onValueChange?.(e.target.value)
           onChange?.(e)
         }}
-        className={`h-control-md rounded-md border border-line-strong bg-transparent px-2 text-sm text-content-primary transition-colors placeholder:text-content-faint focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none ${
-          mono ? 'font-mono tabular-nums' : ''
-        }`}
+        className={`rounded-md border border-line-strong bg-transparent px-2 text-content-primary transition-colors placeholder:text-content-faint focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none ${
+          dense ? 'h-control-sm text-xs' : 'h-control-md text-sm'
+        } ${mono ? 'font-mono tabular-nums' : ''}`}
         {...rest}
       />
       {hint && <span className="text-3xs text-content-faint">{hint}</span>}

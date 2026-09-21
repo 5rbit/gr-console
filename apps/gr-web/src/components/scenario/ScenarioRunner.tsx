@@ -1,15 +1,23 @@
-// 실행 판넬 — `OpsPanel`: 실행(옵션 다이얼로그) / 일시정지 / 재개 / 정지(확인) + 진행 게이지 + 현재 값 +
-// 실시간 로그(Task 관리로 이동). 상태는 `runsFeed`(SSE `/api/scenarios/runs/stream`)에서 온다.
+// 실행 띠 — 편집기 **위 한 줄**. 실행(옵션 다이얼로그) / 일시정지 / 재개 / 정지(확인) + 지금 상태.
+// 상태는 `runsFeed`(SSE `/api/scenarios/runs/stream`)에서 온다.
+//
+// 예전에는 오른쪽에 판넬 하나가 통째로 서서 게이지 둘 · 라벨+값 여섯 · 로그 표를 늘 그렸다. 시나리오를
+// **고치는 동안**에는 그 대부분이 빈칸이었고(실행이 없으니까), 실행 중에는 편집기가 그만큼 좁아졌다.
+// 그래서 늘 보이는 것은 한 줄로 줄이고 — 상태 점 · 회차 · 스텝 · 지금 Task — 나머지(실행 로그 ·
+// 실행 이력)는 `⋯`로 옮겼다. 멈춤/재개/정지는 **실행 중일 때만** 선다(돌지 않을 때 멈출 것이 없다).
 import { useState } from 'react'
-import { ExternalLink, History, Pause, Play, Square } from 'lucide-react'
+import { ExternalLink, Pause, Play, Square } from 'lucide-react'
 import { runsFeed } from '../../lib/feeds'
 import { nav } from '../../lib/nav'
+import { robots } from '../../lib/robots'
 import { useSse } from '../../lib/sse'
+import { useStore } from '../../lib/store'
+import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
+import { Dialog } from '../../lib/ui/Dialog'
 import { FieldList } from '../../lib/ui/FieldList'
-import { Modal } from '../../lib/ui/Modal'
-import { OpsPanel } from '../../lib/ui/OpsPanel'
+import { OverflowMenu } from '../../lib/ui/OverflowMenu'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
 import { StatusDot } from '../../lib/ui/StatusDot'
 import { Gauge } from '../../lib/ui/viz/Gauge'
@@ -64,6 +72,7 @@ async function act(label: string, run: () => Promise<ScenarioRun>): Promise<void
 }
 
 export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunnerProps) {
+  useStore(robots)
   const feed = useSse(runsFeed)
   const run = feed.data as ScenarioRunView | null
   const state = run?.state ?? 'idle'
@@ -71,6 +80,7 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
   const [runOpen, setRunOpen] = useState(false)
   const [stopOpen, setStopOpen] = useState(false)
   const [histOpen, setHistOpen] = useState(false)
+  const [logOpen, setLogOpen] = useState(false)
   const [hist, setHist] = useState<ScenarioRun[]>([])
 
   // 실행 로그의 스텝 라벨 — 도는 시나리오가 편집 중인 것과 같을 때만 안다.
@@ -103,10 +113,10 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
     : null
 
   const logColumns: Column<StepResultView>[] = [
-    { key: 'iter', label: '회차', get: (r) => r.iteration, numeric: true, sortable: false },
+    { key: 'iter', label: 'Iteration', get: (r) => r.iteration, numeric: true, sortable: false },
     {
       key: 'step',
-      label: '스텝',
+      label: 'StepIndex',
       get: (r) => r.step_index,
       sortable: false,
       cell: (r) => (
@@ -120,7 +130,7 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
     },
     {
       key: 'state',
-      label: '상태',
+      label: 'State',
       sortable: false,
       cell: (r) => (
         <StatusBadge status={STATE_TONE[r.state]} dot={false}>
@@ -144,37 +154,44 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
           </span>
         ),
     },
+    {
+      key: 'ended',
+      label: 'EndedAt',
+      get: (r) => r.ended_at ?? '',
+      cell: (r) => fmtTime(r.ended_at),
+    },
   ]
   // 실행 이력을 훑는 이유는 **무엇이 언제 돌았고 왜 멈췄나**다: 시나리오·상태·오류가 1, 시작 시각과
-  // 회차가 2, 결과 건수가 3이다(`docs/DESIGN.md` 4절). 위 `logColumns`는 열 넷이라 접지 않는다.
+  // 회차가 2, 결과 건수가 3이다(`docs/DESIGN.md` 4절).
   const histColumns: Column<ScenarioRun>[] = [
     {
       key: 'started',
-      label: '시작',
+      label: 'StartedAt',
       get: (r) => r.started_at,
       cell: (r) => r.started_at.replace('T', ' ').slice(0, 19),
       priority: 2,
     },
-    { key: 'name', label: '시나리오', get: (r) => r.scenario_name, priority: 1 },
+    { key: 'name', label: 'ScenarioName', get: (r) => r.scenario_name, priority: 1 },
+    { key: 'robot', label: 'RobotName', get: (r) => r.robot_name ?? '', priority: 2 },
     {
       key: 'state',
-      label: '상태',
+      label: 'State',
       get: (r) => r.state,
       cell: (r) => <StatusBadge status={RUN_TONE[r.state]}>{RUN_STATE_LABEL[r.state]}</StatusBadge>,
       priority: 1,
     },
     {
       key: 'iter',
-      label: '회차',
+      label: 'Iteration',
       get: (r) => r.iteration,
       numeric: true,
       cell: (r) => `${r.iteration}/${r.total_iterations ?? '∞'}`,
       priority: 2,
     },
-    { key: 'n', label: '결과', get: (r) => r.results.length, numeric: true, priority: 3 },
+    { key: 'n', label: 'Results', get: (r) => r.results.length, numeric: true, priority: 3 },
     {
       key: 'err',
-      label: '오류',
+      label: 'Error',
       get: (r) => r.error ?? '',
       class: 'max-w-64 truncate',
       priority: 1,
@@ -182,7 +199,6 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
   ]
 
   const iterMax = run?.total_iterations ?? null
-  const iterLabel = run ? `${run.iteration}/${iterMax ?? '∞'}` : ''
   // 스텝 게이지: 끝난 스텝은 꽉, 진행 중인 스텝은 반 칸. 무한 반복은 회차 게이지를 꽉 채운다.
   const stepDone = !!(
     last &&
@@ -198,136 +214,138 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
         ? run.step_count
         : run.step_index + (stepDone ? 1 : 0.5)
   const iterProgress = iterMax ? (run?.iteration ?? 0) : run && state !== 'idle' ? 1 : 0
-  const stepLabelText = run
-    ? `${Math.min(run.step_index + 1, run.step_count)}/${run.step_count}`
-    : ''
+  const showRun = run && state !== 'idle'
+  const note = run?.note ?? run?.error ?? (!feed.connected ? (feed.error ?? '') : '')
 
   return (
     <>
-      <OpsPanel
-        title="실행"
-        target={run && state !== 'idle' ? run.scenario_name : (scenario?.name ?? '')}
-        segments={[]}
-        grid={[
-          {
-            label: '실행',
-            icon: Play,
-            intent: 'primary',
-            disabled: !scenario || active,
-            title: !scenario
+      <div
+        className="flex min-h-control-md flex-wrap items-center gap-x-2 gap-y-1 border-b border-line-default bg-surface-inset px-2 py-1"
+        data-testid="run-strip"
+      >
+        <Button
+          size="sm"
+          intent="primary"
+          icon={<Play size={13} />}
+          disabled={!scenario || active}
+          title={
+            !scenario
               ? '시나리오를 선택·저장하세요'
               : active
-                ? '실행 중'
-                : '반복/시작 스텝을 정하고 실행',
-            run: () => setRunOpen(true),
-            testid: 'run-start',
-          },
-          { label: '이력', icon: History, run: () => void openHistory(), testid: 'run-history' },
-          {
-            label: '일시정지',
-            icon: Pause,
-            disabled: state !== 'running',
-            title: '현재 스텝이 끝난 뒤 다음 제출을 멈춥니다',
-            run: () => void act('일시정지', scenarioApi.pause),
-            testid: 'run-pause',
-          },
-          {
-            label: '재개',
-            icon: Play,
-            disabled: state !== 'paused',
-            run: () => void act('재개', scenarioApi.resume),
-            testid: 'run-resume',
-          },
-        ]}
-        note={run?.note ?? run?.error ?? (!feed.connected ? (feed.error ?? '') : '')}
-        stop={{
-          label: '정지',
-          icon: Square,
-          disabled: !active || state === 'stopping',
-          immediate: false,
-          title: '실행을 끝냅니다. PLC에 이미 넘어간 태스크는 취소하지 않습니다.',
-          run: () => setStopOpen(true),
-        }}
-        lastAction={
-          last
-            ? `${fmtTime(last.ended_at ?? last.started_at)} ${last.iteration}회차 ${last.step_index + 1}번 → ${STATE_LABEL[last.state]}`
-            : ''
-        }
-      >
-        <div
-          className="flex flex-col gap-1.5 border-b border-line-subtle p-2"
-          data-testid="run-progress"
+                ? '이미 실행 중입니다'
+                : '반복 · 시작 스텝 · 로봇을 정하고 실행'
+          }
+          data-testid="run-start"
+          onClick={() => setRunOpen(true)}
         >
-          <div className="flex items-center justify-between text-3xs text-content-muted">
-            <span>회차</span>
-            <StatusDot status={RUN_TONE[state]} size="sm" label={RUN_STATE_LABEL[state]} />
-          </div>
-          <Gauge
-            value={iterProgress}
-            max={iterMax ?? 1}
-            label={iterLabel}
-            status={RUN_TONE[state]}
-          />
-          <div className="text-3xs text-content-muted">스텝</div>
-          <Gauge
-            value={stepProgress}
-            max={run?.step_count || 1}
-            label={stepLabelText}
-            status={RUN_TONE[state]}
-          />
-        </div>
-        <div className="border-b border-line-subtle px-2 py-1">
-          <FieldList
-            columns={1}
-            dense
-            labelWidth={64}
+          실행
+        </Button>
+        {active ? (
+          <>
+            {state === 'paused' ? (
+              <Button
+                size="sm"
+                icon={<Play size={13} />}
+                data-testid="run-resume"
+                onClick={() => void act('재개', scenarioApi.resume)}
+              >
+                재개
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                icon={<Pause size={13} />}
+                disabled={state !== 'running'}
+                title="현재 스텝이 끝난 뒤 다음 제출을 멈춥니다"
+                data-testid="run-pause"
+                onClick={() => void act('일시정지', scenarioApi.pause)}
+              >
+                일시정지
+              </Button>
+            )}
+            <Button
+              size="sm"
+              intent="outline"
+              icon={<Square size={13} />}
+              disabled={state === 'stopping'}
+              title="실행을 끝냅니다 — 이미 PLC 로 넘어간 태스크는 취소하지 않습니다."
+              data-testid="run-stop"
+              onClick={() => setStopOpen(true)}
+            >
+              정지
+            </Button>
+          </>
+        ) : null}
+
+        {/* 지금 상태 — 점(상태) · 이름 · 회차 · 스텝 · Task. 돌지 않을 때는 점 하나만 남는다. */}
+        <StatusDot status={RUN_TONE[state]} size="sm" label={RUN_STATE_LABEL[state]} />
+        {showRun ? (
+          <>
+            <span className="max-w-48 truncate text-xs text-content-secondary">
+              {run.scenario_name}
+            </span>
+            <span className="flex items-center gap-1 text-2xs text-content-muted">
+              Iteration
+              <span className="w-24">
+                <Gauge
+                  value={iterProgress}
+                  max={iterMax ?? 1}
+                  label={`${run.iteration}/${iterMax ?? '∞'}`}
+                  status={RUN_TONE[state]}
+                />
+              </span>
+            </span>
+            <span className="flex items-center gap-1 text-2xs text-content-muted">
+              Step
+              <span className="w-24">
+                <Gauge
+                  value={stepProgress}
+                  max={run.step_count || 1}
+                  label={`${Math.min(run.step_index + 1, run.step_count)}/${run.step_count}`}
+                  status={RUN_TONE[state]}
+                />
+              </span>
+            </span>
+            <span
+              className="max-w-56 truncate text-2xs text-content-tertiary"
+              title={lastAck ?? undefined}
+            >
+              {stepLabel(run.step_index)}
+            </span>
+            {run.current_task_id ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 font-mono text-2xs text-accent-text hover:underline"
+                title="이 Task를 Task 관리에서 열기"
+                onClick={() => nav.goTask(run.current_task_id!)}
+              >
+                {shortId(run.current_task_id)}
+                <ExternalLink size={10} />
+              </button>
+            ) : null}
+          </>
+        ) : null}
+        {note ? (
+          <span className="max-w-72 truncate text-2xs text-warn-fg" title={note}>
+            {note}
+          </span>
+        ) : null}
+
+        <span className="ml-auto flex items-center gap-1">
+          <OverflowMenu
+            testid="run-more"
+            title="실행 로그 · 이력"
             items={[
               {
-                label: '현재 스텝',
-                value:
-                  run && state !== 'idle'
-                    ? `${run.step_index + 1}. ${stepLabel(run.step_index)}`
-                    : null,
-                missing: '실행 없음',
+                label: `실행 로그 (${results.length})`,
+                disabled: results.length === 0 ? '이번 실행의 기록이 아직 없습니다' : undefined,
+                run: () => setLogOpen(true),
               },
-              {
-                label: 'Task',
-                value: run?.current_task_id ? (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 font-mono text-accent-text hover:underline"
-                    onClick={() => nav.goTask(run.current_task_id!)}
-                  >
-                    {shortId(run.current_task_id)}
-                    <ExternalLink size={10} />
-                  </button>
-                ) : null,
-                missing: '진행 중인 Task 없음',
-              },
-              {
-                label: '마지막 Ack',
-                value: lastAck,
-                status: last?.ack ? (last.ack.accepted ? 'ok' : 'fault') : undefined,
-                missing: '아직 응답 없음',
-              },
-              { label: '시작', value: fmtTime(run?.started_at) || null },
-              { label: '종료', value: fmtTime(run?.ended_at) || null, missing: '진행 중' },
+              { label: '실행 이력 (최근 50)', run: () => void openHistory() },
             ]}
           />
-        </div>
-        <div className="min-h-0" data-testid="run-log">
-          <div className="px-2 pt-1.5 text-3xs font-medium text-content-muted">
-            실행 로그 {results.length ? `(${results.length})` : ''}
-          </div>
-          <DataTable<StepResultView>
-            rows={results}
-            columns={logColumns}
-            rowKey={(r) => `${r.iteration}-${r.step_index}-${r.attempt ?? 0}-${r.started_at}`}
-            onPick={(r) => r.task_id && nav.goTask(r.task_id)}
-            empty="기록 없음"
-          />
-        </div>
-      </OpsPanel>
+        </span>
+      </div>
 
       <RunDialog
         open={runOpen}
@@ -346,13 +364,111 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
         confirmLabel="정지"
         onConfirm={() => void act('정지', scenarioApi.stop)}
       >
-        <p className="m-0">
-          <b>{run?.scenario_name}</b> 실행을 끝냅니다. 이미 PLC에 제출된 태스크는 그대로
-          진행되며(취소하지 않음), 다음 스텝은 제출하지 않습니다.
-        </p>
+        {/* 버튼의 `title` 이 이미 "무엇이 일어나나"를 말한다 — 여기서는 묻고, 대상만 짚는다. */}
+        <div className="flex flex-col gap-2 text-xs">
+          <p className="m-0">실행을 정지할까요?</p>
+          <FieldList
+            columns={2}
+            dense
+            labelWidth={64}
+            items={[
+              { label: '시나리오', value: run?.scenario_name ?? '', missing: '이름 없음' },
+              {
+                label: '회차',
+                value: run ? `${run.iteration}/${run.total_iterations ?? '∞'}` : '',
+              },
+              {
+                label: '스텝',
+                value: run
+                  ? `${Math.min(run.step_index + 1, run.step_count)}/${run.step_count}`
+                  : '',
+              },
+              { label: '제출된 Task', value: '취소하지 않음' },
+            ]}
+          />
+        </div>
       </ConfirmDialog>
 
-      <Modal open={histOpen} onOpenChange={setHistOpen} title="실행 이력 (최근 50)" wide>
+      {/* 띠가 들지 않는 값(로봇·시작/끝 시각·마지막 응답)은 여기 머리에 그대로 남는다 — 예전 판넬의
+          라벨+값 여섯이 사라진 것이 아니라 한 번의 클릭 뒤로 옮겨졌다. */}
+      <Dialog
+        open={logOpen}
+        onOpenChange={setLogOpen}
+        title="실행 상태 · 로그"
+        size="lg"
+        meta={`${results.length}건`}
+        footer={
+          <Button size="sm" intent="ghost" onClick={() => setLogOpen(false)}>
+            닫기
+          </Button>
+        }
+        testid="run-log-dialog"
+      >
+        <FieldList
+          className="mb-3"
+          columns={3}
+          dense
+          labelWidth={64}
+          items={[
+            {
+              label: 'Robot',
+              value:
+                showRun && run.robot_name
+                  ? run.robot_name
+                  : robots.current
+                    ? `${robots.current.name} (다음 실행)`
+                    : null,
+              missing: '기본 로봇',
+            },
+            {
+              label: 'Step',
+              value: showRun ? `${run.step_index + 1}. ${stepLabel(run.step_index)}` : null,
+              missing: '실행 없음',
+            },
+            {
+              label: 'Task',
+              value: run?.current_task_id ? shortId(run.current_task_id) : null,
+              mono: true,
+              missing: '진행 중인 Task 없음',
+            },
+            {
+              label: 'LastAck',
+              value: lastAck,
+              status: last?.ack ? (last.ack.accepted ? 'ok' : 'fault') : undefined,
+              missing: '아직 응답 없음',
+            },
+            { label: 'StartedAt', value: fmtTime(run?.started_at) || null },
+            { label: 'EndedAt', value: fmtTime(run?.ended_at) || null, missing: '진행 중' },
+          ]}
+        />
+        <DataTable<StepResultView>
+          rows={results}
+          columns={logColumns}
+          rowKey={(r) => `${r.iteration}-${r.step_index}-${r.attempt ?? 0}-${r.started_at}`}
+          onPick={(r) => {
+            if (!r.task_id) return
+            setLogOpen(false)
+            nav.goTask(r.task_id)
+          }}
+          empty="기록 없음"
+          emptyHint="이번 실행에서 끝난 스텝이 아직 없습니다."
+          testid="run-log"
+        />
+      </Dialog>
+
+      <Dialog
+        open={histOpen}
+        onOpenChange={setHistOpen}
+        title="실행 이력"
+        size="lg"
+        meta={`최근 ${hist.length}건`}
+        footer={
+          <Button size="sm" intent="ghost" onClick={() => setHistOpen(false)}>
+            닫기
+          </Button>
+        }
+        testid="run-hist-dialog"
+      >
         <DataTable<ScenarioRun>
           rows={hist}
           columns={histColumns}
@@ -362,8 +478,9 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
             onOpenScenario(r.scenario_id)
           }}
           empty="실행 이력 없음"
+          emptyHint="시나리오를 한 번 실행하면 여기에 남습니다."
         />
-      </Modal>
+      </Dialog>
     </>
   )
 }

@@ -1,0 +1,2634 @@
+{
+  "version": "R4-251213",
+  "source": "[GR] HKT TP2 팔렛타이징 사양서 R4 251213.pptx",
+  "generator": "tools/pallet/gen_spec.mjs",
+  "pallet_size_mm": 1600,
+  "normalization": "u = drawn machine-axis offset from pallet box center / min center distance; offset_mm = u * (OuterDiameter + Gap). Centroid snapped to 0 only when within 10 mm.",
+  "size_classes": [
+    {
+      "pattern": 2,
+      "od_min": 814,
+      "od_max": 937
+    },
+    {
+      "pattern": 3,
+      "od_min": 756,
+      "od_max": 813
+    },
+    {
+      "pattern": 4,
+      "od_min": 663,
+      "od_max": 755
+    },
+    {
+      "pattern": 5,
+      "od_min": 601,
+      "od_max": 662
+    },
+    {
+      "pattern": 6,
+      "od_min": 546,
+      "od_max": 600
+    },
+    {
+      "pattern": 8,
+      "od_min": 521,
+      "od_max": 545
+    },
+    {
+      "pattern": 9,
+      "od_min": 0,
+      "od_max": 520
+    }
+  ],
+  "size_class_notes": [
+    "Order tables print Pattern 5 as \"601 ~ 622\"; the size chart prints \"601 ~ 662\". 662 is used (no hole before Pattern 4 at 663)."
+  ],
+  "flows": [
+    {
+      "id": "HP_IN",
+      "name": "Palletizing Pattern (HP 입고)",
+      "source_slide": 2,
+      "also_slides": [
+        4
+      ],
+      "drag_kind": "in",
+      "reference": false,
+      "robot": "GR1(HP)",
+      "zone": "입고1 (Stack 422) / 입고2 (Stack 391)",
+      "screen_axes": {
+        "right": "X-",
+        "down": "Y-"
+      },
+      "notes": [],
+      "patterns": [
+        {
+          "pattern": 2,
+          "od_min": 814,
+          "od_max": 937,
+          "order_text": "1 2p3",
+          "drawn": {
+            "d_mm": 853.8,
+            "min_dist_mm": 933,
+            "gap_mm": 79.1,
+            "centroid_mm": [
+              0,
+              0
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                -0.3504,
+                -0.3567
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                0.3504,
+                0.3567
+              ],
+              "drag_dir": 3
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 3,
+          "od_min": 756,
+          "od_max": 813,
+          "order_text": "1 2p3 3p1",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 773.7,
+            "gap_mm": -8.4,
+            "centroid_mm": [
+              42.4,
+              -75.5
+            ],
+            "centered": false
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                -0.522,
+                -0.2498
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                0.2177,
+                0.4625
+              ],
+              "drag_dir": 3
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                0.4689,
+                -0.5054
+              ],
+              "drag_dir": 1
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 4,
+          "od_min": 663,
+          "od_max": 755,
+          "order_text": "1 2p5 3p2 4p3",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 793.1,
+            "gap_mm": 11.1,
+            "centroid_mm": [
+              -8.1,
+              -1.9
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                -0.5033,
+                -0.5
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                -0.5033,
+                0.5
+              ],
+              "drag_dir": 5
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                0.5033,
+                -0.5
+              ],
+              "drag_dir": 2
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                0.5033,
+                0.5
+              ],
+              "drag_dir": 3
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 5,
+          "od_min": 601,
+          "od_max": 662,
+          "order_text": "1 2 3p2 4p1 5p3",
+          "drawn": {
+            "d_mm": 585.4,
+            "min_dist_mm": 608,
+            "gap_mm": 22.6,
+            "centroid_mm": [
+              -3.3,
+              -3.1
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                -0.7355,
+                -0.6949
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                -0.7355,
+                0.6924
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                0.0061,
+                0.0051
+              ],
+              "drag_dir": 2
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                0.7324,
+                -0.6949
+              ],
+              "drag_dir": 1
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                0.7324,
+                0.6924
+              ],
+              "drag_dir": 3
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 6,
+          "od_min": 546,
+          "od_max": 600,
+          "order_text": "1 2p1 3p3 4p2 5p1 6p3",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 525.8,
+            "gap_mm": 13.8,
+            "centroid_mm": [
+              -9.5,
+              0.7
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                -0.8037,
+                0.0021
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                -0.352,
+                -0.936
+              ],
+              "drag_dir": 1
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                -0.352,
+                0.9339
+              ],
+              "drag_dir": 3
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                0.2118,
+                0.0021
+              ],
+              "drag_dir": 2
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                0.648,
+                -0.936
+              ],
+              "drag_dir": 1
+            },
+            {
+              "slot": "C#6",
+              "seq": 6,
+              "u": [
+                0.648,
+                0.9339
+              ],
+              "drag_dir": 3
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 8,
+          "od_min": 521,
+          "od_max": 545,
+          "order_text": "1 2 3p2 4p1 5p3 6p2 7p1 8p3",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 508.9,
+            "gap_mm": -3.1,
+            "centroid_mm": [
+              0.4,
+              -0.2
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                -0.9772,
+                -0.9774
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                -0.9772,
+                1.0064
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                -0.7642,
+                0.0003
+              ],
+              "drag_dir": 2
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                -0.0008,
+                -0.6842
+              ],
+              "drag_dir": 1
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                -0.0008,
+                0.6848
+              ],
+              "drag_dir": 3
+            },
+            {
+              "slot": "C#6",
+              "seq": 6,
+              "u": [
+                0.7627,
+                0.0003
+              ],
+              "drag_dir": 2
+            },
+            {
+              "slot": "C#7",
+              "seq": 7,
+              "u": [
+                0.9787,
+                -1.0071
+              ],
+              "drag_dir": 1
+            },
+            {
+              "slot": "C#8",
+              "seq": 8,
+              "u": [
+                0.9787,
+                0.9767
+              ],
+              "drag_dir": 3
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 9,
+          "od_min": 0,
+          "od_max": 520,
+          "order_text": "1 2p5 3p5 4p2 5p3 6p3 7p2 8p3 9p3",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 513.6,
+            "gap_mm": 1.6,
+            "centroid_mm": [
+              -3.2,
+              -0.1
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                -1,
+                -1.0236
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                -1,
+                0.0001
+              ],
+              "drag_dir": 5
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                -1,
+                1.0234
+              ],
+              "drag_dir": 5
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                0,
+                -1.0236
+              ],
+              "drag_dir": 2
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                0,
+                0.0001
+              ],
+              "drag_dir": 3
+            },
+            {
+              "slot": "C#6",
+              "seq": 6,
+              "u": [
+                0,
+                1.0234
+              ],
+              "drag_dir": 3
+            },
+            {
+              "slot": "C#7",
+              "seq": 7,
+              "u": [
+                1,
+                -1.0236
+              ],
+              "drag_dir": 2
+            },
+            {
+              "slot": "C#8",
+              "seq": 8,
+              "u": [
+                1,
+                0.0001
+              ],
+              "drag_dir": 3
+            },
+            {
+              "slot": "C#9",
+              "seq": 9,
+              "u": [
+                1,
+                1.0234
+              ],
+              "drag_dir": 3
+            }
+          ],
+          "notes": []
+        }
+      ]
+    },
+    {
+      "id": "OP_IN",
+      "name": "Palletizing Pattern (OP 입고)",
+      "source_slide": 2,
+      "also_slides": [
+        4
+      ],
+      "drag_kind": "in",
+      "reference": false,
+      "robot": "GR2(OP)",
+      "zone": "입고1 (Stack 422) / 입고2 (Stack 391)",
+      "screen_axes": {
+        "right": "X-",
+        "down": "Y-"
+      },
+      "notes": [],
+      "patterns": [
+        {
+          "pattern": 2,
+          "od_min": 814,
+          "od_max": 937,
+          "order_text": "2 1p6",
+          "drawn": {
+            "d_mm": 853.8,
+            "min_dist_mm": 933.1,
+            "gap_mm": 79.3,
+            "centroid_mm": [
+              -0.1,
+              0
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#2",
+              "seq": 1,
+              "u": [
+                0.3505,
+                0.3566
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#1",
+              "seq": 2,
+              "u": [
+                -0.3505,
+                -0.3566
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 3,
+          "od_min": 756,
+          "od_max": 813,
+          "order_text": "3 2p8 1p6",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 773.7,
+            "gap_mm": -8.3,
+            "centroid_mm": [
+              42.4,
+              -75.5
+            ],
+            "centered": false
+          },
+          "slots": [
+            {
+              "slot": "C#3",
+              "seq": 1,
+              "u": [
+                0.4689,
+                -0.5054
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                0.2174,
+                0.4625
+              ],
+              "drag_dir": 8
+            },
+            {
+              "slot": "C#1",
+              "seq": 3,
+              "u": [
+                -0.522,
+                -0.2498
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": [
+            "slide2 has a second row \"2(p8) → 1(p6)\" (2 tires, no C#3); slide4 keeps only \"3 → 2(p8) → 1(p6)\" (red box). The 3-tire row is used."
+          ]
+        },
+        {
+          "pattern": 4,
+          "od_min": 663,
+          "od_max": 755,
+          "order_text": "4 3p4 2p7 1p6",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 793.1,
+            "gap_mm": 11.1,
+            "centroid_mm": [
+              -8.2,
+              -1.7
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#4",
+              "seq": 1,
+              "u": [
+                0.5031,
+                0.5
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#3",
+              "seq": 2,
+              "u": [
+                0.5031,
+                -0.5
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#2",
+              "seq": 3,
+              "u": [
+                -0.5031,
+                0.5
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#1",
+              "seq": 4,
+              "u": [
+                -0.5031,
+                -0.5
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": [
+            "slide2 table prints \"3 (45)\"; slide4 prints \"3 (p4)\" and circle C#3 is \"4↑\" → dir 4."
+          ]
+        },
+        {
+          "pattern": 5,
+          "od_min": 601,
+          "od_max": 662,
+          "order_text": "5 4 3p7 2p8 1p6",
+          "drawn": {
+            "d_mm": 585.4,
+            "min_dist_mm": 608,
+            "gap_mm": 22.6,
+            "centroid_mm": [
+              -3.4,
+              -3.2
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#5",
+              "seq": 1,
+              "u": [
+                0.7323,
+                0.6925
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#4",
+              "seq": 2,
+              "u": [
+                0.7323,
+                -0.6951
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                0.0059,
+                0.0052
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 4,
+              "u": [
+                -0.7352,
+                0.6925
+              ],
+              "drag_dir": 8
+            },
+            {
+              "slot": "C#1",
+              "seq": 5,
+              "u": [
+                -0.7352,
+                -0.6951
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 6,
+          "od_min": 546,
+          "od_max": 600,
+          "order_text": "6 5 4p7 3p8 2p6 1p7",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 526,
+            "gap_mm": 14,
+            "centroid_mm": [
+              -9.4,
+              0.7
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#6",
+              "seq": 1,
+              "u": [
+                0.648,
+                0.9335
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#5",
+              "seq": 2,
+              "u": [
+                0.648,
+                -0.9356
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#4",
+              "seq": 3,
+              "u": [
+                0.2115,
+                0.0021
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#3",
+              "seq": 4,
+              "u": [
+                -0.352,
+                0.9335
+              ],
+              "drag_dir": 8
+            },
+            {
+              "slot": "C#2",
+              "seq": 5,
+              "u": [
+                -0.352,
+                -0.9356
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#1",
+              "seq": 6,
+              "u": [
+                -0.8035,
+                0.0021
+              ],
+              "drag_dir": 7
+            }
+          ],
+          "notes": [
+            "table prints \"1(7)\" (missing p); circle C#1 \"←7\" → dir 7."
+          ]
+        },
+        {
+          "pattern": 8,
+          "od_min": 521,
+          "od_max": 545,
+          "order_text": "8 7 6p7 5p8 4p6 3p7 2p8 1p6",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 508.9,
+            "gap_mm": -3.1,
+            "centroid_mm": [
+              0.3,
+              -0.2
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#8",
+              "seq": 1,
+              "u": [
+                0.9785,
+                0.9768
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#7",
+              "seq": 2,
+              "u": [
+                0.9785,
+                -1.007
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#6",
+              "seq": 3,
+              "u": [
+                0.7625,
+                0.0004
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#5",
+              "seq": 4,
+              "u": [
+                -0.0005,
+                0.6849
+              ],
+              "drag_dir": 8
+            },
+            {
+              "slot": "C#4",
+              "seq": 5,
+              "u": [
+                -0.0005,
+                -0.6845
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#3",
+              "seq": 6,
+              "u": [
+                -0.764,
+                0.0004
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 7,
+              "u": [
+                -0.9773,
+                1.0061
+              ],
+              "drag_dir": 8
+            },
+            {
+              "slot": "C#1",
+              "seq": 8,
+              "u": [
+                -0.9773,
+                -0.9773
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 9,
+          "od_min": 0,
+          "od_max": 520,
+          "order_text": "9 8p4 7p4 6p7 5p6 4p6 3p7 2p6 1p6",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 513.6,
+            "gap_mm": 1.6,
+            "centroid_mm": [
+              -3.2,
+              0.1
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#9",
+              "seq": 1,
+              "u": [
+                1,
+                1.0236
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#8",
+              "seq": 2,
+              "u": [
+                1,
+                -0.0001
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#7",
+              "seq": 3,
+              "u": [
+                1,
+                -1.0234
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#6",
+              "seq": 4,
+              "u": [
+                0,
+                1.0236
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                0,
+                -0.0001
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#4",
+              "seq": 6,
+              "u": [
+                0,
+                -1.0234
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#3",
+              "seq": 7,
+              "u": [
+                -1,
+                1.0236
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 8,
+              "u": [
+                -1,
+                -0.0001
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#1",
+              "seq": 9,
+              "u": [
+                -1,
+                -1.0234
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        }
+      ]
+    },
+    {
+      "id": "OP_IN_S5",
+      "name": "Palletizing Pattern (OP 입고) — slide5 흐린 참고본",
+      "source_slide": 5,
+      "also_slides": [],
+      "drag_kind": "in",
+      "reference": true,
+      "robot": "GR1(OP)?",
+      "zone": "출하1,2,3 slide 참고 (흐린 표시)",
+      "screen_axes": {
+        "right": "X-",
+        "down": "Y-"
+      },
+      "notes": [
+        "Faded reference column on slide5. Same slot positions as OP_IN but different orders/dirs (row-by-row from the X+/Y− corner). P4 equals IN1_ALT_OP (slide3) in machine axes. Which OP 입고 version is current is an open question."
+      ],
+      "patterns": [
+        {
+          "pattern": 2,
+          "od_min": 814,
+          "od_max": 937,
+          "order_text": "2 1p6",
+          "drawn": {
+            "d_mm": 853.8,
+            "min_dist_mm": 933.3,
+            "gap_mm": 79.4,
+            "centroid_mm": [
+              -0.1,
+              -0.1
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#2",
+              "seq": 1,
+              "u": [
+                0.3504,
+                0.3567
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#1",
+              "seq": 2,
+              "u": [
+                -0.3504,
+                -0.3567
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 3,
+          "od_min": 756,
+          "od_max": 813,
+          "order_text": "3 2p8 1p6",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 773.7,
+            "gap_mm": -8.4,
+            "centroid_mm": [
+              42.4,
+              -75.4
+            ],
+            "centered": false
+          },
+          "slots": [
+            {
+              "slot": "C#3",
+              "seq": 1,
+              "u": [
+                0.4689,
+                -0.5054
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                0.2177,
+                0.4625
+              ],
+              "drag_dir": 8
+            },
+            {
+              "slot": "C#1",
+              "seq": 3,
+              "u": [
+                -0.522,
+                -0.2495
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 4,
+          "od_min": 663,
+          "od_max": 755,
+          "order_text": "3 4p5 1p7 2p8",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 793.1,
+            "gap_mm": 11.1,
+            "centroid_mm": [
+              -8.1,
+              -1.7
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#3",
+              "seq": 1,
+              "u": [
+                0.5033,
+                -0.5
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#4",
+              "seq": 2,
+              "u": [
+                0.5033,
+                0.5
+              ],
+              "drag_dir": 5
+            },
+            {
+              "slot": "C#1",
+              "seq": 3,
+              "u": [
+                -0.5033,
+                -0.5
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 4,
+              "u": [
+                -0.5033,
+                0.5
+              ],
+              "drag_dir": 8
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 5,
+          "od_min": 601,
+          "od_max": 662,
+          "order_text": "4 5 3p7 1p6 2p8",
+          "drawn": {
+            "d_mm": 585.4,
+            "min_dist_mm": 607.8,
+            "gap_mm": 22.4,
+            "centroid_mm": [
+              -3.4,
+              -3.3
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#4",
+              "seq": 1,
+              "u": [
+                0.7325,
+                -0.6952
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#5",
+              "seq": 2,
+              "u": [
+                0.7325,
+                0.6925
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                0.0059,
+                0.0053
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#1",
+              "seq": 4,
+              "u": [
+                -0.7354,
+                -0.6952
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#2",
+              "seq": 5,
+              "u": [
+                -0.7354,
+                0.6925
+              ],
+              "drag_dir": 8
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 6,
+          "od_min": 546,
+          "od_max": 600,
+          "order_text": "5 6 4p7 2p6 3p8 1p7",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 525.8,
+            "gap_mm": 13.8,
+            "centroid_mm": [
+              -9.6,
+              0.5
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#5",
+              "seq": 1,
+              "u": [
+                0.6481,
+                -0.9362
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#6",
+              "seq": 2,
+              "u": [
+                0.6481,
+                0.9342
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#4",
+              "seq": 3,
+              "u": [
+                0.2114,
+                0.002
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 4,
+              "u": [
+                -0.3519,
+                -0.9362
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#3",
+              "seq": 5,
+              "u": [
+                -0.3519,
+                0.9342
+              ],
+              "drag_dir": 8
+            },
+            {
+              "slot": "C#1",
+              "seq": 6,
+              "u": [
+                -0.8036,
+                0.002
+              ],
+              "drag_dir": 7
+            }
+          ],
+          "notes": [
+            "table prints \"1(7)\" (missing p); circle C#1 \"←7\" → dir 7."
+          ]
+        },
+        {
+          "pattern": 8,
+          "od_min": 521,
+          "od_max": 545,
+          "order_text": "7 8 6p7 4p6 5p8 3p7 1p6 2p8",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 508.9,
+            "gap_mm": -3.1,
+            "centroid_mm": [
+              0.4,
+              -0.1
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#7",
+              "seq": 1,
+              "u": [
+                0.9787,
+                -1.0068
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#8",
+              "seq": 2,
+              "u": [
+                0.9787,
+                0.9766
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#6",
+              "seq": 3,
+              "u": [
+                0.7627,
+                0.0002
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                -0.0008,
+                -0.6843
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                -0.0008,
+                0.6852
+              ],
+              "drag_dir": 8
+            },
+            {
+              "slot": "C#3",
+              "seq": 6,
+              "u": [
+                -0.7642,
+                0.0002
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#1",
+              "seq": 7,
+              "u": [
+                -0.9772,
+                -0.9775
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#2",
+              "seq": 8,
+              "u": [
+                -0.9772,
+                1.0063
+              ],
+              "drag_dir": 8
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 9,
+          "od_min": 0,
+          "od_max": 520,
+          "order_text": "7 8p5 9p5 4p7 5p8 6p8 1p7 2p8 3p8",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 513.6,
+            "gap_mm": 1.6,
+            "centroid_mm": [
+              -3.2,
+              0
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#7",
+              "seq": 1,
+              "u": [
+                1,
+                -1.0233
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#8",
+              "seq": 2,
+              "u": [
+                1,
+                0
+              ],
+              "drag_dir": 5
+            },
+            {
+              "slot": "C#9",
+              "seq": 3,
+              "u": [
+                1,
+                1.0233
+              ],
+              "drag_dir": 5
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                0,
+                -1.0233
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                0,
+                0
+              ],
+              "drag_dir": 8
+            },
+            {
+              "slot": "C#6",
+              "seq": 6,
+              "u": [
+                0,
+                1.0233
+              ],
+              "drag_dir": 8
+            },
+            {
+              "slot": "C#1",
+              "seq": 7,
+              "u": [
+                -1,
+                -1.0233
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 8,
+              "u": [
+                -1,
+                0
+              ],
+              "drag_dir": 8
+            },
+            {
+              "slot": "C#3",
+              "seq": 9,
+              "u": [
+                -1,
+                1.0233
+              ],
+              "drag_dir": 8
+            }
+          ],
+          "notes": []
+        }
+      ]
+    },
+    {
+      "id": "OP_OUT",
+      "name": "Palletizing Pattern (OP 출하)",
+      "source_slide": 5,
+      "also_slides": [],
+      "drag_kind": "out",
+      "reference": false,
+      "robot": "GR1(OP)",
+      "zone": "출하1 (115) / 출하2 (116) / 출하3 (116)",
+      "screen_axes": {
+        "right": "X-",
+        "down": "Y-"
+      },
+      "notes": [],
+      "patterns": [
+        {
+          "pattern": 2,
+          "od_min": 814,
+          "od_max": 937,
+          "order_text": "2p6 1",
+          "drawn": {
+            "d_mm": 853.8,
+            "min_dist_mm": 933.1,
+            "gap_mm": 79.3,
+            "centroid_mm": [
+              0.1,
+              0
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#2",
+              "seq": 1,
+              "u": [
+                -0.3505,
+                -0.3566
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#1",
+              "seq": 2,
+              "u": [
+                0.3505,
+                0.3566
+              ],
+              "drag_dir": 0
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 3,
+          "od_min": 756,
+          "od_max": 813,
+          "order_text": "3p7 2p6 1",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 773.7,
+            "gap_mm": -8.3,
+            "centroid_mm": [
+              -42.4,
+              75.4
+            ],
+            "centered": false
+          },
+          "slots": [
+            {
+              "slot": "C#3",
+              "seq": 1,
+              "u": [
+                -0.4689,
+                0.5054
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                -0.2174,
+                -0.4625
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#1",
+              "seq": 3,
+              "u": [
+                0.522,
+                0.2495
+              ],
+              "drag_dir": 0
+            }
+          ],
+          "notes": [
+            "slide5 red box revises the order to \"3(p7) → 2(p6) → 1\" (used); the original row \"2(p6) → 3(p7) → 1\" is still printed above it and on slide6."
+          ]
+        },
+        {
+          "pattern": 4,
+          "od_min": 663,
+          "od_max": 755,
+          "order_text": "4p6 3p7 2p4 1",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 793.1,
+            "gap_mm": 11.1,
+            "centroid_mm": [
+              8.2,
+              1.9
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#4",
+              "seq": 1,
+              "u": [
+                -0.5031,
+                -0.5
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#3",
+              "seq": 2,
+              "u": [
+                -0.5031,
+                0.5
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 3,
+              "u": [
+                0.5031,
+                -0.5
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#1",
+              "seq": 4,
+              "u": [
+                0.5031,
+                0.5
+              ],
+              "drag_dir": 0
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 5,
+          "od_min": 601,
+          "od_max": 662,
+          "order_text": "5p6 4p7 3p7 2p4 1",
+          "drawn": {
+            "d_mm": 585.4,
+            "min_dist_mm": 607.8,
+            "gap_mm": 22.4,
+            "centroid_mm": [
+              3.4,
+              3.3
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#5",
+              "seq": 1,
+              "u": [
+                -0.7325,
+                -0.6925
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#4",
+              "seq": 2,
+              "u": [
+                -0.7325,
+                0.6952
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                -0.0059,
+                -0.0053
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 4,
+              "u": [
+                0.7354,
+                -0.6925
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#1",
+              "seq": 5,
+              "u": [
+                0.7354,
+                0.6952
+              ],
+              "drag_dir": 0
+            }
+          ],
+          "notes": [
+            "table prints \"… 3(p7) → 2 → 1\" (no dir on 2) but circle C#2 is \"4↓\" and OP_EXT_IN P5 has \"2(p4)\" → dir 4."
+          ]
+        },
+        {
+          "pattern": 6,
+          "od_min": 546,
+          "od_max": 600,
+          "order_text": "6p6 5p7 4p7 3p4 2p7 1",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 526,
+            "gap_mm": 14,
+            "centroid_mm": [
+              9.4,
+              -0.7
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#6",
+              "seq": 1,
+              "u": [
+                -0.648,
+                -0.9335
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#5",
+              "seq": 2,
+              "u": [
+                -0.648,
+                0.9356
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#4",
+              "seq": 3,
+              "u": [
+                -0.2115,
+                -0.0021
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#3",
+              "seq": 4,
+              "u": [
+                0.352,
+                -0.9335
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#2",
+              "seq": 5,
+              "u": [
+                0.352,
+                0.9356
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#1",
+              "seq": 6,
+              "u": [
+                0.8035,
+                -0.0021
+              ],
+              "drag_dir": 0
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 8,
+          "od_min": 521,
+          "od_max": 545,
+          "order_text": "8p6 7p7 6p7 5p7 4p7 3p7 2 1",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 508.9,
+            "gap_mm": -3.1,
+            "centroid_mm": [
+              -0.3,
+              0.1
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#8",
+              "seq": 1,
+              "u": [
+                -0.9785,
+                -0.9766
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#7",
+              "seq": 2,
+              "u": [
+                -0.9785,
+                1.0068
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#6",
+              "seq": 3,
+              "u": [
+                -0.7625,
+                -0.0002
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#5",
+              "seq": 4,
+              "u": [
+                0.0005,
+                -0.6851
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#4",
+              "seq": 5,
+              "u": [
+                0.0005,
+                0.6843
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#3",
+              "seq": 6,
+              "u": [
+                0.764,
+                -0.0002
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 7,
+              "u": [
+                0.9773,
+                -1.0063
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#1",
+              "seq": 8,
+              "u": [
+                0.9773,
+                0.9771
+              ],
+              "drag_dir": 0
+            }
+          ],
+          "notes": [
+            "slide6 faded copy swaps C#4/C#5 positions and prints \"6(p7) → 4(p7) → 5(p7)\"; slide5 (used) has C#4 above C#5 and \"5(p7) → 4(p7)\"."
+          ]
+        },
+        {
+          "pattern": 9,
+          "od_min": 0,
+          "od_max": 520,
+          "order_text": "9p6 8p6 7p7 6p6 5p6 4p7 3p4 2p4 1",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 513.6,
+            "gap_mm": 1.6,
+            "centroid_mm": [
+              3.2,
+              0.1
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#9",
+              "seq": 1,
+              "u": [
+                -1,
+                -1.0234
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#8",
+              "seq": 2,
+              "u": [
+                -1,
+                -0.0001
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#7",
+              "seq": 3,
+              "u": [
+                -1,
+                1.0236
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#6",
+              "seq": 4,
+              "u": [
+                0,
+                -1.0234
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                0,
+                -0.0001
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#4",
+              "seq": 6,
+              "u": [
+                0,
+                1.0236
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#3",
+              "seq": 7,
+              "u": [
+                1,
+                -1.0234
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#2",
+              "seq": 8,
+              "u": [
+                1,
+                -0.0001
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#1",
+              "seq": 9,
+              "u": [
+                1,
+                1.0236
+              ],
+              "drag_dir": 0
+            }
+          ],
+          "notes": []
+        }
+      ]
+    },
+    {
+      "id": "OP_EXT_IN",
+      "name": "Palletizing Pattern (OP 외부입고)",
+      "source_slide": 6,
+      "also_slides": [],
+      "drag_kind": "in",
+      "reference": false,
+      "robot": "GR1(OP)",
+      "zone": "외부입고 (117)",
+      "screen_axes": {
+        "right": "X-",
+        "down": "Y-"
+      },
+      "notes": [],
+      "patterns": [
+        {
+          "pattern": 2,
+          "od_min": 814,
+          "od_max": 937,
+          "order_text": "1 2p6",
+          "drawn": {
+            "d_mm": 853.8,
+            "min_dist_mm": 933.1,
+            "gap_mm": 79.3,
+            "centroid_mm": [
+              0.1,
+              0
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                0.3505,
+                0.3566
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                -0.3505,
+                -0.3566
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 3,
+          "od_min": 756,
+          "od_max": 813,
+          "order_text": "1 3p7 2p6",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 773.7,
+            "gap_mm": -8.3,
+            "centroid_mm": [
+              -42.4,
+              75.4
+            ],
+            "centered": false
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                0.522,
+                0.2495
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#3",
+              "seq": 2,
+              "u": [
+                -0.4689,
+                0.5054
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 3,
+              "u": [
+                -0.2174,
+                -0.4625
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": [
+            "\"1 → 3(p7) → 2(p6)\" is the reverse of the UNREVISED OP 출하 P3 order; the revised OP 출하 would reverse to \"1 → 2(p6) → 3(p7)\". Not changed — open question."
+          ]
+        },
+        {
+          "pattern": 4,
+          "od_min": 663,
+          "od_max": 755,
+          "order_text": "1 2p4 3p7 4p6",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 793.1,
+            "gap_mm": 11.1,
+            "centroid_mm": [
+              8.2,
+              1.9
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                0.5031,
+                0.5
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                0.5031,
+                -0.5
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                -0.5031,
+                0.5
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                -0.5031,
+                -0.5
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 5,
+          "od_min": 601,
+          "od_max": 662,
+          "order_text": "1 2p4 3p7 4p7 5p6",
+          "drawn": {
+            "d_mm": 585.4,
+            "min_dist_mm": 607.8,
+            "gap_mm": 22.4,
+            "centroid_mm": [
+              3.4,
+              3.3
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                0.7354,
+                0.6952
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                0.7354,
+                -0.6925
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                -0.0059,
+                -0.0053
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                -0.7325,
+                0.6952
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                -0.7325,
+                -0.6925
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 6,
+          "od_min": 546,
+          "od_max": 600,
+          "order_text": "1 2p7 3p4 4p7 5p7 6p6",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 526,
+            "gap_mm": 14,
+            "centroid_mm": [
+              9.4,
+              -0.7
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                0.8035,
+                -0.0021
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                0.352,
+                0.9356
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                0.352,
+                -0.9335
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                -0.2115,
+                -0.0021
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                -0.648,
+                0.9356
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#6",
+              "seq": 6,
+              "u": [
+                -0.648,
+                -0.9335
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 8,
+          "od_min": 521,
+          "od_max": 545,
+          "order_text": "1 2 3p7 4p7 5p7 6p7 7p7 8p6",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 508.9,
+            "gap_mm": -3.1,
+            "centroid_mm": [
+              -0.3,
+              0.1
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                0.9773,
+                0.9771
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                0.9773,
+                -1.0063
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                0.764,
+                -0.0002
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                0.0005,
+                0.6843
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                0.0005,
+                -0.6851
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#6",
+              "seq": 6,
+              "u": [
+                -0.7625,
+                -0.0002
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#7",
+              "seq": 7,
+              "u": [
+                -0.9785,
+                1.0068
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#8",
+              "seq": 8,
+              "u": [
+                -0.9785,
+                -0.9766
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        },
+        {
+          "pattern": 9,
+          "od_min": 0,
+          "od_max": 520,
+          "order_text": "1 2p4 3p4 4p7 5p6 6p6 7p7 8p6 9p6",
+          "drawn": {
+            "d_mm": 512,
+            "min_dist_mm": 513.6,
+            "gap_mm": 1.6,
+            "centroid_mm": [
+              3.2,
+              0.1
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                1,
+                1.0236
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                1,
+                -0.0001
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                1,
+                -1.0234
+              ],
+              "drag_dir": 4
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                0,
+                1.0236
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#5",
+              "seq": 5,
+              "u": [
+                0,
+                -0.0001
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#6",
+              "seq": 6,
+              "u": [
+                0,
+                -1.0234
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#7",
+              "seq": 7,
+              "u": [
+                -1,
+                1.0236
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#8",
+              "seq": 8,
+              "u": [
+                -1,
+                -0.0001
+              ],
+              "drag_dir": 6
+            },
+            {
+              "slot": "C#9",
+              "seq": 9,
+              "u": [
+                -1,
+                -1.0234
+              ],
+              "drag_dir": 6
+            }
+          ],
+          "notes": []
+        }
+      ]
+    },
+    {
+      "id": "IN1_ALT_HP",
+      "name": "입고1 대안 레이아웃 (HP 입고)",
+      "source_slide": 3,
+      "also_slides": [],
+      "drag_kind": "in",
+      "reference": false,
+      "robot": "GR1(HP)",
+      "zone": "입고1 (Stack 422) 대안 셀 레이아웃",
+      "screen_axes": {
+        "right": "X+",
+        "down": "Y+"
+      },
+      "notes": [
+        "Slide3 draws the cell with X+ right / Y+ down. Only the 4-tire pattern is given. In machine axes it is identical to HP_IN P4."
+      ],
+      "patterns": [
+        {
+          "pattern": 4,
+          "od_min": 663,
+          "od_max": 755,
+          "order_text": "1 2p5 3p2 4p3",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 793.1,
+            "gap_mm": 11.1,
+            "centroid_mm": [
+              8,
+              1.9
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#1",
+              "seq": 1,
+              "u": [
+                -0.5031,
+                -0.5
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#2",
+              "seq": 2,
+              "u": [
+                -0.5031,
+                0.5
+              ],
+              "drag_dir": 5
+            },
+            {
+              "slot": "C#3",
+              "seq": 3,
+              "u": [
+                0.5031,
+                -0.5
+              ],
+              "drag_dir": 2
+            },
+            {
+              "slot": "C#4",
+              "seq": 4,
+              "u": [
+                0.5031,
+                0.5
+              ],
+              "drag_dir": 3
+            }
+          ],
+          "notes": []
+        }
+      ]
+    },
+    {
+      "id": "IN1_ALT_OP",
+      "name": "입고1 대안 레이아웃 (OP 입고)",
+      "source_slide": 3,
+      "also_slides": [],
+      "drag_kind": "in",
+      "reference": false,
+      "robot": "GR2(OP)",
+      "zone": "입고1 (Stack 422) 대안 셀 레이아웃",
+      "screen_axes": {
+        "right": "X+",
+        "down": "Y+"
+      },
+      "notes": [
+        "Slide3 draws the cell with X+ right / Y+ down. Only the 4-tire pattern is given. Differs from OP_IN P4; equals OP_IN_S5 P4 in machine axes."
+      ],
+      "patterns": [
+        {
+          "pattern": 4,
+          "od_min": 663,
+          "od_max": 755,
+          "order_text": "3 4p5 1p7 2p8",
+          "drawn": {
+            "d_mm": 782.1,
+            "min_dist_mm": 793.1,
+            "gap_mm": 11.1,
+            "centroid_mm": [
+              8.2,
+              1.9
+            ],
+            "centered": true
+          },
+          "slots": [
+            {
+              "slot": "C#3",
+              "seq": 1,
+              "u": [
+                0.5031,
+                -0.5
+              ],
+              "drag_dir": 0
+            },
+            {
+              "slot": "C#4",
+              "seq": 2,
+              "u": [
+                0.5031,
+                0.5
+              ],
+              "drag_dir": 5
+            },
+            {
+              "slot": "C#1",
+              "seq": 3,
+              "u": [
+                -0.5031,
+                -0.5
+              ],
+              "drag_dir": 7
+            },
+            {
+              "slot": "C#2",
+              "seq": 4,
+              "u": [
+                -0.5031,
+                0.5
+              ],
+              "drag_dir": 8
+            }
+          ],
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

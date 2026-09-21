@@ -92,7 +92,7 @@ NON_RETAIN
 
 
 BEGIN
-   LayoutSig : DWord := 16#6306CEEE;   // 레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
+   LayoutSig := 16#6306_CEEE;
 
 END_DATA_BLOCK
 

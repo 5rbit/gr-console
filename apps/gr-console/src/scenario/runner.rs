@@ -26,6 +26,8 @@ pub struct RunOptions {
     pub repeat: Option<u32>,
     /// 0-based step to start the first iteration at.
     pub start_step: Option<u32>,
+    /// Robot for steps that name none (`None` = default robot). The operator's sidebar selection.
+    pub robot: Option<u8>,
 }
 
 pub const MAX_RETRIES: u32 = 3;
@@ -42,6 +44,8 @@ pub struct Plan {
     /// `None` = infinite.
     pub total_iterations: Option<u32>,
     pub start_step: u32,
+    /// Run robot: steps without their own `robot` go here.
+    pub robot: Option<u8>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -63,7 +67,12 @@ impl Plan {
         if start_step >= step_count {
             return Err(ApiError::BadRequest(format!("start_step {start_step} out of range (0..{step_count})")));
         }
-        Ok(Plan { step_count, total_iterations: if repeat == 0 { None } else { Some(repeat) }, start_step })
+        Ok(Plan { step_count, total_iterations: if repeat == 0 { None } else { Some(repeat) }, start_step, robot: o.robot })
+    }
+
+    /// Robot a step is sent to: its own, else the run robot, else `None` (= default robot).
+    pub fn robot_for(&self, step: &Step) -> Option<u8> {
+        step.robot.or(self.robot)
     }
 
     pub fn first(&self) -> Cursor {
@@ -193,7 +202,7 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
         let mut attempt = 0u32;
         loop {
             attempt += 1;
-            let (outcome, result) = execute_step(&st, &runner, &scenario, &run_id, step, cur, attempt, &mut ctl).await;
+            let (outcome, result) = execute_step(&st, &runner, &scenario, &run_id, step, plan.robot_for(step), cur, attempt, &mut ctl).await;
             runner.update(|g| g.push_result(result));
             match outcome {
                 Outcome::Reached => break,
@@ -226,6 +235,11 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
             None => break Phase::Done,
         }
     };
+    // 콘솔 종료로 멈춘 실행은 그렇게 남긴다 — "왜 끊겼지" 를 원장에서 바로 알 수 있게.
+    let (final_phase, error) = match runner.is_shutting_down() && final_phase != Phase::Done {
+        true => (Phase::Stopped, Some(error.unwrap_or_else(|| super::SHUTDOWN_NOTE.to_string()))),
+        false => (final_phase, error),
+    };
     let snap = runner.update(|g| {
         g.state = final_phase;
         g.ended_at = Some(now_str());
@@ -240,7 +254,17 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn execute_step(st: &AppState, runner: &Arc<Runner>, scenario: &Scenario, run_id: &str, step: &Step, cur: Cursor, attempt: u32, ctl: &mut watch::Receiver<Ctl>) -> (Outcome, StepResult) {
+async fn execute_step(
+    st: &AppState,
+    runner: &Arc<Runner>,
+    scenario: &Scenario,
+    run_id: &str,
+    step: &Step,
+    robot_id: Option<u8>,
+    cur: Cursor,
+    attempt: u32,
+    ctl: &mut watch::Receiver<Ctl>,
+) -> (Outcome, StepResult) {
     let mut res = StepResult { iteration: cur.iteration, step_index: cur.step_index, task_id: None, state: TaskState::Failed, ack: None, started_at: now_str(), ended_at: None, error: None, attempt };
     fn fail(mut res: StepResult, msg: String) -> (Outcome, StepResult) {
         res.error = Some(msg.clone());
@@ -262,10 +286,13 @@ async fn execute_step(st: &AppState, runner: &Arc<Runner>, scenario: &Scenario, 
         position_override: None,
         note: if step.label.trim().is_empty() { step.note.clone() } else { step.label.clone() },
         source: Some(ScenarioSource { scenario_id: scenario.id.clone(), run_id: run_id.to_string(), iteration: cur.iteration, step_index: cur.step_index }),
-        robot: step.robot,
+        robot: robot_id,
         grip_ref: None,
+        station_offset: Default::default(),
+        ignore_stack_max: false,
+        pallet: step.pallet.clone(),
     };
-    let robot = match st.robot(step.robot) {
+    let robot = match st.robot(robot_id) {
         Ok(r) => r,
         Err(e) => return fail(res, format!("robot: {e}")),
     };
@@ -307,7 +334,7 @@ async fn execute_step(st: &AppState, runner: &Arc<Runner>, scenario: &Scenario, 
 
     // subscribe before submitting so the first transition cannot be missed
     let mut rx = st.task_events.subscribe();
-    let entry = match crate::ledger::ops::create_and_submit(st, robot, Origin::Scenario, Some(req), Some(composed.params), composed.task, true).await {
+    let entry = match crate::ledger::ops::create_and_submit(st, robot, Origin::Scenario, Some(req), Some(composed.params), composed.task, composed.pallet, true).await {
         Ok(e) => e,
         Err(e) => return fail(res, format!("submit: {e}")),
     };
@@ -409,18 +436,29 @@ mod tests {
 
     #[test]
     fn plan_start_step_only_affects_first_iteration() {
-        let p = Plan::new(&scenario(3, 2), &RunOptions { repeat: None, start_step: Some(2) }).unwrap();
+        let p = Plan::new(&scenario(3, 2), &RunOptions { repeat: None, start_step: Some(2), ..Default::default() }).unwrap();
         assert_eq!(walk(p, 100), vec![(1, 2), (2, 0), (2, 1), (2, 2)]);
     }
 
     #[test]
     fn plan_repeat_override_and_errors() {
-        let p = Plan::new(&scenario(2, 5), &RunOptions { repeat: Some(1), start_step: None }).unwrap();
+        let p = Plan::new(&scenario(2, 5), &RunOptions { repeat: Some(1), start_step: None, ..Default::default() }).unwrap();
         assert_eq!(walk(p, 100), vec![(1, 0), (1, 1)]);
-        let p = Plan::new(&scenario(2, 5), &RunOptions { repeat: Some(0), start_step: None }).unwrap();
+        let p = Plan::new(&scenario(2, 5), &RunOptions { repeat: Some(0), start_step: None, ..Default::default() }).unwrap();
         assert_eq!(p.total_iterations, None);
         assert!(Plan::new(&scenario(0, 1), &RunOptions::default()).is_err());
-        assert!(Plan::new(&scenario(2, 1), &RunOptions { repeat: None, start_step: Some(2) }).is_err());
+        assert!(Plan::new(&scenario(2, 1), &RunOptions { repeat: None, start_step: Some(2), ..Default::default() }).is_err());
+    }
+
+    #[test]
+    fn step_robot_overrides_run_robot() {
+        let mut s = scenario(2, 1);
+        s.steps[1].robot = Some(1);
+        let p = Plan::new(&s, &RunOptions { robot: Some(2), ..Default::default() }).unwrap();
+        assert_eq!(p.robot_for(&s.steps[0]), Some(2));
+        assert_eq!(p.robot_for(&s.steps[1]), Some(1));
+        let p = Plan::new(&s, &RunOptions::default()).unwrap();
+        assert_eq!(p.robot_for(&s.steps[0]), None);
     }
 
     #[test]

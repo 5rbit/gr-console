@@ -138,7 +138,7 @@ NON_RETAIN
          LaserZCal_MaxCorrection : Real;   //   [p427] 레이저 Z 오프셋 자동 교정 : 방향별 보정량 허용 (mm). 0 이면 20
          LaserInnerDia_Offset : Real;   //   [p428] 레이저 원 맞춤 내경 보정 (mm, 부호 포함) : 측정 내경에 더함. PICK / 들어갈 때 / 나갈 때 / 수동 측정 공통, 0 = 보정 없음
          LaserFit_TbrTolerance : Real;   //   [p429] TBR 4점 원 맞춤 검증 허용 (mm) : 3점 원 중심에서 4번째 점까지 거리와 반지름 차이 한계, 넘으면 FitError 3. 0 이면 3
-         p430 : Real;
+         LaserEdge_Latency : Real;   //   [p430] 그리퍼 레이저 지연 (ms) : 측정 결과(들어갈 때/나갈 때/수동)의 경계·비드 높이를 이 시간만큼 이전의 Z 이력으로 역계산. 0 이면 보정 없음
          X1RD_Offset : Real;   // [p431] X1RD Offset
          X2RD_Offset : Real;   // [p432] X2RD Offset
          p433 : Real;
@@ -262,14 +262,14 @@ NON_RETAIN
          p927 : Bool;   // [p927]
          p928 : Bool;   // [p928]
          p929 : Bool;   // [p929]
-         BlendingDistance : Real;   // [p930] XYZ 블랜딩 거리(mm) 파라미터
+         BlendingDistance : Real;   // [p930] XYZ 블랜딩 거리(mm) 파라미터. 태스크 블렌드 = p930 → GCS 값 (0 이면 다음), 최종 = MIN(SpeedFactor x p930, 상한 p955~p957, 태스크 블렌드)
          MoveAllowZHeight : Real;   // [p931] XY 동작 허용 Z 높이(mm) 파라미터
          StationGoodsGap : Real;   // [p932] Station 다스택 적재 시 타이어 간의 거리 파라미터
-         StationDragDistance : Real;   // [p933] Station 명령 시 Drag 이동 거리 파라미터
-         StationDragHeight : Real;   // [p934] Station 명령 시 Drag 동작 시작 높이 파라미터
-         StationDragBlendDistance : Real;   // [p935] Station 명령시 Drage 동작 Blending 거리 파라미터
-         PickSlowDownDistance : Real;   // [p936] PICK 명령 수행 저속 운행 거리 여부 파라미터
-         DropSlowDownDistance : Real;   // [p937] DROP 명령 수행 저속 운행 거리 여부 파라미터
+         StationDragDistance : Real;   // [p933] Station Drag 이동 거리(mm) : p933 → GCS 값 (0 이면 다음)
+         StationDragHeight : Real;   // [p934] Station Drag 시작 높이(mm) : p934 → GCS 값 (0 이면 다음)
+         StationDragBlendDistance : Real;   // [p935] Station Drag 태스크 블렌드(mm) : 스테이션 드래그 태스크는 p930 대신 사용. 0 이면 p930
+         PickSlowDownDistance : Real;   // [p936] PICK 상승 크립 거리(mm) : 바닥 셀(Z < 250) / 동작 스테이션 PICK 은 p936 → GCS → 200 (0 이면 다음), 그 외 PICK 은 GCS 값
+         DropSlowDownDistance : Real;   // [p937] DROP 하강 크립 구간(mm) : p937 → GCS → 200 (0 이면 다음)
          DropOffset : Real;   // [p938] DROP 명령 수행 시 Z축 DROP 포지션 Offset 파라미터, 지정된 포지션 + Offset 위치에 DROP 명령을 수행 하게 됨
          PreGripDelta : Real;   // [p939] 명령 수행 중 PREGRIP시 타이어와의 거리 파라미터
          G_DropTorq_Factor : Real;   // [p940] DROP 명령 수행 시 Gripper Torq(%)  파라미터 
@@ -287,25 +287,25 @@ NON_RETAIN
          G_MeasureTorq_Factor : Real;   // [p952] 토크 내경 측정 시 Gripper 토크 제한(%) 파라미터. 0 이면 기존값 (자동 측정 G_PickTorq_Factor, 수동 측정 15)
          G_MeasureTorq_Offset : Real;   // [p953] 토크 내경 측정(자동, MeasureItem) 보정 (mm, 부호 포함) : 반복 평균 G 위치에 더함. 0 = 보정 없음 (기존 고정값 -5)
          G_MeasureTorq_OffsetManual : Real;   // [p954] 토크 내경 측정(수동) 보정 (mm, 부호 포함) : 토크 도달 G 위치에 더함. 0 = 보정 없음 (기존 고정값 -8)
-         p955 : Real;   // [p955]
-         p956 : Real;   // [p956]
-         p957 : Real;   // [p957]
-         p958 : Real;   // [p958]
-         p959 : Real;   // [p959]
+         Blend_ShortCap : Real;   // [p955] 블렌드 상한(mm) : 스테이션 부분 리프트(DoublePicking) / 스테이션 PICK 목표 Z 가 p958 초과. 0 이면 250
+         Blend_TbrCap : Real;   // [p956] 블렌드 상한(mm) : TBR 툴에서 p955 대신 사용. 0 이면 150
+         Blend_MaxCap : Real;   // [p957] 블렌드 상한(mm) : 일반. 0 이면 500
+         Blend_ShortZHeight : Real;   // [p958] 짧은 블렌드 적용 Z 높이(mm) : 스테이션 PICK 목표 Z 가 이보다 높으면 p955/p956 상한. 0 이면 2500
+         CellDragHeight : Real;   // [p959] 셀 Drag 시작 높이(mm) : p959 → GCS 값 (0 이면 다음, 둘 다 0 이면 드래그 안 함)
          pickRetryCountMax : USInt;   // [p960]
-         p961 : Real;   // [p961]
-         p962 : Real;   // [p962]
-         p963 : Real;   // [p963]
-         p964 : Real;   // [p964]
-         p965 : Real;   // [p965]
-         p966 : Real;   // [p966]
-         p967 : Real;   // [p967]
-         p968 : Real;   // [p968]
-         p969 : Real;   // [p969]
+         CellDragDistance : Real;   // [p961] 셀 Drag 이동 거리(mm) : p961 → GCS 값 (0 이면 다음)
+         DragIn_DistMax : Real;   // [p962] Drag-In 이동 거리 상한(mm). 0 이면 150
+         FLD_ZDecelDistance : Real;   // [p963] FLD 충돌방지 Z 감속 판정 거리(mm) : PICK / MOVE / MEASURE 하강. 0 이면 500
+         LiftUp_BlendCellZHeight : Real;   // [p964] 블렌드 셀 작업 후 리프트업 완료로 보는 Z 높이(mm), 그 외 작업은 p931. 0 이면 2000
+         ShortMove_XDistance : Real;   // [p965] PCR 짧은 X 이동 기준(mm) : X 이동이 이보다 짧고 아이템 3 개 이하면 X JerkTime = p967. 0 이면 4000
+         ShortMove_YDistance : Real;   // [p966] PCR 짧은 Y 이동 기준(mm) : DoublePicking(아웃바운드 레이아웃 제외) Y 이동이 이보다 짧으면 Y JerkTime = p967. 0 이면 2000
+         ShortMove_JerkTime : Real;   // [p967] PCR 짧은 XY 이동 JerkTime (드라이브 SV.JerkTime 단위). 0 이면 500
+         NearMove_YDistance : Real;   // [p968] PCR 다른 셀 리프트업 기준(mm) : Y 이동이 이보다 짧으면 Z JerkTime = p969. 0 이면 1000
+         NearMove_ZJerkTime : Real;   // [p969] PCR 다른 셀 리프트업 Z JerkTime (드라이브 SV.JerkTime 단위). 0 이면 100
          Pick_GripExtra : Real;   // [p970]
          Pick_GripBackDelta : Real;   // [p971]
          GripBackMin : Real;   // [p972] Pick Drop 시 폈다 오므리는 동작시 오므릴때 내경값 -n 제한
-         p973 : Real;   // [p973]
+         Pick_BeadZOffset : Real;   // [p973] PICK Z 목표 보정(mm, 부호 포함) : 하강 중 본 마지막 비드 높이에서 이만큼 아래를 PICK 목표로 (보정 범위 = 작업 Z 위 타이어 높이 x 0.3 이내). 0 이면 20
          p974 : Real;   // [p974]
          p975 : Real;   // [p975]
          p976 : Real;   // [p976]
@@ -770,7 +770,7 @@ BEGIN
    Sensor.LaserZCal_MaxCorrection := 20.0;
    Sensor.LaserInnerDia_Offset := 0.0;
    Sensor.LaserFit_TbrTolerance := 0.0;
-   Sensor.p430 := 0.0;
+   Sensor.LaserEdge_Latency := 100.0;
    Sensor.X1RD_Offset := 0.0;
    Sensor.X2RD_Offset := 0.0;
    Sensor.p433 := 0.0;
@@ -964,8 +964,8 @@ BEGIN
    Task.StationDragDistance := 100.0;
    Task.StationDragHeight := 500.0;
    Task.StationDragBlendDistance := 200.0;
-   Task.PickSlowDownDistance := 150.0;
-   Task.DropSlowDownDistance := 150.0;
+   Task.PickSlowDownDistance := 200.0;
+   Task.DropSlowDownDistance := 200.0;
    Task.DropOffset := 10.0;
    Task.PreGripDelta := 100.0;
    Task.G_DropTorq_Factor := 70.0;
@@ -983,25 +983,25 @@ BEGIN
    Task.G_MeasureTorq_Factor := 0.0;
    Task.G_MeasureTorq_Offset := 0.0;
    Task.G_MeasureTorq_OffsetManual := 0.0;
-   Task.p955 := 0.0;
-   Task.p956 := 0.0;
-   Task.p957 := 0.0;
-   Task.p958 := 0.0;
-   Task.p959 := 0.0;
+   Task.CellDragHeight := 0.0;
+   Task.Blend_ShortCap := 250.0;
+   Task.Blend_TbrCap := 150.0;
+   Task.Blend_MaxCap := 500.0;
+   Task.Blend_ShortZHeight := 2500.0;
    Task.pickRetryCountMax := 1;
-   Task.p961 := 0.0;
-   Task.p962 := 0.0;
-   Task.p963 := 0.0;
-   Task.p964 := 0.0;
-   Task.p965 := 0.0;
-   Task.p966 := 0.0;
-   Task.p967 := 0.0;
-   Task.p968 := 0.0;
-   Task.p969 := 0.0;
+   Task.DragIn_DistMax := 150.0;
+   Task.FLD_ZDecelDistance := 500.0;
+   Task.LiftUp_BlendCellZHeight := 2000.0;
+   Task.ShortMove_XDistance := 4000.0;
+   Task.ShortMove_YDistance := 2000.0;
+   Task.ShortMove_JerkTime := 500.0;
+   Task.NearMove_YDistance := 1000.0;
+   Task.NearMove_ZJerkTime := 100.0;
+   Task.CellDragDistance := 0.0;
    Task.Pick_GripExtra := 0.0;
    Task.Pick_GripBackDelta := 0.0;
    Task.GripBackMin := 0.0;
-   Task.p973 := 0.0;
+   Task.Pick_BeadZOffset := 20.0;
    Task.p974 := 0.0;
    Task.p975 := 0.0;
    Task.p976 := 0.0;

@@ -1,15 +1,28 @@
 //! Excel (`rust_xlsxwriter` out / `calamine` in) and CSV codec for the registry tables.
 //!
-//! Sheets: `Cells`, `Stations`, `Items`. Import maps columns by **header name** (case/space-insensitive,
-//! English or Korean aliases), validates each row and reports `{row, message}` per rejected row. Parsing
-//! is pure (bytes → structs) so the round trip is unit-testable; applying to sqlite is a separate step.
+//! Sheets: `Cells`, `Stations`, `Items`, `ItemBeadProfile`. Import maps columns by **header name**
+//! (case/space-insensitive, English or Korean aliases), validates each row and reports `{row, message}` per
+//! rejected row. Parsing is pure (bytes → structs) so the round trip is unit-testable; applying to sqlite is
+//! a separate step.
+//!
+//! Item spec (`spec.rs`): the `StackMax` / `PalletMax` / `WeightKg` / `PickBeadOffset` / `Compression`
+//! columns and the `ItemBeadProfile` sheet are optional. A **missing column / sheet leaves that part of an
+//! existing item's spec unchanged** (a new item gets the default); a present column with an empty cell means
+//! 0 / none. When the `ItemBeadProfile` sheet is present it is authoritative for every code in the `Items`
+//! sheet (no rows = no profile); rows for codes not in the `Items` sheet update the profiles of existing
+//! items only.
+//!
+//! 정본은 **잰 스택 크기별 절대 프로파일**(`Stack` + `Level` 키, 셀 바닥 기준 mm)이다 — 하중(`Above`)
+//! 곡선은 콘솔이 여기서 파생하므로 시트로 오가지 않는다.
 
+use std::collections::{BTreeMap, HashSet};
 use std::io::Cursor;
 
 use calamine::{Data, Reader};
 use gr_proto::{CellInfo, SensorSettings, StationPara, StockItem};
 use serde::Serialize;
 
+use super::spec::{self, BeadProfile, ItemSpec, ProfileRow, validate_spec, validate_spec_for};
 use super::{ItemEntry, Registry};
 use crate::error::ApiError;
 
@@ -42,20 +55,92 @@ pub const STATION_COLS: [&str; 26] = [
     "RSensorOffset",
     "IOBlockNo",
 ];
-pub const ITEM_COLS: [&str; 10] = ["Code", "Name", "Count", "InnerDiameter", "OuterDiameter", "LowerBeadHeight", "UpperBeadHeight", "Height", "DeflectionFactor", "Note"];
+pub const ITEM_COLS: [&str; 15] = [
+    "Code",
+    "Name",
+    "Count",
+    "InnerDiameter",
+    "OuterDiameter",
+    "LowerBeadHeight",
+    "UpperBeadHeight",
+    "Height",
+    "DeflectionFactor",
+    "StackMax",
+    "PalletMax",
+    "WeightKg",
+    "PickBeadOffset",
+    "Compression",
+    "Note",
+];
+/// 잰 스택 크기(`Stack`)별 **절대** 비드 프로파일 시트 — 정본이자 내보내기·가져오기의 유일한 비드 시트.
+/// 비드·적재 높이는 셀 바닥 기준 mm 다. 하중(`Above`) 곡선은 콘솔이 여기서 파생한다.
+pub const PROFILE_COLS: [&str; 12] = ["Code", "Stack", "Level", "LowerBead", "UpperBead", "StackHeight", "Source", "SamplePlc", "SampleSeq", "TotalHeight", "EachHeight", "At"];
 
-/// Item as it travels through a sheet (the registry keeps name/note beside the PLC `StockItem`).
+/// 프로파일 시트 한 줄(= 한 단). 스택 단위 값(`total_height` 등)은 같은 스택의 모든 줄에 되풀이된다.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ProfileSheetRow {
+    pub code: u32,
+    pub count: u8,
+    pub row: ProfileRow,
+    pub sample_plc: String,
+    pub sample_seq: u32,
+    pub total_height: Option<f32>,
+    pub each_height: Option<f32>,
+    pub at: String,
+}
+
+/// Which spec parts a sheet row carried (`None` = column/sheet absent → keep the stored value).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SpecPatch {
+    pub stack_max: Option<u8>,
+    pub pallet_max: Option<u8>,
+    pub weight_kg: Option<Option<f32>>,
+    /// 잰 스택 크기별 절대 비드 프로파일(정본).
+    pub profiles: Option<Vec<BeadProfile>>,
+    pub pick_bead_offset: Option<Option<f32>>,
+    pub compression: Option<Option<f32>>,
+}
+
+impl SpecPatch {
+    /// Every part present (export side).
+    pub fn full(s: &ItemSpec) -> Self {
+        SpecPatch {
+            stack_max: Some(s.stack_max),
+            pallet_max: Some(s.pallet_max),
+            weight_kg: Some(s.weight_kg),
+            profiles: Some(s.profiles.clone()),
+            pick_bead_offset: Some(s.pick_bead_offset),
+            compression: Some(s.compression),
+        }
+    }
+    pub fn apply(&self, base: &ItemSpec) -> ItemSpec {
+        ItemSpec {
+            stack_max: self.stack_max.unwrap_or(base.stack_max),
+            pallet_max: self.pallet_max.unwrap_or(base.pallet_max),
+            weight_kg: self.weight_kg.unwrap_or(base.weight_kg),
+            profiles: self.profiles.clone().unwrap_or_else(|| base.profiles.clone()),
+            bead_source: base.bead_source.clone(),
+            pick_bead_offset: self.pick_bead_offset.unwrap_or(base.pick_bead_offset),
+            compression: self.compression.unwrap_or(base.compression),
+            compression_source: base.compression_source.clone(),
+            auto_apply_measured: base.auto_apply_measured,
+        }
+    }
+}
+
+/// Item as it travels through a sheet (the registry keeps name/note/spec beside the PLC `StockItem`).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ItemRow {
     pub code: u32,
     pub name: String,
     pub item: StockItem,
     pub note: String,
+    pub spec: SpecPatch,
 }
 
 impl From<&ItemEntry> for ItemRow {
     fn from(e: &ItemEntry) -> Self {
-        ItemRow { code: e.code, name: e.name.clone(), item: e.item.clone(), note: e.note.clone() }
+        ItemRow { code: e.code, name: e.name.clone(), item: e.item.clone(), note: e.note.clone(), spec: SpecPatch::full(&e.spec) }
     }
 }
 
@@ -72,11 +157,15 @@ pub struct Tables {
     pub cells: Vec<CellInfo>,
     pub stations: Vec<StationPara>,
     pub items: Vec<ItemRow>,
+    /// Parsed `ItemBeadProfile` rows — merged into `items[*].spec.profiles`.
+    pub item_profiles: Vec<ProfileSheetRow>,
+    pub orphan_profiles: Vec<(u32, Vec<BeadProfile>)>,
     pub errors: Vec<RowError>,
     /// Which tables the file actually carried (a missing sheet is not an error).
     pub has_cells: bool,
     pub has_stations: bool,
     pub has_items: bool,
+    pub has_item_profiles: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -125,8 +214,20 @@ pub fn validate_item(i: &ItemRow) -> Result<(), String> {
     if i.code == 0 {
         return Err("code must be > 0".into());
     }
-    if i.item.count == 0 {
+    let s = &i.item;
+    if s.count == 0 {
         return Err("count must be >= 1".into());
+    }
+    let dims = [("inner_diameter", s.inner_diameter), ("outer_diameter", s.outer_diameter), ("lower_bead_height", s.lower_bid_height), ("upper_bead_height", s.upper_bid_height), ("height", s.height)];
+    if let Some((k, v)) = dims.iter().find(|(_, v)| !v.is_finite() || *v < 0.0) {
+        return Err(format!("{k} = {v} must be a finite number >= 0"));
+    }
+    if !s.deflection_factor.is_finite() {
+        return Err(format!("deflection_factor = {} must be a finite number", s.deflection_factor));
+    }
+    // 0 은 "미입력"이라 비교하지 않는다(치수를 나중에 채우는 품목이 있다).
+    if s.inner_diameter > 0.0 && s.outer_diameter > 0.0 && s.inner_diameter >= s.outer_diameter {
+        return Err(format!("inner_diameter {} must be < outer_diameter {}", s.inner_diameter, s.outer_diameter));
     }
     Ok(())
 }
@@ -216,8 +317,56 @@ fn item_field(it: &ItemRow, i: usize) -> Field {
         6 => Field::Num(s.upper_bid_height as f64),
         7 => Field::Num(s.height as f64),
         8 => Field::Num(s.deflection_factor as f64),
+        9 => Field::Num(it.spec.stack_max.unwrap_or(0) as f64),
+        10 => Field::Num(it.spec.pallet_max.unwrap_or(0) as f64),
+        11 => opt_num(it.spec.weight_kg.flatten()),
+        12 => opt_num(it.spec.pick_bead_offset.flatten()),
+        13 => opt_num(it.spec.compression.flatten()),
         _ => Field::Text(it.note.clone()),
     }
+}
+
+fn opt_num(v: Option<f32>) -> Field {
+    v.map(|x| Field::Num(x as f64)).unwrap_or(Field::Text(String::new()))
+}
+
+fn profile_field(r: &ProfileSheetRow, i: usize) -> Field {
+    match i {
+        0 => Field::Num(r.code as f64),
+        1 => Field::Num(r.count as f64),
+        2 => Field::Num(r.row.level as f64),
+        3 => opt_num(r.row.lower_bead),
+        4 => opt_num(r.row.upper_bead),
+        5 => opt_num(r.row.stack_height),
+        6 => Field::Text(r.row.source.clone()),
+        7 => Field::Text(r.sample_plc.clone()),
+        8 => Field::Num(r.sample_seq as f64),
+        9 => opt_num(r.total_height),
+        10 => opt_num(r.each_height),
+        _ => Field::Text(r.at.clone()),
+    }
+}
+
+/// 품목들의 프로파일을 시트 줄로 편다.
+fn profile_rows(items: &[ItemRow]) -> Vec<ProfileSheetRow> {
+    let mut out = Vec::new();
+    for it in items {
+        for p in it.spec.profiles.iter().flatten() {
+            for row in &p.rows {
+                out.push(ProfileSheetRow {
+                    code: it.code,
+                    count: p.count,
+                    row: row.clone(),
+                    sample_plc: p.sample_plc.clone(),
+                    sample_seq: p.sample_seq,
+                    total_height: p.total_height,
+                    each_height: p.each_height,
+                    at: p.at.clone(),
+                });
+            }
+        }
+    }
+    out
 }
 
 /// Builds a workbook with the sheets given (`None` = omit the sheet).
@@ -231,6 +380,7 @@ pub fn export_workbook(cells: Option<&[CellInfo]>, stations: Option<&[StationPar
     }
     if let Some(i) = items {
         write_sheet(&mut wb, "Items", &ITEM_COLS, i, item_field)?;
+        write_sheet(&mut wb, "ItemBeadProfile", &PROFILE_COLS, &profile_rows(i), profile_field)?;
     }
     if cells.is_none() && stations.is_none() && items.is_none() {
         wb.add_worksheet();
@@ -353,6 +503,22 @@ fn canonical(h: &str) -> Option<&'static str> {
         "upperbeadheight" | "upperbidheight" | "상부비드" | "상부비드높이" => "UpperBeadHeight",
         "height" | "높이" => "Height",
         "deflectionfactor" | "처짐계수" => "DeflectionFactor",
+        "stackmax" | "단수max" | "최대단수" | "적재단수max" => "StackMax",
+        "palletmax" | "팔레트max" | "팔레트최대" => "PalletMax",
+        "weightkg" | "weight" | "무게" | "무게kg" | "중량" => "WeightKg",
+        "pickbeadoffset" | "픽비드오프셋" | "집는비드오프셋" => "PickBeadOffset",
+        "compression" | "눌림" | "눌림양" => "Compression",
+        "lowerbead" | "하단비드" => "LowerBead",
+        "upperbead" | "상단비드" => "UpperBead",
+        "stack" | "stackcount" | "스택" | "단수" | "잰단수" => "Stack",
+        "level" | "단" | "단번호" => "Level",
+        "stackheight" | "적재높이" => "StackHeight",
+        "totalheight" | "전체높이" => "TotalHeight",
+        "eachheight" | "한개높이" => "EachHeight",
+        "at" | "시각" | "측정시각" => "At",
+        "source" | "출처" => "Source",
+        "sampleplc" | "표본plc" | "측정로봇" => "SamplePlc",
+        "sampleseq" | "표본seq" | "측정seq" => "SampleSeq",
         "note" | "비고" | "메모" | "설명" => "Note",
         _ => return None,
     };
@@ -377,9 +543,15 @@ impl Sheet {
     fn has(&self, k: &str) -> bool {
         self.cols.iter().any(|(c, _)| *c == k)
     }
-    /// Which table this sheet looks like, from its headers.
+    /// 절대 프로파일 시트(`ItemBeadProfile`, 또는 품목 치수 없이 Code + Stack + Level 머리글).
+    fn is_profile(&self) -> bool {
+        self.name.eq_ignore_ascii_case("ItemBeadProfile") || (self.has("Code") && self.has("Stack") && self.has("Level") && !self.has("InnerDiameter") && !self.has("Name"))
+    }
+    /// Which table this sheet looks like, from its headers (`None` for the profile sheet — handled apart).
     fn kind(&self) -> Option<Want> {
-        if self.has("ConvNo") || self.has("IOBlockNo") || self.has("GroupIndex") {
+        if self.is_profile() {
+            None
+        } else if self.has("ConvNo") || self.has("IOBlockNo") || self.has("GroupIndex") {
             Some(Want::Stations)
         } else if self.has("Code") || self.has("InnerDiameter") {
             Some(Want::Items)
@@ -495,9 +667,112 @@ fn parse_item(r: &Row) -> Result<ItemRow, String> {
             height: r.f32("Height")?,
             deflection_factor: r.f32("DeflectionFactor")?,
         },
+        spec: SpecPatch {
+            stack_max: if r.sheet.has("StackMax") { Some(r.int("StackMax")?) } else { None },
+            pallet_max: if r.sheet.has("PalletMax") { Some(r.int("PalletMax")?) } else { None },
+            weight_kg: if r.sheet.has("WeightKg") { Some(r.num("WeightKg")?.map(|v| v as f32)) } else { None },
+            profiles: None,
+            pick_bead_offset: if r.sheet.has("PickBeadOffset") { Some(r.num("PickBeadOffset")?.map(|v| v as f32)) } else { None },
+            compression: if r.sheet.has("Compression") { Some(r.num("Compression")?.map(|v| v as f32)) } else { None },
+        },
     };
     validate_item(&it)?;
+    // the row alone (curve points are checked against stack_max when applied)
+    validate_spec_for(&it.spec.apply(&ItemSpec::default()), &it.item)?;
     Ok(it)
+}
+
+fn parse_profile(r: &Row) -> Result<ProfileSheetRow, String> {
+    let code: u32 = r.int("Code")?;
+    if code == 0 {
+        return Err("code must be > 0".into());
+    }
+    let opt = |k: &str| -> Result<Option<f32>, String> { Ok(r.num(k)?.map(|v| v as f32)) };
+    let source = if r.sheet.has("Source") { r.text("Source") } else { String::new() };
+    let source = match source.trim().to_ascii_lowercase().as_str() {
+        spec::SOURCE_MEASURED => spec::SOURCE_MEASURED,
+        spec::SOURCE_MANUAL => spec::SOURCE_MANUAL,
+        "" => spec::SOURCE_MANUAL, // 사람이 쓴 시트에서 온 값은 손으로 넣은 것으로 본다
+        other => return Err(format!("Source {other} must be measured | manual")),
+    };
+    let out = ProfileSheetRow {
+        code,
+        count: r.int("Stack")?,
+        row: ProfileRow {
+            level: r.int("Level")?,
+            lower_bead: opt("LowerBead")?,
+            upper_bead: opt("UpperBead")?,
+            stack_height: if r.sheet.has("StackHeight") { opt("StackHeight")? } else { None },
+            source: source.into(),
+        },
+        sample_plc: if r.sheet.has("SamplePlc") { r.text("SamplePlc") } else { String::new() },
+        sample_seq: if r.sheet.has("SampleSeq") { r.num("SampleSeq")?.map(|v| v.round() as u32).unwrap_or(0) } else { 0 },
+        total_height: if r.sheet.has("TotalHeight") { opt("TotalHeight")? } else { None },
+        each_height: if r.sheet.has("EachHeight") { opt("EachHeight")? } else { None },
+        at: if r.sheet.has("At") { r.text("At") } else { String::new() },
+    };
+    validate_spec(&ItemSpec { profiles: vec![BeadProfile { count: out.count, rows: vec![out.row.clone()], ..Default::default() }], ..Default::default() })?;
+    Ok(out)
+}
+
+fn consume_profile(sheet: &Sheet, out: &mut Tables) {
+    if let Some(k) = ["Code", "Stack", "Level"].into_iter().find(|k| !sheet.has(k)) {
+        out.errors.push(RowError { sheet: sheet.name.clone(), row: 1, message: format!("header row has no '{k}' column") });
+        return;
+    }
+    out.has_item_profiles = true;
+    let mut seen = HashSet::new();
+    for (rn, cells) in &sheet.rows {
+        match parse_profile(&Row { sheet, cells }) {
+            Ok(row) => {
+                if seen.insert((row.code, row.count, row.row.level)) {
+                    out.item_profiles.push(row);
+                } else {
+                    out.errors.push(RowError { sheet: sheet.name.clone(), row: *rn, message: format!("code {} stack {} level {} is duplicated", row.code, row.count, row.row.level) });
+                }
+            }
+            Err(m) => out.errors.push(RowError { sheet: sheet.name.clone(), row: *rn, message: m }),
+        }
+    }
+}
+
+/// 시트 줄들을 품목별 프로파일로 모은다.
+fn profiles_by_code(rows: &[ProfileSheetRow]) -> BTreeMap<u32, Vec<BeadProfile>> {
+    let mut by: BTreeMap<(u32, u8), BeadProfile> = BTreeMap::new();
+    for r in rows {
+        let p = by.entry((r.code, r.count)).or_insert_with(|| BeadProfile { count: r.count, ..Default::default() });
+        p.rows.push(r.row.clone());
+        if p.sample_seq == 0 {
+            p.sample_plc = r.sample_plc.clone();
+            p.sample_seq = r.sample_seq;
+        }
+        p.total_height = p.total_height.or(r.total_height);
+        p.each_height = p.each_height.or(r.each_height);
+        if p.at.is_empty() {
+            p.at = r.at.clone();
+        }
+    }
+    let mut out: BTreeMap<u32, Vec<BeadProfile>> = BTreeMap::new();
+    for ((code, _), mut p) in by {
+        p.rows.sort_by_key(|r| r.level);
+        out.entry(code).or_default().push(p);
+    }
+    out
+}
+
+/// `ItemBeadProfile` → `items[*].spec.profiles` (authoritative for listed codes); the rest become `orphan_profiles`.
+fn merge_profiles(out: &mut Tables) {
+    if !out.has_item_profiles {
+        return;
+    }
+    let mut by = profiles_by_code(&out.item_profiles);
+    for it in &mut out.items {
+        it.spec.profiles = Some(by.get(&it.code).cloned().unwrap_or_default());
+    }
+    for it in &out.items {
+        by.remove(&it.code);
+    }
+    out.orphan_profiles = by.into_iter().collect();
 }
 
 fn consume_sheet(sheet: &Sheet, as_kind: Want, out: &mut Tables) {
@@ -587,8 +862,20 @@ pub fn parse_file(name: &str, bytes: &[u8], want: Want) -> Result<Tables, ApiErr
                     }
                 }
             }
-            if !(out.has_cells || out.has_stations || out.has_items) && out.errors.is_empty() {
+            if let Some(s) = sheets.iter().find(|s| s.is_profile()) {
+                consume_profile(s, &mut out);
+            }
+            if !(out.has_cells || out.has_stations || out.has_items || out.has_item_profiles) && out.errors.is_empty() {
                 return Err(ApiError::BadRequest("no recognisable Cells / Stations / Items sheet".into()));
+            }
+        }
+        Want::Items => {
+            if let Some(s) = sheets.iter().find(|s| s.is_profile()) {
+                consume_profile(s, &mut out);
+            }
+            // a profile-only file carries no Items sheet — never parse that sheet as items
+            if let Some(s) = by_name("Items").or_else(|| sheets.iter().find(|s| !s.is_profile())) {
+                consume_sheet(s, Want::Items, &mut out);
             }
         }
         k => {
@@ -601,6 +888,7 @@ pub fn parse_file(name: &str, bytes: &[u8], want: Want) -> Result<Tables, ApiErr
             consume_sheet(s, k, &mut out);
         }
     }
+    merge_profiles(&mut out);
     Ok(out)
 }
 
@@ -611,6 +899,8 @@ pub struct ApplyCounts {
     pub imported: usize,
     pub updated: usize,
     pub skipped: usize,
+    /// Rows rejected only when merged with the stored state (e.g. a level deeper than the stored stack_max).
+    pub errors: Vec<RowError>,
 }
 
 impl ApplyCounts {
@@ -618,6 +908,7 @@ impl ApplyCounts {
         self.imported += o.imported;
         self.updated += o.updated;
         self.skipped += o.skipped;
+        self.errors.extend(o.errors.iter().cloned());
     }
 }
 
@@ -659,12 +950,18 @@ pub fn apply_stations(reg: &Registry, stations: &[StationPara], dry_run: bool) -
     Ok(c)
 }
 
-pub fn apply_items(reg: &Registry, items: &[ItemRow], dry_run: bool) -> Result<ApplyCounts, ApiError> {
+pub fn apply_items(reg: &Registry, items: &[ItemRow], orphan_profiles: &[(u32, Vec<BeadProfile>)], dry_run: bool) -> Result<ApplyCounts, ApiError> {
     let existing = reg.items()?;
     let mut c = ApplyCounts::default();
     for it in items {
-        match existing.iter().find(|e| e.code == it.code) {
-            Some(e) if e.item == it.item && e.name == it.name && e.note == it.note => {
+        let cur = existing.iter().find(|e| e.code == it.code);
+        let spec = it.spec.apply(&cur.map(|e| e.spec.clone()).unwrap_or_default()).normalized();
+        if let Err(m) = validate_spec_for(&spec, &it.item) {
+            c.errors.push(RowError { sheet: "Items".into(), row: 0, message: format!("code {}: {m}", it.code) });
+            continue;
+        }
+        match cur {
+            Some(e) if e.item == it.item && e.name == it.name && e.note == it.note && e.spec == spec => {
                 c.skipped += 1;
                 continue;
             }
@@ -672,7 +969,26 @@ pub fn apply_items(reg: &Registry, items: &[ItemRow], dry_run: bool) -> Result<A
             None => c.imported += 1,
         }
         if !dry_run {
-            reg.upsert_item(it.code, &it.name, &it.item, &it.note)?;
+            reg.upsert_item_full(it.code, &it.name, &it.item, &it.note, Some(&spec))?;
+        }
+    }
+    for (code, profiles) in orphan_profiles {
+        let Some(e) = existing.iter().find(|e| e.code == *code) else {
+            c.errors.push(RowError { sheet: "ItemBeadProfile".into(), row: 0, message: format!("code {code}: 등록된 품목이 없습니다(Items 시트에도 없음)") });
+            continue;
+        };
+        let spec = ItemSpec { profiles: profiles.clone(), ..e.spec.clone() }.normalized();
+        if let Err(m) = validate_spec_for(&spec, &e.item) {
+            c.errors.push(RowError { sheet: "ItemBeadProfile".into(), row: 0, message: format!("code {code}: {m}") });
+            continue;
+        }
+        if e.spec == spec {
+            c.skipped += 1;
+            continue;
+        }
+        c.updated += 1;
+        if !dry_run {
+            reg.set_item_spec(*code, &spec)?;
         }
     }
     Ok(c)
@@ -723,7 +1039,100 @@ mod tests {
             name: format!("225/45R{code}"),
             note: "비고 테스트".into(),
             item: StockItem { code, count: 4, inner_diameter: 381.0, outer_diameter: 780.5, lower_bid_height: 20.0, upper_bid_height: 220.0, height: 240.0, deflection_factor: 0.1 },
+            spec: SpecPatch::full(&ItemSpec::default()),
         }
+    }
+    fn pr(level: u8, lo: f32, up: f32, sh: Option<f32>, source: &str) -> ProfileRow {
+        ProfileRow { level, lower_bead: Some(lo), upper_bead: Some(up), stack_height: sh, source: source.into() }
+    }
+    /// 3 단 스택 하나를 잰 절대 프로파일(셀 바닥 기준).
+    fn profile3() -> BeadProfile {
+        BeadProfile {
+            count: 3,
+            rows: vec![pr(1, 20.0, 220.0, None, spec::SOURCE_MEASURED), pr(2, 255.0, 455.0, None, spec::SOURCE_MEASURED), pr(3, 492.0, 692.0, Some(711.0), spec::SOURCE_MANUAL)],
+            total_height: Some(711.0),
+            each_height: Some(237.0),
+            sample_plc: "GR2".into(),
+            sample_seq: 11,
+            at: "2026-09-18 10:11:12".into(),
+        }
+    }
+
+    #[test]
+    fn xlsx_item_spec_and_profile_round_trip() {
+        let spec = ItemSpec { stack_max: 4, pallet_max: 12, weight_kg: Some(9.5), profiles: vec![profile3()], ..Default::default() };
+        let items = vec![ItemRow { spec: SpecPatch::full(&spec), ..item(1001) }, item(1002)];
+        let bytes = export_workbook(None, None, Some(&items)).unwrap();
+        for want in [Want::Items, Want::All] {
+            let t = parse_file("items.xlsx", &bytes, want).unwrap();
+            assert!(t.errors.is_empty(), "{:?}", t.errors);
+            assert!(t.has_items && t.has_item_profiles);
+            assert_eq!(t.items, items);
+            assert!(t.orphan_profiles.is_empty());
+        }
+        // apply → stored spec equals; a second apply is a no-op
+        let reg = Registry::new(crate::db::Db::open_memory().unwrap());
+        let t = parse_file("items.xlsx", &bytes, Want::Items).unwrap();
+        let c = apply_items(&reg, &t.items, &t.orphan_profiles, false).unwrap();
+        assert_eq!((c.imported, c.errors.len()), (2, 0));
+        assert_eq!(reg.item(1001).unwrap().unwrap().spec, spec);
+        let c = apply_items(&reg, &t.items, &t.orphan_profiles, false).unwrap();
+        assert_eq!(c.skipped, 2);
+    }
+
+    #[test]
+    fn old_format_import_keeps_stored_spec() {
+        let reg = Registry::new(crate::db::Db::open_memory().unwrap());
+        let spec = ItemSpec { stack_max: 4, profiles: vec![profile3()], ..Default::default() };
+        let base = item(1001);
+        reg.upsert_item_full(1001, "A", &base.item, "", Some(&spec)).unwrap();
+        let spec = reg.item(1001).unwrap().unwrap().spec;
+        assert_eq!(spec.measured_counts(), vec![3]);
+        // old header set: no spec columns, no ItemBeadProfile sheet
+        let csv = "Code,Name,Count,InnerDiameter,OuterDiameter,Height\n1001,A2,2,381,780,240\n1005,B,1,381,780,240\n";
+        let t = parse_file("items.csv", csv.as_bytes(), Want::Items).unwrap();
+        assert!(t.errors.is_empty() && !t.has_item_profiles, "{:?}", t.errors);
+        assert_eq!(t.items[0].spec, SpecPatch::default());
+        let dry = apply_items(&reg, &t.items, &t.orphan_profiles, true).unwrap();
+        assert_eq!((dry.imported, dry.updated), (1, 1));
+        assert!(reg.item(1005).unwrap().is_none(), "dry run must not write");
+        apply_items(&reg, &t.items, &t.orphan_profiles, false).unwrap();
+        assert_eq!(reg.item(1001).unwrap().unwrap().spec, spec, "missing columns keep the stored spec");
+        assert_eq!(reg.item(1001).unwrap().unwrap().name, "A2");
+        assert_eq!(reg.item(1005).unwrap().unwrap().spec, ItemSpec::default());
+        // plain CRUD upsert (no spec) keeps it too
+        reg.upsert_item(1001, "A3", &base.item, "").unwrap();
+        assert_eq!(reg.item(1001).unwrap().unwrap().spec, spec);
+        // a StackMax column alone changes only stack_max
+        let csv = "Code,StackMax\n1001,6\n";
+        let t = parse_file("items.csv", csv.as_bytes(), Want::Items).unwrap();
+        apply_items(&reg, &t.items, &t.orphan_profiles, false).unwrap();
+        let got = reg.item(1001).unwrap().unwrap().spec;
+        assert_eq!((got.stack_max, got.profiles.len()), (6, 1));
+    }
+
+    #[test]
+    fn a_profile_only_file_updates_existing_items() {
+        let reg = Registry::new(crate::db::Db::open_memory().unwrap());
+        reg.upsert_item_full(1001, "A", &item(1001).item, "", Some(&ItemSpec { stack_max: 3, ..Default::default() })).unwrap();
+        let csv = "코드,단수,단,하단 비드,상단 비드,적재 높이\n1001,3,2,255,455,\n1001,3,1,20,220,\n1001,3,2,1,2,3\n9999,3,1,20,200,240\n";
+        let t = parse_file("profile.csv", csv.as_bytes(), Want::Items).unwrap();
+        assert!(!t.has_items && t.has_item_profiles);
+        assert_eq!(t.errors.iter().map(|e| e.row).collect::<Vec<_>>(), vec![4], "{:?}", t.errors);
+        assert!(t.errors[0].message.contains("duplicated"));
+        let c = apply_items(&reg, &t.items, &t.orphan_profiles, false).unwrap();
+        assert_eq!(c.updated, 1);
+        assert_eq!(c.errors.len(), 1);
+        assert!(c.errors[0].message.contains("9999"));
+        // 절대값 그대로 저장되고, 사람이 쓴 시트라 손입력(manual)으로 들어간다
+        let got = reg.item(1001).unwrap().unwrap().spec;
+        assert_eq!(got.measured_counts(), vec![3]);
+        let p = got.profile(3).unwrap();
+        assert_eq!((p.abs_upper_bead(1), p.abs_upper_bead(2)), (Some(220.0), Some(455.0)));
+        assert!(p.at_level(2).unwrap().is_manual());
+        // 스택 크기보다 깊은 단은 가져올 때 거부된다
+        let t = parse_file("profile.csv", "Code,Stack,Level,UpperBead\n1001,3,5,900\n".as_bytes(), Want::Items).unwrap();
+        assert!(t.errors[0].message.contains("level must be 1..=3"), "{:?}", t.errors);
     }
 
     #[test]
@@ -793,6 +1202,59 @@ mod tests {
         assert!(t.cells.is_empty());
         assert_eq!(t.errors[0].row, 1);
         assert!(t.errors[0].message.contains("'Id'"));
+    }
+
+    #[test]
+    fn validate_item_rules() {
+        assert!(validate_item(&item(1)).is_ok());
+        let with = |f: &dyn Fn(&mut ItemRow)| {
+            let mut i = item(1);
+            f(&mut i);
+            validate_item(&i)
+        };
+        assert!(with(&|i| i.code = 0).unwrap_err().contains("code"));
+        assert!(with(&|i| i.item.count = 0).unwrap_err().contains("count"));
+        assert!(with(&|i| i.item.height = -1.0).unwrap_err().contains("height"));
+        assert!(with(&|i| i.item.lower_bid_height = f32::NAN).unwrap_err().contains("lower_bead_height"));
+        assert!(with(&|i| i.item.outer_diameter = f32::INFINITY).unwrap_err().contains("outer_diameter"));
+        assert!(with(&|i| i.item.deflection_factor = f32::NAN).unwrap_err().contains("deflection_factor"));
+        // negative deflection factor is allowed (a factor, not a dimension)
+        assert!(with(&|i| i.item.deflection_factor = -0.2).is_ok());
+        // inner must be below outer when both are given; 0 means "not entered"
+        assert!(with(&|i| i.item.inner_diameter = 780.5).unwrap_err().contains("inner_diameter"));
+        assert!(with(&|i| i.item.inner_diameter = 900.0).is_err());
+        assert!(with(&|i| i.item.outer_diameter = 0.0).is_ok());
+        assert!(with(&|i| i.item.inner_diameter = 0.0).is_ok());
+    }
+
+    #[test]
+    fn xlsx_items_only_round_trip() {
+        let items = vec![item(1001), item(1002), ItemRow { name: String::new(), note: String::new(), ..item(7) }];
+        let bytes = export_workbook(None, None, Some(&items)).unwrap();
+        let t = parse_file("items.xlsx", &bytes, Want::Items).unwrap();
+        assert!(t.errors.is_empty(), "{:?}", t.errors);
+        assert!(t.has_items && !t.has_cells && !t.has_stations);
+        assert_eq!(t.items, items);
+        // a whole-registry workbook: the Items sheet is picked by name, other sheets are ignored
+        let bytes = export_workbook(Some(&[cell(5, 0)]), None, Some(&items)).unwrap();
+        let t = parse_file("registry.xlsx", &bytes, Want::Items).unwrap();
+        assert_eq!(t.items, items);
+        assert!(t.cells.is_empty());
+    }
+
+    #[test]
+    fn items_import_reports_invalid_rows() {
+        let csv = "코드,품명,수량,내경,외경,높이\n\
+                   11,A,2,381,780,240\n\
+                   12,B,0,381,780,240\n\
+                   13,C,1,800,780,240\n\
+                   14,D,1,381,780,-5\n";
+        let t = parse_file("items.csv", csv.as_bytes(), Want::Items).unwrap();
+        assert_eq!(t.items.iter().map(|i| i.code).collect::<Vec<_>>(), vec![11]);
+        assert_eq!(t.errors.iter().map(|e| e.row).collect::<Vec<_>>(), vec![3, 4, 5]);
+        assert!(t.errors[0].message.contains("count"));
+        assert!(t.errors[1].message.contains("inner_diameter"));
+        assert!(t.errors[2].message.contains("height"));
     }
 
     #[test]

@@ -11,9 +11,12 @@ import { ALL_TABS, type TabDef } from '../../lib/tabs'
 import type { ZoneId } from '../../lib/workspace/model'
 
 import TaskIssue from '../task/TaskIssue'
+import ItemsPage from '../items/ItemsPage'
 import TaskManager from '../taskmgr/TaskManager'
 import MeasureMonitor from '../measure/MeasureMonitor'
 import ScenarioPage from '../scenario/ScenarioPage'
+import PalletPage from '../pallet/PalletPage'
+import TracePage from '../trace/TracePage'
 import PlcPane, { PlcSummary } from '../panes/PlcPane'
 import RobotsPane, { RobotsSummary } from '../panes/RobotsPane'
 import StatusPane, { StatusSummary } from '../panes/StatusPane'
@@ -41,16 +44,22 @@ export interface PaneDef {
 /** 화면 id → 컴포넌트. 탭이 늘면 `lib/tabs.ts`와 여기 둘을 손댄다(라벨은 저쪽이 진실원). */
 const SCREEN_COMPONENT: Record<string, ComponentType> = {
   task: TaskIssue,
+  items: ItemsPage,
   taskmgr: TaskManager,
   measure: MeasureMonitor,
   scenario: ScenarioPage,
+  pallet: PalletPage,
+  trace: TracePage,
 }
 
 const SCREEN_KEYWORDS: Record<string, string> = {
   task: 'issue command 명령 작성 제출',
+  items: 'item tire spec 품목 타이어 규격 코드 치수 내경 외경',
   taskmgr: 'manager 목록 이력 history',
   measure: 'monitor 측정 트렌드 trend',
   scenario: 'runner 러너 순차 시퀀스',
+  pallet: 'palletizing pattern drag 팔렛 패턴 적재 드래그 입고 출하',
+  trace: 'trace waveform scope 파형 스코프 채널 사이클 오실로 로깅',
 }
 
 /** 보조 패널 — 예전 사이드바의 세 섹션. 이제는 어디에나 도킹된다. */

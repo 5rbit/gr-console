@@ -48,7 +48,7 @@ pub const KNOWN_MEMBERS: &[(&str, PlcKind)] = &[
     ("Command.Stop.Spare_X7", PlcKind::Bool),
     ("Command.Common.Reset", PlcKind::Bool),
     ("Command.Common.Initializing", PlcKind::Bool),
-    ("Command.Common.Spare_X2", PlcKind::Bool),
+    ("Command.Common.Start", PlcKind::Bool),
     ("Command.Common.Spare_X3", PlcKind::Bool),
     ("Command.Common.Spare_X4", PlcKind::Bool),
     ("Command.Common.Spare_X5", PlcKind::Bool),
@@ -440,16 +440,15 @@ async fn synth_map(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str) -> 
 /// Resolve the node map: cache (verified) → browse → synthesized string ids.
 /// The result is written to `node_cache` when it did not come from the cache.
 pub async fn resolve(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str, use_cache: bool) -> Result<NodeMap, OpcError> {
-    if use_cache {
-        if let Some(path) = &cfg.node_cache {
-            if let Some(map) = NodeMap::load(path) {
-                if verify(session, cfg, &map).await {
-                    tracing::info!(?path, count = map.members.len(), "node cache verified");
-                    return Ok(map);
-                }
-                tracing::warn!(?path, "node cache failed verification; re-browsing");
-            }
+    if use_cache
+        && let Some(path) = &cfg.node_cache
+        && let Some(map) = NodeMap::load(path)
+    {
+        if verify(session, cfg, &map).await {
+            tracing::info!(?path, count = map.members.len(), "node cache verified");
+            return Ok(map);
         }
+        tracing::warn!(?path, "node cache failed verification; re-browsing");
     }
 
     let map = match browse_map(session, cfg, endpoint_url).await {

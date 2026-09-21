@@ -46,8 +46,12 @@ export interface PlcView {
 }
 
 export const taskApi = {
-  stats: () => getJson<TaskStats>('/api/tasks/stats'),
-  plcView: () => getJson<PlcView>('/api/tasks/plc-view'),
+  /** `robot` 이 없으면 모든 로봇 합계. */
+  stats: (robot?: number | null) =>
+    getJson<TaskStats>(`/api/tasks/stats${robot != null ? `?robot=${robot}` : ''}`),
+  /** 로봇 한 대의 PLC `STAT.Task` 배열(없으면 기본 로봇). */
+  plcView: (robot?: number | null) =>
+    getJson<PlcView>(`/api/tasks/plc-view${robot != null ? `?robot=${robot}` : ''}`),
   markFailed: (id: string, note?: string) =>
     postJson<Task>(`/api/tasks/${id}/mark-failed`, note ? { note } : undefined),
   remove: (id: string) => del(`/api/tasks/${id}`),

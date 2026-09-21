@@ -16,6 +16,9 @@ pub enum ApiError {
     LayoutMismatch { plc: String, db: String, detail: String },
     #[error("OPC UA not ready: {0}")]
     OpcNotReady(String),
+    /// 콘솔이 종료 중이라 새 쓰기·명령을 받지 않는다(`shutdown` 모듈).
+    #[error("{0}")]
+    ShuttingDown(String),
     #[error("{0}")]
     Internal(String),
 }
@@ -29,6 +32,7 @@ impl ApiError {
             ApiError::PlcUnavailable(_) => "plc_unavailable",
             ApiError::LayoutMismatch { .. } => "layout_mismatch",
             ApiError::OpcNotReady(_) => "opc_not_ready",
+            ApiError::ShuttingDown(_) => "shutting_down",
             ApiError::Internal(_) => "internal",
         }
     }
@@ -37,7 +41,7 @@ impl ApiError {
             ApiError::NotFound(_) => StatusCode::NOT_FOUND,
             ApiError::BadRequest(_) => StatusCode::BAD_REQUEST,
             ApiError::Conflict(_) => StatusCode::CONFLICT,
-            ApiError::PlcUnavailable(_) | ApiError::LayoutMismatch { .. } | ApiError::OpcNotReady(_) => StatusCode::SERVICE_UNAVAILABLE,
+            ApiError::PlcUnavailable(_) | ApiError::LayoutMismatch { .. } | ApiError::OpcNotReady(_) | ApiError::ShuttingDown(_) => StatusCode::SERVICE_UNAVAILABLE,
             ApiError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

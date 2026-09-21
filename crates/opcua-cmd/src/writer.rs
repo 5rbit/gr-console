@@ -196,10 +196,10 @@ impl CmdWriter {
         }
         let mut out = Vec::with_capacity(paths.len());
         for (key, dv) in keys.into_iter().zip(values) {
-            if let Some(s) = dv.status {
-                if s.is_bad() {
-                    return Err(OpcError::Status { path: key, code: s.bits() });
-                }
+            if let Some(s) = dv.status
+                && s.is_bad()
+            {
+                return Err(OpcError::Status { path: key, code: s.bits() });
             }
             let v = dv.value.as_ref().and_then(from_variant).ok_or_else(|| OpcError::Transport(format!("{key}: empty value")))?;
             out.push((key, v));

@@ -26,6 +26,8 @@ import {
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataGrid, type DataGridColumn } from '../../lib/ui/datagrid/DataGrid'
+import { FieldList } from '../../lib/ui/FieldList'
+import { HelpTip } from '../../lib/ui/HelpTip'
 import { toast } from '../../lib/ui/toast'
 import type { Cell, CellUpsert } from '../../lib/types'
 import { cellSummary, matchCell } from './CellRegistry'
@@ -185,7 +187,7 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
     }),
     {
       id: 'section',
-      header: '구역',
+      header: 'Section',
       width: '2.75rem',
       align: 'center',
       editor: 'select',
@@ -194,14 +196,14 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
       invalid: (r) => sectionError(r.value),
       coercePaste: pasteInt,
     },
-    num('row', '행(X)', (c) => c.row, { width: '3rem', coercePaste: pasteInt }),
-    num('col', '열(Y)', (c) => c.col, { width: '3rem', coercePaste: pasteInt }),
+    num('row', 'Row', (c) => c.row, { width: '3rem', coercePaste: pasteInt }),
+    num('col', 'Col', (c) => c.col, { width: '3rem', coercePaste: pasteInt }),
     num('x', 'X', (c) => c.position[0], { decimals: 1, invalid: (r) => posError(r.value, 'X') }),
     num('y', 'Y', (c) => c.position[1], { decimals: 1, invalid: (r) => posError(r.value, 'Y') }),
     num('z', 'Z', (c) => c.position[2], { decimals: 1, invalid: (r) => posError(r.value, 'Z') }),
     {
       id: 'use',
-      header: '사용',
+      header: 'Use',
       width: '2.75rem',
       align: 'center',
       editor: 'select',
@@ -209,8 +211,8 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
       text: (r) => boolText(r.value.use),
       coercePaste: pasteBool,
     },
-    num('length', '길이', (c) => c.length, { width: '3.75rem' }),
-    num('width', '폭', (c) => c.width, { width: '3.75rem' }),
+    num('length', 'Length', (c) => c.length, { width: '3.75rem' }),
+    num('width', 'Width', (c) => c.width, { width: '3.75rem' }),
   ]
 
   function applyOne(cur: Row[], key: string, col: string, value: string): Row[] {
@@ -279,7 +281,7 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
         onDelete={removeSelected}
         reload={reg.reload}
       />
-      <div className="flex h-10 flex-none items-center gap-1 border-b border-line-default px-2">
+      <div className="flex min-h-screen-header flex-none items-center gap-1 border-b border-line-default px-2 py-1">
         <Button
           size="sm"
           intent="ghost"
@@ -305,7 +307,7 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
         >
           {pending
             ? `수정 ${diff.changed} · 신규 ${diff.added} · 삭제 ${diff.deletes.length}`
-            : '칸을 바로 고치거나 엑셀에서 붙여넣기'}
+            : '변경 없음'}
           {errorCount ? <span className="ml-1 text-fault-fg">· 오류 {errorCount}</span> : null}
         </span>
         <Button
@@ -331,8 +333,12 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
         </Button>
       </div>
       {stale ? (
-        <div className="flex h-8 flex-none items-center border-b border-warn bg-warn-soft px-3 text-2xs text-warn-fg">
-          저장본이 바뀌었습니다(PLC 읽기·가져오기). 편집을 적용하거나 되돌리기로 새로 받으세요.
+        <div className="flex min-h-control-sm flex-none items-center gap-1.5 border-b border-warn bg-warn-soft px-3 py-1 text-2xs text-warn-fg">
+          저장본이 바뀌었습니다
+          <HelpTip
+            title="저장본 변경"
+            text="PLC 읽기·Excel 가져오기가 저장본을 갈아 끼웠습니다. 지금 편집을 적용하거나 되돌리기로 새 저장본을 받으세요."
+          />
         </div>
       ) : null}
       <div className="min-h-0 flex-1">
@@ -364,10 +370,19 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
         confirmLabel="적용"
         onConfirm={() => void save()}
       >
-        <p className="text-xs">
-          수정 {diff.changed} · 신규 {diff.added} · 삭제 {diff.deletes.length} 건을 로컬 사본에
-          저장합니다. PLC 반영은 툴바의 PLC 쓰기로 합니다.
-        </p>
+        <div className="flex flex-col gap-2 text-xs">
+          <p className="m-0">로컬 사본에 저장할까요?</p>
+          <FieldList
+            columns={3}
+            dense
+            labelWidth={40}
+            items={[
+              { label: '수정', value: String(diff.changed) },
+              { label: '신규', value: String(diff.added) },
+              { label: '삭제', value: String(diff.deletes.length) },
+            ]}
+          />
+        </div>
       </ConfirmDialog>
     </div>
   )

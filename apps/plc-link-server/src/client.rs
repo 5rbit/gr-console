@@ -276,12 +276,11 @@ async fn http_poller(hub: &Arc<Hub>, spec: &ConnectSpec, stream: TcpStream) -> b
                     Some(Outbound::Disconnect) | None => anyhow::bail!("disconnect requested"),
                 },
                 _ = poll.tick() => {
-                    if let Some((m, raw, r)) = p.get("/api/status").await? {
-                        if last_status.as_ref() != Some(&m.payload) {
+                    if let Some((m, raw, r)) = p.get("/api/status").await?
+                        && last_status.as_ref() != Some(&m.payload) {
                             p.log_rx(&m, &raw, &r);
                             last_status = Some(m.payload.clone());
                         }
-                    }
                     if let Some((m, raw, r)) = p.get("/api/measlog/last").await? {
                         let key = (m.seq, m.payload.clone());
                         if last_meas.as_ref() != Some(&key) {

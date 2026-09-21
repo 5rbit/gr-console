@@ -3,8 +3,9 @@
 // 그리드에서 고친 값은 "적용" 전에도 맵에 바로 그려진다(onCellDraft / onStationDraft).
 // 생성 규칙 탭은 숨겨도 마운트를 유지해 맵의 생성 예정 셀이 남는다(편집 모드를 나가면 사라진다).
 import { useState } from 'react'
-import { Search, Wand2 } from 'lucide-react'
+import { Wand2 } from 'lucide-react'
 import type { Registry } from '../../lib/registry'
+import { Input } from '../../lib/ui/Input'
 import { Segmented } from '../../lib/ui/Segmented'
 import type { Cell, CellUpsert, Station, Target } from '../../lib/types'
 import { CellGridEditor } from './CellGridEditor'
@@ -43,7 +44,7 @@ export function LayoutSidePanel({
   const [q, setQ] = useState('')
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="layout-side">
-      <div className="flex h-10 flex-none items-center gap-2 border-b border-line-default px-3">
+      <div className="flex min-h-screen-header flex-none items-center gap-2 border-b border-line-default px-3 py-1">
         <Wand2 className="h-4 w-4 text-content-muted" />
         <span className="text-sm font-semibold">레이아웃 편집</span>
         <span className="flex-1" />
@@ -64,17 +65,15 @@ export function LayoutSidePanel({
         />
       </div>
       {tab !== 'rule' ? (
-        <div className="flex h-10 flex-none items-center border-b border-line-default px-3">
-          <label className="relative flex w-full items-center">
-            <Search className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-content-faint" />
-            <input
-              className="h-7 w-full rounded-md border border-line-strong bg-transparent pr-2 pl-7 text-xs focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
-              placeholder={tab === 'cell' ? 'id·구역·행·열' : 'id·컨베이어·그룹'}
-              value={q}
-              onChange={(e) => setQ(e.currentTarget.value)}
-              data-testid="side-search"
-            />
-          </label>
+        <div className="flex min-h-screen-header flex-none items-center border-b border-line-default px-3 py-1">
+          <Input
+            className="w-full"
+            placeholder={tab === 'cell' ? 'Id·Section·Row·Col' : 'Id·ConvNo·Group'}
+            value={q}
+            onValueChange={setQ}
+            aria-label={tab === 'cell' ? '셀 검색' : '스테이션 검색'}
+            data-testid="side-search"
+          />
         </div>
       ) : null}
       <div className="min-h-0 flex-1">

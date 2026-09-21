@@ -85,10 +85,10 @@ impl NodeMap {
     }
 
     pub fn save(&self, path: &Path) {
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                let _ = std::fs::create_dir_all(parent);
-            }
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            let _ = std::fs::create_dir_all(parent);
         }
         match serde_json::to_string_pretty(self) {
             Ok(text) => {

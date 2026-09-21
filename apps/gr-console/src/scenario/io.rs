@@ -3,7 +3,8 @@
 //! JSON export: `{ "schema": 1, "id", "name", "description", "repeat", "steps": [...] }` — import
 //! accepts that document or a plain `Scenario` (the id is dropped; a new one is assigned on save).
 //! CSV columns: `label,type,target_kind,target_id,item_code,count,wait_for,wait_after_ms,on_failure,
-//! note,params` with `params` encoded as `k=v;k=v`.
+//! note,params,robot` with `params` encoded as `k=v;k=v`; `robot` (robot id, blank = the run's robot) is optional
+//! on import so files written before it still load.
 
 use gr_proto::{TaskParams, TaskType};
 use serde::Serialize;
@@ -15,7 +16,7 @@ use crate::ledger::Target;
 use crate::state::AppState;
 
 pub const SCHEMA: u32 = 1;
-pub const CSV_COLUMNS: [&str; 11] = ["label", "type", "target_kind", "target_id", "item_code", "count", "wait_for", "wait_after_ms", "on_failure", "note", "params"];
+pub const CSV_COLUMNS: [&str; 12] = ["label", "type", "target_kind", "target_id", "item_code", "count", "wait_for", "wait_after_ms", "on_failure", "note", "params", "robot"];
 
 // ---------------------------------------------------------------------------------------------
 // JSON
@@ -109,6 +110,7 @@ pub fn to_csv(s: &Scenario) -> Result<String, ApiError> {
             st.on_failure.as_str().to_string(),
             st.note.clone(),
             params_to_kv(&st.params),
+            st.robot.map(|r| r.to_string()).unwrap_or_default(),
         ];
         w.write_record(rec).map_err(|e| ApiError::Internal(format!("csv: {e}")))?;
     }
@@ -170,7 +172,9 @@ pub fn from_csv(text: &str, name: &str) -> Result<Scenario, ApiError> {
         let of = get(&rec, 8);
         let on_failure = OnFailure::parse(&of).ok_or_else(|| bad("on_failure", &of))?;
         let params = params_from_kv(&get(&rec, 10)).map_err(|e| ApiError::BadRequest(format!("csv row {row}: {e}")))?;
-        let mut step = Step { id: String::new(), label: get(&rec, 0), task_type, target, item_code, count, params, wait_for, wait_after_ms, on_failure, note: get(&rec, 9), robot: None };
+        let robot_s = get(&rec, 11);
+        let robot = if robot_s.is_empty() { None } else { Some(robot_s.parse::<u8>().map_err(|_| bad("robot", &robot_s))?) };
+        let mut step = Step { id: String::new(), label: get(&rec, 0), task_type, target, item_code, count, params, wait_for, wait_after_ms, on_failure, note: get(&rec, 9), robot, pallet: None };
         step.normalize();
         steps.push(step);
     }
@@ -257,6 +261,11 @@ pub fn validate(st: &AppState, s: &Scenario) -> Result<Vec<Issue>, ApiError> {
         {
             out.push(issue(i, "item_code", format!("품목 {code} 이(가) 레지스트리에 없음")));
         }
+        if let Some(id) = step.robot
+            && st.robot(Some(id)).is_err()
+        {
+            out.push(issue(i, "robot", format!("로봇 {id} 이(가) 설정에 없음")));
+        }
     }
     Ok(out)
 }
@@ -290,6 +299,7 @@ mod tests {
                     target: Some(Target { kind: "station".into(), id: 2101 }),
                     item_code: Some(1001),
                     on_failure: OnFailure::Skip,
+                    robot: Some(1),
                     ..Default::default()
                 },
                 Step {
@@ -375,6 +385,17 @@ mod tests {
         assert!(from_csv("label,type\nx,FLY\n", "n").is_err());
         assert!(from_csv("type,target_kind,target_id\nPICK,cell,abc\n", "n").is_err());
         assert!(from_csv("label\nx\n", "n").is_err());
+    }
+
+    #[test]
+    fn csv_robot_column_optional() {
+        // files from before the robot column still import (robot = run robot)
+        let old = "label,type,target_kind,target_id,item_code,count,wait_for,wait_after_ms,on_failure,note,params\np,PICK,cell,101,1001,1,completed,0,stop,,\n";
+        assert_eq!(from_csv(old, "n").unwrap().steps[0].robot, None);
+        let new = "type,target_kind,target_id,item_code,robot\nPICK,cell,101,1001,2\nDROP,station,2101,1001,\n";
+        let s = from_csv(new, "n").unwrap();
+        assert_eq!((s.steps[0].robot, s.steps[1].robot), (Some(2), None));
+        assert!(from_csv("type,robot\nUP,x\n", "n").is_err());
     }
 
     #[test]

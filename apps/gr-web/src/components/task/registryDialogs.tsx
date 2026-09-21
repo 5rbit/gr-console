@@ -7,19 +7,15 @@ import { Upload } from 'lucide-react'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
-import { Modal } from '../../lib/ui/Modal'
+import { Dialog } from '../../lib/ui/Dialog'
+import { FieldList } from '../../lib/ui/FieldList'
+import { HelpTip } from '../../lib/ui/HelpTip'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
 import { StatusDot } from '../../lib/ui/StatusDot'
 import type { Column } from '../../lib/ui/table'
 import type { Status } from '../../lib/ui/status'
 import type { DiffRow } from '../../lib/types'
-import type { FileImportResult, PlcTarget, PushResult } from '../../lib/task/types'
-
-export const PLC_TARGET_LABEL: Record<PlcTarget, string> = {
-  GR2: 'GR2',
-  GRM: 'GRM',
-  both: 'GR2 + GRM',
-}
+import type { FileImportResult, PushResult } from '../../lib/task/types'
 
 // ── PLC 쓰기 확인 ──────────────────────────────────────────────────────────────
 
@@ -27,7 +23,8 @@ export interface PushDialogProps {
   open: boolean
   onOpenChange: (o: boolean) => void
   what: '셀' | '스테이션'
-  plc: PlcTarget
+  /** 대상 표시 이름(`GR2` · `GR1 + GR2 + GRM`) — `lib/task/plcTarget.ts`의 `targetLabel`. */
+  plc: string
   rows: number
   dirty: number
   /** `force`(AUTO 모드여도 쓰기)와 함께 실행한다. */
@@ -53,28 +50,42 @@ export function PushDialog({
       onOpenChange={onOpenChange}
       scope="single-robot"
       danger
-      title={`${what} 테이블을 ${PLC_TARGET_LABEL[plc]}에 쓰기`}
+      title={`${what} 테이블 쓰기`}
       confirmLabel="PLC에 쓰기"
       onConfirm={() => onConfirm(force)}
     >
       <div className="flex flex-col gap-2 text-xs">
-        <p>
-          로컬 {what} <b>{rows}</b>건(수정 {dirty}건)을 Id 오름차순으로 PLC DB에 쓰고 나머지 슬롯은
-          0으로 채웁니다.
-          <b> Count</b>는 마지막에 씁니다. 쓴 뒤 다시 읽어 바이트를 대조합니다.
+        <p className="m-0 flex items-center gap-1">
+          {plc} 에 쓸까요?
+          <HelpTip
+            title="쓰는 순서"
+            text={`로컬 ${what} 를 Id 오름차순으로 PLC DB 에 쓰고 나머지 슬롯은 0 으로 채웁니다. Count 는 마지막에 쓰고, 쓴 뒤 다시 읽어 바이트를 대조합니다.`}
+          />
         </p>
-        <p className="text-content-muted">
-          PLC의 기존 테이블은 되돌릴 수 없습니다 — 먼저 <b>PLC 읽기</b>로 백업하거나 Excel로 내보내
-          두세요.
-        </p>
-        <label className="flex items-center gap-2">
+        <FieldList
+          columns={2}
+          dense
+          labelWidth={48}
+          items={[
+            { label: '대상', value: plc },
+            { label: '종류', value: what },
+            { label: '행', value: `${rows}건` },
+            { label: '수정', value: `${dirty}건` },
+          ]}
+        />
+        <p className="m-0 text-fault-fg">PLC 의 기존 테이블은 되돌릴 수 없습니다.</p>
+        <label className="flex items-center gap-1.5">
           <input
             type="checkbox"
             checked={force}
             onChange={(e) => setForce(e.currentTarget.checked)}
             data-testid="push-force"
           />
-          <span>GR2가 AUTO 모드여도 강제로 씁니다 (작업 검증 중 테이블이 바뀔 수 있음)</span>
+          AUTO 모드여도 강제로 쓰기
+          <HelpTip
+            title="강제 쓰기"
+            text="GR PLC 가 AUTO 모드일 때도 씁니다 — 작업 검증 중에 테이블이 바뀔 수 있습니다."
+          />
         </label>
       </div>
     </ConfirmDialog>
@@ -136,13 +147,13 @@ export function DiffDialog<T>({
     { key: 'id', label: 'Id', get: (r) => r.id, numeric: true },
     {
       key: 'status',
-      label: '상태',
+      label: 'Status',
       get: (r) => r.status,
       cell: (r) => <DiffBadge status={r.status} />,
     },
     {
       key: 'local',
-      label: '로컬',
+      label: 'Local',
       get: (r) => (r.local ? summarize(r.local) : null),
       cell: (r) =>
         r.local ? (
@@ -164,7 +175,19 @@ export function DiffDialog<T>({
     },
   ]
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title={title} wide>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      size="lg"
+      meta={`${(rows ?? []).length}행`}
+      footer={
+        <Button size="sm" intent="ghost" onClick={() => onOpenChange(false)}>
+          닫기
+        </Button>
+      }
+      testid="diff-dialog"
+    >
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {(['same', 'changed', 'local_only', 'plc_only'] as const).map((s) => (
@@ -183,17 +206,20 @@ export function DiffDialog<T>({
             다른 것만
           </label>
         </div>
-        {error ? <p className="text-xs text-fault-fg">{error}</p> : null}
+        {error ? <p className="m-0 text-xs text-fault-fg">{error}</p> : null}
         <DataTable
           rows={shown}
           columns={columns}
           rowKey={(r) => String(r.id)}
           loading={rows === null && !error}
-          empty={onlyDiff ? '차이 없음 — 로컬과 PLC가 같습니다' : '행 없음'}
+          empty={onlyDiff ? '차이 없음' : '행 없음'}
+          emptyHint={
+            onlyDiff ? '로컬과 PLC 가 같습니다 — 체크를 끄면 같은 행도 봅니다.' : undefined
+          }
           testid="diff-table"
         />
       </div>
-    </Modal>
+    </Dialog>
   )
 }
 
@@ -221,36 +247,67 @@ export function ImportDialog({
 }: ImportDialogProps) {
   const canApply = !!preview && preview.imported + preview.updated > 0
   const errCols: Column<FileImportResult['errors'][number]>[] = [
-    { key: 'row', label: '행', get: (e) => e.row, numeric: true },
-    { key: 'sheet', label: '시트', get: (e) => e.sheet ?? '' },
-    { key: 'message', label: '문제', get: (e) => e.message },
+    { key: 'row', label: 'Row', get: (e) => e.row, numeric: true },
+    { key: 'sheet', label: 'Sheet', get: (e) => e.sheet ?? '' },
+    { key: 'message', label: 'Message', get: (e) => e.message },
   ]
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Excel 가져오기 — 미리보기" wide>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Excel 가져오기 — 미리보기"
+      size="lg"
+      meta={
+        <>
+          <span className="truncate font-mono">{file?.name ?? ''}</span>
+          {preview?.counts ? (
+            <span className="whitespace-nowrap tabular-nums">
+              셀 {preview.counts.cells} · 스테이션 {preview.counts.stations} · 품목{' '}
+              {preview.counts.items}
+            </span>
+          ) : null}
+        </>
+      }
+      footer={
+        <>
+          <Button size="sm" intent="ghost" onClick={() => onOpenChange(false)}>
+            취소
+          </Button>
+          <Button
+            intent="primary"
+            size="sm"
+            icon={<Upload className="h-3.5 w-3.5" />}
+            disabled={!canApply}
+            title={canApply ? undefined : '적용할 행이 없습니다'}
+            loading={applying}
+            onClick={onApply}
+            data-testid="import-apply"
+          >
+            적용
+          </Button>
+        </>
+      }
+      testid="import-dialog"
+    >
       <div className="flex flex-col gap-3 text-xs">
-        <p className="text-content-muted">
-          파일 <span className="font-mono">{file?.name ?? ''}</span>
-          {preview?.counts
-            ? ` · 셀 ${preview.counts.cells} · 스테이션 ${preview.counts.stations} · 품목 ${preview.counts.items}`
-            : ''}
-        </p>
-        {error ? <p className="text-fault-fg">{error}</p> : null}
+        {error ? <p className="m-0 text-fault-fg">{error}</p> : null}
         {preview ? (
           <div className="grid grid-cols-4 gap-2" data-testid="import-preview">
+            <span className="sr-only">dry-run 결과</span>
             {[
-              ['추가', preview.imported],
-              ['갱신', preview.updated],
-              ['동일(건너뜀)', preview.skipped],
-              ['오류 행', preview.errors.length],
+              ['Imported', preview.imported],
+              ['Updated', preview.updated],
+              ['Skipped', preview.skipped],
+              ['Errors', preview.errors.length],
             ].map(([l, v]) => (
               <div key={String(l)} className="rounded-md border border-line-default px-2 py-1">
                 <div className="text-3xs text-content-faint">{l}</div>
-                <div className="text-base font-semibold tabular-nums">{v}</div>
+                <div className="text-sm font-semibold tabular-nums">{v}</div>
               </div>
             ))}
           </div>
         ) : !error ? (
-          <p className="text-content-faint">미리보기 계산 중…</p>
+          <p className="m-0 text-content-faint">미리보기 계산 중…</p>
         ) : null}
         {preview && preview.errors.length > 0 ? (
           <DataTable
@@ -260,24 +317,14 @@ export function ImportDialog({
             testid="import-errors"
           />
         ) : null}
-        <p className="text-content-muted">
-          오류 행은 건너뛰고 나머지만 로컬에 적용합니다(PLC에는 쓰지 않습니다 — 적용 뒤{' '}
-          <b>PLC 쓰기</b>로 반영).
-        </p>
-        <div className="flex justify-end">
-          <Button
-            intent="primary"
-            size="sm"
-            icon={<Upload className="h-3.5 w-3.5" />}
-            disabled={!canApply}
-            loading={applying}
-            onClick={onApply}
-            data-testid="import-apply"
-          >
-            적용
-          </Button>
-        </div>
+        <span className="flex items-center gap-1 text-2xs text-content-muted">
+          로컬에만 적용
+          <HelpTip
+            title="적용 범위"
+            text="오류 행은 건너뛰고 나머지만 로컬 사본에 적용합니다. PLC 에는 쓰지 않습니다 — 적용 뒤 PLC 쓰기로 반영하세요."
+          />
+        </span>
       </div>
-    </Modal>
+    </Dialog>
   )
 }

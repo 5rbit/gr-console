@@ -1,6 +1,7 @@
-// 시나리오 목록 레일 — 이름 · 스텝 수 · 반복 · 갱신. 새로 만들기 / 복제 / 삭제(확인).
+// 시나리오 목록 레일 — 이름 · 스텝 수 · 반복 · 갱신. 늘 보이는 조작은 `새로 만들기` 하나고,
+// 복제·삭제는 **고른 것에만 뜻이 있으므로** `⋯`로 옮겼다(비활성이면 사유를 단다). 삭제는 확인을 거친다.
 import { useState } from 'react'
-import { Copy, Plus, Trash2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
@@ -8,6 +9,8 @@ import { StatusDot } from '../../lib/ui/StatusDot'
 import { Toolbar } from '../../lib/ui/Toolbar'
 import type { Column } from '../../lib/ui/table'
 import type { Scenario } from '../../lib/types'
+import { OverflowMenu } from '../../lib/ui/OverflowMenu'
+import type { MenuItem } from '../../lib/ui/menu'
 
 export interface ScenarioListProps {
   items: Scenario[]
@@ -41,10 +44,24 @@ export function ScenarioList({
   const [confirm, setConfirm] = useState<Scenario | null>(null)
   const selected = items.find((s) => s.id === selectedId) ?? null
 
+  const menuFor = (s: Scenario | null): MenuItem[] => [
+    {
+      label: '복제해서 편집',
+      disabled: s ? undefined : '먼저 시나리오를 고르세요',
+      run: () => s && onDuplicate(s),
+    },
+    {
+      label: '삭제…',
+      danger: true,
+      disabled: s ? undefined : '먼저 시나리오를 고르세요',
+      run: () => s && setConfirm(s),
+    },
+  ]
+
   const columns: Column<Scenario>[] = [
     {
       key: 'name',
-      label: '이름',
+      label: 'Name',
       get: (s) => s.name,
       cell: (s) => (
         <span className="flex min-w-0 items-center gap-1.5">
@@ -56,10 +73,10 @@ export function ScenarioList({
         </span>
       ),
     },
-    { key: 'steps', label: '스텝', get: (s) => s.steps.length, numeric: true, priority: 2 },
+    { key: 'steps', label: 'Steps', get: (s) => s.steps.length, numeric: true, priority: 2 },
     {
       key: 'repeat',
-      label: '반복',
+      label: 'Repeat',
       get: (s) => s.repeat,
       cell: (s) => (s.repeat === 0 ? '∞' : String(s.repeat)),
       numeric: true,
@@ -67,7 +84,7 @@ export function ScenarioList({
     },
     {
       key: 'updated',
-      label: '갱신',
+      label: 'UpdatedAt',
       get: (s) => s.updated_at,
       cell: (s) => <span className="text-content-muted">{fmtTime(s.updated_at)}</span>,
       priority: 2,
@@ -77,34 +94,17 @@ export function ScenarioList({
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="scenario-list">
       <Toolbar title="시나리오" meta={`${items.length}건`} dense>
-        <Button
-          size="sm"
-          intent="primary"
-          icon={<Plus size={13} />}
-          onClick={onNew}
-          data-testid="scenario-new"
-        >
+        <Button size="sm" icon={<Plus size={13} />} onClick={onNew} data-testid="scenario-new">
           새로 만들기
         </Button>
-        <Button
-          size="sm"
-          icon={<Copy size={13} />}
-          disabled={!selected}
-          title="선택한 시나리오를 복제해 편집"
-          onClick={() => selected && onDuplicate(selected)}
-        >
-          복제
-        </Button>
-        <Button
-          size="sm"
-          intent="ghost"
-          icon={<Trash2 size={13} />}
-          disabled={!selected}
-          onClick={() => selected && setConfirm(selected)}
-          data-testid="scenario-delete"
-        >
-          삭제
-        </Button>
+        {/* 고른 시나리오가 없으면 손잡이째 잠근다 — 열어 봐야 죽은 항목 둘이고, 사유는 손잡이가
+            말한다(`docs/DESIGN.md` 4절 ⑥). */}
+        <OverflowMenu
+          items={menuFor(selected)}
+          testid="scenario-list-more"
+          title="복제 · 삭제"
+          disabledReason={selected ? undefined : '먼저 시나리오를 고르세요'}
+        />
       </Toolbar>
       <div className="min-h-0 flex-1 overflow-auto">
         <DataTable<Scenario>

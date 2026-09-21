@@ -9,6 +9,7 @@ description = "GR gantry engineering console backend (axum): S7 polling, OPC UA 
 [dependencies]
 s7 = { path = "../../crates/s7" }
 plc-layout = { path = "../../crates/plc-layout" }
+plc-link = { path = "../../crates/plc-link", features = ["io"] }
 gr-proto = { path = "../../crates/gr-proto" }
 opcua-cmd = { path = "../../crates/opcua-cmd" }
 tokio = { workspace = true }

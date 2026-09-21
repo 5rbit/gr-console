@@ -9,6 +9,8 @@ export interface RunOptions {
   repeat?: number
   /** 첫 회차를 시작할 스텝(0-based). */
   start_step?: number
+  /** 실행 로봇 — 로봇을 지정하지 않은 스텝이 여기로 간다(없으면 기본 로봇). 사이드바 선택을 싣는다. */
+  robot?: number | null
 }
 
 export const scenarioApi = {

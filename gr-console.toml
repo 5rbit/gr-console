@@ -19,8 +19,8 @@ fast = ["OPCUA", "TASK"]
 webmon = ["WEBMON"]
 slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG", "LASERDIAG"]
 on_demand = ["MEASLOG_HIST"]
+# OPCUA.STAT.ComponentID 는 PLC 프로그램이 쓰지 않아 실기에서 항상 0 (2026-09-14) → 검사하지 않음
 checks = [
-  { db = "OPCUA", path = "STAT.ComponentID", equals = 4002 },
   { db = "PARA", path = "Machine.ID", equals = 2 },
 ]
 
@@ -36,7 +36,7 @@ fast = ["OPCUA"]
 webmon = []
 slow = ["STATION", "CELL", "MACHINE"]
 on_demand = []
-checks = [{ db = "OPCUA", path = "GR[2].STAT.ComponentID", equals = 4002 }]
+checks = []   # GR[n].STAT.ComponentID 는 실기에서 0 — DB 크기 검사만
 
 [opcua]
 endpoint = "opc.tcp://192.168.1.10:4840"
@@ -53,6 +53,12 @@ webmon_ms = 500
 slow_ms = 5000
 grm_fast_ms = 500
 
+# PLC 소켓 링크 수신 — PLC 슬롯(SOCK_CFG.Conn[n])을 Active 로 두면 여기로 붙는다.
+# 트레이스(사이클 단위 시계열, /api/trace)는 이 링크로만 동작한다. 포트가 이미 쓰이면 경고만 남기고 콘솔은 그대로 뜬다.
+[link]
+enabled = true
+bind = "0.0.0.0:2000"
+
 [cmd]
 protocol = 1
 src = 5000
@@ -62,7 +68,7 @@ status_plc = "GR2"
 grm_plc = "GRM"
 
 # 로봇 목록 — GRM 뒤에 최대 2대. 비워 두면 [cmd]/[opcua] 의 한 대(GR2) 만 쓴다.
-# 두 대를 쓰려면 아래 주석을 풀고 GR1 의 S7 PLC 도 [[plcs]] 에 추가한다(contract "GR1_PLC", checks ComponentID 4001). GR1 도 GR2 V1.4.1 과 같은 프로그램이라 WEBMON·MEASLOG·STATION 을 똑같이 읽는다.
+# 두 대를 쓰려면 아래 주석을 풀고 GR1 의 S7 PLC 도 [[plcs]] 에 추가한다(contract "GR1_PLC", checks Machine.ID 1). GR1 실기 프로그램이 GR1_PLC 계약과 같아야 레이아웃 검사를 통과한다.
 # [[robots]]
 # id = 1
 # name = "GR1"
@@ -88,6 +94,6 @@ grm_plc = "GRM"
 # slot = 1
 # fast = ["OPCUA", "TASK"]
 # webmon = ["WEBMON"]
-# slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG", "LASERDIAG"]
+# slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG"]   # LASERDIAG 는 GR1 계약에 없음
 # on_demand = ["MEASLOG_HIST"]
-# checks = [{ db = "OPCUA", path = "STAT.ComponentID", equals = 4001 }, { db = "PARA", path = "Machine.ID", equals = 1 }]
+# checks = [{ db = "PARA", path = "Machine.ID", equals = 1 }]

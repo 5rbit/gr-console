@@ -33,7 +33,7 @@ export const PRESETS: readonly PresetDef[] = [
     hint: '왼쪽 목록 · 중앙 화면 탭',
     layout: layoutOf({
       left: ['robots', 'plcs', 'status'],
-      center: ['task', 'taskmgr', 'measure', 'scenario'],
+      center: ['task', 'items', 'taskmgr', 'measure', 'scenario', 'pallet'],
       sizes: { left: 240 },
     }),
   },

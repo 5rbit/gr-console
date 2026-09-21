@@ -1,8 +1,11 @@
-// 품목(타이어 코드) 레지스트리 — 콘솔 전용(PLC 테이블 없음). Excel은 레지스트리 전체 파일의 `Items` 시트.
+// 품목(타이어 코드) 레지스트리 — 콘솔 전용(PLC 테이블 없음). Excel은 품목 전용(`Items` 시트).
+// 넓은 표·복제·여러 건 삭제는 `화물 규격` 화면(`components/items/ItemsPage`)이 맡고, 여기서는 그리로 간다.
 import { useMemo, useState } from 'react'
-import { Package } from 'lucide-react'
+import { Maximize2, Package } from 'lucide-react'
 import { api } from '../../lib/api'
+import { nav } from '../../lib/nav'
 import { taskApi } from '../../lib/task/api'
+import { Button } from '../../lib/ui/Button'
 import type { Registry } from '../../lib/registry'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
@@ -26,6 +29,8 @@ export function toItemUpsert(i: Item): ItemUpsert {
     height: i.height,
     deflection_factor: i.deflection_factor,
     note: i.note,
+    // 서버가 준 규격을 그대로 싣는다(없으면 빼서 서버가 저장된 값을 두게).
+    ...(i.spec ? { spec: i.spec } : {}),
   }
 }
 
@@ -35,8 +40,8 @@ export function matchItem(i: Item, q: string): boolean {
 }
 
 const IO: RegistryIo<Item> = {
-  exportUrl: taskApi.registryExportUrl,
-  importFile: taskApi.registryImportFile,
+  exportUrl: taskApi.itemsExportUrl,
+  importFile: taskApi.itemsImportFile,
 }
 
 export interface ItemRegistryProps {
@@ -61,17 +66,17 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
   const columns: Column<Item>[] = [
     {
       key: 'code',
-      label: '코드',
+      label: 'Code',
       get: (i) => i.code,
       numeric: true,
       class: 'font-mono',
       priority: 1,
     },
-    { key: 'name', label: '이름', get: (i) => i.name, priority: 1 },
-    { key: 'count', label: '수량', get: (i) => i.count, numeric: true, priority: 2 },
+    { key: 'name', label: 'Name', get: (i) => i.name, priority: 1 },
+    { key: 'count', label: 'Count', get: (i) => i.count, numeric: true, priority: 2 },
     {
       key: 'id',
-      label: '내경',
+      label: 'InnerDiameter',
       get: (i) => i.inner_diameter,
       numeric: true,
       cell: (i) => f1(i.inner_diameter),
@@ -79,7 +84,7 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
     },
     {
       key: 'od',
-      label: '외경',
+      label: 'OuterDiameter',
       get: (i) => i.outer_diameter,
       numeric: true,
       cell: (i) => f1(i.outer_diameter),
@@ -87,7 +92,7 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
     },
     {
       key: 'h',
-      label: '높이',
+      label: 'Height',
       get: (i) => i.height,
       numeric: true,
       cell: (i) => f1(i.height),
@@ -95,7 +100,7 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
     },
     {
       key: 'lb',
-      label: '하부 비드',
+      label: 'LowerBidHeight',
       get: (i) => i.lower_bead_height,
       numeric: true,
       cell: (i) => f1(i.lower_bead_height),
@@ -103,14 +108,20 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
     },
     {
       key: 'ub',
-      label: '상부 비드',
+      label: 'UpperBidHeight',
       get: (i) => i.upper_bead_height,
       numeric: true,
       cell: (i) => f1(i.upper_bead_height),
       priority: 3,
     },
-    { key: 'df', label: '처짐', get: (i) => i.deflection_factor, numeric: true, priority: 3 },
-    { key: 'note', label: '비고', get: (i) => i.note, class: 'text-content-muted', priority: 3 },
+    {
+      key: 'df',
+      label: 'DeflectionFactor',
+      get: (i) => i.deflection_factor,
+      numeric: true,
+      priority: 3,
+    },
+    { key: 'note', label: 'Note', get: (i) => i.note, class: 'text-content-muted', priority: 3 },
   ]
 
   async function save(v: ItemUpsert) {
@@ -148,6 +159,18 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
           sel && setForm({ open: true, editing: true, initial: toItemUpsert(sel), key: Date.now() })
         }
         onDelete={() => setDel(true)}
+        extra={
+          <Button
+            size="sm"
+            intent="ghost"
+            icon={<Maximize2 className="h-3.5 w-3.5" />}
+            onClick={() => nav.go('items')}
+            title="화물 규격 화면에서 열기 — 넓은 표 · 복제 · 여러 건 삭제"
+            data-testid="item-open-page"
+          >
+            규격 화면
+          </Button>
+        }
       />
       <div className="min-h-0 flex-1 overflow-auto">
         {reg.error ? <p className="p-2 text-xs text-fault-fg">{reg.error}</p> : null}
@@ -160,7 +183,9 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
           loading={reg.loading}
           empty={q ? '검색 결과 없음' : '품목 없음'}
           emptyHint={
-            q ? undefined : '추가 버튼이나 Excel 가져오기(Items 시트)로 타이어 코드를 등록하세요.'
+            q
+              ? '검색어를 지우거나 Code·Name 의 다른 조각으로 찾으세요.'
+              : '추가 버튼이나 Excel 가져오기(Items 시트)로 타이어 코드를 등록하세요.'
           }
           testid="item-table"
         />

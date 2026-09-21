@@ -1,13 +1,18 @@
 // 순차 작업 계획(생성 예정 작업) — 레이아웃 클릭이 PICK → DROP → PICK … 으로 번갈아 쌓이는 순수 모델.
 //
-// 재고를 시뮬레이션하며 각 스텝의 Z(백엔드 `stack_z` 와 같은 식)와 경고를 만든다:
-//   PICK/MEASURE: floor + H·(n − c) + H/2   (집을 c개 중 맨 위 타이어 중심; n = 지금 셀에 있는 개수)
-//   DROP:         floor + H·n + H/2         (n개 위에 첫 타이어가 놓일 중심)
+// 재고를 시뮬레이션하며 각 스텝의 Z(백엔드 `registry::spec::stack_z_with` 와 같은 차례)와 경고를 만든다:
+//   ① 잡는 타이어가 설 스택 크기(PICK 은 n, DROP 은 n+1)를 통째로 잰 프로파일이 있으면
+//      Z = floor + AbsUpperBead(size, level) − PickBeadOffset — 환산도 아래 타이어 합산도 없다.
+//   ② 없으면 프로파일에서 파생한 하중 곡선으로: floor + 아래 타이어들의 PressedHeight 합 + grip.
+//   ③ 잰 게 하나도 없으면 grip = mid(H/2). 스칼라 Compression 은 ②·③ 의 아래 타이어 높이에만 쓴다.
 // 되돌리기/다시실행은 계획 배열의 스냅샷 스택이다.
+import { MIN_PITCH, absUpperBead, compressionOf, measuredBead, pickBeadOffset, profileOf, specOf, stackBase } from '../items/levelsModel'
 import type {
   Cell,
   GripRef,
   Item,
+  ItemSpec,
+  PalletRef,
   ScenarioStep,
   ScenarioUpsert,
   Station,
@@ -26,6 +31,8 @@ export interface PlanStep {
   note: string
   /** 보낼 로봇(없으면 기본 로봇). */
   robot?: number | null
+  /** 팔렛 슬롯(팔렛 패턴 화면이 싣는다) — compose 가 슬롯 XY·드래그를 정한다. */
+  pallet?: PalletRef | null
 }
 
 export interface PlanRow extends PlanStep {
@@ -72,14 +79,94 @@ export function carried(steps: readonly PlanStep[]): Carry | null {
   return null
 }
 
-/** 타이어 바닥에서 그리퍼가 잡는 높이 — mid = H/2, bead = 상부 비드 높이(없으면 mid). 백엔드 grip_offset 과 같다. */
+/**
+ * 화면이 고를 수 있는 그립 기준. 맨 비드(`bead`)는 없어졌다 — 비드로 잡는 길은 `bead+offset` 하나뿐이다.
+ * 저장되는 값(`pick_bead`)은 그대로 두고 이름만 뜻이 드러나게 붙인다.
+ */
+export const GRIP_REFS: readonly { id: GripRef; label: string; title: string }[] = [
+  { id: 'mid', label: '타이어 중간 (H/2)', title: 'Z 의 그립 위치 = 타이어 높이 / 2 — 기본값' },
+  {
+    id: 'pick_bead',
+    label: 'bead+offset (− PickBeadOffset)',
+    title:
+      'Z 의 그립 위치 = 잰 상부 비드 − PickBeadOffset(화물 규격, 기본 30 mm). 아직 한 번도 안 잰 품목은 타이어 중간(H/2)으로 잡습니다.',
+  },
+]
+
+/** 옛 값(`bead`)·오타를 정본으로 — 백엔드 `spec::normalize_grip_ref` 과 같다. */
+export function normalizeGripRef(ref: string | null | undefined): GripRef {
+  const v = (ref ?? '').trim().toLowerCase().replace(/[-+ ]/g, '_')
+  return v === 'bead' || v === 'pick_bead' || v === 'pickbead' || v === 'bead_offset' ? 'pick_bead' : 'mid'
+}
+
+/**
+ * 타이어 바닥에서 그리퍼가 잡는 높이 — `mid` = H/2, `pick_bead` = 상부 비드 − PickBeadOffset.
+ * 비드는 위에 얹힌 `above` 개만큼 눌린다. **잰 비드가 없으면 mid 로 내려간다.**
+ * 백엔드 `spec::grip_point` 과 같다.
+ */
 export function gripOffset(
   ref: GripRef | string | undefined,
-  item: { height: number; upper_bead_height?: number } | undefined,
+  item: { height: number; upper_bead_height?: number; spec?: Partial<ItemSpec> | null } | undefined,
+  above = 0,
 ): number {
   const h = item?.height ?? 0
-  if (ref === 'bead' && (item?.upper_bead_height ?? 0) > 0) return item!.upper_bead_height!
-  return h / 2
+  if (!item || normalizeGripRef(ref) !== 'pick_bead') return h / 2
+  const bead = measuredBead(
+    { height: h, upper_bead_height: item.upper_bead_height ?? 0, lower_bead_height: 0 },
+    specOf(item),
+    Math.max(above, 0),
+  )
+  return bead === null ? h / 2 : Math.max(bead - pickBeadOffset(specOf(item)), 0)
+}
+
+/** 미리보기가 보일 한 줄 — 어느 갈래로 잡았는지(백엔드 `StackZ.used` 의 `grip=…` 과 같은 뜻). */
+export function gripLabel(ref: GripRef | string | null | undefined, usedRef: GripRef): string {
+  if (usedRef === 'pick_bead') return 'grip=bead+offset'
+  return normalizeGripRef(ref) === 'pick_bead' ? 'grip=mid (측정 없음)' : 'grip=mid'
+}
+
+/** 잡는 타이어 위에 얹힌 개수 — PICK/MEASURE 은 같이 가져갈 c−1 개, DROP 은 0. */
+export function aboveCount(type: TaskType, n: number, c: number): number {
+  if (type === 'PICK' || type === 'MEASURE') return Math.max(Math.min(n, Math.max(c, 1)) - 1, 0)
+  return 0
+}
+
+/** 잡는 타이어 아래에 깔리는 개수 — PICK/MEASURE: n − c, DROP: n, 그 밖: 0. */
+export function belowCount(type: TaskType, n: number, c: number): number {
+  if (type === 'PICK' || type === 'MEASURE') return Math.max(n - Math.max(c, 1), 0)
+  return type === 'DROP' ? n : 0
+}
+
+/**
+ * 한 스텝의 Z — 백엔드 `spec::stack_z_with` 과 같은 차례(프로파일 → 곡선 → mid).
+ * `ref` 는 **실제로 쓴** 그립 기준이다.
+ */
+export function planZ(
+  type: TaskType,
+  floor: number,
+  item: { height: number; upper_bead_height?: number; spec?: Partial<ItemSpec> | null } | undefined,
+  gripRef: GripRef | string | undefined,
+  n: number,
+  c: number,
+): { z: number; ref: GripRef; source: 'profile' | 'curve' | 'computed' } {
+  const h = item?.height ?? 0
+  if (type !== 'PICK' && type !== 'MEASURE' && type !== 'DROP') return { z: floor, ref: 'mid', source: 'computed' }
+  const spec = item ? specOf(item) : null
+  const level = belowCount(type, n, c) + 1
+  const above = aboveCount(type, n, c)
+  if (spec && normalizeGripRef(gripRef) === 'pick_bead') {
+    const prof = profileOf(spec, level + above)
+    const abs = prof ? absUpperBead(prof, level) : null
+    if (abs !== null)
+      return { z: floor + Math.max(Math.max(abs, MIN_PITCH) - pickBeadOffset(spec), 0), ref: 'pick_bead', source: 'profile' }
+  }
+  const grip = gripOffset(gripRef ?? 'mid', item, above)
+  const bead = spec && item ? measuredBead({ height: h, upper_bead_height: item.upper_bead_height ?? 0, lower_bead_height: 0 }, spec, above) : null
+  return {
+    z: stackZ(type, floor, h, n, c, grip, spec ? compressionOf(spec) : 0),
+    ref: bead === null ? 'mid' : 'pick_bead',
+    source: bead === null ? 'computed' : 'curve',
+  }
 }
 
 export function stackZ(
@@ -89,10 +176,11 @@ export function stackZ(
   n: number,
   c: number,
   grip = h / 2,
+  compression = 0,
 ): number {
   if (type === 'PICK' || type === 'MEASURE')
-    return floor + h * Math.max(n - Math.max(c, 1), 0) + grip
-  if (type === 'DROP') return floor + h * n + grip
+    return floor + stackBase(h, compression, n, Math.max(n - Math.max(c, 1), 0)) + grip
+  if (type === 'DROP') return floor + stackBase(h, compression, n, n) + grip
   return floor
 }
 
@@ -174,8 +262,7 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
     const st = cell ? (sim.get(cell.id) ?? { item_code: 0, count: 0 }) : null
     const n = st ? st.count : 0
     let z: number | null = null
-    if (floor !== null && h !== null)
-      z = stackZ(s.type, floor, h, n, s.count, gripOffset(ctx.gripRef ?? 'mid', item))
+    if (floor !== null && h !== null) z = planZ(s.type, floor, item, ctx.gripRef ?? 'mid', n, s.count).z
     else if (floor !== null && s.type === 'MOVE') z = floor
     if (cell) {
       if ((s.type === 'PICK' || s.type === 'MEASURE') && n === 0) warnings.push('셀 재고 없음')
@@ -284,6 +371,7 @@ export function toRequest(s: PlanStep): TaskRequest {
     position_override: null,
     note: s.note,
     source: null,
+    ...(s.pallet ? { pallet: s.pallet } : {}),
   }
 }
 
@@ -294,7 +382,7 @@ export function toScenario(
 ): ScenarioUpsert {
   const st: ScenarioStep[] = steps.map((s, i) => ({
     id: '',
-    label: `${i + 1}. ${s.type} ${s.target.kind === 'cell' ? '셀' : '스테이션'} #${s.target.id}`,
+    label: `${i + 1}. ${s.type} ${s.target.kind === 'cell' ? 'Cell' : 'Station'} #${s.target.id}`,
     type: s.type,
     target: s.target,
     item_code: s.item_code,
@@ -305,6 +393,7 @@ export function toScenario(
     on_failure: 'stop',
     note: s.note,
     robot: s.robot ?? null,
+    ...(s.pallet ? { pallet: s.pallet } : {}),
   }))
   return { name, description, steps: st, repeat: 1 }
 }

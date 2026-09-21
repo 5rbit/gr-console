@@ -100,15 +100,15 @@ export function summary(r: MeasRow): string {
   const d = r.data
   switch (r.kind) {
     case 1:
-      return `내경 ${f1(d[1])} (토크 ${f1(d[7])} / Entry ${f1(d[10])} / Exit ${f1(d[15])})  비드 ${f1(d[2])}  높이 ${f1(d[3])}`
+      return `InnerDia ${f1(d[1])} (Torq ${f1(d[7])} / In ${f1(d[10])} / Out ${f1(d[15])})  UpperBead ${f1(d[2])}  Height ${f1(d[3])}`
     case 2:
-      return `${d[17] ?? 0}단  단당 ${f1(d[18])}  전체 ${f1(d[19])}`
+      return `StackCount ${d[17] ?? 0}  EachHeight ${f1(d[18])}  StackHeight ${f1(d[19])}`
     case 3:
-      return `바닥 ${f1(d[1])} (Z ${f1(d[2])}, FLD ${f1(d[3])})`
+      return `Floor ${f1(d[1])} (Z ${f1(d[2])}, FLD ${f1(d[3])})`
     case 4:
-      return `비드-Target ${f1(d[1])}  ZTarget ${d[2] ? f1(d[2]) : '-'}  내경 ${d[3] ? f1(d[5]) : '-'}`
+      return `LastBidPos−Target ${f1(d[1])}  PickZTarget ${d[2] ? f1(d[2]) : '-'}  InnerDia ${d[3] ? f1(d[5]) : '-'}`
     case 5:
-      return `레이저 ${f1(d[1])}  토크 ${f1(d[2])}  높이 ${f1(d[3])}`
+      return `LaserInnerDia ${f1(d[1])}  TorqueInnerDia ${f1(d[2])}  Height ${f1(d[3])}`
     default:
       return ''
   }

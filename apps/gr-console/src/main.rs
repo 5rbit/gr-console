@@ -5,21 +5,27 @@ mod console_info;
 mod db;
 mod demo;
 mod error;
+mod instance;
 mod issue;
 mod laser;
 mod ledger;
+mod link;
 mod measure;
+mod pallet;
+mod para;
 mod plc;
 mod record;
 mod registry;
 mod routes;
 mod scenario;
+mod shutdown;
 mod sim_opcua;
 mod spa;
 mod sse;
 mod state;
 mod status;
 mod stock;
+mod trace;
 mod util;
 
 use std::collections::HashMap;
@@ -36,7 +42,11 @@ use crate::config::Config;
 use crate::state::AppState;
 
 #[derive(Parser)]
-#[command(version, about = "GR gantry engineering console backend")]
+#[command(
+    version,
+    about = "GR gantry engineering console backend",
+    after_help = "한 번에 하나만 실행된다(기계 전체). 끄기: 창에서 Ctrl+C 또는 다른 창에서 `gr-console --stop`.\n종료 코드: 0 정상 · 1 오류 · 3 이미 실행 중 · 4 HTTP 포트를 잡지 못함."
+)]
 struct Cli {
     /// Config file (TOML)
     #[arg(long, default_value = "gr-console.toml")]
@@ -53,6 +63,15 @@ struct Cli {
     /// Print an example config and exit
     #[arg(long)]
     example_config: bool,
+    /// Development/tests only: skip the single-instance guard (also env GR_CONSOLE_ALLOW_MULTI=1)
+    #[arg(long)]
+    allow_multi: bool,
+    /// Ask the running console to shut down gracefully and wait for it
+    #[arg(long)]
+    stop: bool,
+    /// With --stop: kill the process if the graceful shutdown does not finish
+    #[arg(long)]
+    force: bool,
 }
 
 #[tokio::main]
@@ -61,6 +80,9 @@ async fn main() -> anyhow::Result<()> {
     if cli.example_config {
         println!("{}", Config::example_toml());
         return Ok(());
+    }
+    if cli.stop {
+        std::process::exit(stop_running_instance(cli.force));
     }
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,opcua=warn,async_opcua=warn".into())).init();
     // 기준 디렉터리 — 설정 파일이 있는 곳. CWD에 없으면 실행 파일 옆을 본다(배포: 더블클릭·바로 가기·
@@ -75,6 +97,17 @@ async fn main() -> anyhow::Result<()> {
     if let Some(b) = cli.bind {
         cfg.server.bind = b;
     }
+    // 한 번에 하나만 — data/ 에 무엇이든 쓰거나 포트를 잡기 전에. 끝날 때까지 쥐고 있는다.
+    // `--stop` 이 쓸 토큰은 실행마다 새로 만들어 사용자별 안내 파일에만 남긴다.
+    let sd = shutdown::Shutdown::new();
+    let (guard, stop_token) = if instance::allow_multi(cli.allow_multi, std::env::var(instance::ALLOW_MULTI_ENV).ok().as_deref()) {
+        tracing::warn!("single-instance guard skipped (--allow-multi / {}) — --stop 으로는 끌 수 없습니다", instance::ALLOW_MULTI_ENV);
+        (None, None)
+    } else {
+        let token = uuid::Uuid::new_v4().to_string();
+        (Some(acquire_single_instance(&cfg, &token)), Some(token))
+    };
+    let info_file = guard.as_ref().map(instance::Guard::info_file);
     std::fs::create_dir_all(&cfg.paths.data_dir)?;
 
     // contracts — 디스크에 없으면(배포 실행 파일) 내장 번들을 `data/contract/`에 풀어 쓴다
@@ -97,17 +130,34 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    // demo world (fake PLCs) — rewrites hosts to the local fake servers
+    // demo world (fake PLCs) — one fake PLC per robot so switching robots shows different data; rewrites hosts
     let demo_world = if cfg.demo {
-        let gr2 = contracts.get("GR2_PLC").cloned().ok_or_else(|| anyhow::anyhow!("demo needs GR2_PLC contract"))?;
-        let grm = contracts.get("GRM_PLC").cloned().ok_or_else(|| anyhow::anyhow!("demo needs GRM_PLC contract"))?;
-        let w = demo::DemoWorld::start(gr2, grm, 200).await?;
+        let grm_contract = cfg.plcs.iter().find(|p| p.role == config::PlcRole::Grm).map(|p| p.contract.clone()).unwrap_or_else(|| "GRM_PLC".into());
+        let grm = contracts.get(&grm_contract).cloned().ok_or_else(|| anyhow::anyhow!("demo needs a GRM contract ({grm_contract})"))?;
+        let mut demo_robots: Vec<demo::DemoRobot> = Vec::new();
+        for r in cfg.robots_effective() {
+            let Some(p) = cfg.plcs.iter().find(|p| p.name == r.plc && p.role == config::PlcRole::Gr) else {
+                tracing::warn!(robot = r.id, plc = %r.plc, "demo: robot PLC is not a gr [[plcs]] entry — no fake PLC");
+                continue;
+            };
+            if demo_robots.iter().any(|d| d.plc_name == p.name) {
+                continue;
+            }
+            let Some(contract) = contracts.get(&p.contract).cloned() else { continue };
+            let gr_index = demo::DemoRobot::gr_index_of(&r.opcua_root).unwrap_or_else(|| usize::from(r.id.max(1)) - 1);
+            // Machine.ID = robot id: what the `PARA.Machine.ID` semantic check of each robot's [[plcs]] expects
+            demo_robots.push(demo::DemoRobot { plc_name: p.name.clone(), contract, dst: r.dst, gr_index, machine_id: r.id });
+        }
+        anyhow::ensure!(!demo_robots.is_empty(), "demo needs at least one robot whose plc is a [[plcs]] entry with role = \"gr\"");
+        let w = demo::DemoWorld::start(demo_robots, grm, 200).await?;
+        // a gr PLC no robot owns shares the first robot's fake PLC
+        let first = w.robot_addrs()[0].1;
         for p in cfg.plcs.iter_mut() {
-            let addr = if p.contract == "GRM_PLC" { w.grm_addr } else { w.gr2_addr };
+            let addr = if p.role == config::PlcRole::Grm { w.grm_addr } else { w.addr_of(&p.name).unwrap_or(first) };
             p.host = addr.ip().to_string();
             p.port = addr.port();
         }
-        tracing::info!(gr2 = %w.gr2_addr, grm = %w.grm_addr, "demo PLCs started");
+        tracing::info!(robots = ?w.robot_addrs(), grm = %w.grm_addr, "demo PLCs started");
         Some(w)
     } else {
         None
@@ -137,14 +187,16 @@ async fn main() -> anyhow::Result<()> {
 
     // storage
     let db = db::Db::open(&cfg.paths.sqlite)?;
+    // 팔렛 패턴 저장소 — 처음 한 번만 내장 사양서 R4 로 채운다(그 뒤로는 운전자 편집이 기준).
+    if pallet::store::PalletStore::new(db.clone()).ensure_seeded().map_err(|e| anyhow::anyhow!("pallet pattern seed: {e}"))? {
+        tracing::info!("pallet patterns seeded from spec_r4");
+    }
     let registry = registry::Registry::new(db.clone());
-    let measure = measure::MeasureStore::new(db.clone());
     let scenario = scenario::Runner::new(db.clone());
     let stock = stock::Stock::new(db.clone());
-    let status = status::StatusBus::new();
     let (events, _) = tokio::sync::broadcast::channel(256);
     let (task_events, _) = tokio::sync::broadcast::channel::<ledger::LedgerEvent>(512);
-    stock::spawn(stock.clone(), task_events.clone());
+    stock::spawn(stock.clone(), task_events.clone(), registry.clone());
 
     // robots: one command port (OPC UA GR[n].CMD via GRM) + one ledger + one sync loop each
     let mut robots = Vec::new();
@@ -185,35 +237,49 @@ async fn main() -> anyhow::Result<()> {
             }
         };
         let ledger = ledger::Ledger::new(db.clone(), &r.plc, Some(task_events.clone()))?;
+        // 로봇마다 자기 상태 PLC 의 WEBMON 스트림과 MEASLOG 미러를 든다 — 사이드바에서 고른 호기의 데이터만 보이게.
+        let status = status::StatusBus::new();
+        let measure = measure::MeasureStore::new(db.clone(), &r.plc, registry.clone());
         match plcs.get(&r.plc) {
-            Some(h) => ledger::sync::spawn(ledger.clone(), h.clone(), cfg.cmd.echo_timeout_ms),
+            Some(h) => {
+                ledger::sync::spawn(ledger.clone(), h.clone(), cfg.cmd.echo_timeout_ms);
+                if h.has_db("WEBMON") {
+                    status.follow(h.clone(), "WEBMON".into(), if cfg.demo { "demo" } else { "plc" }, r.id);
+                }
+                measure.attach(h.clone());
+            }
             None => tracing::error!(robot = r.id, plc = %r.plc, "robot status PLC not configured"),
         }
         tracing::info!(robot = r.id, name = %r.name, plc = %r.plc, root = %r.opcua_root, dst = r.dst, "robot");
-        robots.push(state::RobotCtx { id: r.id, name: r.name.clone(), plc: r.plc.clone(), opcua_root: r.opcua_root.clone(), dst: r.dst, cmd: Arc::new(cmd), ledger });
+        robots.push(state::RobotCtx { id: r.id, name: r.name.clone(), plc: r.plc.clone(), opcua_root: r.opcua_root.clone(), dst: r.dst, cmd: Arc::new(cmd), ledger, status, measure });
     }
     let robots = Arc::new(robots);
     let first = robots.first().expect("at least one robot");
     let cmd = first.cmd.clone();
     let ledger = first.ledger.clone();
 
-    if let Some(h) = plcs.get(&cfg.cmd.status_plc) {
-        status.follow(h.clone(), "WEBMON".into(), if cfg.demo { "demo" } else { "plc" });
-        measure.attach(h.clone());
-    } else {
-        tracing::error!(plc = %cfg.cmd.status_plc, "status PLC not configured");
-    }
-
     let recorder = record::Recorder::new(cfg.paths.data_dir.join("records"));
-    let st = AppState { cfg: cfg.clone(), plcs, cmd, robots, task_events, db, ledger, registry, measure, scenario, stock, recorder, status, events };
+    // Trace needs LNK_Trace in the contract; without it the endpoints answer "trace is not configured" instead of
+    // failing the whole start-up.
+    // The trace contract comes from the default robot PLC: chunks and channel paths are that PLC's layout.
+    let trace_contract = cfg.plcs.iter().find(|p| p.name == first.plc).and_then(|p| contracts.get(&p.contract).cloned());
+    let trace = match trace_contract.ok_or_else(|| "no contract for the default robot PLC".to_string()).and_then(|c| trace::TraceStore::new(c, cfg.paths.data_dir.join("traces"))) {
+        Ok(t) => Some(t),
+        Err(e) => {
+            tracing::warn!("trace disabled: {e}");
+            None
+        }
+    };
+    let st = AppState { cfg: cfg.clone(), plcs, cmd, robots, task_events, db, ledger, registry, scenario, stock, recorder, trace, events, shutdown: sd.clone() };
 
     // demo: seed registries from the fake PLC tables once they are readable
     if cfg.demo {
         let st2 = st.clone();
         tokio::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-            for (plc, what) in [("GR2", "cells"), ("GR2", "stations")] {
-                let Ok(h) = st2.plc(plc) else { continue };
+            let plc = st2.default_plc_name().to_string();
+            for what in ["cells", "stations"] {
+                let Ok(h) = st2.plc(&plc) else { continue };
                 let snap = h.snap();
                 let db = if what == "cells" { "CELL" } else { "STATION" };
                 let Some(d) = snap.db(db) else { continue };
@@ -246,28 +312,257 @@ async fn main() -> anyhow::Result<()> {
                     let _ = st2.stock.set(cell, code, n, "", "demo seed");
                 }
             }
-            let _ = st2.measure.sync(st2.plc("GR2").unwrap()).await;
+            for r in st2.robots.iter() {
+                if let Ok(h) = st2.robot_plc(r) {
+                    let _ = r.measure.sync(h).await;
+                }
+            }
         });
     }
 
-    // web
-    let base = console_info::router(cfg.demo).merge(routes::router(st));
+    // PLC socket link: Trace chunks and the TraceCfg acknowledgement reach the trace store through it.
+    if let (true, Some(tr)) = (cfg.link.enabled, st.trace.clone()) {
+        link::spawn(&cfg.link.bind, tr.contract_arc(), tr).await;
+    }
+
+    // web — 종료 미들웨어가 가장 바깥이라, 종료가 시작되면 새 쓰기 요청이 슬라이스까지 오지 않는다.
+    let parts = shutdown::Parts {
+        shutdown: sd.clone(),
+        scenario: st.scenario.clone(),
+        recorder: st.recorder.clone(),
+        plcs: st.plcs.values().cloned().collect(),
+        cmds: st.robots.iter().map(|r| r.cmd.clone()).collect(),
+        db: st.db.clone(),
+    };
+    let base = console_info::router(cfg.demo).merge(shutdown::admin_router(sd.clone(), stop_token.clone())).merge(routes::router(st));
     let (app, web_source) = spa::attach(base, cfg.paths.web_dir.as_deref());
-    let app = app.layer(cors_layer(&cfg.server.cors));
+    let app = app.layer(cors_layer(&cfg.server.cors)).layer(axum::middleware::from_fn_with_state(sd.clone(), shutdown::reject_writes_when_draining));
     let addr: std::net::SocketAddr = cfg.server.bind.parse().map_err(|e| anyhow::anyhow!("bind {}: {e}", cfg.server.bind))?;
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let listener = match tokio::net::TcpListener::bind(addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            let Some(msg) = bind_failure_message(addr, &e) else { return Err(e.into()) };
+            eprintln!("{msg}");
+            drop(guard);
+            std::process::exit(instance::EXIT_PORT_IN_USE);
+        }
+    };
     tracing::info!(%addr, web = %web_source, demo = cfg.demo, "gr-console listening");
     let url = browse_url(addr);
     println!("gr-console  {url}  (web: {web_source}, demo: {})", cfg.demo);
+    println!("끄기: 이 창에서 Ctrl+C, 또는 다른 창에서 gr-console --stop (창을 그냥 닫는 것은 최후 수단)");
     if cfg.server.open_browser {
         open_browser(&url);
     }
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await?;
-    Ok(())
+    spawn_signal_watchers(sd.clone());
+    // 서버는 제 태스크에서 계속 돈다 — 종료 절차 동안에도 읽기 요청과 `--stop` 응답이 끝까지 나간다
+    // (쓰기는 미들웨어가 503 으로 막는다). 절차가 끝나면 프로세스를 끝낸다.
+    let mut server = tokio::spawn(async move { axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await });
+    tokio::select! {
+        r = &mut server => {
+            match r {
+                Ok(Ok(())) => tracing::warn!("http server ended on its own"),
+                Ok(Err(e)) => return Err(e.into()),
+                Err(e) => return Err(anyhow::anyhow!("http server task: {e}")),
+            }
+        }
+        reason = sd.wait_begun() => {
+            shutdown::run(&parts, &reason).await;
+        }
+    }
+    // 6) 안내 파일과 잠금
+    if let Some(f) = &info_file {
+        f.remove();
+    }
+    drop(guard);
+    say_done();
+    // 남은 백그라운드 태스크(폴링·동기화)를 기다리지 않고 지금 끝낸다 — 중요한 것은 위에서 다 마무리했다.
+    std::process::exit(0);
+}
+
+fn say_done() {
+    println!("종료 완료.");
+    tracing::info!("shutdown complete");
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+}
+
+/// Ctrl+C · 창 닫기 · 로그오프 · 시스템 종료 · SIGTERM → 같은 종료 절차. 창 닫기 계열은 OS 가 몇 초만 주므로 급한 예산.
+fn spawn_signal_watchers(sd: shutdown::Shutdown) {
+    let s = sd.clone();
+    tokio::spawn(async move {
+        // 첫 Ctrl+C 는 정상 종료, 두 번째는 "급하게" — 기다리는 PLC 쓰기가 있을 때 운전자가 재촉할 수 있게.
+        let mut urgent = false;
+        while tokio::signal::ctrl_c().await.is_ok() {
+            s.begin(if urgent { "Ctrl+C 두 번" } else { "Ctrl+C" }, urgent);
+            urgent = true;
+        }
+    });
+    #[cfg(windows)]
+    {
+        use tokio::signal::windows;
+        macro_rules! watch {
+            ($f:path, $why:expr, $urgent:expr) => {
+                if let Ok(mut s) = $f() {
+                    let sd = sd.clone();
+                    tokio::spawn(async move {
+                        s.recv().await;
+                        sd.begin($why, $urgent);
+                    });
+                }
+            };
+        }
+        // 창 닫기 · 로그오프 · 시스템 종료: 핸들러가 돌아오면 OS 가 바로 죽인다(tokio 가 붙잡아 준다) — 예산 4 초.
+        watch!(windows::ctrl_close, "콘솔 창 닫기", true);
+        watch!(windows::ctrl_logoff, "로그오프", true);
+        watch!(windows::ctrl_shutdown, "Windows 종료", true);
+        watch!(windows::ctrl_break, "Ctrl+Break", false);
+    }
+    #[cfg(unix)]
+    {
+        if let Ok(mut s) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            tokio::spawn(async move {
+                s.recv().await;
+                sd.begin("SIGTERM", false);
+            });
+        }
+    }
+}
+
+/// `--stop` — 실행 중인 콘솔에 정상 종료를 요청하고 끝날 때까지 기다린다. 프로세스 종료 코드를 돌려준다.
+fn stop_running_instance(force: bool) -> i32 {
+    let (lock_dir, info_dir) = (instance::default_lock_dir(), instance::default_info_dir());
+    let info = match instance::probe(&lock_dir, &info_dir) {
+        Ok(instance::Probe::NotRunning) => {
+            println!("실행 중인 콘솔이 없습니다.");
+            return 0;
+        }
+        Ok(instance::Probe::Running(info)) => info,
+        Err(e) => {
+            eprintln!("잠금을 확인할 수 없습니다({}): {e}", lock_dir.display());
+            return 1;
+        }
+    };
+    let Some(info) = info else {
+        eprintln!(
+            "콘솔이 실행 중이지만(잠금: {}) 이 사용자 계정에는 정보 파일이 없습니다 — 다른 사용자가 띄웠을 수 있습니다.\n그 계정에서 gr-console --stop 을 실행하거나, 작업 관리자에서 gr-console 을 끝내세요.",
+            lock_dir.join("gr-console.lock").display()
+        );
+        return 1;
+    };
+    println!("종료 요청: PID {} ({})", info.pid, info.url);
+    let asked = match instance::connect_addr(&info.bind) {
+        Some(addr) => match instance::http_request(addr, "POST", instance::SHUTDOWN_PATH, &[(instance::TOKEN_HEADER, info.stop_token.as_str())]) {
+            Ok(202) => true,
+            Ok(code) => {
+                eprintln!("종료 엔드포인트가 거절했습니다(HTTP {code}) — 토큰이 맞지 않거나 다른 프로그램이 그 포트를 쓰고 있습니다.");
+                false
+            }
+            Err(e) => {
+                eprintln!("종료 엔드포인트에 닿지 못했습니다({addr}): {e}");
+                false
+            }
+        },
+        None => {
+            eprintln!("주소를 해석할 수 없습니다: {}", info.bind);
+            false
+        }
+    };
+    if asked {
+        println!("정상 종료 절차를 기다립니다(진행 중인 PLC 쓰기를 마무리합니다)…");
+        if instance::wait_released(&lock_dir, std::time::Duration::from_secs(30), |_| {}) {
+            println!("종료했습니다 (PID {}).", info.pid);
+            return 0;
+        }
+        eprintln!("30초 안에 끝나지 않았습니다 (PID {}).", info.pid);
+    }
+    if !force {
+        eprintln!("강제로 끝내려면: gr-console --stop --force  (또는 {})", kill_hint(info.pid));
+        eprintln!("강제 종료는 진행 중이던 PLC 쓰기를 끊을 수 있습니다.");
+        return 1;
+    }
+    eprintln!("강제 종료합니다 (PID {}) — 진행 중이던 PLC 쓰기가 끊길 수 있습니다.", info.pid);
+    let killed = if cfg!(windows) {
+        std::process::Command::new("taskkill").args(["/F", "/PID", &info.pid.to_string()]).status()
+    } else {
+        std::process::Command::new("kill").args(["-9", &info.pid.to_string()]).status()
+    };
+    match killed {
+        Ok(s) if s.success() => {
+            instance::wait_released(&lock_dir, std::time::Duration::from_secs(5), |_| {});
+            println!("강제 종료했습니다 (PID {}).", info.pid);
+            0
+        }
+        Ok(s) => {
+            eprintln!("강제 종료 실패(exit {:?}) — {}", s.code(), kill_hint(info.pid));
+            1
+        }
+        Err(e) => {
+            eprintln!("강제 종료 실패: {e} — {}", kill_hint(info.pid));
+            1
+        }
+    }
+}
+
+fn kill_hint(pid: u32) -> String {
+    if cfg!(windows) { format!("작업 관리자에서 gr-console.exe 끝내기 또는 taskkill /PID {pid} /F") } else { format!("kill -9 {pid}") }
+}
+
+/// 잠금을 쥐거나, 이미 다른 인스턴스가 있으면 안내하고 종료 코드 3 으로 끝낸다.
+fn acquire_single_instance(cfg: &Config, stop_token: &str) -> instance::Guard {
+    let bind = cfg.server.bind.clone();
+    let url = bind.parse::<std::net::SocketAddr>().map(browse_url).unwrap_or_else(|_| format!("http://{bind}/"));
+    let me = instance::InstanceInfo {
+        pid: std::process::id(),
+        bind,
+        url,
+        data_dir: cfg.paths.data_dir.display().to_string(),
+        started_at: util::now_str(),
+        version: env!("CARGO_PKG_VERSION").into(),
+        demo: cfg.demo,
+        open_browser: cfg.server.open_browser,
+        stop_token: stop_token.to_string(),
+    };
+    let dir = instance::default_lock_dir();
+    let info_dir = instance::default_info_dir();
+    match instance::acquire(&dir, &info_dir, &me) {
+        Ok(instance::Acquire::Acquired(g)) => {
+            tracing::debug!(lock = %dir.display(), info = %info_dir.display(), "single-instance lock held");
+            g
+        }
+        Ok(instance::Acquire::Held(h)) => {
+            eprintln!("{}", h.message());
+            if let Some(u) = h.browse_url() {
+                eprintln!("브라우저에서 실행 중인 콘솔을 엽니다: {u}");
+                open_browser(u);
+            }
+            eprintln!("(개발용으로 여러 개를 띄우려면 --allow-multi 또는 {}=1)", instance::ALLOW_MULTI_ENV);
+            // 더블클릭으로 켠 창은 바로 닫혀 안내를 못 읽는다 — 잠깐 보여 준다.
+            if cfg!(windows) {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+            }
+            std::process::exit(instance::EXIT_ALREADY_RUNNING);
+        }
+        Err(e) => {
+            // 잠금 파일을 만들 수조차 없으면 가드 없이 뜨는 것보다 멈추는 편이 안전하다(두 콘솔이 같은 PLC 에 쓴다).
+            eprintln!("단일 실행 잠금을 만들 수 없습니다({}): {e}", dir.display());
+            std::process::exit(1);
+        }
+    }
+}
+
+/// 포트를 잡지 못한 흔한 두 경우를 사람 말로 — 나머지는 원래 오류 그대로.
+fn bind_failure_message(addr: std::net::SocketAddr, e: &std::io::Error) -> Option<String> {
+    let port = addr.port();
+    match e.kind() {
+        std::io::ErrorKind::AddrInUse => {
+            Some(format!("포트 {port} 을(를) 이미 다른 프로그램이 쓰고 있습니다({addr}). gr-console.toml 의 [server] bind 를 다른 포트로 바꾸거나(예: \"127.0.0.1:8091\") --bind 로 덮어쓰세요."))
+        }
+        // Windows 10013: 방화벽·Hyper-V 예약 포트 범위 등
+        std::io::ErrorKind::PermissionDenied => Some(format!("포트 {port} 에 묶을 권한이 없습니다({addr}, 예약된 포트 범위일 수 있음). gr-console.toml 의 [server] bind 를 다른 포트로 바꾸세요.")),
+        std::io::ErrorKind::AddrNotAvailable => Some(format!("주소 {addr} 은(는) 이 PC 에 없습니다. gr-console.toml 의 [server] bind 를 \"127.0.0.1:{port}\" 또는 \"0.0.0.0:{port}\" 로 바꾸세요.")),
+        _ => None,
+    }
 }
 
 /// 설정 파일 위치와 기준 디렉터리. `--config`가 절대 경로거나 CWD에 있으면 그것, 아니면 실행 파일 옆,

@@ -10,7 +10,7 @@ import { Store } from './store'
 
 /** 셸 탭 id — `lib/tabs.ts`의 레지스트리와 같은 집합(백엔드 `console/info.tabs`가 노출 여부를 정한다).
  *  이 유니온의 정의는 여기 하나뿐이다(컴포넌트에서 다시 선언하지 않는다). */
-export type Tab = 'task' | 'taskmgr' | 'measure' | 'scenario'
+export type Tab = 'task' | 'items' | 'taskmgr' | 'measure' | 'scenario' | 'pallet' | 'trace'
 
 class Nav extends Store {
   /** 활성 탭. */

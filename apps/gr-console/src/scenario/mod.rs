@@ -96,6 +96,9 @@ pub struct Step {
     pub note: String,
     /// Robot to send this step to ( = default robot).
     pub robot: Option<u8>,
+    /// 팔렛 슬롯(`TaskRequest.pallet` 그대로) — 팔렛 패턴 화면의 "시나리오로 내보내기"가 싣는다. CSV 에는 없다.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pallet: Option<crate::pallet::compose::PalletRef>,
 }
 
 impl Default for Step {
@@ -113,6 +116,7 @@ impl Default for Step {
             on_failure: OnFailure::Stop,
             note: String::new(),
             robot: None,
+            pallet: None,
         }
     }
 }
@@ -226,6 +230,10 @@ pub struct RunState {
     /// 0-based index of the current step.
     pub step_index: u32,
     pub step_count: u32,
+    /// Run robot (`RunOptions.robot`) — steps without their own robot go here; `None` = default robot.
+    pub robot: Option<u8>,
+    /// Display name of the run robot (resolved at start).
+    pub robot_name: Option<String>,
     pub current_task_id: Option<String>,
     pub started_at: String,
     pub ended_at: Option<String>,
@@ -268,14 +276,19 @@ pub struct Runner {
     pub run: Mutex<RunState>,
     pub events: broadcast::Sender<RunState>,
     active: Mutex<Option<Active>>,
+    /// 콘솔 종료로 멈춘 실행인가 — 원장에 그렇게 남기고, 새 실행은 받지 않는다.
+    shutting_down: std::sync::atomic::AtomicBool,
 }
+
+/// 종료로 멈춘 실행에 남기는 사유.
+pub const SHUTDOWN_NOTE: &str = "콘솔 종료로 정지됨 — PLC 에 이미 보낸 Task 는 그대로 둡니다";
 
 impl Runner {
     pub fn new(db: Db) -> Arc<Runner> {
         let (tx, _) = broadcast::channel(64);
         // Runs left open by a previous process can never finish — mark them lost.
         let _ = db.with(|c| c.execute("UPDATE scenario_runs SET status = 'lost', ended_at = COALESCE(ended_at, ?1) WHERE status IN ('running','paused','stopping')", [now_str()]));
-        Arc::new(Runner { db, run: Mutex::new(RunState::idle()), events: tx, active: Mutex::new(None) })
+        Arc::new(Runner { db, run: Mutex::new(RunState::idle()), events: tx, active: Mutex::new(None), shutting_down: std::sync::atomic::AtomicBool::new(false) })
     }
 
     pub fn current(&self) -> RunState {
@@ -366,6 +379,9 @@ impl Runner {
         if scenario.steps.is_empty() {
             return Err(ApiError::BadRequest("scenario has no steps".into()));
         }
+        if self.is_shutting_down() {
+            return Err(ApiError::ShuttingDown("콘솔 종료 중 — 새 시나리오 실행을 시작하지 않습니다".into()));
+        }
         let mut active = self.active.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some(a) = active.as_ref() {
             if !a.join.is_finished() && self.current().state.is_active() {
@@ -375,6 +391,15 @@ impl Runner {
             active.take();
         }
         let plan = runner::Plan::new(&scenario, &opts)?;
+        // 없는 로봇으로 달리면 첫 스텝에서야 실패한다 — 시작 전에 막는다.
+        let run_robot = st.robot(plan.robot)?;
+        for (i, s) in scenario.steps.iter().enumerate() {
+            if let Some(id) = s.robot
+                && st.robot(Some(id)).is_err()
+            {
+                return Err(ApiError::BadRequest(format!("스텝 {}: 로봇 {id} 이(가) 설정에 없음", i + 1)));
+            }
+        }
         let started = now_str();
         let rs = RunState {
             run_id: uuid::Uuid::new_v4().to_string(),
@@ -385,6 +410,8 @@ impl Runner {
             total_iterations: plan.total_iterations,
             step_index: plan.start_step,
             step_count: plan.step_count,
+            robot: Some(run_robot.id),
+            robot_name: Some(run_robot.name.clone()),
             current_task_id: None,
             started_at: started,
             ended_at: None,
@@ -428,6 +455,46 @@ impl Runner {
         }
         self.with_ctl(|c| c.paused = false);
         Ok(self.update(|g| g.state = Phase::Running))
+    }
+
+    /// 콘솔 종료 — 다음 스텝을 내지 않게 한다. 이미 PLC 에 보낸 Task 는 취소하지 않는다.
+    /// 돌고 있던 실행을 멈춘 경우에만 true.
+    pub fn stop_for_shutdown(&self) -> bool {
+        self.shutting_down.store(true, std::sync::atomic::Ordering::SeqCst);
+        if !matches!(self.current().state, Phase::Running | Phase::Paused) {
+            return false;
+        }
+        self.with_ctl(|c| {
+            c.stop = true;
+            c.paused = false;
+        });
+        self.update(|g| {
+            g.state = Phase::Stopping;
+            g.note = Some(SHUTDOWN_NOTE.into());
+        });
+        true
+    }
+
+    pub(crate) fn is_shutting_down(&self) -> bool {
+        self.shutting_down.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// 실행 루프가 끝날 때까지(원장 기록까지) 기다린다. 한도 안에 끝났으면 true.
+    pub async fn wait_finished(&self, timeout: std::time::Duration) -> bool {
+        let t0 = std::time::Instant::now();
+        loop {
+            let done = {
+                let g = self.active.lock().unwrap_or_else(PoisonError::into_inner);
+                g.as_ref().is_none_or(|a| a.join.is_finished())
+            };
+            if done {
+                return true;
+            }
+            if t0.elapsed() >= timeout {
+                return false;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
     }
 
     pub fn stop(&self) -> Result<RunState, ApiError> {

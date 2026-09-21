@@ -1,9 +1,14 @@
-// 실행 옵션 — 반복(또는 무한)과 시작 스텝. 저장되지 않은 변경은 실행에 반영되지 않음을 알린다.
+// 실행 옵션 — 반복(또는 무한) · 시작 스텝 · **로봇**. 실행 버튼이 여는 유일한 대화상자다.
+//
+// 로봇이 여기로 들어온 이유: 예전에는 사이드바에서 고르고 이 상자는 "지금 고른 것"을 글자로만
+// 알렸다. 실행 직전에 바꾸려면 상자를 닫고 사이드바로 갔다가 다시 열어야 했다. 기본값은 그대로
+// 사이드바 선택이고(`robots.selected`), 여기서 고른 것은 이번 실행에만 실린다.
+// 저장되지 않은 변경은 실행에 반영되지 않음을 알린다.
 import { useEffect, useState } from 'react'
-import { Play } from 'lucide-react'
-import { Button } from '../../lib/ui/Button'
+import { robots } from '../../lib/robots'
+import { useStore } from '../../lib/store'
+import { FormDialog } from '../../lib/ui/Dialog'
 import { Input } from '../../lib/ui/Input'
-import { Modal } from '../../lib/ui/Modal'
 import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
 import type { Scenario } from '../../lib/types'
@@ -19,28 +24,45 @@ export interface RunDialogProps {
 }
 
 export function RunDialog({ open, scenario, dirty, onOpenChange, onRun }: RunDialogProps) {
+  useStore(robots)
   const [infinite, setInfinite] = useState(false)
   const [repeat, setRepeat] = useState(1)
   const [start, setStart] = useState(0)
+  const [robot, setRobot] = useState<number | null>(null)
   useEffect(() => {
     if (!open || !scenario) return
     setInfinite(scenario.repeat === 0)
     setRepeat(scenario.repeat === 0 ? 1 : scenario.repeat)
     setStart(0)
+    setRobot(robots.selected)
   }, [open, scenario])
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title={`실행 — ${scenario?.name ?? ''}`}>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="실행"
+      size="sm"
+      meta={
+        <>
+          <span className="truncate">{scenario?.name ?? ''}</span>
+          {/* 저장 안 한 변경은 **라벨+값 한 짝**으로 말한다 — 같은 말을 바깥 토스트가 이미 한다. */}
+          {dirty ? <span className="text-warn-fg">저장 안 함 · 이번 실행 제외</span> : null}
+        </>
+      }
+      submitLabel="실행"
+      disabledReason={!scenario || scenario.steps.length === 0 ? '스텝이 없습니다' : undefined}
+      onSubmit={() => {
+        if (!scenario || scenario.steps.length === 0) return
+        onRun({ repeat: infinite ? 0 : repeat, start_step: start, robot })
+      }}
+      testid="run-dialog"
+    >
       {scenario ? (
-        <div className="flex flex-col gap-3" data-testid="run-dialog">
-          {dirty ? (
-            <p className="m-0 rounded bg-warn-soft px-2 py-1 text-xs text-warn-fg">
-              저장되지 않은 변경은 이번 실행에 반영되지 않습니다 — 먼저 저장하세요.
-            </p>
-          ) : null}
+        <>
           <div className="flex items-end gap-3">
             <Input
-              label="반복 횟수"
+              label="Repeat"
               className="w-28"
               type="number"
               mono
@@ -54,18 +76,31 @@ export function RunDialog({ open, scenario, dirty, onOpenChange, onRun }: RunDia
               }}
               data-testid="run-repeat"
             />
-            <label className="flex h-8 items-center gap-2 text-xs">
-              <Switch
-                checked={infinite}
-                label="무한 반복"
-                testid="run-infinite"
-                onCheckedChange={setInfinite}
-              />
-              무한 (정지할 때까지)
-            </label>
+            <Switch
+              inline
+              label="무한 반복"
+              checked={infinite}
+              title="정지할 때까지 돕니다"
+              testid="run-infinite"
+              onCheckedChange={setInfinite}
+            />
           </div>
           <Select
-            label="시작 스텝 (첫 회차만)"
+            label="Robot"
+            hint="빈 로봇 칸에 적용 · 이번 실행만"
+            value={robot === null ? '' : String(robot)}
+            onValueChange={(v) => setRobot(v === '' ? null : Number(v))}
+            data-testid="run-robot"
+          >
+            <option value="">기본 로봇</option>
+            {robots.list.map((r) => (
+              <option key={r.id} value={String(r.id)}>
+                {r.name}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="StartStep (첫 회차만)"
             value={String(start)}
             onValueChange={(v) => setStart(Number(v))}
             data-testid="run-start-step"
@@ -76,19 +111,8 @@ export function RunDialog({ open, scenario, dirty, onOpenChange, onRun }: RunDia
               </option>
             ))}
           </Select>
-          <div className="flex justify-end">
-            <Button
-              intent="primary"
-              icon={<Play size={14} />}
-              disabled={scenario.steps.length === 0}
-              onClick={() => onRun({ repeat: infinite ? 0 : repeat, start_step: start })}
-              data-testid="run-confirm"
-            >
-              실행
-            </Button>
-          </div>
-        </div>
+        </>
       ) : null}
-    </Modal>
+    </FormDialog>
   )
 }

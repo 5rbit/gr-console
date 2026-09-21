@@ -13,9 +13,24 @@ pub struct Config {
     pub opcua: OpcUaCfg,
     pub poll: PollCfg,
     pub cmd: CmdCfg,
+    pub link: LinkCfg,
     /// Robots reachable through GRM (up to 2). Empty = one robot derived from `cmd` + `opcua`.
     pub robots: Vec<RobotCfg>,
     pub demo: bool,
+}
+
+/// PLC socket link listener (`docs/link/wire-spec.md`). A PLC slot configured as Active connects here and
+/// pushes Status, MeasLog and Trace chunks; the console only ever sends a read-only `TraceCfg` back.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LinkCfg {
+    pub enabled: bool,
+    pub bind: String,
+}
+impl Default for LinkCfg {
+    fn default() -> Self {
+        Self { enabled: true, bind: "0.0.0.0:2000".into() }
+    }
 }
 
 /// One gantry robot behind GRM: its OPC UA command root (`GR[n].CMD`), OPC UA destination id and the
@@ -120,7 +135,8 @@ impl Default for PlcCfg {
             webmon: vec!["WEBMON".into()],
             slow: vec!["PARA".into(), "ALARM".into(), "Interface_GRM".into(), "CELL".into(), "STATION".into(), "MEASLOG".into(), "LASERDIAG".into()],
             on_demand: vec!["MEASLOG_HIST".into()],
-            checks: vec![SemanticCheck { db: "OPCUA".into(), path: "STAT.ComponentID".into(), equals: 4002 }, SemanticCheck { db: "PARA".into(), path: "Machine.ID".into(), equals: 2 }],
+            // OPCUA.STAT.ComponentID 는 PLC 프로그램이 쓰지 않아 실기에서 항상 0 이다(2026-09-14) — 검사하면 layout_ok=false 로 제출이 막힌다.
+            checks: vec![SemanticCheck { db: "PARA".into(), path: "Machine.ID".into(), equals: 2 }],
         }
     }
 }
@@ -136,7 +152,8 @@ impl PlcCfg {
             webmon: vec![],
             slow: vec!["STATION".into(), "CELL".into(), "MACHINE".into()],
             on_demand: vec![],
-            checks: vec![SemanticCheck { db: "OPCUA".into(), path: "GR[2].STAT.ComponentID".into(), equals: 4002 }],
+            // GR[n].STAT.ComponentID 도 실기에서 0 — GRM 은 DB 크기 검사만 한다.
+            checks: vec![],
             ..Self::default()
         }
     }
@@ -236,6 +253,7 @@ impl Default for Config {
             opcua: OpcUaCfg::default(),
             poll: PollCfg::default(),
             cmd: CmdCfg::default(),
+            link: LinkCfg::default(),
             robots: vec![],
             demo: false,
         }

@@ -10,9 +10,10 @@
 import { Fragment, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChevronDown, ChevronRight, ChevronUp } from 'lucide-react'
-import { columnLevel, splitColumns, type Column } from './table'
+import { columnLevel, columnName, splitColumns, type Column } from './table'
 import { cn } from '../utils'
 import { EmptyState } from './EmptyState'
+import { HelpTip } from './HelpTip'
 import { Skeleton } from './Skeleton'
 import { useElementWidth } from './useElementWidth'
 
@@ -28,6 +29,14 @@ export interface DataTableProps<T> {
   /** 행 끝 액션 열(선택) */
   actions?: (row: T) => ReactNode
   /**
+   * 행을 펼쳤을 때 아래에 붙는 **자세히**(선택) — 미리보기·구조 보기처럼 표의 열로는 못 넣는 것.
+   *
+   * 접힌 열과 **같은 손잡이**를 쓴다: 둘 다 "이 행을 더 본다" 이므로 손잡이가 둘이면 어느 쪽이
+   * 무엇을 여는지 매번 다시 배운다. 접힌 열이 있으면 라벨+값 짝이 먼저 서고 그 아래 이것이 붙는다.
+   * 손잡이는 행 클릭(드릴다운)과 갈라져 있다.
+   */
+  rowDetail?: (row: T) => ReactNode
+  /**
    * 열 폭을 **내용에** 맞추고 표를 왼쪽에 붙인다(화면 폭에 펼치지 않는다). 열이 여덟을 넘는 표가
    * 폭에 펼쳐지면 열 사이 공백이 값보다 넓어져 행을 가로로 읽을 수 없다 — 값끼리 가까이 서야 한
    * 줄로 읽힌다. 기본은 펼치기(열이 적은 표는 펼쳐도 촘촘하다).
@@ -35,8 +44,30 @@ export interface DataTableProps<T> {
   fit?: boolean
   empty?: string
   emptyHint?: string
+  /**
+   * 빈 상태를 **한 줄로** 앉힌다 — 반 높이 카드·사이드 패널처럼 240px(`min-h-60`)이 통째로 낭비인
+   * 자리. 말하는 것은 같고 자리만 줄인다.
+   */
+  emptyDense?: boolean
   loading?: boolean
   testid?: string
+  /**
+   * 행 높이 — `compact`는 세로 여백만 줄인다(글자 크기는 그대로다. 11px 아래로 내려가면 값을
+   * 잘못 읽고, 그건 밀도로 벌 이득이 아니다 — `docs/DESIGN.md` 6절).
+   *
+   * 전역 밀도(`lib/density.ts`)와 다른 축이다: 전역 밀도는 **읽는 사람**의 성질이고, 이 prop은
+   * **그 표의 성질**이다(수백 행을 한 화면에서 훑는 이력 표 vs 여덟 줄짜리 요약 표).
+   */
+  density?: 'default' | 'compact'
+  /** 머리글 고정 — 스크롤 상자 안의 긴 표에서 열 이름이 위로 사라지지 않게. */
+  stickyHeader?: boolean
+  /**
+   * 줄무늬 배경. 기본은 **끄는 것**이다 — 면을 한 층 더 만들고(면은 4층) 상태 배경과 경쟁한다.
+   * 열이 여덟을 넘어 행을 가로로 따라가기 어려운 표에서만 켠다.
+   */
+  zebra?: boolean
+  /** 스크롤 상자에 붙는 클래스(`max-h-96 overflow-y-auto` 따위). */
+  className?: string
 }
 
 export function DataTable<T>({
@@ -46,11 +77,17 @@ export function DataTable<T>({
   onPick,
   selected,
   actions,
+  rowDetail,
   fit = false,
   empty = '기록 없음',
   emptyHint,
+  emptyDense = false,
   loading = false,
   testid,
+  density = 'default',
+  stickyHeader = false,
+  zebra = false,
+  className = '',
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [desc, setDesc] = useState(false)
@@ -111,10 +148,13 @@ export function DataTable<T>({
     )
   }
 
-  if (rows.length === 0) return <EmptyState title={empty} hint={emptyHint} />
+  if (rows.length === 0)
+    return <EmptyState title={empty} hint={emptyHint} compact={emptyDense} testid={testid} />
 
+  /** 손잡이 열이 서는가 — 접힌 열이 있거나 행 자세히가 있으면. */
+  const expandable = hidden.length > 0 || !!rowDetail
   /** 펼치기 손잡이 열 + 보이는 열 + 액션 열 (+ fit의 채움 열) — 자식 행의 `colSpan`이 이 수를 쓴다. */
-  const span = visible.length + (hidden.length > 0 ? 1 : 0) + (actions ? 1 : 0) + (fit ? 1 : 0)
+  const span = visible.length + (expandable ? 1 : 0) + (actions ? 1 : 0) + (fit ? 1 : 0)
   // fit: 열은 `w-px`(내용 폭으로 줄어든다)이고 마지막 빈 열이 남은 폭을 먹는다 — 표 자체는 `w-full`이라
   // 행 구분선이 카드 끝까지 간다(표를 `w-auto`로 두면 선이 값 끝에서 끊겨 행이 잘린 것처럼 보인다).
   const cellW = fit ? 'w-px' : ''
@@ -122,47 +162,70 @@ export function DataTable<T>({
   // (펼친 표의 왼쪽 정렬은 빈 폭 속에서 값의 시작점을 맞추는 규칙이고, 여기서는 빈 폭이 없다).
   const align = (numeric: boolean | undefined) =>
     fit ? 'text-center' : numeric ? 'text-right' : ''
+  /** 조밀한 표는 세로 여백만 줄인다 — 가로 여백까지 줄이면 열이 붙어 값이 한 덩어리로 읽힌다. */
+  const padY = density === 'compact' ? 'py-0.5' : 'py-1'
 
   return (
-    <div className="overflow-x-auto" ref={box}>
+    <div className={cn('overflow-x-auto', className)} ref={box}>
       <table className="w-full text-xs" data-testid={testid}>
-        <thead>
+        <thead className={cn(stickyHeader && 'sticky top-0 z-10 bg-surface-panel')}>
           <tr className={cn('text-content-tertiary', fit ? 'text-center' : 'text-left')}>
-            {hidden.length > 0 ? (
-              <th className="w-5 px-1 py-1">
-                <span className="sr-only">접힌 열 펼치기</span>
+            {expandable ? (
+              <th className={cn('w-5 px-1', padY)}>
+                <span className="sr-only">행 펼치기</span>
               </th>
             ) : null}
             {visible.map((c) => {
               const can = c.sortable ?? !!c.get
+              const name = columnName(c)
               return (
                 <th
                   key={c.key}
                   className={cn(
-                    'px-2 py-1 font-medium whitespace-nowrap',
+                    'px-2 font-medium whitespace-nowrap',
+                    padY,
                     cellW,
                     c.class ?? '',
                     align(c.numeric),
                   )}
                 >
-                  {can ? (
-                    <button
-                      className="inline-flex items-center gap-1 hover:text-content-primary"
-                      onClick={() => toggle(c)}
-                      aria-label={`${c.label} 정렬`}
-                    >
-                      {c.label}
-                      {sortKey === c.key &&
-                        (desc ? <ChevronDown size={12} /> : <ChevronUp size={12} />)}
-                    </button>
-                  ) : (
-                    c.label
-                  )}
+                  {/* `?` 는 정렬 버튼 **밖**에 선다 — 안에 두면 설명을 열려던 클릭이 정렬을 뒤집는다.
+                      오른쪽 정렬(숫자) 열에서는 말풍선도 오른쪽으로 연다(화면 밖으로 나가지 않게). */}
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1',
+                      c.numeric && !fit && 'justify-end',
+                    )}
+                  >
+                    {can ? (
+                      <button
+                        className="inline-flex items-center gap-1 hover:text-content-primary"
+                        onClick={() => toggle(c)}
+                        aria-label={`${name} 정렬`}
+                      >
+                        {c.label}
+                        {sortKey === c.key &&
+                          (desc ? <ChevronDown size={12} /> : <ChevronUp size={12} />)}
+                      </button>
+                    ) : (
+                      c.label
+                    )}
+                    {c.help ? (
+                      <HelpTip
+                        title={name}
+                        text={c.help}
+                        align={c.numeric ? 'right' : 'left'}
+                        testid={testid ? `${testid}-help-${c.key}` : undefined}
+                      />
+                    ) : null}
+                  </span>
                 </th>
               )
             })}
+            {/* 액션 열은 **내용 폭**이다(`w-px` + 줄바꿈 금지). 펼친 표에서 이 열에 폭을 주지 않으면
+                브라우저가 남은 폭을 값 열들에 몰아 주고 행 버튼 둘이 0 폭으로 접힌다. */}
             {actions && (
-              <th className={cn('px-2 py-1', cellW)}>
+              <th className={cn('w-px px-2 whitespace-nowrap', padY)}>
                 <span className="sr-only">조작</span>
               </th>
             )}
@@ -178,22 +241,27 @@ export function DataTable<T>({
                   className={cn(
                     'border-t border-line-default',
                     !!onPick && 'cursor-pointer',
+                    // 줄무늬는 **인덱스**로 센다 — 펼친 행이 `<tr>`을 하나 더 내므로 `odd:`(nth-child)로
+                    // 두면 행 하나를 펼칠 때마다 아래쪽 줄무늬가 통째로 뒤집힌다.
+                    zebra && i % 2 === 1 && 'bg-surface-app',
                     selected === k && 'bg-accent-soft',
                   )}
                   data-testid="dt-row"
                 >
-                  {hidden.length > 0 ? (
+                  {expandable ? (
                     // 손잡이는 행 클릭(드릴다운)과 **갈라야 한다** — 값을 더 보려고 눌렀는데 상세가
                     // 열리면 방금 보던 자리를 잃는다.
-                    <td className="px-1 py-1 align-top">
+                    <td className={cn('px-1 align-top', padY)}>
                       <button
                         type="button"
                         className="rounded p-0.5 text-content-faint hover:bg-surface-active hover:text-content-secondary"
                         aria-expanded={open.has(k)}
-                        aria-label={
-                          open.has(k) ? '접힌 열 숨기기' : `접힌 열 ${hidden.length}개 보기`
+                        aria-label={open.has(k) ? '자세히 숨기기' : '자세히 보기'}
+                        title={
+                          hidden.length > 0
+                            ? `좁아서 접힌 열 ${hidden.length}개 — ${hidden.map(columnName).join(' · ')}`
+                            : '이 행 자세히'
                         }
-                        title={`좁아서 접힌 열 ${hidden.length}개 — ${hidden.map((c) => c.label).join(' · ')}`}
                         data-testid="dt-expand"
                         onClick={(e) => {
                           e.stopPropagation()
@@ -212,7 +280,8 @@ export function DataTable<T>({
                     <td
                       key={c.key}
                       className={cn(
-                        'px-2 py-1 whitespace-nowrap',
+                        'px-2 whitespace-nowrap',
+                        padY,
                         cellW,
                         c.class ?? '',
                         c.numeric && 'tabular-nums',
@@ -224,28 +293,39 @@ export function DataTable<T>({
                     </td>
                   ))}
                   {actions && (
-                    <td className={cn('px-2 py-1', fit ? 'text-center' : 'text-right', cellW)}>
+                    <td
+                      className={cn(
+                        'w-px px-2 whitespace-nowrap',
+                        padY,
+                        fit ? 'text-center' : 'text-right',
+                      )}
+                    >
                       {actions(row)}
                     </td>
                   )}
                   {/* 채움 칸 — 남은 폭을 먹고, 행 클릭(드릴다운)은 여기서도 통한다. */}
                   {fit ? <td aria-hidden="true" onClick={() => onPick?.(row)} /> : null}
                 </tr>
-                {hidden.length > 0 && open.has(k) ? (
+                {expandable && open.has(k) ? (
                   <tr className="bg-surface-app" data-testid="dt-row-detail">
                     <td colSpan={span} className="px-2 py-1.5">
                       {/* 접힌 값은 **라벨+값 짝**으로 — 표의 머리글이 없으니 각 값이 자기 이름을 들고
                         있어야 한다(`docs/DESIGN.md` 4절 ②와 같은 규칙). */}
-                      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-2xs sm:grid-cols-[auto_1fr_auto_1fr]">
-                        {hidden.map((c) => (
-                          <Fragment key={c.key}>
-                            <dt className="text-content-faint">{c.label}</dt>
-                            <dd className={cn('min-w-0', c.numeric && 'tabular-nums')}>
-                              {c.cell ? c.cell(row) : (c.get?.(row) ?? '—')}
-                            </dd>
-                          </Fragment>
-                        ))}
-                      </dl>
+                      {hidden.length > 0 ? (
+                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-2xs sm:grid-cols-[auto_1fr_auto_1fr]">
+                          {hidden.map((c) => (
+                            <Fragment key={c.key}>
+                              <dt className="text-content-faint">{c.label}</dt>
+                              <dd className={cn('min-w-0', c.numeric && 'tabular-nums')}>
+                                {c.cell ? c.cell(row) : (c.get?.(row) ?? '—')}
+                              </dd>
+                            </Fragment>
+                          ))}
+                        </dl>
+                      ) : null}
+                      {rowDetail ? (
+                        <div className={hidden.length > 0 ? 'mt-1.5' : ''}>{rowDetail(row)}</div>
+                      ) : null}
                     </td>
                   </tr>
                 ) : null}

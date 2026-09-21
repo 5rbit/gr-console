@@ -2,6 +2,7 @@
 
 PLC 소켓 링크(`docs/link/wire-spec.md`)의 PC 측 테스트 서버, 가상 PLC(시뮬레이터), 셀프 테스트.
 gr-console 앱과는 독립된 바이너리 `plc-link` 이다.
+트레이스(`TraceCfg` / `Trace`)를 실제로 쓰는 쪽은 gr-console 이다 — `docs/link/trace.md`.
 
 ## 구성
 

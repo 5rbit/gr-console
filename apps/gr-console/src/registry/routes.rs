@@ -12,9 +12,11 @@ use gr_proto::{CellInfo, StationPara, StockItem};
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
+use super::beads;
 use super::diff::Diff;
 use super::plc_io::{self, ImportSummary};
-use super::xlsx::{self, ApplyCounts, ItemRow, Tables, Want};
+use super::spec::{self, ItemSpec, LevelValues};
+use super::xlsx::{self, ApplyCounts, ItemRow, SpecPatch, Tables, Want};
 use super::{CellEntry, Defaults, ItemEntry, StationEntry};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
@@ -23,7 +25,14 @@ use crate::state::AppState;
 fn item_view(e: &ItemEntry) -> Json {
     json!({ "code": e.code, "name": e.name, "count": e.item.count, "inner_diameter": e.item.inner_diameter, "outer_diameter": e.item.outer_diameter,
         "lower_bead_height": e.item.lower_bid_height, "upper_bead_height": e.item.upper_bid_height, "height": e.item.height, "deflection_factor": e.item.deflection_factor,
-        "note": e.note, "updated_at": e.updated_at })
+        "note": e.note, "spec": e.spec, "updated_at": e.updated_at })
+}
+
+/// Normalises + validates a spec coming from a client (400 on strict contradictions).
+fn checked_spec(s: Option<ItemSpec>, item: &StockItem) -> Result<Option<ItemSpec>, ApiError> {
+    let Some(s) = s.map(ItemSpec::normalized) else { return Ok(None) };
+    spec::validate_spec_for(&s, item).map_err(|e| ApiError::BadRequest(format!("spec: {e}")))?;
+    Ok(Some(s))
 }
 
 #[derive(Deserialize)]
@@ -39,6 +48,8 @@ struct ItemBody {
     height: f32,
     deflection_factor: f32,
     note: String,
+    /// 없으면(옛 클라이언트) 저장된 spec 을 그대로 둔다 — 새 품목은 기본값.
+    spec: Option<ItemSpec>,
 }
 impl Default for ItemBody {
     fn default() -> Self {
@@ -53,10 +64,15 @@ impl Default for ItemBody {
             height: 0.0,
             deflection_factor: 0.0,
             note: String::new(),
+            spec: None,
         }
     }
 }
 impl ItemBody {
+    /// The row the xlsx importer validates — CRUD and Excel share `validate_item`.
+    fn row(&self) -> ItemRow {
+        ItemRow { code: self.code, name: self.name.clone(), item: self.stock(), note: self.note.clone(), spec: SpecPatch::default() }
+    }
     fn stock(&self) -> StockItem {
         StockItem {
             code: self.code,
@@ -75,17 +91,231 @@ async fn items(State(st): State<AppState>) -> ApiResult<Vec<Json>> {
     Ok(axum::Json(st.registry.items()?.iter().map(item_view).collect()))
 }
 async fn item_create(State(st): State<AppState>, axum::Json(b): axum::Json<ItemBody>) -> ApiResult<Json> {
-    if b.code == 0 {
-        return Err(ApiError::BadRequest("code must be > 0".into()));
-    }
-    Ok(axum::Json(item_view(&st.registry.upsert_item(b.code, &b.name, &b.stock(), &b.note)?)))
+    xlsx::validate_item(&b.row()).map_err(ApiError::BadRequest)?;
+    let spec = checked_spec(b.spec.clone(), &b.stock())?;
+    Ok(axum::Json(item_view(&st.registry.upsert_item_full(b.code, &b.name, &b.stock(), &b.note, spec.as_ref())?)))
 }
 async fn item_update(State(st): State<AppState>, Path(code): Path<u32>, axum::Json(mut b): axum::Json<ItemBody>) -> ApiResult<Json> {
     b.code = code;
-    Ok(axum::Json(item_view(&st.registry.upsert_item(code, &b.name, &b.stock(), &b.note)?)))
+    xlsx::validate_item(&b.row()).map_err(ApiError::BadRequest)?;
+    // 손으로 고친 단을 표시해 둔다 — SKU 측정 자동 반영이 그 행을 덮지 않는다(`spec::mark_manual_edits`).
+    if let (Some(s), Some(prev)) = (b.spec.as_mut(), st.registry.item(code)?) {
+        spec::mark_manual_edits(s, &prev.spec);
+    }
+    let spec = checked_spec(b.spec.clone(), &b.stock())?;
+    Ok(axum::Json(item_view(&st.registry.upsert_item_full(code, &b.name, &b.stock(), &b.note, spec.as_ref())?)))
 }
 async fn item_delete(State(st): State<AppState>, Path(code): Path<u32>) -> ApiResult<Json> {
     Ok(axum::Json(json!({ "deleted": st.registry.delete_item(code)? })))
+}
+
+#[derive(Deserialize, Default)]
+struct LevelsQuery {
+    robot: Option<u8>,
+    /// `apply-measured` 만: `beads` · `compression`(쉼표로 여러 개, 기본 둘 다).
+    fields: Option<String>,
+    /// 단별 보기를 몇 개 쌓은 스택 기준으로 볼지(비면 StackMax). 표는 하중(`Above`)으로 저장되고 단 번호는
+    /// 여기서 파생된다 — 5 개 스택의 3 단과 8 개 스택의 3 단은 하중이 달라 값도 다르다.
+    preview: Option<u32>,
+}
+
+/// Latest SKU measurement of `code` on the robot's measure store (per level) + the MEASLOG by-code trends.
+/// Both are best-effort: a robot without a store/snapshot yields nulls, never an error.
+fn measured_levels(st: &AppState, robot: Option<u8>, code: u32) -> (Option<Vec<LevelValues>>, Json, Json) {
+    let Ok(r) = st.robot(robot) else { return (None, Json::Null, Json::Null) };
+    let latest = r.measure.entries(None, Some(gr_proto::MEAS_LOG_KIND_SKU), Some(code), 20).ok().and_then(|(rows, _)| rows.into_iter().find(|e| e["Status"].as_u64().unwrap_or(0) < 3));
+    let (levels, source) = match latest {
+        Some(e) => {
+            let data: Vec<f32> = e["Data"].as_array().map(|a| a.iter().map(|v| v.as_f64().unwrap_or(0.0) as f32).collect()).unwrap_or_default();
+            let at = |i: usize| data.get(i).copied().unwrap_or(0.0);
+            let src = json!({ "plc": r.plc, "seq": e["Seq"], "at": e["TimeStamp"], "count": at(17), "each_height": at(18), "stack_height": at(19) });
+            (Some(spec::measured_from_sku(&data)), src)
+        }
+        None => (None, Json::Null),
+    };
+    let summary = r
+        .measure
+        .snapshot()
+        .ok()
+        .and_then(|s| s["by_code"].as_array().and_then(|a| a.iter().find(|b| b["Code"].as_u64() == Some(code as u64)).cloned()))
+        .map(|b| {
+            let m = &b["Meas"];
+            json!({ "plc": r.plc, "count": b["Count"], "last_time": b["LastTime"], "upper_bead": m["UpperBeadHeight"], "tire_height": m["TireHeight"],
+                "each_height": m["SkuEachHeight"], "stack_height": m["SkuStackHeight"], "pick_bead_pos": m["PickBeadPos"] })
+        })
+        .unwrap_or(Json::Null);
+    (levels, source, summary)
+}
+
+/// 측정 출처 json 에서 잰 스택의 단수와 한 개 높이.
+fn measured_shape(source: &Json) -> (u32, Option<f32>) {
+    let f = |k: &str| source[k].as_f64().map(|v| v as f32).filter(|v| v.is_finite() && *v > 0.0);
+    (f("count").map(|v| v.round() as u32).unwrap_or(0), f("each_height"))
+}
+
+/// 아직 표본으로 안 읽은 SKU 측정을 뒤늦게 적재한다(화면이 품목을 열 때마다 한 번). 실패해도 조회는 계속.
+fn backfill_samples(st: &AppState, robot: Option<u8>, code: u32) {
+    let Ok(r) = st.robot(robot) else { return };
+    if let Err(e) = r.measure.backfill_sku(Some(code), 50) {
+        tracing::warn!(code, "bead sample backfill: {e}");
+    }
+}
+
+/// `GET /api/items/{code}/levels?robot=&preview=n` — 스택 크기 `n` 의 단별 보기로
+/// 펼친다: configured · effective(measured|interpolated|computed) · 절대 비드 · 공칭 · 측정 · 편차 · PickZ.
+/// 행마다 어느 SKU 표본이 채웠는지(`sample`)와 그 하중에서 먹은 눌림(`compression_at`)도 나온다.
+async fn item_levels(State(st): State<AppState>, Path(code): Path<u32>, Query(q): Query<LevelsQuery>) -> ApiResult<Json> {
+    backfill_samples(&st, q.robot, code);
+    let e = st.registry.item(code)?.ok_or_else(|| ApiError::NotFound(format!("item {code} not registered")))?;
+    let (measured, source, summary) = measured_levels(&st, q.robot, code);
+    let (count, each) = measured_shape(&source);
+    let rows = spec::level_views(&e.item, &e.spec, measured.as_deref(), q.preview, count);
+    let suggestion = spec::suggest_compression(&e.item, measured.as_deref().unwrap_or(&[]), count, each);
+    // 한 번의 measureSKU = 스택 하나의 눌림 프로파일 — 단별 pitch·CompressionAt 을 그대로 보여 준다.
+    let total_h = source["stack_height"].as_f64().map(|v| v as f32).filter(|v| v.is_finite() && *v > 0.0);
+    let profile = spec::stack_profile(&e.item, measured.as_deref().unwrap_or(&[]), count, each, total_h);
+    Ok(axum::Json(json!({
+        "code": code, "name": e.name, "height": e.item.height, "eff_height": spec::eff_height(&e.item),
+        "lower_bead_height": e.item.lower_bid_height, "upper_bead_height": e.item.upper_bid_height,
+        "deflection_factor": e.item.deflection_factor, "deflection_applied": false,
+        "spec": e.spec, "rows": rows, "warnings": spec::spec_warnings(&e.spec, Some(&e.item)),
+        "pick_bead_offset": e.spec.pick_bead_offset(), "compression": e.spec.compression(), "reference_stack": e.spec.reference_stack(),
+        "suggestion": suggestion,
+        "measured": source, "measured_summary": summary,
+        "auto_apply_measured": e.spec.auto_apply_measured(), "profile": profile,
+        "preview": rows.len() as u32, "measured_aboves": e.spec.measured_aboves(), "measured_counts": e.spec.measured_counts(),
+        "bead_samples": beads::samples_json(&st.registry.bead_samples(code, plc_of(&st, q.robot).as_deref(), beads::HISTORY_LIMIT)?),
+    })))
+}
+
+/// 로봇의 상태 PLC 이름(표본 필터) — 로봇을 못 찾으면 `None`(= 모든 로봇).
+fn plc_of(st: &AppState, robot: Option<u8>) -> Option<String> {
+    st.robot(robot).ok().map(|r| r.plc.clone())
+}
+
+#[derive(Deserialize, Default)]
+struct SamplesQuery {
+    robot: Option<u8>,
+    limit: Option<usize>,
+    /// 모든 로봇의 표본을 보려면 `all=true`.
+    all: Option<bool>,
+}
+
+/// `GET /api/items/{code}/bead-samples?robot=&limit=&all=` — SKU 측정 표본 이력(최신 순, 반영 여부·거부 사유 포함).
+async fn item_bead_samples(State(st): State<AppState>, Path(code): Path<u32>, Query(q): Query<SamplesQuery>) -> ApiResult<Json> {
+    backfill_samples(&st, q.robot, code);
+    let plc = if q.all.unwrap_or(false) { None } else { plc_of(&st, q.robot) };
+    let rows = st.registry.bead_samples(code, plc.as_deref(), q.limit.unwrap_or(beads::HISTORY_LIMIT).clamp(1, 200))?;
+    let spec = st.registry.item(code)?.map(|e| e.spec).unwrap_or_default();
+    Ok(axum::Json(json!({ "code": code, "plc": plc, "limit": beads::HISTORY_LIMIT, "auto_apply_measured": spec.auto_apply_measured(), "samples": beads::samples_json(&rows) })))
+}
+
+#[derive(Deserialize, Default)]
+struct ApplySampleQuery {
+    robot: Option<u8>,
+    /// 자동 반영 스위치가 꺼져 있어도 넣는다(화면의 Apply 버튼은 언제나 `true`).
+    force: Option<bool>,
+}
+
+/// `POST /api/items/{code}/bead-samples/{seq}/apply?robot=&force=` — 옛 표본을 손으로 규격에 넣는다.
+async fn item_bead_sample_apply(State(st): State<AppState>, Path((code, seq)): Path<(u32, u32)>, Query(q): Query<ApplySampleQuery>) -> ApiResult<Json> {
+    let plc = plc_of(&st, q.robot);
+    let got = st.registry.apply_bead_sample(code, plc.as_deref(), seq, q.force.unwrap_or(true))?;
+    st.emit("registry", json!({ "kind": "item_bead_sample_applied", "code": code, "plc": got.plc, "seq": seq }));
+    let e = st.registry.item(code)?.ok_or_else(|| ApiError::NotFound(format!("item {code} not registered")))?;
+    Ok(axum::Json(json!({ "code": code, "plc": got.plc, "seq": seq, "applied": got.applied, "reason": got.reason, "detail": got.detail,
+        "spec": e.spec, "rows": spec::level_views(&e.item, &e.spec, None, None, 0), "warnings": spec::spec_warnings(&e.spec, Some(&e.item)),
+        "samples": beads::samples_json(&st.registry.bead_samples(code, plc.as_deref(), beads::HISTORY_LIMIT)?) })))
+}
+
+/// `POST /api/items/{code}/levels/apply-measured?robot=&fields=beads,compression` — 서버가 최신 SKU 측정을
+/// 규격에 넣는다(검증 뒤 저장). `beads` = 그 크기의 절대 프로파일, `compression` = 되짚은 눌림양.
+/// 필드를 고르지 않으면 표본 경로(`bead-samples/.../apply`)와 같은 코드가 돌아 손댄 행을 지켜 준다.
+async fn item_levels_apply_measured(State(st): State<AppState>, Path(code): Path<u32>, Query(q): Query<LevelsQuery>) -> ApiResult<Json> {
+    backfill_samples(&st, q.robot, code);
+    // 필드를 안 고른(= 둘 다) 부름은 표본 경로로 넘긴다 — 검증·손댄 행 보호·표본 기록이 한 곳에서 돈다.
+    if q.fields.is_none()
+        && let Some(latest) = st.registry.bead_samples(code, plc_of(&st, q.robot).as_deref(), 1)?.first()
+    {
+        let seq = latest.sample.seq;
+        return item_bead_sample_apply(State(st), Path((code, seq)), Query(ApplySampleQuery { robot: q.robot, force: Some(true) })).await;
+    }
+    let e = st.registry.item(code)?.ok_or_else(|| ApiError::NotFound(format!("item {code} not registered")))?;
+    let asked = q.fields.as_deref().unwrap_or("beads,compression");
+    let fields: Vec<&str> = asked.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+    if let Some(bad) = fields.iter().find(|f| !matches!(**f, "beads" | "compression")) {
+        return Err(ApiError::BadRequest(format!("fields={bad} — beads · compression 만 됩니다")));
+    }
+    let (measured, source, _) = measured_levels(&st, q.robot, code);
+    let Some(measured) = measured.filter(|m| !m.is_empty()) else {
+        return Err(ApiError::BadRequest(format!("품목 {code} 의 SKU 측정 기록이 없습니다")));
+    };
+    let (count, each) = measured_shape(&source);
+    let suggestion = spec::suggest_compression(&e.item, &measured, count, each);
+    let total_h = source["stack_height"].as_f64().map(|v| v as f32).filter(|v| v.is_finite() && *v > 0.0);
+    let profile = spec::stack_profile(&e.item, &measured, count, each, total_h);
+    let stamp = format!("측정 {} Seq {} {}", source["plc"].as_str().unwrap_or("?"), source["seq"], source["at"].as_str().unwrap_or("?"));
+    let src = spec::SampleRef { plc: source["plc"].as_str().unwrap_or_default().into(), seq: source["seq"].as_u64().unwrap_or(0) as u32 };
+    let mut s = e.spec.clone();
+    let mut applied = Vec::new();
+    if fields.contains(&"beads") {
+        let stack = spec::MeasuredStack { count, levels: &measured, each_height: each, total_height: total_h, sample: Some(&src), at: &crate::util::now_str() };
+        let hit = spec::put_profile(&mut s, &stack, true);
+        s.bead_source = stamp.clone();
+        applied.push(json!({ "field": "beads", "levels": hit.levels, "skipped": hit.skipped }));
+    }
+    if fields.contains(&"compression") {
+        let Some(v) = suggestion.value else {
+            return Err(ApiError::BadRequest(format!("품목 {code}: 측정에서 눌림양을 되짚을 수 없습니다(단별 비드·EachHeight 없음)")));
+        };
+        s.compression = Some(v);
+        s.compression_source = format!("{stamp} — {} n={}", suggestion.method.unwrap_or("?"), suggestion.samples);
+        applied.push(json!({ "field": "compression", "value": v, "method": suggestion.method }));
+    }
+    let s = s.normalized();
+    spec::validate_spec_for(&s, &e.item).map_err(|m| ApiError::BadRequest(format!("품목 {code} spec: {m}")))?;
+    st.registry.set_item_spec(code, &s)?;
+    st.emit("registry", json!({ "kind": "item_spec_measured", "code": code, "fields": fields }));
+    let e = st.registry.item(code)?.ok_or_else(|| ApiError::NotFound(format!("item {code} not registered")))?;
+    Ok(axum::Json(json!({ "code": code, "applied": applied, "spec": e.spec, "suggestion": suggestion, "profile": profile,
+        "rows": spec::level_views(&e.item, &e.spec, Some(&measured), q.preview, count), "warnings": spec::spec_warnings(&e.spec, Some(&e.item)), "measured": source })))
+}
+
+#[derive(Deserialize)]
+struct BulkSpecBody {
+    codes: Vec<u32>,
+    stack_max: Option<u8>,
+    pallet_max: Option<u8>,
+}
+
+/// `POST /api/items/bulk-spec` — set stack_max / pallet_max on many items. All rows are
+/// validated first (a curve point deeper than the new stack_max rejects the whole request).
+async fn items_bulk_spec(State(st): State<AppState>, axum::Json(b): axum::Json<BulkSpecBody>) -> ApiResult<Json> {
+    if b.codes.is_empty() {
+        return Err(ApiError::BadRequest("codes is empty".into()));
+    }
+    if b.stack_max.is_none() && b.pallet_max.is_none() {
+        return Err(ApiError::BadRequest("nothing to set (stack_max / pallet_max)".into()));
+    }
+    let items = st.registry.items()?;
+    let mut next = Vec::with_capacity(b.codes.len());
+    for code in &b.codes {
+        let e = items.iter().find(|e| e.code == *code).ok_or_else(|| ApiError::BadRequest(format!("item {code} not registered")))?;
+        let mut s = e.spec.clone();
+        if let Some(v) = b.stack_max {
+            s.stack_max = v;
+        }
+        if let Some(v) = b.pallet_max {
+            s.pallet_max = v;
+        }
+        spec::validate_spec_for(&s, &e.item).map_err(|m| ApiError::BadRequest(format!("품목 {code}: {m}")))?;
+        next.push((*code, s));
+    }
+    for (code, s) in &next {
+        st.registry.set_item_spec(*code, s)?;
+    }
+    st.emit("registry", json!({ "kind": "items_bulk_spec", "codes": b.codes }));
+    Ok(axum::Json(json!({ "updated": next.len() })))
 }
 
 // ---- cells (frontend shape: snake_case Cell)
@@ -146,7 +376,7 @@ struct PlcQuery {
 }
 impl PlcQuery {
     fn plc<'a>(&'a self, st: &'a AppState) -> &'a str {
-        self.plc.as_deref().filter(|s| !s.trim().is_empty()).unwrap_or(&st.cfg.cmd.status_plc)
+        self.plc.as_deref().filter(|s| !s.trim().is_empty()).unwrap_or(st.default_plc_name())
     }
     fn force(&self) -> bool {
         flag(self.force.as_deref())
@@ -171,7 +401,7 @@ async fn cells_import(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> 
     Ok(axum::Json(summary_view(&plc_io::import_cells(&st, h)?)))
 }
 
-/// local → PLC. `?plc=GR2|GRM|both[&force=1]`.
+/// local → PLC. `?plc=GR1|GR2|GRM|all|both[&force=1]` (`all` = every configured PLC, GR first then GRM).
 async fn cells_push(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
     let mut results = Vec::new();
     for h in plc_io::plc_targets(&st, q.plc(&st))? {
@@ -299,6 +529,11 @@ async fn stations_export(State(st): State<AppState>) -> Result<Response, ApiErro
     Ok(xlsx_response(xlsx::export_workbook(None, Some(&stations), None)?, &format!("stations_{}.xlsx", stamp())))
 }
 
+async fn items_export(State(st): State<AppState>) -> Result<Response, ApiError> {
+    let items: Vec<ItemRow> = st.registry.items()?.iter().map(ItemRow::from).collect();
+    Ok(xlsx_response(xlsx::export_workbook(None, None, Some(&items))?, &format!("items_{}.xlsx", stamp())))
+}
+
 async fn registry_export(State(st): State<AppState>) -> Result<Response, ApiError> {
     let cells: Vec<CellInfo> = st.registry.cells()?.into_iter().map(|e| e.cell).collect();
     let stations: Vec<StationPara> = st.registry.stations()?.into_iter().map(|e| e.para).collect();
@@ -335,13 +570,17 @@ fn apply_tables(st: &AppState, t: &Tables, dry_run: bool) -> Result<Json, ApiErr
     if t.has_stations {
         c.add(&xlsx::apply_stations(&st.registry, &t.stations, dry_run)?);
     }
-    if t.has_items {
-        c.add(&xlsx::apply_items(&st.registry, &t.items, dry_run)?);
+    if t.has_items || t.has_item_profiles {
+        c.add(&xlsx::apply_items(&st.registry, &t.items, &t.orphan_profiles, dry_run)?);
     }
-    let errors: Vec<Json> =
-        t.errors.iter().map(|e| json!({ "row": e.row, "sheet": e.sheet, "message": if e.sheet == "csv" { e.message.clone() } else { format!("{}: {}", e.sheet, e.message) } })).collect();
+    let errors: Vec<Json> = t
+        .errors
+        .iter()
+        .chain(c.errors.iter())
+        .map(|e| json!({ "row": e.row, "sheet": e.sheet, "message": if e.sheet == "csv" { e.message.clone() } else { format!("{}: {}", e.sheet, e.message) } }))
+        .collect();
     Ok(json!({ "imported": c.imported, "updated": c.updated, "removed": 0, "skipped": c.skipped, "errors": errors, "dry_run": dry_run,
-        "counts": { "cells": t.cells.len(), "stations": t.stations.len(), "items": t.items.len() } }))
+        "counts": { "cells": t.cells.len(), "stations": t.stations.len(), "items": t.items.len(), "item_profiles": t.item_profiles.len() } }))
 }
 
 async fn import_file(st: &AppState, mp: &mut Multipart, want: Want, dry_run: bool) -> ApiResult<Json> {
@@ -359,6 +598,10 @@ async fn cells_import_file(State(st): State<AppState>, Query(q): Query<FileQuery
 }
 async fn stations_import_file(State(st): State<AppState>, Query(q): Query<FileQuery>, mut mp: Multipart) -> ApiResult<Json> {
     import_file(&st, &mut mp, Want::Stations, flag(q.dry_run.as_deref())).await
+}
+/// Items sheet only — a whole-registry workbook works too (the `Items` sheet is picked by name).
+async fn items_import_file(State(st): State<AppState>, Query(q): Query<FileQuery>, mut mp: Multipart) -> ApiResult<Json> {
+    import_file(&st, &mut mp, Want::Items, flag(q.dry_run.as_deref())).await
 }
 async fn registry_import_file(State(st): State<AppState>, Query(q): Query<FileQuery>, mut mp: Multipart) -> ApiResult<Json> {
     import_file(&st, &mut mp, Want::All, flag(q.dry_run.as_deref())).await
@@ -386,7 +629,14 @@ async fn compose_preview(State(st): State<AppState>, Query(q): Query<ComposeQuer
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/items", get(items).post(item_create))
+        .route("/api/items/export.xlsx", get(items_export))
+        .route("/api/items/import-file", post(items_import_file))
+        .route("/api/items/bulk-spec", post(items_bulk_spec))
         .route("/api/items/{code}", axum::routing::put(item_update).delete(item_delete))
+        .route("/api/items/{code}/levels", get(item_levels))
+        .route("/api/items/{code}/levels/apply-measured", post(item_levels_apply_measured))
+        .route("/api/items/{code}/bead-samples", get(item_bead_samples))
+        .route("/api/items/{code}/bead-samples/{seq}/apply", post(item_bead_sample_apply))
         .route("/api/cells", get(cells).post(cell_create))
         .route("/api/cells/bulk", post(cells_bulk))
         .route("/api/cells/import", post(cells_import))

@@ -64,6 +64,25 @@ pub async fn submit(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<L
     if entry.state != TaskState::Draft {
         return Err(ApiError::Conflict(format!("task {} is {}", entry.id, entry.state.as_str())));
     }
+    // 초안은 작성 때 위치를 들고 있다 — 스테이션 트래킹은 그 사이에 바뀌므로 보낼 때 다시 계산한다.
+    let mut entry = entry;
+    if let Some(req) = entry.request.clone() {
+        // 재고는 초안 작성 뒤에도 바뀐다 — 단수 Max 는 보낼 때의 재고로 본다.
+        crate::issue::enforce_stack_limit(st, &req, &entry.plc_task)?;
+        let mut task = entry.plc_task.clone();
+        if let Some(audit) = crate::issue::refresh_station_offset(st, &req, &mut task, true)? {
+            entry.position = task.position;
+            entry.plc_task = task;
+            entry.station_offset = Some(audit);
+        }
+    }
+    submit_prepared(st, r, entry).await
+}
+
+/// 보정 재계산이 끝난 초안을 게이트 → 쓰기 → Submitted 로.
+async fn submit_prepared(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<LedgerEntry, ApiError> {
+    // 명령 쓰기 + 원장 전이는 종료가 기다려 주는 한 구간이다.
+    let _busy = st.shutdown.enter(format!("Task 제출 (로봇 {})", r.id))?;
     let g = gate(st, r);
     if !g.can_submit {
         return Err(ApiError::Conflict(g.reasons.join("; ")));
@@ -76,6 +95,8 @@ pub async fn submit(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<L
 }
 
 /// Creates + submits in one go (used by the task-issue slice and the scenario runner).
+/// `pallet` = compose 가 정한 팔렛 슬롯 근거 — 원장에 같이 남긴다(auto 로 고른 seq/단이 여기서 고정된다).
+#[allow(clippy::too_many_arguments)]
 pub async fn create_and_submit(
     st: &AppState,
     r: &RobotCtx,
@@ -83,13 +104,29 @@ pub async fn create_and_submit(
     request: Option<super::TaskRequest>,
     resolved: Option<gr_proto::TaskParams>,
     task: TaskData,
+    pallet: Option<crate::pallet::compose::PalletAudit>,
     submit_now: bool,
 ) -> Result<LedgerEntry, ApiError> {
-    let e = r.ledger.create(origin, request, resolved, task)?;
+    // 스테이션 보정은 호출자(작성 라우트·시나리오 게이트 대기·재제출)가 들고 온 위치가 아니라 지금 스냅샷으로.
+    // 바로 제출이면 거부 사유가 있을 때 원장에 초안을 남기지 않고 여기서 멈춘다.
+    let mut task = task;
+    if submit_now && let Some(req) = &request {
+        crate::issue::enforce_stack_limit(st, req, &task)?;
+    }
+    let audit = match &request {
+        Some(req) => crate::issue::refresh_station_offset(st, req, &mut task, submit_now)?,
+        None => None,
+    };
+    let mut e = r.ledger.create(origin, request, resolved, task)?;
+    if audit.is_some() || pallet.is_some() {
+        e.station_offset = audit;
+        e.pallet = pallet;
+        e = r.ledger.upsert(e)?;
+    }
     if !submit_now {
         return Ok(e);
     }
-    submit(st, r, e).await
+    submit_prepared(st, r, e).await
 }
 
 /// Latest decoded `OPCUA.STAT` of the status PLC (None when there is no snapshot yet).
@@ -140,6 +177,8 @@ pub fn cascade_after(entries: &[LedgerEntry], key: TaskKey) -> Vec<LedgerEntry> 
 }
 
 pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
+    // Delete 는 600 ms 뒤 0 으로 되돌려야 끝난다 — 그 사이에 프로세스가 사라지면 PLC 에 명령이 걸린 채 남는다.
+    let _busy = st.shutdown.enter(format!("Task 취소 {id}"))?;
     let (r, e) = st.find_task(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
     match e.state {
         TaskState::Draft => return r.ledger.transition(e, TaskState::Canceled, Actor::Ui, Some("draft discarded".into())),
@@ -181,6 +220,7 @@ pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
 }
 
 pub async fn force_complete(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
+    let _busy = st.shutdown.enter(format!("Task 강제 완료 {id}"))?;
     let (r, e) = st.find_task(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
     if !matches!(e.state, TaskState::Queued | TaskState::Running | TaskState::Accepted | TaskState::Lost) {
         return Err(ApiError::Conflict(format!("cannot complete a {} task", e.state.as_str())));
@@ -210,7 +250,7 @@ pub async fn resubmit(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> 
     let mut task = e.plc_task.clone();
     task.work_id = 0;
     task.task_id = 0;
-    create_and_submit(st, r, e.origin, e.request.clone(), e.resolved.clone(), task, true).await
+    create_and_submit(st, r, e.origin, e.request.clone(), e.resolved.clone(), task, e.pallet.clone(), true).await
 }
 
 pub fn mark_failed(st: &AppState, id: &str, note: Option<String>) -> Result<LedgerEntry, ApiError> {

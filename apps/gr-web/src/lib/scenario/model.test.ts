@@ -114,7 +114,7 @@ describe('summary helpers', () => {
   it('paramCount / stepSummary', () => {
     const s = sample().steps[0]
     expect(paramCount(s)).toBe(0)
-    expect(stepSummary(s)).toBe('PICK 셀#101 ×2 · 1001')
+    expect(stepSummary(s)).toBe('PICK Cell#101 ×2 · 1001')
     expect(stepSummary(newStep({ type: 'UP' }))).toBe('UP')
   })
 })

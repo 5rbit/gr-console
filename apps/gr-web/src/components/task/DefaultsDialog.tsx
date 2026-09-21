@@ -15,7 +15,8 @@ import {
 import { Button } from '../../lib/ui/Button'
 import { DataGrid } from '../../lib/ui/datagrid/DataGrid'
 import type { DataGridColumn } from '../../lib/ui/datagrid/types'
-import { Modal } from '../../lib/ui/Modal'
+import { Dialog } from '../../lib/ui/Dialog'
+import { HelpTip } from '../../lib/ui/HelpTip'
 import { toast } from '../../lib/ui/toast'
 import type { Defaults } from '../../lib/types'
 
@@ -42,7 +43,7 @@ export function DefaultsDialog({ open, onOpenChange, defaults, onSaved }: Defaul
   const columns: DataGridColumn<DefaultsRow>[] = [
     {
       id: 'label',
-      header: '파라미터',
+      header: 'Param',
       width: '12rem',
       sticky: true,
       editor: 'none',
@@ -50,33 +51,28 @@ export function DefaultsDialog({ open, onOpenChange, defaults, onSaved }: Defaul
       title: (r) => r.key,
       sortable: true,
     },
-    ...DEFAULTS_COLS.map(
-      (c): DataGridColumn<DefaultsRow> => ({
-        id: c.id,
-        header: c.header,
-        headerSub: c.id === 'base' ? '' : '비면 공통 상속',
-        width: '8rem',
-        align: 'right',
-        mono: true,
-        editor: (r) => (r.bool ? 'select' : 'number'),
-        options: (r) =>
-          r.bool ? (c.id === 'base' ? ['true', 'false'] : ['', 'true', 'false']) : [],
-        decimals: 0,
-        text: (r) => fmt(r.values[c.id]),
-        cellClass: (r) =>
-          c.id !== 'base' && r.values[c.id] === undefined ? 'text-content-disabled' : '',
-        title: (r) =>
-          c.id !== 'base' && r.values[c.id] === undefined
-            ? `공통 값 ${fmt(r.values.base)} 상속`
-            : '',
-        coercePaste: (v, r) => {
-          const s = v.trim()
-          if (s === '') return c.id === 'base' ? null : ''
-          if (r.bool) return ['true', 'false', '1', '0'].includes(s.toLowerCase()) ? s : null
-          return Number.isFinite(Number(s)) ? s : null
-        },
-      }),
-    ),
+    ...DEFAULTS_COLS.map((c): DataGridColumn<DefaultsRow> => ({
+      id: c.id,
+      header: c.header,
+      headerSub: c.id === 'base' ? '' : '비면 공통 상속',
+      width: '8rem',
+      align: 'right',
+      mono: true,
+      editor: (r) => (r.bool ? 'select' : 'number'),
+      options: (r) => (r.bool ? (c.id === 'base' ? ['true', 'false'] : ['', 'true', 'false']) : []),
+      decimals: 0,
+      text: (r) => fmt(r.values[c.id]),
+      cellClass: (r) =>
+        c.id !== 'base' && r.values[c.id] === undefined ? 'text-content-disabled' : '',
+      title: (r) =>
+        c.id !== 'base' && r.values[c.id] === undefined ? `공통 값 ${fmt(r.values.base)} 상속` : '',
+      coercePaste: (v, r) => {
+        const s = v.trim()
+        if (s === '') return c.id === 'base' ? null : ''
+        if (r.bool) return ['true', 'false', '1', '0'].includes(s.toLowerCase()) ? s : null
+        return Number.isFinite(Number(s)) ? s : null
+      },
+    })),
   ]
 
   function edit(rowId: string, colId: string, value: string) {
@@ -105,13 +101,43 @@ export function DefaultsDialog({ open, onOpenChange, defaults, onSaved }: Defaul
   }
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="작업 파라미터 기본값" wide>
-      <div className="flex flex-col gap-2" data-testid="defaults-dialog">
-        <p className="text-xs text-content-muted">
-          우선순위: 공통 ← 종류·대상별 ← 작성 카드의 덮어쓰기. 셀을 더블클릭하거나 타이핑해 고치고,
-          붙여넣기(엑셀)도 됩니다.
-          {defaults ? ` 현재 v${defaults.version}` : ''}
-        </p>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="작업 파라미터 기본값"
+      size="xl"
+      dirty={changed}
+      meta={
+        <>
+          <span className="tabular-nums">{defaults ? `v${defaults.version}` : '버전 없음'}</span>
+          <HelpTip
+            title="기본값 규칙"
+            text="우선순위는 공통 ← 종류·대상별 ← 작성 카드의 덮어쓰기입니다. 칸은 더블클릭하거나 바로 타이핑해 고치고 엑셀에서 붙여넣을 수도 있습니다. DragInDist·DragOutDist 는 0 으로 두면 드래그를 켤 때 서버가 150 mm 를 넣고, DragInHeight·DragOutHeight 는 0 이면 지정 없음입니다."
+          />
+        </>
+      }
+      footer={
+        <>
+          <Button size="sm" intent="ghost" disabled={!changed} onClick={() => setDraft(defaults)}>
+            되돌리기
+          </Button>
+          <Button
+            size="sm"
+            intent="primary"
+            icon={<Save className="h-3.5 w-3.5" />}
+            disabled={!changed}
+            title={changed ? undefined : '바뀐 값이 없습니다'}
+            loading={saving}
+            onClick={() => void save()}
+            data-testid="defaults-save"
+          >
+            저장
+          </Button>
+        </>
+      }
+      testid="defaults-dialog"
+    >
+      <div className="flex flex-col gap-2">
         {draft ? (
           <DataGrid<DefaultsRow>
             rows={rows}
@@ -140,25 +166,9 @@ export function DefaultsDialog({ open, onOpenChange, defaults, onSaved }: Defaul
             cellTestId={(r, c) => `def-${r.key}-${c.id}`}
           />
         ) : (
-          <p className="text-xs text-content-faint">기본값을 아직 못 받았습니다.</p>
+          <p className="m-0 text-xs text-content-faint">기본값을 아직 못 받았습니다.</p>
         )}
-        <div className="flex items-center justify-end gap-2">
-          <Button size="sm" intent="ghost" disabled={!changed} onClick={() => setDraft(defaults)}>
-            되돌리기
-          </Button>
-          <Button
-            size="sm"
-            intent="primary"
-            icon={<Save className="h-3.5 w-3.5" />}
-            disabled={!changed}
-            loading={saving}
-            onClick={() => void save()}
-            data-testid="defaults-save"
-          >
-            저장
-          </Button>
-        </div>
       </div>
-    </Modal>
+    </Dialog>
   )
 }

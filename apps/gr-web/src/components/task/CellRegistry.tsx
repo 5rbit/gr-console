@@ -1,15 +1,18 @@
 // 셀 레지스트리 — 로컬 사본 표 + 툴바(PLC 읽기/쓰기/차이, Excel). 행 상태 배지: PLC 동일 / 로컬 수정 / 로컬.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Grid3x3 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { taskApi } from '../../lib/task/api'
 import type { Registry } from '../../lib/registry'
+import { robots } from '../../lib/robots'
+import { useStore } from '../../lib/store'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
 import type { Cell, CellUpsert } from '../../lib/types'
+import { FIELD, USE_FALSE } from '../../lib/fieldNames'
 import { CellForm, EMPTY_CELL } from './forms'
 import { RegistryToolbar, type RegistryIo } from './RegistryToolbar'
 
@@ -22,7 +25,7 @@ export function RowBadge({ source, dirty }: { source: 'plc' | 'local'; dirty: bo
 
 const f1 = (n: number) => (Math.round(n * 10) / 10).toString()
 export const cellSummary = (c: Cell): string =>
-  `S${c.section} R${c.row} C${c.col} ${c.use ? '' : '(미사용)'} · ${c.position.map(f1).join('/')} · ${f1(c.length)}×${f1(c.width)}`
+  `S${c.section} R${c.row} C${c.col} ${c.use ? '' : `(${USE_FALSE})`} ·${c.position.map(f1).join('/')} · ${f1(c.length)}×${f1(c.width)}`
 
 export function toCellUpsert(c: Cell): CellUpsert {
   return {
@@ -66,8 +69,17 @@ export interface CellRegistryProps {
 }
 
 export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: CellRegistryProps) {
+  useStore(robots)
   const [selLocal, setSelLocal] = useState<number | null>(null)
   const selected = selectedId !== undefined ? selectedId : selLocal
+  // 맵에서 고른 셀이 표 밖(스크롤 아래)에 있으면 선택이 안 보인다 — 선택 행을 끌어온다.
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (selected === null) return
+    box.current
+      ?.querySelector('[data-testid="dt-row"].bg-accent-soft')
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
   const setSelected = (id: number | null) => {
     if (selectedId === undefined) setSelLocal(id)
     onSelect?.(id)
@@ -89,28 +101,28 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
     { key: 'id', label: 'Id', get: (c) => c.id, numeric: true, class: 'font-mono', priority: 1 },
     {
       key: 'state',
-      label: '상태',
+      label: FIELD.state,
       get: (c) => (c.dirty ? 1 : c.source === 'plc' ? 0 : 2),
       cell: (c) => <RowBadge source={c.source} dirty={c.dirty} />,
       priority: 1,
     },
     {
       key: 'use',
-      label: '사용',
+      label: FIELD.use,
       get: (c) => (c.use ? 1 : 0),
       cell: (c) => (c.use ? 'Y' : <span className="text-content-faint">N</span>),
       priority: 2,
     },
     {
       key: 'blend',
-      label: '블렌드',
+      label: FIELD.blend_use,
       get: (c) => (c.blend_use ? 1 : 0),
       cell: (c) => (c.blend_use ? 'Y' : <span className="text-content-faint">N</span>),
       priority: 3,
     },
-    { key: 'section', label: '구역', get: (c) => c.section, numeric: true, priority: 2 },
-    { key: 'row', label: '행', get: (c) => c.row, numeric: true, priority: 2 },
-    { key: 'col', label: '열', get: (c) => c.col, numeric: true, priority: 2 },
+    { key: 'section', label: FIELD.section, get: (c) => c.section, numeric: true, priority: 2 },
+    { key: 'row', label: FIELD.row, get: (c) => c.row, numeric: true, priority: 2 },
+    { key: 'col', label: FIELD.col, get: (c) => c.col, numeric: true, priority: 2 },
     {
       key: 'x',
       label: 'X',
@@ -137,7 +149,7 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
     },
     {
       key: 'len',
-      label: '길이',
+      label: FIELD.length,
       get: (c) => c.length,
       numeric: true,
       cell: (c) => f1(c.length),
@@ -145,7 +157,7 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
     },
     {
       key: 'wid',
-      label: '폭',
+      label: FIELD.width,
       get: (c) => c.width,
       numeric: true,
       cell: (c) => f1(c.width),
@@ -193,7 +205,7 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
         }
         onDelete={() => setDel(true)}
       />
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto" ref={box}>
         {reg.error ? <p className="p-2 text-xs text-fault-fg">{reg.error}</p> : null}
         <DataTable
           rows={rows}
@@ -205,8 +217,8 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
           empty={q ? '검색 결과 없음' : '셀 없음'}
           emptyHint={
             q
-              ? undefined
-              : 'PLC 읽기로 GR2 CELL 테이블을 가져오거나 추가/Excel 가져오기로 만드세요.'
+              ? '검색어를 지우거나 Id·Section·Row·Col 의 다른 조각으로 찾으세요.'
+              : `PLC 읽기로 ${robots.current?.plc ?? 'GR'} CELL 테이블을 가져오거나 추가/Excel 가져오기로 만드세요.`
           }
           testid="cell-table"
         />

@@ -13,6 +13,11 @@ export interface MenuItem {
   disabled?: string
   /** 위험한 조작은 붉게 */
   danger?: boolean
+  /**
+   * 이 항목의 `data-testid`. 없으면 호스트가 라벨로 짓는다(`ctx-<label>`) — 라벨은 사람의 말이라
+   * 문구를 다듬을 때마다 테스트가 깨진다. 스모크가 짚는 항목에는 이것을 적는다.
+   */
+  testid?: string
   run?: () => void
 }
 

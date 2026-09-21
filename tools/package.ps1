@@ -49,6 +49,29 @@ pause
 #!/usr/bin/env sh
 cd "`$(dirname "`$0")" && exec ./gr-console --demo
 "@ | Set-Content -Encoding ASCII (Join-Path $out 'run-demo.sh')
+# 실장비 실행 — 오류로 끝났을 때만 창을 잡아 둔다(이미 실행 중 = 3, 포트 문제 = 4).
+@"
+@echo off
+rem 실장비로 켠다. 이 파일이 있는 폴더가 기준(gr-console.toml · data\ 가 여기).
+cd /d "%~dp0"
+gr-console.exe %*
+if errorlevel 1 pause
+"@ | Set-Content -Encoding ASCII (Join-Path $out 'run.cmd')
+@"
+@echo off
+rem 실행 중인 콘솔을 안전하게 끈다(진행 중인 PLC 쓰기를 마무리한 뒤 종료).
+cd /d "%~dp0"
+gr-console.exe --stop
+pause
+"@ | Set-Content -Encoding ASCII (Join-Path $out 'stop.cmd')
+@"
+#!/usr/bin/env sh
+cd "`$(dirname "`$0")" && exec ./gr-console "`$@"
+"@ | Set-Content -Encoding ASCII (Join-Path $out 'run.sh')
+@"
+#!/usr/bin/env sh
+cd "`$(dirname "`$0")" && exec ./gr-console --stop
+"@ | Set-Content -Encoding ASCII (Join-Path $out 'stop.sh')
 "$name`n$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))" | Set-Content (Join-Path $out 'VERSION')
 
 $zip = Join-Path 'dist' "$name.zip"

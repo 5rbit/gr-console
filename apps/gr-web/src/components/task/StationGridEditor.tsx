@@ -24,6 +24,8 @@ import {
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataGrid, type DataGridColumn } from '../../lib/ui/datagrid/DataGrid'
+import { FieldList } from '../../lib/ui/FieldList'
+import { HelpTip } from '../../lib/ui/HelpTip'
 import { toast } from '../../lib/ui/toast'
 import type { Station, StationUpsert } from '../../lib/types'
 import { EMPTY_STATION } from './forms'
@@ -190,9 +192,9 @@ export function StationGridEditor({
       sticky: true,
       invalid: (r) => idError(r.value),
     }),
-    num('conv', 'CV', (s) => s.conv_no),
-    num('group', '그룹', (s) => s.group),
-    num('group_index', '순번', (s) => s.group_index),
+    num('conv', 'ConvNo', (s) => s.conv_no, { width: '3.5rem' }),
+    num('group', 'Group', (s) => s.group, { width: '3.5rem' }),
+    num('group_index', 'GroupIndex', (s) => s.group_index, { width: '4.5rem' }),
     num('x', 'X', (s) => s.info.position[0], {
       width: '4.5rem',
       decimals: 1,
@@ -213,7 +215,7 @@ export function StationGridEditor({
     }),
     {
       id: 'section',
-      header: '구역',
+      header: 'Section',
       width: '2.75rem',
       align: 'center',
       editor: 'select',
@@ -222,11 +224,11 @@ export function StationGridEditor({
       invalid: (r) => sectionError(r.value),
       coercePaste: pasteInt,
     },
-    num('row', '행(X)', (s) => s.info.row),
-    num('col', '열(Y)', (s) => s.info.col),
+    num('row', 'Row', (s) => s.info.row),
+    num('col', 'Col', (s) => s.info.col),
     {
       id: 'use',
-      header: '사용',
+      header: 'Use',
       width: '2.75rem',
       align: 'center',
       editor: 'select',
@@ -234,8 +236,8 @@ export function StationGridEditor({
       text: (r) => boolText(r.value.info.use),
       coercePaste: pasteBool,
     },
-    num('task_type', '작업', (s) => s.task_type),
-    num('rotate_type', '회전', (s) => s.rotate_type),
+    num('task_type', 'TaskType', (s) => s.task_type, { width: '4.25rem' }),
+    num('rotate_type', 'RotateType', (s) => s.rotate_type, { width: '4.5rem' }),
   ]
 
   function applyOne(cur: Row[], key: string, col: string, value: string): Row[] {
@@ -307,7 +309,7 @@ export function StationGridEditor({
         onDelete={removeSelected}
         reload={reg.reload}
       />
-      <div className="flex h-10 flex-none items-center gap-1 border-b border-line-default px-2">
+      <div className="flex min-h-screen-header flex-none items-center gap-1 border-b border-line-default px-2 py-1">
         <Button
           size="sm"
           intent="ghost"
@@ -330,7 +332,7 @@ export function StationGridEditor({
         <span className="min-w-0 flex-1 truncate px-1 text-2xs text-content-muted tabular-nums">
           {pending
             ? `수정 ${diff.changed} · 신규 ${diff.added} · 삭제 ${diff.deletes.length}`
-            : '칸을 바로 고치거나 엑셀에서 붙여넣기'}
+            : '변경 없음'}
           {errorCount ? <span className="ml-1 text-fault-fg">· 오류 {errorCount}</span> : null}
         </span>
         <Button
@@ -356,8 +358,12 @@ export function StationGridEditor({
         </Button>
       </div>
       {stale ? (
-        <div className="flex h-8 flex-none items-center border-b border-warn bg-warn-soft px-3 text-2xs text-warn-fg">
-          저장본이 바뀌었습니다(PLC 읽기·가져오기). 편집을 적용하거나 되돌리기로 새로 받으세요.
+        <div className="flex min-h-control-sm flex-none items-center gap-1.5 border-b border-warn bg-warn-soft px-3 py-1 text-2xs text-warn-fg">
+          저장본이 바뀌었습니다
+          <HelpTip
+            title="저장본 변경"
+            text="PLC 읽기·Excel 가져오기가 저장본을 갈아 끼웠습니다. 지금 편집을 적용하거나 되돌리기로 새 저장본을 받으세요."
+          />
         </div>
       ) : null}
       <div className="min-h-0 flex-1">
@@ -389,10 +395,19 @@ export function StationGridEditor({
         confirmLabel="적용"
         onConfirm={() => void save()}
       >
-        <p className="text-xs">
-          수정 {diff.changed} · 신규 {diff.added} · 삭제 {diff.deletes.length} 건을 로컬 사본에
-          저장합니다. PLC 반영은 툴바의 PLC 쓰기로 합니다.
-        </p>
+        <div className="flex flex-col gap-2 text-xs">
+          <p className="m-0">로컬 사본에 저장할까요?</p>
+          <FieldList
+            columns={3}
+            dense
+            labelWidth={40}
+            items={[
+              { label: '수정', value: String(diff.changed) },
+              { label: '신규', value: String(diff.added) },
+              { label: '삭제', value: String(diff.deletes.length) },
+            ]}
+          />
+        </div>
       </ConfirmDialog>
     </div>
   )

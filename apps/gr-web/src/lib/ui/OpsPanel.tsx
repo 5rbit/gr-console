@@ -138,6 +138,8 @@ export function OpsPanel({
           <button
             type="button"
             className={cn(
+              // design-lint-allow: no-extra-font-size — 비상 정지는 장갑 낀 손이 보지 않고 누르는 단
+              // 하나의 버튼이다. 56px 면에 xs 글자를 올리면 그 면이 무엇인지 멀리서 읽히지 않는다.
               'flex h-control-stop w-full items-center justify-center gap-2 rounded-md bg-danger text-base font-semibold text-content-on-accent transition-colors',
               'hover:bg-danger-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus-visible:outline-none',
               stop.disabled && 'cursor-not-allowed opacity-50',

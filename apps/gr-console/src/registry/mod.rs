@@ -4,10 +4,13 @@
 //! - `diff`: local vs PLC classification (`same|local_only|plc_only|changed`)
 //! - `xlsx`: Excel / CSV export + import (header-mapped, row-validated)
 //! - `routes`: `/api/items`, `/api/cells`, `/api/stations`, `/api/registry`, `/api/defaults`, `/api/issue/compose`
+//! - `beads`: PLC 의 SKU 측정(MEASLOG Kind 2) → 품목 단별 비드 표본 적재·검증·자동 반영
 
+pub mod beads;
 pub mod diff;
 pub mod plc_io;
 pub mod routes;
+pub mod spec;
 pub mod xlsx;
 
 use std::collections::HashMap;
@@ -27,6 +30,9 @@ pub struct ItemEntry {
     pub name: String,
     pub item: StockItem,
     pub note: String,
+    /// 콘솔 소유 부가 규격(`spec.rs`) — PLC 로 가지 않는다.
+    #[serde(default)]
+    pub spec: spec::ItemSpec,
     pub updated_at: String,
 }
 
@@ -58,8 +64,10 @@ pub struct Defaults {
     pub base: TaskParams,
     /// by[task_type][target_kind] = partial params (snake_case)
     pub by: HashMap<String, HashMap<String, Json>>,
-    /// Where the gripper takes the tire, as a Z offset from the tire bottom: `mid` = Height/2,
-    /// `bead` = UpperBidHeight (falls back to mid when the item has none).
+    /// Where the gripper takes the tire, as a Z offset from the tire bottom: `mid` = Height/2 (기본),
+    /// `pick_bead`(화면 이름 `bead+offset`) = UpperBead − `ItemSpec.pick_bead_offset`(기본 30 mm).
+    /// 한 번도 재 본 적 없는 품목은 mid 로 내려간다. 비드 값은 그 타이어 **위에 얹힌 개수**만큼 눌림이 반영된다.
+    /// 옛 값 `bead` 는 읽을 때 `pick_bead` 로 옮긴다(`spec::normalize_grip_ref`).
     pub grip_ref: String,
 }
 
@@ -87,27 +95,50 @@ impl Registry {
 
     // ---- items
     pub fn items(&self) -> Result<Vec<ItemEntry>, ApiError> {
-        let rows: Vec<(i64, String, String, String, String)> = self.db.with(|c| {
-            let mut st = c.prepare("SELECT code, name, item_json, note, updated_at FROM tire_codes ORDER BY code")?;
-            let it = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?;
+        type Row = (i64, String, String, String, String, String);
+        let rows: Vec<Row> = self.db.with(|c| {
+            let mut st = c.prepare("SELECT code, name, item_json, note, updated_at, spec_json FROM tire_codes ORDER BY code")?;
+            let it = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)))?;
             it.collect()
         })?;
-        Ok(rows.into_iter().map(|(code, name, item, note, updated_at)| ItemEntry { code: code as u32, name, item: serde_json::from_str(&item).unwrap_or_default(), note, updated_at }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|(code, name, item, note, updated_at, spec)| {
+                let item: StockItem = serde_json::from_str(&item).unwrap_or_default();
+                let spec: spec::ItemSpec = serde_json::from_str(&spec).unwrap_or_default();
+                ItemEntry { code: code as u32, name, item, note, spec, updated_at }
+            })
+            .collect())
     }
     pub fn item(&self, code: u32) -> Result<Option<ItemEntry>, ApiError> {
         Ok(self.items()?.into_iter().find(|i| i.code == code))
     }
+    /// Upsert keeping the stored `spec` (new rows get the default spec).
     pub fn upsert_item(&self, code: u32, name: &str, item: &StockItem, note: &str) -> Result<ItemEntry, ApiError> {
+        self.upsert_item_full(code, name, item, note, None)
+    }
+    /// `spec = None` leaves an existing row's spec untouched (old clients / old Excel files don't carry it).
+    pub fn upsert_item_full(&self, code: u32, name: &str, item: &StockItem, note: &str, spec: Option<&spec::ItemSpec>) -> Result<ItemEntry, ApiError> {
         let mut item = item.clone();
         item.code = code;
         let now = now_str();
-        self.db.with(|c| {
-            c.execute(
+        let item_json = serde_json::to_string(&item).unwrap_or_default();
+        self.db.with(|c| match spec {
+            Some(s) => c.execute(
+                "INSERT INTO tire_codes (code, name, item_json, note, updated_at, spec_json) VALUES (?1,?2,?3,?4,?5,?6) ON CONFLICT(code) DO UPDATE SET name=excluded.name, item_json=excluded.item_json, note=excluded.note, updated_at=excluded.updated_at, spec_json=excluded.spec_json",
+                (code, name, &item_json, note, &now, serde_json::to_string(s).unwrap_or_else(|_| "{}".into())),
+            ),
+            None => c.execute(
                 "INSERT INTO tire_codes (code, name, item_json, note, updated_at) VALUES (?1,?2,?3,?4,?5) ON CONFLICT(code) DO UPDATE SET name=excluded.name, item_json=excluded.item_json, note=excluded.note, updated_at=excluded.updated_at",
-                (code, name, serde_json::to_string(&item).unwrap_or_default(), note, &now),
-            )
+                (code, name, &item_json, note, &now),
+            ),
         })?;
-        Ok(ItemEntry { code, name: name.into(), item, note: note.into(), updated_at: now })
+        self.item(code)?.ok_or_else(|| ApiError::Internal(format!("item {code} vanished after upsert")))
+    }
+    /// Replaces only the spec of an existing item. `false` = no such item.
+    pub fn set_item_spec(&self, code: u32, spec: &spec::ItemSpec) -> Result<bool, ApiError> {
+        let json = serde_json::to_string(spec).unwrap_or_else(|_| "{}".into());
+        Ok(self.db.with(|c| c.execute("UPDATE tire_codes SET spec_json = ?1, updated_at = ?2 WHERE code = ?3", (json, now_str(), code)))? > 0)
     }
     pub fn delete_item(&self, code: u32) -> Result<bool, ApiError> {
         Ok(self.db.with(|c| c.execute("DELETE FROM tire_codes WHERE code = ?1", [code]))? > 0)
@@ -209,15 +240,42 @@ impl Registry {
 
     // ---- defaults
     pub fn defaults(&self) -> Result<Defaults, ApiError> {
-        match self.db.setting("defaults")? {
-            Some(s) => Ok(serde_json::from_str(&s).unwrap_or_default()),
-            None => Ok(Defaults::default()),
-        }
+        let mut d: Defaults = match self.db.setting("defaults")? {
+            Some(s) => serde_json::from_str(&s).unwrap_or_default(),
+            None => Defaults::default(),
+        };
+        // 옛 값(`bead`)·오타는 읽는 자리에서 정본으로 — 화면에도 저장된 값에도 `bead` 는 남지 않는다.
+        d.grip_ref = spec::normalize_grip_ref(&d.grip_ref).into();
+        Ok(d)
     }
     pub fn save_defaults(&self, mut d: Defaults) -> Result<Defaults, ApiError> {
         d.updated_at = now_str();
         d.version += 1;
+        d.grip_ref = spec::normalize_grip_ref(&d.grip_ref).into();
         self.db.set_setting("defaults", &serde_json::to_string(&d)?)?;
         Ok(d)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 기본 그립 기준은 `mid`(Height/2)다. 옛 `bead` 는 읽을 때도 쓸 때도 `pick_bead` 로 옮긴다.
+    #[test]
+    fn defaults_grip_ref_is_mid_and_legacy_bead_moves() {
+        let db = crate::db::Db::open_memory().unwrap();
+        let reg = Registry::new(db.clone());
+        assert_eq!(Defaults::default().grip_ref, "mid");
+        assert_eq!(reg.defaults().unwrap().grip_ref, "mid", "새로 깐 콘솔");
+        // 옛 값이 그대로 남아 있어도(마이그레이션 전 백업 등) 읽는 자리에서 옮긴다
+        db.set_setting("defaults", r#"{"version":2,"grip_ref":"bead"}"#).unwrap();
+        assert_eq!(reg.defaults().unwrap().grip_ref, "pick_bead");
+        // 화면이나 가져오기가 `bead` 를 보내도 저장되는 값은 `pick_bead`
+        let saved = reg.save_defaults(Defaults { grip_ref: "bead".into(), ..Default::default() }).unwrap();
+        assert_eq!(saved.grip_ref, "pick_bead");
+        assert!(db.setting("defaults").unwrap().unwrap().contains(r#""grip_ref":"pick_bead""#));
+        assert_eq!(reg.save_defaults(Defaults { grip_ref: "bead+offset".into(), ..Default::default() }).unwrap().grip_ref, "pick_bead");
+        assert_eq!(reg.save_defaults(Defaults { grip_ref: "nonsense".into(), ..Default::default() }).unwrap().grip_ref, "mid");
     }
 }

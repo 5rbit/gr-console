@@ -57,6 +57,24 @@ impl CommandPort {
         }
     }
 
+    /// 종료 절차: OPC UA 세션을 정상적으로 닫는다(서버에 세션이 떠 있지 않게). 닫혔으면 true.
+    pub async fn close(&self, timeout: std::time::Duration) -> bool {
+        match self {
+            CommandPort::Opc { writer, .. } => {
+                writer.shutdown();
+                let t0 = std::time::Instant::now();
+                while t0.elapsed() < timeout {
+                    if matches!(writer.state(), opcua_cmd::OpcState::Disconnected) {
+                        return true;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                }
+                false
+            }
+            CommandPort::Demo { .. } => true,
+        }
+    }
+
     pub fn is_ready(&self) -> bool {
         match self {
             CommandPort::Opc { writer, .. } => matches!(writer.state(), opcua_cmd::OpcState::Ready { .. }),
@@ -144,8 +162,8 @@ impl CommandPort {
                 };
                 writer.write_task_op(o, work_id, task_id).await.map_err(|e| ApiError::OpcNotReady(e.to_string()))
             }
-            CommandPort::Demo { world, .. } => {
-                world.task_op(op, work_id, task_id);
+            CommandPort::Demo { world, cfg, .. } => {
+                world.task_op(op, cfg.dst, work_id, task_id);
                 Ok(())
             }
         }
@@ -155,8 +173,8 @@ impl CommandPort {
     pub async fn clear_header(&self) -> Result<(), ApiError> {
         match self {
             CommandPort::Opc { writer, .. } => writer.clear_header().await.map_err(|e| ApiError::OpcNotReady(e.to_string())),
-            CommandPort::Demo { world, .. } => {
-                world.clear_header();
+            CommandPort::Demo { world, cfg, .. } => {
+                world.clear_header(cfg.dst);
                 Ok(())
             }
         }

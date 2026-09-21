@@ -105,7 +105,7 @@ export function stepFromObject(v: unknown, where = 'step'): ScenarioStep {
   const on_failure = parseOnFailure(o.on_failure)
   if (!on_failure) throw new Error(`${where}: on_failure 오류 '${str(o.on_failure)}'`)
   const params = asRecord(o.params) ?? {}
-  return newStep({
+  const step = newStep({
     ...(str(o.id) ? { id: str(o.id) } : {}),
     label: str(o.label),
     type,
@@ -118,6 +118,19 @@ export function stepFromObject(v: unknown, where = 'step'): ScenarioStep {
     on_failure,
     note: str(o.note),
   })
+  const pallet = parsePallet(o.pallet)
+  return pallet ? { ...step, pallet } : step
+}
+
+/** `pallet` — `{seq, level}` 또는 `{auto: true}`(팔렛 패턴 화면이 싣는다). 모양이 틀리면 버린다. */
+function parsePallet(v: unknown): ScenarioStep['pallet'] {
+  const o = asRecord(v)
+  if (!o) return undefined
+  if (o.auto === true) return { auto: true }
+  const seq = optNum(o.seq)
+  if (seq === null || !Number.isInteger(seq) || seq < 1) return undefined
+  const level = optNum(o.level)
+  return { seq, level: level !== null && Number.isInteger(level) && level >= 1 ? level : 1 }
 }
 
 /** 내보낸 문서 또는 `Scenario` 원본을 읽는다. id·시각은 버린다(가져오기는 새 문서). */

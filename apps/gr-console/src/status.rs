@@ -23,8 +23,8 @@ impl StatusBus {
         self.last.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
 
-    /// Follows `plc` and emits a StatusEvent whenever the `db` (WEBMON) is refreshed.
-    pub fn follow(&self, plc: PlcHandle, db: String, source: &'static str) {
+    /// Follows `plc` (the status PLC of robot `robot`) and emits a StatusEvent whenever the `db` (WEBMON) is refreshed.
+    pub fn follow(&self, plc: PlcHandle, db: String, source: &'static str, robot: u8) {
         let bus = self.clone();
         tokio::spawn(async move {
             let mut rx = plc.events.subscribe();
@@ -38,7 +38,7 @@ impl StatusBus {
                         let snap = plc.snap();
                         let Some(d) = snap.db(&db) else { continue };
                         seq += 1;
-                        let event = json!({ "at": d.at, "source": source, "seq": seq, "plc": plc.name(), "webmon": *d.json });
+                        let event = json!({ "at": d.at, "source": source, "seq": seq, "plc": plc.name(), "robot": robot, "webmon": *d.json });
                         *bus.last.lock().unwrap_or_else(PoisonError::into_inner) = Some(event.clone());
                         let _ = bus.tx.send(event);
                     }

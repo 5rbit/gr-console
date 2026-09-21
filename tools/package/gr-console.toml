@@ -28,8 +28,8 @@ fast = ["OPCUA", "TASK"]
 webmon = ["WEBMON"]
 slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG", "LASERDIAG"]
 on_demand = ["MEASLOG_HIST"]
+# OPCUA.STAT.ComponentID 는 PLC 프로그램이 쓰지 않아 실기에서 항상 0 (2026-09-14 실기 확인) → 검사하지 않음
 checks = [
-  { db = "OPCUA", path = "STAT.ComponentID", equals = 4002 },
   { db = "PARA", path = "Machine.ID", equals = 2 },
 ]
 
@@ -45,7 +45,7 @@ fast = ["OPCUA"]
 webmon = []
 slow = ["STATION", "CELL", "MACHINE"]
 on_demand = []
-checks = [{ db = "OPCUA", path = "GR[2].STAT.ComponentID", equals = 4002 }]
+checks = []   # GR[n].STAT.ComponentID 는 실기에서 0 — DB 크기 검사만
 
 [opcua]
 endpoint = "opc.tcp://192.168.1.10:4840"
@@ -62,6 +62,12 @@ webmon_ms = 500
 slow_ms = 5000
 grm_fast_ms = 500
 
+# PLC 소켓 링크 수신 — PLC 슬롯(SOCK_CFG.Conn[n])을 Active 로 두면 여기로 붙는다.
+# 트레이스(사이클 단위 시계열, /api/trace)는 이 링크로만 동작한다. 포트가 이미 쓰이면 경고만 남기고 콘솔은 그대로 뜬다.
+[link]
+enabled = true
+bind = "0.0.0.0:2000"
+
 [cmd]
 protocol = 1
 src = 5000
@@ -71,7 +77,7 @@ status_plc = "GR2"
 grm_plc = "GRM"
 
 # 로봇 목록 — GRM 뒤에 최대 2대. 비워 두면 [cmd]/[opcua] 의 한 대(GR2) 만 쓴다.
-# 두 대를 쓰려면 아래 주석을 풀고 GR1 의 S7 PLC 도 [[plcs]] 에 추가한다(contract "GR1_PLC", OPCUA/TASK DB, checks ComponentID 4001).
+# 두 대를 쓰려면 아래 [[robots]] 두 블록과 맨 아래 GR1 [[plcs]] 블록의 주석을 함께 푼다.
 # [[robots]]
 # id = 1
 # name = "GR1"
@@ -86,7 +92,9 @@ grm_plc = "GRM"
 # opcua_root = "GR[2].CMD"
 # dst = 4002
 
-# GR1 상태 PLC 예시 (두 대 구성일 때 [[robots]] 와 함께 주석 해제; 계약 GR1_PLC 도 실행 파일에 들어 있다)
+# GR1 상태 PLC (두 대 구성일 때 [[robots]] 와 함께 주석 해제; 계약 GR1_PLC 도 실행 파일에 들어 있다)
+# 주의: GR1 실기 PLC 프로그램이 GR1_PLC 계약과 같아야 한다 — DB 크기·LayoutSig 가 다르면 레이아웃 검사가
+#       실패해 GR1 작업 제출이 막힌다(연결 전에 TIA 프로그램 버전을 맞출 것).
 # [[plcs]]
 # name = "GR1"
 # role = "gr"
@@ -96,7 +104,9 @@ grm_plc = "GRM"
 # rack = 0
 # slot = 1
 # fast = ["OPCUA", "TASK"]
-# webmon = []
-# slow = ["PARA", "ALARM", "CELL", "STATION"]
-# on_demand = []
-# checks = [{ db = "OPCUA", path = "STAT.ComponentID", equals = 4001 }, { db = "PARA", path = "Machine.ID", equals = 1 }]
+# webmon = ["WEBMON"]
+# # LASERDIAG 는 GR1 계약에 .xml(DB 번호)이 없어 제외
+# slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG"]
+# on_demand = ["MEASLOG_HIST"]
+# # OPCUA.STAT.ComponentID 는 실기에서 0 → Machine.ID 만
+# checks = [{ db = "PARA", path = "Machine.ID", equals = 1 }]

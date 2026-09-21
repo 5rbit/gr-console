@@ -69,11 +69,9 @@ export function PositionPreview({ request, onPreview }: PositionPreviewProps) {
           미리보기 실패 — {error}
         </p>
       ) : null}
-      {!request ? (
-        <p className="text-xs text-content-faint">
-          대상과 품목을 고르면 PLC로 갈 위치를 미리 계산합니다.
-        </p>
-      ) : items.length === 0 && loading ? (
+      {/* 초안이 성립하지 않으면 바로 위 문제 목록이 이미 "무엇을 더 골라야 하나"를 말한다 —
+          같은 말을 회색 문장으로 한 번 더 적지 않는다. */}
+      {!request ? null : items.length === 0 && loading ? (
         <p className="text-xs text-content-faint">계산 중…</p>
       ) : (
         <FieldList items={items} columns={2} dense labelWidth={96} />

@@ -17,7 +17,7 @@ pub fn info(demo: bool) -> ConsoleInfo {
     ConsoleInfo {
         app_id: "gr",
         app_name: if demo { "GR 콘솔 (DEMO)" } else { "GR 콘솔" },
-        tabs: vec!["task", "taskmgr", "measure", "scenario"],
+        tabs: vec!["task", "items", "taskmgr", "measure", "scenario", "pallet", "trace"],
         default_tab: "task",
         live_view: "gantry",
         demo,

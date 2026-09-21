@@ -42,7 +42,7 @@ export default function RobotsPane() {
               aria-checked={on}
               className={`flex w-full items-center gap-2 px-2 text-left hover:bg-surface-inset ${rowPad} ${on ? 'bg-accent-soft' : ''}`}
               data-testid={`robot-${r.id}`}
-              title={`${r.opcua_root} · DST ${r.dst} · 상태 PLC ${r.plc}${r.gate.can_submit ? '' : ` · 게이트 닫힘: ${r.gate.reasons.join('; ')}`}`}
+              title={`${r.opcua_root} · DST ${r.dst} · Plc ${r.plc}${r.gate.can_submit ? '' : ` · 게이트 닫힘: ${r.gate.reasons.join('; ')}`}`}
               onClick={() => robots.select(r.id)}
             >
               <StatusDot status={robotTone(r)} size="sm" />

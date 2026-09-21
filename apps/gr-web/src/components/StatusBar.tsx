@@ -9,12 +9,14 @@ import { pollFactor } from '../lib/poll'
 import { palette } from '../lib/palette'
 import { plcs } from '../lib/plcs'
 import { tasks } from '../lib/tasks'
-import { statusFeed, tasksFeed } from '../lib/feeds'
+import { tasksFeed, useSelectedStatus } from '../lib/feeds'
+import { robots } from '../lib/robots'
 import { useSse } from '../lib/sse'
 import { useStore } from '../lib/store'
 import { StatusDot } from '../lib/ui/StatusDot'
 import type { Status } from '../lib/ui/status'
 import { chord } from '../lib/keys'
+import { ALL_TABS } from '../lib/tabs'
 import { workspace } from '../lib/workspace/store'
 import { visibleLabels } from './workspace/WorkspaceShell'
 
@@ -28,7 +30,8 @@ function feedStatus(connected: boolean, error: string | null): Status {
 
 export function StatusBar({ tab }: StatusBarProps) {
   useStore(plcs, tasks, workspace)
-  useSse(statusFeed)
+  // 상태 점은 **고른 로봇**의 스트림 — 사이드바에서 호기를 바꾸면 이 점도 그 로봇 것을 말한다.
+  const statusFeed = useSelectedStatus()
   useSse(tasksFeed)
   useEffect(() => plcs.start(), [])
   useEffect(() => tasks.start(), [])
@@ -67,8 +70,10 @@ export function StatusBar({ tab }: StatusBarProps) {
         <StatusDot
           status={feedStatus(statusFeed.connected, statusFeed.error)}
           size="sm"
-          label="상태"
-          title={statusFeed.error ?? '상태 스트림 연결됨'}
+          label={`상태 ${robots.current?.name ?? ''}`.trim()}
+          title={
+            statusFeed.error ?? `${robots.current?.name ?? '기본 로봇'} 상태 스트림 연결됨`
+          }
         />
         <StatusDot
           status={feedStatus(tasksFeed.connected, tasksFeed.error)}
@@ -83,14 +88,16 @@ export function StatusBar({ tab }: StatusBarProps) {
           status={layout === true ? 'ok' : layout === false ? 'fault' : 'neutral'}
           size="sm"
         />
-        레이아웃{' '}
-        {layout === true ? 'OK' : layout === false ? '불일치' : plcs.loaded ? '미검사' : '—'}
+        {/* 정상은 말로 반복하지 않는다 — 점이 초록이면 OK다(`docs/DESIGN.md` 4절 ④). */}
+        Layout {layout === false ? '불일치' : layout === null && plcs.loaded ? '미검사' : ''}
       </span>
 
       <span className="shrink-0" data-testid="sb-counts">
         Task <strong className="font-medium tabular-nums">{counts.total}</strong>
-        <span className="text-content-faint">
-          (진행 {counts.active} · 실행 {counts.running} · 대기 {counts.queued})
+        {/* 괄호 대신 가운뎃점 — 이 띠의 다른 묶음과 같은 구분자를 쓴다(눈이 구획을 한 규칙으로 읽는다). */}
+        <span className="text-content-faint tabular-nums">
+          {' '}
+          · Active {counts.active} · Running {counts.running} · Queued {counts.queued}
         </span>
       </span>
 
@@ -110,9 +117,9 @@ export function StatusBar({ tab }: StatusBarProps) {
       {/* 숫자키는 포커스가 버튼·입력에 없을 때만 산다. 팔레트 키는 입력 안에서도 산다. */}
       <span
         className="hidden shrink-0 sm:inline"
-        title="1~4 화면 이동 — 포커스가 버튼·입력에 없을 때만"
+        title={`1~${Math.min(ALL_TABS.length, 9)} 화면 이동 — 포커스가 버튼·입력에 없을 때만`}
       >
-        <kbd className="font-mono">1~4</kbd> 화면 이동
+        <kbd className="font-mono">1~{Math.min(ALL_TABS.length, 9)}</kbd> 화면 이동
       </span>
       <span className="hidden shrink-0 md:inline" title="명령 팔레트 — 패널 · 배치 · 존 · 설정">
         <kbd className="font-mono">{chord('K')}</kbd> 명령

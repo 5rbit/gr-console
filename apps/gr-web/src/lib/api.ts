@@ -7,14 +7,18 @@
 
 import { invalidateShared, shareGet } from './share'
 import type {
+  BeadSample,
   Cell,
   CellUpsert,
+  CompressionSuggestion,
   ConsoleInfo,
   Defaults,
   DiffRow,
   Gate,
   ImportResult,
   Item,
+  ItemLevels,
+  ItemSpec,
   ItemUpsert,
   MeasLogEntries,
   MeasLogSnapshot,
@@ -35,7 +39,14 @@ import type {
   TaskRequest,
   TaskType,
 } from './types'
-import type { LaserSnapshot, RecordMeta, RecordOverview, RecordSession, RecordStart } from './types'
+import type {
+  LaserSnapshot,
+  ParaSnapshot,
+  RecordMeta,
+  RecordOverview,
+  RecordSession,
+  RecordStart,
+} from './types'
 
 // ── fetch 래퍼 ────────────────────────────────────────────────────────────────
 
@@ -145,11 +156,17 @@ function fileForm(file: File): FormData {
 
 /** SSE 스트림 URL — `lib/feeds.ts`의 피드가 이 주소로 붙는다. */
 export const STREAM_URL = {
+  /** 기본 로봇 상태. 로봇별은 [`statusStreamUrl`]. */
   status: '/api/status/stream',
   tasks: '/api/tasks/stream',
   runs: '/api/scenarios/runs/stream',
   stock: '/api/stock/stream',
 } as const
+
+/** 로봇 한 대의 상태 스트림 — `robot` 이 없으면 기본 로봇(백엔드 `robots[0]`). */
+export function statusStreamUrl(robot?: number | null): string {
+  return `${STREAM_URL.status}${qs({ robot })}`
+}
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
@@ -160,20 +177,32 @@ export const api = {
   plcCheck: (id: PlcId) => postJson<PlcStatus>(`/api/plcs/${id}/check`),
   plcReconnect: (id: PlcId) => postJson<PlcStatus>(`/api/plcs/${id}/reconnect`),
 
-  // 상태
-  statusNow: () => getJson<StatusEvent>('/api/status'),
-  statusStream: (): EventSource => new EventSource(STREAM_URL.status),
+  // 상태 — 모두 로봇별(`robot` 없으면 기본 로봇)
+  statusNow: (robot?: number | null) => getJson<StatusEvent>(`/api/status${qs({ robot })}`),
+  statusStream: (robot?: number | null): EventSource => new EventSource(statusStreamUrl(robot)),
 
-  // 측정 로그
-  measlogSnapshot: () => getJson<MeasLogSnapshot>('/api/measlog/snapshot'),
-  measlogEntries: (since?: number, kind?: number, code?: number, limit?: number) =>
-    getJson<MeasLogEntries>(`/api/measlog/entries${qs({ since, kind, code, limit })}`),
-  measlogReload: () => postJson<MeasLogSnapshot>('/api/measlog/reload'),
-  measlogCsvUrl: (kind?: number, code?: number): string =>
-    `/api/measlog/export.csv${qs({ kind, code })}`,
-  laser: () => getJson<LaserSnapshot>('/api/laser'),
-  laserZCal: (enable: boolean) => postJson<{ ok: boolean; enable: boolean }>('/api/laser/zcal', { enable }),
-  laserReset: () => postJson<{ ok: boolean }>('/api/laser/reset'),
+  // 측정 로그 — 로봇마다 따로 쌓인다
+  measlogSnapshot: (robot?: number | null) =>
+    getJson<MeasLogSnapshot>(`/api/measlog/snapshot${qs({ robot })}`),
+  measlogEntries: (
+    since?: number,
+    kind?: number,
+    code?: number,
+    limit?: number,
+    robot?: number | null,
+  ) =>
+    getJson<MeasLogEntries>(`/api/measlog/entries${qs({ since, kind, code, limit, robot })}`),
+  measlogReload: (robot?: number | null) =>
+    postJson<MeasLogSnapshot>(`/api/measlog/reload${qs({ robot })}`),
+  measlogCsvUrl: (kind?: number, code?: number, robot?: number | null): string =>
+    `/api/measlog/export.csv${qs({ kind, code, robot })}`,
+  laser: (robot?: number | null) => getJson<LaserSnapshot>(`/api/laser${qs({ robot })}`),
+  laserZCal: (enable: boolean, robot?: number | null) =>
+    postJson<{ ok: boolean; enable: boolean }>(`/api/laser/zcal${qs({ robot })}`, { enable }),
+  laserReset: (robot?: number | null) =>
+    postJson<{ ok: boolean }>(`/api/laser/reset${qs({ robot })}`),
+  /** 로봇 PLC 의 PARA DB(계약 주석 포함, 읽기 전용) */
+  para: (robot?: number | null) => getJson<ParaSnapshot>(`/api/para${qs({ robot })}`),
 
   // 측정 기록 (현장 시험)
   record: () => getJson<RecordOverview>('/api/record'),
@@ -190,6 +219,32 @@ export const api = {
   itemCreate: (body: ItemUpsert) => postJson<Item>('/api/items', body),
   itemUpdate: (code: number, body: ItemUpsert) => putJson<Item>(`/api/items/${code}`, body),
   itemDelete: (code: number) => del(`/api/items/${code}`),
+  /**
+   * 하중(Above) 기준 비드 곡선을 `preview` 개 스택의 단별 보기로 — 설정·유효(측정/보간/계산)·절대 비드·
+   * 공칭·측정·편차·집는 높이 + 최근 SKU 표본 이력.
+   */
+  itemLevels: (code: number, robot?: number | null, preview?: number | null) =>
+    getJson<ItemLevels>(`/api/items/${code}/levels${qs({ robot, preview })}`),
+  /** 최신 SKU 측정을 규격에 바로 넣는다(서버가 검증·저장) — `fields` = beads · compression */
+  itemLevelsApplyMeasured: (code: number, robot?: number | null, fields?: string) =>
+    postJson<{ code: number; applied: unknown[]; spec: ItemSpec; suggestion: CompressionSuggestion }>(
+      `/api/items/${code}/levels/apply-measured${qs({ robot, fields })}`,
+      {},
+    ),
+  /** SKU 측정 표본 이력(최신 순, 반영 여부·거부 사유 포함) */
+  itemBeadSamples: (code: number, robot?: number | null, limit?: number, all?: boolean) =>
+    getJson<{ code: number; plc: string | null; limit: number; auto_apply_measured: boolean; samples: BeadSample[] }>(
+      `/api/items/${code}/bead-samples${qs({ robot, limit, all })}`,
+    ),
+  /** 옛 표본을 손으로 규격에 넣는다(자동 반영 스위치가 꺼져 있어도) */
+  itemBeadSampleApply: (code: number, seq: number, robot?: number | null) =>
+    postJson<{ code: number; plc: string; seq: number; applied: boolean; reason: string; spec: ItemSpec; samples: BeadSample[] }>(
+      `/api/items/${code}/bead-samples/${seq}/apply${qs({ robot, force: true })}`,
+      {},
+    ),
+  /** 체크한 품목들에 단수 Max / 팔레트 Max 를 한 번에(전부 검증 뒤 적용) */
+  itemsBulkSpec: (body: { codes: number[]; stack_max?: number; pallet_max?: number }) =>
+    postJson<{ updated: number }>('/api/items/bulk-spec', body),
 
   // 셀
   cells: () => getJson<Cell[]>('/api/cells'),

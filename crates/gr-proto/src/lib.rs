@@ -11,7 +11,7 @@ pub mod wire;
 
 pub use consts::*;
 pub use measure::{ByCode, MeasStat, MeasureLogEntry, Trend};
-pub use params::TaskParams;
+pub use params::{DEFAULT_DRAG_DIST, TaskParams};
 pub use station::{SensorSettings, StationPara};
 pub use status::{RejectInfo, ResponseView, StatusView, TaskStatusBits};
 pub use task::{CellInfo, Header, StockItem, TaskData, TaskKey, TaskType, command_zero_members, task_type_name};

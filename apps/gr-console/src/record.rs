@@ -94,6 +94,9 @@ pub struct SessionMeta {
     pub kind: String,
     pub note: String,
     pub plc: String,
+    /// Robot id the session was started for (absent in sessions recorded before multi-robot support).
+    #[serde(default)]
+    pub robot: Option<u8>,
     pub rate_ms: u64,
     pub started_at: String,
     pub stopped_at: Option<String>,
@@ -112,6 +115,9 @@ pub struct StartReq {
     #[serde(default)]
     pub note: String,
     pub rate_ms: Option<u64>,
+    /// Robot to record (absent = default robot). One session at a time across all robots.
+    #[serde(default)]
+    pub robot: Option<u8>,
 }
 
 #[derive(Default)]
@@ -159,7 +165,7 @@ impl Recorder {
         g.as_ref().map(|a| live(&a.meta, &a.counters))
     }
 
-    pub async fn start(&self, plc: PlcHandle, req: StartReq) -> Result<SessionMeta, ApiError> {
+    pub async fn start(&self, plc: PlcHandle, robot: u8, req: StartReq) -> Result<SessionMeta, ApiError> {
         let mut g = self.active.lock().await;
         if let Some(a) = g.as_ref()
             && !a.task.is_finished()
@@ -180,6 +186,7 @@ impl Recorder {
             kind: req.kind,
             note: req.note,
             plc: plc.name().to_string(),
+            robot: Some(robot),
             rate_ms,
             started_at,
             start: snapshot(&plc, None, None).await,
@@ -197,6 +204,17 @@ impl Recorder {
     pub async fn stop(&self) -> Result<SessionMeta, ApiError> {
         let a = self.active.lock().await.take().ok_or_else(|| ApiError::Conflict("no recording is running".into()))?;
         Ok(finish(&self.dir, a).await)
+    }
+
+    /// 마무리하지 않고 보기만 — 종료 절차가 "기록 저장…" 을 찍을지 정할 때(`status` 는 끝난 세션을 여기서 마무리한다).
+    pub async fn has_session(&self) -> bool {
+        self.active.lock().await.is_some()
+    }
+
+    /// 종료 절차용 — 기록 중이면 정상 정지 경로로 마무리한다(끝 스냅샷 + meta.json). 없으면 None.
+    pub async fn stop_if_active(&self) -> Option<SessionMeta> {
+        let a = self.active.lock().await.take()?;
+        Some(finish(&self.dir, a).await)
     }
 
     pub async fn mark(&self, text: String) -> Result<(), ApiError> {
@@ -515,15 +533,16 @@ async fn start(State(st): State<AppState>, axum::Json(req): axum::Json<StartReq>
     if req.label.trim().is_empty() {
         return Err(ApiError::BadRequest("label is required".into()));
     }
-    let h = st.status_plc()?.clone();
-    let hl = h.health_now();
-    if !hl.connected {
+    let (r, h) = st.robot_and_plc(req.robot)?;
+    let (robot, h) = (r.id, h.clone());
+    if !h.has_db(DB) {
+        return Err(ApiError::BadRequest(format!("{} ({}) PLC 설정에 {DB} 가 없어 기록할 수 없습니다", r.name, h.name())));
+    }
+    if !h.health_now().connected {
         return Err(ApiError::PlcUnavailable(format!("{} S7 not connected", h.name())));
     }
-    if !hl.db_ok(DB) {
-        return Err(ApiError::LayoutMismatch { plc: h.name().into(), db: DB.into(), detail: hl.mismatch_detail(DB) });
-    }
-    let meta = st.recorder.start(h, req).await?;
+    crate::plc::ensure_db(&h, DB)?;
+    let meta = st.recorder.start(h, robot, req).await?;
     Ok(axum::Json(json!(meta)))
 }
 

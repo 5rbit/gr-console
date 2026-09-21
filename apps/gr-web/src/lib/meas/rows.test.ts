@@ -34,8 +34,8 @@ describe('rows', () => {
     expect(rows[0].cmdZRel).toBe(480)
     expect(rows[0].flags).toBe('IL')
     expect(rows[0].dInnerDia).toBe(1.5)
-    expect(summary(rows[0])).toContain('내경 382.5')
-    expect(summary(rows[1])).toContain('비드-Target 24.6')
+    expect(summary(rows[0])).toContain('InnerDia 382.5')
+    expect(summary(rows[1])).toContain('LastBidPos−Target 24.6')
   })
   it('filters by kind and code', () => {
     const rows = flatten([entry(1, 1, []), entry(2, 4, [])])

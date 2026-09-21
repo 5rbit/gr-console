@@ -17,6 +17,7 @@ use crate::registry::Registry;
 use crate::scenario::Runner;
 use crate::status::StatusBus;
 use crate::stock::Stock;
+use crate::trace::TraceStore;
 
 /// Unified console event (SSE `/api/events`).
 #[derive(Clone, Debug, Serialize)]
@@ -35,6 +36,10 @@ pub struct RobotCtx {
     pub dst: u16,
     pub cmd: Arc<CommandPort>,
     pub ledger: Arc<Ledger>,
+    /// This robot's WEBMON status stream (`/api/status?robot=`).
+    pub status: StatusBus,
+    /// This robot's MEASLOG mirror (`/api/measlog/*?robot=`).
+    pub measure: Arc<MeasureStore>,
 }
 
 #[derive(Clone)]
@@ -50,12 +55,14 @@ pub struct AppState {
     pub db: Db,
     pub ledger: Arc<Ledger>,
     pub registry: Arc<Registry>,
-    pub measure: Arc<MeasureStore>,
     pub scenario: Arc<Runner>,
     pub stock: Arc<Stock>,
     pub recorder: Arc<Recorder>,
-    pub status: StatusBus,
+    /// Cycle-accurate trace over the PLC socket link; `None` when the contract has no `LNK_Trace`.
+    pub trace: Option<Arc<TraceStore>>,
     pub events: broadcast::Sender<ConsoleEvent>,
+    /// 안전 종료 조정자 — PLC 쓰기 구간은 `shutdown.enter(…)` 로 감싼다(`crate::shutdown`).
+    pub shutdown: crate::shutdown::Shutdown,
 }
 
 impl AppState {
@@ -69,9 +76,16 @@ impl AppState {
         self.plcs.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v)
     }
 
-    /// The PLC whose `OPCUA` DB carries the echo / task arrays (GR2).
+    /// Status PLC of the default robot (`robots[0]`). Every read without a robot resolves here, so a label from
+    /// `robot(None)` and the data next to it never disagree; `cmd.status_plc` only feeds `robots[0].plc` when
+    /// `[[robots]]` is empty (`Config::robots_effective`).
     pub fn status_plc(&self) -> Result<&PlcHandle, ApiError> {
-        self.plc(&self.cfg.cmd.status_plc)
+        self.plc(self.default_plc_name())
+    }
+
+    /// Config name of the default robot's status PLC.
+    pub fn default_plc_name(&self) -> &str {
+        self.robots.first().map(|r| r.plc.as_str()).unwrap_or(&self.cfg.cmd.status_plc)
     }
 
     pub fn grm_plc(&self) -> Option<&PlcHandle> {
@@ -89,6 +103,12 @@ impl AppState {
     /// The ledger entry `id` and the robot that owns it.
     pub fn find_task(&self, id: &str) -> Option<(&RobotCtx, LedgerEntry)> {
         self.robots.iter().find_map(|r| r.ledger.get(id).map(|e| (r, e)))
+    }
+
+    /// Status PLC of a robot by id (`None` = default robot) together with the robot.
+    pub fn robot_and_plc(&self, id: Option<u8>) -> Result<(&RobotCtx, &PlcHandle), ApiError> {
+        let r = self.robot(id)?;
+        Ok((r, self.robot_plc(r)?))
     }
 
     /// Status PLC handle of a robot.

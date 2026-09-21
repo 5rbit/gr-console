@@ -92,7 +92,7 @@ export function shapesFrom(cells: readonly Cell[], stations: readonly Station[])
       col: c.col,
       use: c.use,
       dirty: c.dirty,
-      label: `셀 #${c.id}`,
+      label: `Cell #${c.id}`,
     })
   }
   for (const s of stations) {
@@ -110,7 +110,7 @@ export function shapesFrom(cells: readonly Cell[], stations: readonly Station[])
       col: i.col,
       use: i.use,
       dirty: s.dirty,
-      label: `스테이션 #${s.id} (CV${s.conv_no})`,
+      label: `Station #${s.id} (ConvNo ${s.conv_no})`,
     })
   }
   return out
@@ -196,5 +196,5 @@ export const SIZE_PRESETS = [200, 300, 400, 500, 600, 700, 800, 1000] as const
 export function shapeInfo(s: Shape): string {
   const pos = `X ${s.x.toFixed(0)} · Y ${s.y.toFixed(0)} · Z ${s.z.toFixed(0)}`
   const slot = s.length || s.width ? ` · ${s.length.toFixed(0)}×${s.width.toFixed(0)}` : ''
-  return `${s.label} · S${s.section} R${s.row} C${s.col}${s.use ? '' : ' (미사용)'} · ${pos}${slot}`
+  return `${s.label} · S${s.section} R${s.row} C${s.col}${s.use ? '' : ' (Use=false)'} · ${pos}${slot}`
 }

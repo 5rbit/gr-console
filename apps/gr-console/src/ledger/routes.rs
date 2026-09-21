@@ -120,7 +120,7 @@ async fn create(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::
     let r = st.robot(req.robot)?;
     let composed = crate::issue::compose(&st, &req)?;
     let origin = if req.source.is_some() { Origin::Scenario } else { Origin::Console };
-    let e = super::ops::create_and_submit(&st, r, origin, Some(req), Some(composed.params), composed.task, q.submit.unwrap_or(true)).await?;
+    let e = super::ops::create_and_submit(&st, r, origin, Some(req), Some(composed.params), composed.task, composed.pallet, q.submit.unwrap_or(true)).await?;
     Ok(axum::Json(e))
 }
 

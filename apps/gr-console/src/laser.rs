@@ -1,17 +1,18 @@
 //! `/api/laser/*` — gripper laser sensor diagnostics (`LASERDIAG`) and the Z-offset auto calibration switch.
 //!
-//! Reads come from the status PLC's slow-tier snapshot (`LASERDIAG` + `PARA.Sensor`). Writes flip one Bool
+//! Every route takes `?robot=<id>` (absent = default robot); a robot whose PLC has no `LASERDIAG` (GR1) gets a 400.
+//! Reads come from the robot's status PLC slow-tier snapshot (`LASERDIAG` + `PARA.Sensor`). Writes flip one Bool
 //! (`ZCal.Enable` or `Reset`) with a read-modify-write of that single byte; the PLC (`UL_LaserDiag`) does the
 //! rest and clears `Reset` / `ZCal.Enable` itself.
 
 use axum::Router;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::routing::{get, post};
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
 use crate::error::{ApiError, ApiResult};
-use crate::plc::PlcHandle;
+use crate::plc::{PlcHandle, ensure_db};
 use crate::state::AppState;
 
 const DB: &str = "LASERDIAG";
@@ -66,17 +67,21 @@ fn set_bit(byte: u8, bit: u8, v: bool) -> u8 {
     if v { byte | (1 << bit) } else { byte & !(1 << bit) }
 }
 
-async fn snapshot(State(st): State<AppState>) -> ApiResult<Json> {
-    let h = st.status_plc()?;
-    let hl = h.health_now();
-    if !hl.db_ok(DB) {
-        return Err(ApiError::LayoutMismatch { plc: h.name().into(), db: DB.into(), detail: hl.mismatch_detail(DB) });
-    }
+/// `?robot=<id>` — absent = default robot.
+#[derive(Deserialize)]
+struct RobotQuery {
+    robot: Option<u8>,
+}
+
+async fn snapshot(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> ApiResult<Json> {
+    let (r, h) = st.robot_and_plc(q.robot)?;
+    ensure_db(h, DB)?;
     let snap = h.snap();
     let Some(d) = snap.db(DB) else { return Err(ApiError::PlcUnavailable(format!("{}.{DB} not read yet", h.name()))) };
     let data = &*d.json;
     let para = snap.db("PARA").map(|p| &*p.json);
     Ok(axum::Json(json!({
+        "robot": r.id,
         "plc": h.name(),
         "at": d.at,
         "total": data["Total"],
@@ -93,28 +98,30 @@ struct ZCalBody {
     enable: bool,
 }
 
-async fn zcal(State(st): State<AppState>, axum::Json(b): axum::Json<ZCalBody>) -> ApiResult<Json> {
-    let h = st.status_plc()?;
-    write_bool(h, "ZCal.Enable", b.enable).await?;
-    Ok(axum::Json(json!({ "ok": true, "enable": b.enable })))
+async fn zcal(State(st): State<AppState>, Query(q): Query<RobotQuery>, axum::Json(b): axum::Json<ZCalBody>) -> ApiResult<Json> {
+    let (_, h) = st.robot_and_plc(q.robot)?;
+    write_bool(&st, h, "ZCal.Enable", b.enable).await?;
+    Ok(axum::Json(json!({ "ok": true, "plc": h.name(), "enable": b.enable })))
 }
 
-async fn reset(State(st): State<AppState>) -> ApiResult<Json> {
-    let h = st.status_plc()?;
-    write_bool(h, "Reset", true).await?;
-    Ok(axum::Json(json!({ "ok": true })))
+async fn reset(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> ApiResult<Json> {
+    let (_, h) = st.robot_and_plc(q.robot)?;
+    write_bool(&st, h, "Reset", true).await?;
+    Ok(axum::Json(json!({ "ok": true, "plc": h.name() })))
 }
 
 /// Sets one Bool member. The byte is read first so the PLC-owned bits next to it (`ZCal.Busy` / `Done` / `Error`)
 /// keep their values; the window between read and write is one S7 round trip.
-async fn write_bool(h: &PlcHandle, path: &str, v: bool) -> Result<(), ApiError> {
-    let hl = h.health_now();
-    if !hl.connected {
+async fn write_bool(st: &AppState, h: &PlcHandle, path: &str, v: bool) -> Result<(), ApiError> {
+    // 읽고-고쳐-쓰는 한 바이트 — 사이에 프로세스가 사라지면 옆 비트가 옛 값으로 덮인다.
+    let _busy = st.shutdown.enter(format!("레이저 {DB}.{path} 쓰기 ({})", h.name()))?;
+    if !h.has_db(DB) {
+        return ensure_db(h, DB);
+    }
+    if !h.health_now().connected {
         return Err(ApiError::PlcUnavailable(format!("{} S7 not connected", h.name())));
     }
-    if !hl.db_ok(DB) {
-        return Err(ApiError::LayoutMismatch { plc: h.name().into(), db: DB.into(), detail: hl.mismatch_detail(DB) });
-    }
+    ensure_db(h, DB)?;
     let m = h.layout(DB).and_then(|l| l.find(path)).ok_or_else(|| ApiError::Internal(format!("{DB} layout: no member {path}")))?;
     let bit = m.bit.ok_or_else(|| ApiError::Internal(format!("{DB}.{path} is not a Bool")))?;
     let cur = h.read(DB, m.offset, 1).await.map_err(|e| ApiError::PlcUnavailable(format!("{} read {DB}.{path}: {e}", h.name())))?;

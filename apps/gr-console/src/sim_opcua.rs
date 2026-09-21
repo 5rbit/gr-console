@@ -3,7 +3,8 @@
 //! The node tree is generated from the GRM contract layout, so bit structs (`Command.Stop.Normal`),
 //! arrays (`TaskData.Position[1]`, `Data[0]`) and data types match the real UDT instead of a hand-written
 //! list. Writes land in the demo world's GRM `OPCUA` model — the very bytes the console reads back over
-//! S7 — and a completed Header write is relayed to GR2 the way GRM does (`DemoWorld::grm_opcua_write`).
+//! S7 — and a completed Header write is relayed to the demo robot at that `GR[n]` the way GRM does
+//! (`DemoWorld::grm_opcua_write`).
 //! Used by `gr-console --demo-opcua` and the bench tests, never against a real PLC.
 
 use std::collections::HashMap;
@@ -327,7 +328,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn opc_command_relays_through_grm_model() {
         let (gr2, grm) = contracts();
-        let world = DemoWorld::start(gr2, grm.clone(), 100).await.expect("world");
+        let robot = crate::demo::DemoRobot { plc_name: "GR2".into(), contract: gr2, dst: 4002, gr_index: 1, machine_id: 2 };
+        let world = DemoWorld::start(vec![robot], grm.clone(), 100).await.expect("world");
         let tmp = std::env::temp_dir().join(format!("gr-sim-opcua-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
         let sim = start(world.clone(), &grm, &["GR[2].CMD".to_string()], tmp.join("server")).await.expect("sim server");
         assert!(sim.leaves > 100, "leaves = {}", sim.leaves);

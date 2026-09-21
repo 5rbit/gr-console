@@ -285,11 +285,11 @@ export function targetOf(
   return { kind: isStationId(id) ? 'station' : 'cell', id }
 }
 
-/** 대상 표시 — 표·대화상자가 같은 말을 쓴다(`셀 104` · `ST 2001`). */
+/** 대상 표시 — 표·대화상자가 같은 말을 쓴다(`Cell 104` · `Station 2001`). */
 export function targetLabel(task: Pick<Task, 'request' | 'plc_task'>): string {
   const t = targetOf(task)
   if (!t) return ''
-  return `${t.kind === 'station' ? 'ST' : '셀'} ${t.id}`
+  return `${t.kind === 'station' ? 'Station' : 'Cell'} ${t.id}`
 }
 
 /** 타이어 치수 `ID/OD/H` — 품목 코드만으로는 현장에서 어떤 타이어인지 모른다. 없으면 빈 문자열. */

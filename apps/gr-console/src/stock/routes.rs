@@ -8,9 +8,10 @@ use axum::routing::{get, post, put};
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
-use super::{StockEvent, grip_offset, stack_z};
+use super::StockEvent;
 use crate::error::{ApiError, ApiResult};
 use crate::issue::parse_task_type;
+use crate::registry::spec::stack_z_with;
 use crate::sse::broadcast_sse;
 use crate::state::AppState;
 
@@ -30,8 +31,14 @@ async fn set(State(st): State<AppState>, Path(cell): Path<u16>, axum::Json(b): a
     if st.registry.cell(cell)?.is_none() {
         return Err(ApiError::NotFound(format!("cell {cell} not registered")));
     }
-    if b.count > 0 && b.item_code != 0 && st.registry.item(b.item_code)?.is_none() {
-        return Err(ApiError::BadRequest(format!("item {} not registered", b.item_code)));
+    if b.count > 0 && b.item_code != 0 {
+        let item = st.registry.item(b.item_code)?.ok_or_else(|| ApiError::BadRequest(format!("item {} not registered", b.item_code)))?;
+        if item.spec.exceeds(b.count) {
+            return Err(ApiError::BadRequest(format!(
+                "셀 {cell} 재고 {}개는 품목 {} 의 StackMax {} 를 넘습니다 — 화물 규격에서 StackMax 를 고치거나 개수를 줄이세요",
+                b.count, b.item_code, item.spec.stack_max
+            )));
+        }
     }
     Ok(axum::Json(serde_json::to_value(st.stock.set(cell, b.item_code, b.count, &b.note, "manual")?).unwrap_or_default()))
 }
@@ -57,7 +64,7 @@ struct ZQuery {
     item: Option<u32>,
     #[serde(default = "one")]
     count: u32,
-    /// `mid` | `bead` — default `Defaults.grip_ref`.
+    /// `mid` | `pick_bead` — default `Defaults.grip_ref`. 옛 `bead` 는 `pick_bead` 로 읽힌다.
     grip: Option<String>,
 }
 fn one() -> u32 {
@@ -70,15 +77,20 @@ async fn z_preview(State(st): State<AppState>, Query(q): Query<ZQuery>) -> ApiRe
     let cell = st.registry.cell(q.cell)?.ok_or_else(|| ApiError::NotFound(format!("cell {}", q.cell)))?.cell;
     let stock = st.stock.get(q.cell)?;
     let code = q.item.or(stock.as_ref().map(|s| s.item_code)).filter(|c| *c != 0);
-    let item = match code {
-        Some(c) => st.registry.item(c)?.map(|i| i.item).unwrap_or_default(),
-        None => Default::default(),
+    let entry = match code {
+        Some(c) => st.registry.item(c)?,
+        None => None,
     };
+    let item = entry.as_ref().map(|e| e.item.clone()).unwrap_or_default();
+    let spec = entry.map(|e| e.spec);
     let grip_ref = q.grip.unwrap_or(st.registry.defaults()?.grip_ref);
-    let grip = grip_offset(&grip_ref, &item);
     let n = stock.as_ref().map(|s| s.count).unwrap_or(0);
+    // compose 와 같은 식(프로파일 → 곡선 → mid) — 계획 표의 Z 가 제출 Z 와 달라지지 않게.
+    let z = stack_z_with(tt, cell.position[2], &item, spec.as_ref(), &grip_ref, n, q.count);
     Ok(axum::Json(
-        json!({ "cell": q.cell, "type": tt.name(), "item_code": code, "height": item.height, "grip_ref": grip_ref, "grip": grip, "stock": n, "floor": cell.position[2], "z": stack_z(tt, cell.position[2], item.height, grip, n, q.count) }),
+        json!({ "cell": q.cell, "type": tt.name(), "item_code": code, "height": item.height, "grip_ref": z.grip_ref, "grip_ref_asked": grip_ref, "grip": z.grip, "stock": n, "floor": cell.position[2],
+        "z": z.z, "z_source": z.z_source, "level": z.level, "below": z.below, "above": z.above, "base": z.base, "upper_bead": z.upper_bead, "pick_bead_offset": z.pick_bead_offset,
+        "compression": z.compression, "used": z.used, "warnings": z.warnings, "stack_max": spec.as_ref().map(|s| s.stack_max) }),
     ))
 }
 

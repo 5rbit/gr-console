@@ -8,6 +8,7 @@ pub mod ast;
 pub mod consts;
 pub mod contract;
 pub mod decode;
+pub mod docs;
 pub mod encode;
 pub mod layout;
 pub mod parse;

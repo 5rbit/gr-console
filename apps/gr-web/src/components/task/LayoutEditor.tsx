@@ -102,7 +102,7 @@ export function LayoutEditor({
       data-testid="layout-editor"
     >
       <div
-        className={`${embedded ? 'hidden' : 'flex'} h-10 items-center gap-2 border-b border-line-default px-3`}
+        className={`${embedded ? 'hidden' : 'flex'} h-screen-header flex-none items-center gap-2 border-b border-line-default px-3`}
       >
         <Wand2 className="h-4 w-4 text-content-muted" />
         <span className="text-sm font-semibold">레이아웃 생성 규칙</span>
@@ -114,7 +114,7 @@ export function LayoutEditor({
       <div className="flex flex-col gap-3 px-3 py-3">
         <div className="flex flex-wrap items-end gap-2">
           <Select
-            label="구간"
+            label="Section"
             value={String(rule.section)}
             onValueChange={(v) => {
               const sec = Number(v)
@@ -125,12 +125,12 @@ export function LayoutEditor({
           >
             {[1, 2, 3].map((s) => (
               <option key={s} value={String(s)}>
-                구간 {s} ({cells.filter((c) => c.section === s).length}칸)
+                Section {s} ({cells.filter((c) => c.section === s).length}칸)
               </option>
             ))}
           </Select>
           <Input
-            label="시작 id"
+            label="StartId"
             type="number"
             mono
             className="w-20"
@@ -139,7 +139,7 @@ export function LayoutEditor({
             data-testid="rule-start"
           />
           <Select
-            label="패턴"
+            label="Pattern"
             value={rule.pattern}
             onValueChange={(v) => set({ pattern: v as LayoutRule['pattern'] })}
             data-testid="rule-pattern"
@@ -150,7 +150,7 @@ export function LayoutEditor({
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <Input
-            label="원점 X"
+            label="OriginX"
             data-testid="rule-origin-x"
             type="number"
             mono
@@ -159,7 +159,7 @@ export function LayoutEditor({
             onValueChange={num('originX')}
           />
           <Input
-            label="원점 Y"
+            label="OriginY"
             data-testid="rule-origin-y"
             type="number"
             mono
@@ -168,7 +168,7 @@ export function LayoutEditor({
             onValueChange={num('originY')}
           />
           <Input
-            label="바닥 Z"
+            label="Z"
             type="number"
             mono
             className="w-20"
@@ -178,7 +178,7 @@ export function LayoutEditor({
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <Input
-            label="셀 지름"
+            label="Diameter"
             type="number"
             mono
             className="w-20"
@@ -187,7 +187,7 @@ export function LayoutEditor({
             data-testid="rule-diameter"
           />
           <Input
-            label="간격"
+            label="Gap"
             type="number"
             mono
             className="w-20"
@@ -196,7 +196,7 @@ export function LayoutEditor({
             data-testid="rule-gap"
           />
           <Input
-            label="열 수 (Y)"
+            label="Cols (Y)"
             type="number"
             mono
             className="w-16"
@@ -205,7 +205,7 @@ export function LayoutEditor({
             data-testid="rule-cols"
           />
           <Input
-            label="행 수 (X)"
+            label="Rows (X)"
             type="number"
             mono
             className="w-16"
@@ -220,7 +220,7 @@ export function LayoutEditor({
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <Input
-              label="X 길이 (mm)"
+              label="FitX (mm)"
               type="number"
               mono
               className="w-24"
@@ -228,7 +228,7 @@ export function LayoutEditor({
               onValueChange={(s) => setArea({ ...area, w: Number(s) })}
             />
             <Input
-              label="Y 길이 (mm)"
+              label="FitY (mm)"
               type="number"
               mono
               className="w-24"
@@ -250,20 +250,20 @@ export function LayoutEditor({
         <div className="flex flex-wrap items-center gap-3">
           <Switch
             inline
-            label="홀수 행 1칸 짧게"
+            label="ShortOddRows"
             checked={rule.shortOddRows}
             onCheckedChange={(b) => set({ shortOddRows: b })}
           />
           <Switch
             inline
-            label="뱀 번호"
+            label="Serpentine"
             checked={rule.serpentine}
             onCheckedChange={(b) => set({ serpentine: b })}
           />
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <Select
-            label="행 진행 (X)"
+            label="DirX"
             value={String(rule.dirX)}
             onValueChange={(v) => set({ dirX: Number(v) as 1 | -1 })}
           >
@@ -271,7 +271,7 @@ export function LayoutEditor({
             <option value="-1">X 감소</option>
           </Select>
           <Select
-            label="열 진행 (Y)"
+            label="DirY"
             value={String(rule.dirY)}
             onValueChange={(v) => set({ dirY: Number(v) as 1 | -1 })}
           >
@@ -279,7 +279,7 @@ export function LayoutEditor({
             <option value="-1">Y 감소</option>
           </Select>
           <Select
-            label="번호"
+            label="Order"
             value={rule.order}
             onValueChange={(v) => set({ order: v as 'row' | 'col' })}
           >
@@ -287,7 +287,7 @@ export function LayoutEditor({
             <option value="col">열 우선</option>
           </Select>
           <Input
-            label="슬롯(0=지름)"
+            label="Slot (0=Diameter)"
             type="number"
             mono
             className="w-20"

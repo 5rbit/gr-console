@@ -89,8 +89,22 @@ impl PlcHealth {
 pub enum PlcCommand {
     Reconnect,
     Reverify,
-    Read { db: String, start: u32, len: usize, reply: oneshot::Sender<Result<Vec<u8>, String>> },
-    Write { db: String, start: u32, data: Vec<u8>, reply: oneshot::Sender<Result<(), String>> },
+    Read {
+        db: String,
+        start: u32,
+        len: usize,
+        reply: oneshot::Sender<Result<Vec<u8>, String>>,
+    },
+    Write {
+        db: String,
+        start: u32,
+        data: Vec<u8>,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
+    /// 종료 절차: 앞선 명령까지 처리한 뒤 S7 연결을 닫고 폴링을 끝낸다.
+    Shutdown {
+        done: oneshot::Sender<()>,
+    },
 }
 
 #[derive(Clone)]
@@ -137,12 +151,38 @@ impl PlcHandle {
         self.cmd_tx.send(PlcCommand::Write { db: db.into(), start, data, reply: tx }).await.map_err(|_| "plc task gone".to_string())?;
         rx.await.map_err(|_| "plc task dropped request".to_string())?
     }
+    /// 종료 절차: 큐에 남은 읽기/쓰기가 끝난 뒤 S7 연결을 닫는다. 한도를 넘기면 false(그래도 프로세스는 끝난다).
+    pub async fn shutdown(&self, timeout: Duration) -> bool {
+        let (tx, rx) = oneshot::channel();
+        if self.cmd_tx.send(PlcCommand::Shutdown { done: tx }).await.is_err() {
+            return true; // 폴링 태스크가 이미 없다
+        }
+        tokio::time::timeout(timeout, rx).await.is_ok()
+    }
+
+    /// Whether `db` is configured for this PLC (any tier) — the layouts map is built from exactly those.
+    pub fn has_db(&self, db: &str) -> bool {
+        self.layouts.contains_key(db)
+    }
     /// Decodes a member path from the latest snapshot of `db` (PLC array indices).
     pub fn decode_path(&self, db: &str, path: &str) -> Option<Json> {
         let snap = self.snap();
         let d = snap.db(db)?;
         self.contract.decode_path(db, path, &d.raw).ok()
     }
+}
+
+/// A DB a route needs: not configured for this PLC → 400 with the reason (e.g. GR1 has no `LASERDIAG`), configured but
+/// failed the layout check → `LayoutMismatch`.
+pub fn ensure_db(h: &PlcHandle, db: &str) -> Result<(), crate::error::ApiError> {
+    if !h.has_db(db) {
+        return Err(crate::error::ApiError::BadRequest(format!("{} PLC 설정에 {db} DB 가 없습니다 (gr-console.toml [[plcs]] · 계약 확인)", h.name())));
+    }
+    let hl = h.health_now();
+    if !hl.db_ok(db) {
+        return Err(crate::error::ApiError::LayoutMismatch { plc: h.name().into(), db: db.into(), detail: hl.mismatch_detail(db) });
+    }
+    Ok(())
 }
 
 /// Spawns the poller task and returns its handle.
@@ -205,6 +245,10 @@ async fn run(
                             let _ = reply.send(Err(format!("{}: not connected", cfg.name)));
                         }
                         PlcCommand::Reconnect | PlcCommand::Reverify => break,
+                        PlcCommand::Shutdown { done } => {
+                            let _ = done.send(());
+                            return;
+                        }
                     }
                 }
                 continue;
@@ -245,6 +289,17 @@ async fn run(
                         None => return,
                         Some(PlcCommand::Reconnect) => break Ok(()),
                         Some(PlcCommand::Reverify) => break Ok(()),
+                        Some(PlcCommand::Shutdown { done }) => {
+                            // 앞선 읽기/쓰기는 이 채널에서 이미 처리됐다 — 여기서 연결만 닫는다.
+                            drop(client);
+                            health_tx.send_modify(|h| {
+                                h.connected = false;
+                                h.connecting = false;
+                            });
+                            tracing::info!(plc = %cfg.name, "S7 connection closed (shutdown)");
+                            let _ = done.send(());
+                            return;
+                        }
                         Some(PlcCommand::Read { db, start, len, reply }) => {
                             let r = match contract.db_number(&db) {
                                 Some(n) => client.read_db(n, start, len).await.map_err(|e| e.to_string()),

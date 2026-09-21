@@ -1,21 +1,12 @@
-// 시나리오 편집기 — 이름/설명/반복 폼 + 스텝 조작 띠 + `StepGrid` + 검증 목록 + 파라미터 다이얼로그.
-// draft의 진실원은 페이지(`ScenarioPage`)이고 여기서는 바뀐 문서를 올린다.
+// 시나리오 편집기 — **띠 하나 + 그리드**. 스텝 편집은 대량 작업이라 그리드에 그대로 두고,
+// 한 스텝의 파라미터 덮어쓰기만 대화상자로 뺀다(칸 하나에 열 몇 개를 심을 수는 없다).
+//
+// 예전에는 띠가 셋이었다: 조작 띠(가져오기·JSON·CSV·검증·저장) · 이름/설명/반복 폼 · 스텝 띠(버튼 여섯).
+// 이름·설명·반복은 한 번 정하고 안 건드리는 값이라 `설정…` 대화상자로 내렸고, 파일 조작과 검증은
+// `⋯`로 모았다. 늘 보이는 것은 **지금 하는 일**뿐이다: 행을 더하고/지우고/옮기고, 저장한다.
 import { useRef, useState } from 'react'
-import {
-  ArrowDown,
-  ArrowUp,
-  CheckCircle2,
-  Copy,
-  Download,
-  Plus,
-  Save,
-  SlidersHorizontal,
-  Trash2,
-  Upload,
-} from 'lucide-react'
+import { ArrowDown, ArrowUp, Copy, Plus, Save, Trash2, Upload } from 'lucide-react'
 import { Button } from '../../lib/ui/Button'
-import { Input } from '../../lib/ui/Input'
-import { Switch } from '../../lib/ui/Switch'
 import { Toolbar } from '../../lib/ui/Toolbar'
 import { EmptyState } from '../../lib/ui/EmptyState'
 import type { Cell, Item, ScenarioStep, ScenarioUpsert, Station, TaskParams } from '../../lib/types'
@@ -26,6 +17,7 @@ import {
   newStep,
   type ValidationIssue,
 } from '../../lib/scenario/model'
+import { OverflowMenu } from '../../lib/ui/OverflowMenu'
 import { StepGrid } from './StepGrid'
 import { StepParamsDialog } from './StepParamsDialog'
 import { ValidationList } from './ValidationList'
@@ -45,6 +37,8 @@ export interface ScenarioEditorProps {
   onValidate: () => void
   onImportFile: (file: File) => void
   onExport: (format: 'json' | 'csv') => void
+  /** 이름·설명·반복 대화상자를 연다(값의 주인은 페이지다). */
+  onOpenSettings: () => void
 }
 
 export function ScenarioEditor({
@@ -61,6 +55,7 @@ export function ScenarioEditor({
   onValidate,
   onImportFile,
   onExport,
+  onOpenSettings,
 }: ScenarioEditorProps) {
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
   const [paramsStep, setParamsStep] = useState<ScenarioStep | null>(null)
@@ -116,20 +111,25 @@ export function ScenarioEditor({
     setSteps(steps.map((s) => (s.id === liveParamsStep.id ? { ...s, params } : s)))
   }
 
+  const picker = (
+    <input
+      ref={fileRef}
+      type="file"
+      accept=".json,.csv,application/json,text/csv"
+      className="hidden"
+      data-testid="scenario-import-file"
+      onChange={(e) => {
+        const f = e.currentTarget.files?.[0]
+        e.currentTarget.value = ''
+        if (f) onImportFile(f)
+      }}
+    />
+  )
+
   if (!draft) {
     return (
       <div className="flex h-full min-h-0 flex-col" data-testid="scenario-editor">
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".json,.csv,application/json,text/csv"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.currentTarget.files?.[0]
-            e.currentTarget.value = ''
-            if (f) onImportFile(f)
-          }}
-        />
+        {picker}
         <EmptyState
           title="시나리오를 선택하세요"
           hint="왼쪽 목록에서 고르거나 새로 만듭니다. JSON/CSV 파일을 가져올 수도 있습니다."
@@ -145,27 +145,20 @@ export function ScenarioEditor({
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="scenario-editor">
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".json,.csv,application/json,text/csv"
-        className="hidden"
-        data-testid="scenario-import-file"
-        onChange={(e) => {
-          const f = e.currentTarget.files?.[0]
-          e.currentTarget.value = ''
-          if (f) onImportFile(f)
-        }}
-      />
+      {picker}
       <Toolbar
-        title="편집"
+        title={draft.name || '(이름 없음)'}
         meta={
           <>
+            <span className="tabular-nums">
+              스텝 {steps.length}개{selIdx >= 0 ? ` · ${selIdx + 1}번 선택` : ''}
+            </span>
+            <span className="tabular-nums">
+              {draft.repeat === 0 ? '∞ 반복' : `${draft.repeat}회`}
+            </span>
             {dirty ? (
               <span className="rounded bg-warn-soft px-1.5 py-0.5 text-warn-fg">변경됨</span>
-            ) : (
-              <span>저장됨</span>
-            )}
+            ) : null}
             {running ? (
               <span className="rounded bg-ok-soft px-1.5 py-0.5 text-ok-fg">
                 실행 중 — 변경은 다음 실행부터
@@ -174,43 +167,52 @@ export function ScenarioEditor({
           </>
         }
       >
-        <Button
-          size="sm"
-          icon={<Upload size={13} />}
-          title="JSON/CSV 파일에서 새 시나리오로 가져오기"
-          onClick={() => fileRef.current?.click()}
-        >
-          가져오기
+        {/* 스텝 조작은 붙여 세운다 — 한 덩어리로 읽히고 손이 자리를 기억한다. */}
+        <Button size="sm" icon={<Plus size={13} />} onClick={addStep} data-testid="step-add">
+          행
         </Button>
         <Button
-          size="sm"
-          icon={<Download size={13} />}
-          disabled={!draft.id}
-          title={draft.id ? 'JSON으로 내보내기' : '먼저 저장하세요'}
-          onClick={() => onExport('json')}
+          size="icon-sm"
+          aria-label="선택한 행 복제"
+          title="선택한 행 복제"
+          disabled={selIdx < 0}
+          onClick={dupStep}
+          data-testid="step-dup"
         >
-          JSON
+          <Copy size={13} />
         </Button>
         <Button
-          size="sm"
-          icon={<Download size={13} />}
-          disabled={!draft.id}
-          title={draft.id ? 'CSV로 내보내기' : '먼저 저장하세요'}
-          onClick={() => onExport('csv')}
+          size="icon-sm"
+          aria-label="선택한 행 삭제"
+          title="선택한 행 삭제"
+          disabled={selIdx < 0}
+          onClick={delStep}
+          data-testid="step-delete"
         >
-          CSV
+          <Trash2 size={13} />
         </Button>
         <Button
-          size="sm"
-          icon={<CheckCircle2 size={13} />}
-          onClick={onValidate}
-          data-testid="scenario-validate"
+          size="icon-sm"
+          aria-label="위로"
+          title="위로"
+          disabled={selIdx <= 0}
+          onClick={() => move(-1)}
         >
-          검증
+          <ArrowUp size={13} />
         </Button>
         <Button
+          size="icon-sm"
+          aria-label="아래로"
+          title="아래로"
+          disabled={selIdx < 0 || selIdx >= steps.length - 1}
+          onClick={() => move(1)}
+        >
+          <ArrowDown size={13} />
+        </Button>
+        {/* 저장은 **바뀌었을 때만** 강조 — 초록이 늘 켜져 있으면 "지금 눌러야 하는 것"이 안 보인다. */}
+        <Button
           size="sm"
-          intent="primary"
+          intent={dirty ? 'primary' : 'neutral'}
           icon={<Save size={13} />}
           loading={saving}
           disabled={!dirty && !!draft.id}
@@ -219,94 +221,31 @@ export function ScenarioEditor({
         >
           저장
         </Button>
-      </Toolbar>
-
-      <div className="flex flex-wrap items-end gap-3 border-b border-line-subtle px-3 py-2">
-        <Input
-          label="이름"
-          className="w-56"
-          value={draft.name}
-          onValueChange={(v) => onChange({ ...draft, name: v })}
-          data-testid="scenario-name"
+        <OverflowMenu
+          testid="scenario-more"
+          title="설정 · 검증 · 파일"
+          items={[
+            { label: '시나리오 설정…', hint: '이름 · 반복', run: onOpenSettings },
+            {
+              label: '스텝 파라미터…',
+              disabled: selIdx < 0 ? '먼저 행을 고르세요' : undefined,
+              run: () => selIdx >= 0 && setParamsStep(steps[selIdx]),
+            },
+            { label: '검증', run: onValidate },
+            { label: '파일' },
+            { label: 'JSON/CSV 가져오기…', run: () => fileRef.current?.click() },
+            {
+              label: 'JSON 내보내기',
+              disabled: draft.id ? undefined : '먼저 저장하세요',
+              run: () => onExport('json'),
+            },
+            {
+              label: 'CSV 내보내기',
+              disabled: draft.id ? undefined : '먼저 저장하세요',
+              run: () => onExport('csv'),
+            },
+          ]}
         />
-        <Input
-          label="설명"
-          className="min-w-64 flex-1"
-          value={draft.description}
-          onValueChange={(v) => onChange({ ...draft, description: v })}
-        />
-        <Input
-          label="반복"
-          className="w-24"
-          type="number"
-          mono
-          min={1}
-          value={draft.repeat === 0 ? '' : String(draft.repeat)}
-          disabled={draft.repeat === 0}
-          placeholder={draft.repeat === 0 ? '∞' : ''}
-          onValueChange={(v) => {
-            const n = Math.trunc(Number(v))
-            if (v.trim() !== '' && Number.isFinite(n) && n >= 1) onChange({ ...draft, repeat: n })
-          }}
-          data-testid="scenario-repeat"
-        />
-        <label className="flex h-8 items-center gap-2 text-xs">
-          <Switch
-            checked={draft.repeat === 0}
-            label="무한 반복"
-            testid="scenario-infinite"
-            onCheckedChange={(on) => onChange({ ...draft, repeat: on ? 0 : 1 })}
-          />
-          무한
-        </label>
-      </div>
-
-      <Toolbar
-        title="스텝"
-        meta={`${steps.length}개${selIdx >= 0 ? ` · ${selIdx + 1}번 선택` : ''}`}
-        dense
-      >
-        <Button size="sm" icon={<Plus size={13} />} onClick={addStep} data-testid="step-add">
-          행 추가
-        </Button>
-        <Button size="sm" icon={<Copy size={13} />} disabled={selIdx < 0} onClick={dupStep}>
-          복제
-        </Button>
-        <Button
-          size="sm"
-          icon={<Trash2 size={13} />}
-          disabled={selIdx < 0}
-          onClick={delStep}
-          data-testid="step-delete"
-        >
-          삭제
-        </Button>
-        <Button
-          size="sm"
-          icon={<ArrowUp size={13} />}
-          disabled={selIdx <= 0}
-          onClick={() => move(-1)}
-          aria-label="위로"
-        >
-          위
-        </Button>
-        <Button
-          size="sm"
-          icon={<ArrowDown size={13} />}
-          disabled={selIdx < 0 || selIdx >= steps.length - 1}
-          onClick={() => move(1)}
-          aria-label="아래로"
-        >
-          아래
-        </Button>
-        <Button
-          size="sm"
-          icon={<SlidersHorizontal size={13} />}
-          disabled={selIdx < 0}
-          onClick={() => selIdx >= 0 && setParamsStep(steps[selIdx])}
-        >
-          파라미터
-        </Button>
       </Toolbar>
 
       <div className="min-h-0 flex-1 overflow-auto">

@@ -26,6 +26,10 @@ export interface LayoutCheck {
 
 export interface PlcStatus {
   id: PlcId
+  /** 설정 이름(`GR1`) — S7 만. */
+  name?: string
+  /** `gr` / `grm` — S7 만. */
+  role?: 'gr' | 'grm'
   label: string
   kind: 'opcua' | 's7'
   endpoint: string
@@ -49,9 +53,240 @@ export interface Item {
   height: number
   deflection_factor: number
   note: string
+  /** 콘솔 소유 부가 규격(PLC 로 가지 않는다) — 백엔드 `registry::spec::ItemSpec`. 옛 응답엔 없을 수 있다. */
+  spec?: ItemSpec
   updated_at: string
 }
+/** `spec` 을 빼고 보내면 서버가 저장된 규격을 그대로 둔다. */
 export type ItemUpsert = Omit<Item, 'updated_at'>
+
+/** 곡선 점의 출처. */
+export type BeadSource = 'measured' | 'manual' | 'computed'
+/** 실제로 쓴 값의 출처(보간까지). */
+export type ResolvedSource = BeadSource | 'interpolated'
+
+/**
+ * 하중(`Above` = 위에 얹힌 개수) 기준 비드 곡선의 한 점 — **정본**.
+ * 비드·높이는 모두 **그 타이어 자기 바닥 기준**(mm)이다.
+ */
+export interface AboveRow {
+  above: number
+  lower_bead: number | null
+  upper_bead: number | null
+  /** 그 하중에서 타이어 하나가 차지하는 높이(mm) */
+  pressed_height: number | null
+  source: BeadSource
+  sample_plc: string
+  sample_seq: number
+  updated_at: string
+}
+
+/**
+ * 잰 스택 한 단의 **셀 바닥 기준 절대** 측정값 — 정본(백엔드 `spec::ProfileRow`).
+ */
+export interface ProfileRow {
+  /** 1-based 단 번호(맨 아래가 1) */
+  level: number
+  lower_bead: number | null
+  upper_bead: number | null
+  /** 이 단 타이어 윗면까지(셀 바닥 기준). 맨 윗단은 표본의 TotalHeight */
+  stack_height: number | null
+  /** `measured` | `manual`(손으로 고친 행 — 다시 재도 덮지 않는다) */
+  source: BeadSource
+}
+
+/**
+ * **정본** — 스택 크기 `count` 를 통째로 잰 결과. 같은 크기를 다시 재면 통째로 바뀐다(manual 행만 남는다).
+ * 크기가 다른 프로파일은 나란히 산다(n = 3 · 5 · 8 …).
+ */
+export interface BeadProfile {
+  count: number
+  rows: ProfileRow[]
+  total_height: number | null
+  each_height: number | null
+  sample_plc: string
+  sample_seq: number
+  at: string
+}
+
+export interface ItemSpec {
+  /** 셀 최대 단수(0 = 제한 없음, ≤ 20) */
+  stack_max: number
+  /** 팔레트 최대 개수(0 = 제한 없음) */
+  pallet_max: number
+  weight_kg: number | null
+  /** 잰 스택 크기별 절대 프로파일(정본). 하중 곡선은 여기서 파생된다 */
+  profiles: BeadProfile[]
+  bead_source: string
+  /** pick_bead 그립에서 상부 비드 아래로 내려잡는 양(mm). null = 기본 30 */
+  pick_bead_offset: number | null
+  /** 잰 적 없는 크기를 위한 **대체** 눌림양(mm/개). null = 0 */
+  compression: number | null
+  compression_source: string
+  /** SKU 측정이 들어오면 프로파일을 자동으로 갱신한다. null = 켬(기본) */
+  auto_apply_measured: boolean | null
+}
+
+/** 어느 SKU 표본이 그 점을 채웠는지. */
+export interface SampleRef {
+  plc: string
+  seq: number
+}
+
+/** 하중 하나에 대해 실제로 쓰는 값(측정 → 보간 → 계산). */
+export interface CurveValue {
+  above: number
+  upper_bead: number | null
+  lower_bead: number | null
+  pressed_height: number
+  source: ResolvedSource
+  /** **상부 비드만** 의 출처 — `computed` 면 공칭값을 지어낸 것이라 그립은 mid 로 내려간다 */
+  upper_bead_source: ResolvedSource
+  sample: SampleRef | null
+}
+
+/** `GET /api/items/{code}/bead-samples` 의 한 줄. */
+export interface BeadSample {
+  plc: string
+  seq: number
+  code: number
+  at: string
+  status: number
+  sku_status: number
+  diag_flags: number
+  layer_offset: number
+  /** 잰 스택의 단수 — k 단 타이어 위에는 total_count − k 개가 있었다 */
+  total_count: number
+  each_height: number
+  total_height: number
+  levels: LevelValues[]
+  /** 값이 있는 단 수 */
+  filled: number
+  /** 규격에 반영했는가 */
+  applied: boolean
+  /** 반영 내용 또는 거부 사유 */
+  reason: string
+  recorded_at: string
+  /** 지금 규칙으로 봐도 쓸 수 있는 표본인가 */
+  valid: boolean
+}
+
+/** 측정 스택 하나의 단별 프로파일(`GET .../levels` 의 `profile`). */
+export interface ProfilePoint {
+  level: number
+  above: number
+  bottom: number | null
+  pressed_height: number | null
+  lower_bead: number | null
+  upper_bead: number | null
+  compression_at: number | null
+}
+
+export interface StackProfile {
+  count: number
+  points: ProfilePoint[]
+  pitch_sum: number | null
+  total_height: number | null
+  warnings: string[]
+}
+
+export interface LevelValues {
+  lower_bead: number | null
+  upper_bead: number | null
+  stack_height: number | null
+}
+
+/** 미리보기 스택 `n` 에서 본 한 단 — 행의 키는 `above`, `level` 은 `n − above` 파생값. */
+export interface LevelView {
+  level: number
+  above: number
+  /** 곡선에 저장된 그대로(점이 없으면 null) */
+  configured: AboveRow | null
+  /** 실제로 쓰는 값 */
+  effective: CurveValue
+  /** 그 하중에서 먹은 총 눌림(mm) = Height − PressedHeight */
+  compression_at: number | null
+  /** 미리보기 스택에서 이 타이어 바닥이 서는 높이(셀 바닥 기준) */
+  bottom: number
+  abs_lower_bead: number | null
+  abs_upper_bead: number | null
+  /** 눌림 없는 공칭 절대값 */
+  computed: LevelValues
+  measured: LevelValues | null
+  deviation: LevelValues | null
+  /** 이 단을 집을 때 실제로 쓸 그립 Z(셀 바닥 기준) */
+  pick_z: number | null
+  /** 그 Z 가 쓴 기준 — `pick_bead`(잰 비드 − PickBeadOffset) | `mid`(측정 없음 → Height/2) */
+  pick_z_ref: GripRef
+  source: ResolvedSource
+  sample: SampleRef | null
+  /** 이 크기의 스택을 통째로 잰 프로파일의 값인가(아니면 환산·보간값 — 화면은 흐리게) */
+  from_profile: boolean
+}
+
+/** 측정에서 되짚은 눌림양 제안(`GET /api/items/{code}/levels`). */
+export interface CompressionSuggestion {
+  value: number | null
+  method: 'beads' | 'each_height' | null
+  from_beads: number | null
+  from_each_height: number | null
+  samples: number
+  measured_count: number
+}
+
+/** `GET /api/items/{code}/levels?robot=` */
+export interface ItemLevels {
+  code: number
+  name: string
+  height: number
+  eff_height: number
+  lower_bead_height: number
+  upper_bead_height: number
+  deflection_factor: number
+  /** 콘솔 계산에 처짐 계수를 적용했는가(지금은 항상 false) */
+  deflection_applied: boolean
+  spec: ItemSpec
+  rows: LevelView[]
+  warnings: string[]
+  /** 실제로 쓰는 값(빈 칸의 기본값이 적용된 뒤) */
+  pick_bead_offset: number
+  compression: number
+  /** 단별 보기가 "가득 쌓았다"고 보는 개수(StackMax) */
+  reference_stack: number
+  suggestion: CompressionSuggestion
+  /** SKU 측정 자동 반영 스위치(실제로 쓰는 값) */
+  auto_apply_measured: boolean
+  /** 최신 표본으로 푼 스택 프로파일 */
+  profile: StackProfile
+  /** `rows` 가 몇 개 스택 기준인가 */
+  preview: number
+  /** 파생 곡선이 값을 든 하중 목록(오름차순) */
+  measured_aboves: number[]
+  /** 통째로 잰 스택 크기 목록(오름차순) */
+  measured_counts: number[]
+  /** 최근 SKU 측정 표본(최신 순) */
+  bead_samples: BeadSample[]
+  /** 이 코드의 최신 SKU 측정(MEASLOG_HIST) — 없으면 null */
+  measured: {
+    plc: string
+    seq: number
+    at: string
+    count: number
+    each_height: number
+    stack_height: number
+  } | null
+  /** MEASLOG.ByCode 추세(스냅샷이 있을 때) */
+  measured_summary: {
+    plc: string
+    count: number
+    last_time: string
+    upper_bead: Trend | null
+    tire_height: Trend | null
+    each_height: Trend | null
+    stack_height: Trend | null
+    pick_bead_pos: Trend | null
+  } | null
+}
 
 export interface Cell {
   id: number
@@ -150,8 +385,15 @@ export interface TaskParams {
   drag_in_dir: number
 }
 
-/** 그립 기준 — 타이어 바닥에서 그리퍼가 잡는 높이: mid = Height/2, bead = UpperBidHeight(없으면 mid) */
-export type GripRef = 'mid' | 'bead'
+/**
+ * 그립 기준 — 타이어 바닥에서 그리퍼가 잡는 높이: `mid` = Height/2(기본),
+ * `pick_bead`(화면 이름 `bead+offset`) = UpperBead − PickBeadOffset(기본 30 mm).
+ *
+ * `pick_bead` 는 **잰 비드가 있을 때만** 쓴다 — 한 번도 안 잰 품목은 mid(Height/2)로 내려간다.
+ * 비드는 그 타이어 **위에 얹힌 개수**만큼 Compression 이 반영된 값이다.
+ * 옛 값 `bead`(비드를 그대로 잡기)는 없어졌고, 읽을 때 `pick_bead` 로 옮겨진다.
+ */
+export type GripRef = 'mid' | 'pick_bead'
 
 export interface Defaults {
   version: number
@@ -218,6 +460,19 @@ export interface TaskRequest {
   robot?: number | null
   /** 그립 기준 덮어쓰기(없으면 Defaults.grip_ref) */
   grip_ref?: GripRef | null
+  /** 스테이션 보정(GRM StationCenterAdjust 재현) — 없으면 켜짐. `'off'`/`false` 로 끈다. */
+  station_offset?: 'auto' | 'off' | boolean | null
+  /** 셀 단수 Max 를 넘는 DROP 도 제출(기본은 409 거부) */
+  ignore_stack_max?: boolean
+  /** 팔렛 슬롯 — 켜진 팔렛 프로파일이 있는 스테이션 대상에만(백엔드 `pallet::compose::PalletRef`). */
+  pallet?: PalletRef | null
+}
+
+/** `{seq, level}`(1-based) 또는 `{auto: true}`(스테이션 재고로 다음 슬롯). */
+export interface PalletRef {
+  seq?: number | null
+  level?: number | null
+  auto?: boolean
 }
 
 export interface Task {
@@ -285,6 +540,8 @@ export interface ScenarioStep {
   note: string
   /** 보낼 로봇(없으면 기본 로봇) */
   robot?: number | null
+  /** 팔렛 슬롯(`TaskRequest.pallet` 그대로) — JSON 에만 실린다(CSV 열 없음). */
+  pallet?: PalletRef | null
 }
 
 export interface Scenario {
@@ -319,6 +576,9 @@ export interface ScenarioRun {
   total_iterations: number | null
   step_index: number
   step_count: number
+  /** 실행 로봇 — 로봇을 지정하지 않은 스텝이 여기로 간다 */
+  robot?: number | null
+  robot_name?: string | null
   current_task_id: string | null
   started_at: string
   ended_at: string | null
@@ -494,6 +754,10 @@ export interface StatusEvent {
   at: string
   source: 'plc' | 'demo'
   seq: number
+  /** 이 이벤트를 낸 상태 PLC 이름(`GR1`) */
+  plc?: string
+  /** 로봇 id — 스트림은 로봇마다 따로다(`/api/status/stream?robot=`) */
+  robot?: number
   webmon: WebMon
 }
 
@@ -550,6 +814,8 @@ export interface MeasLogEntry {
 }
 
 export interface MeasLogSnapshot {
+  /** 상태 PLC 이름 */
+  plc?: string
   at: string
   head: number
   count: number
@@ -561,6 +827,7 @@ export interface MeasLogSnapshot {
 }
 
 export interface MeasLogEntries {
+  plc?: string
   total: number
   entries: MeasLogEntry[]
 }
@@ -590,6 +857,10 @@ export interface StockZ {
   stock: number
   floor: number
   z: number
+  /** `profile`(잰 절대값 그대로) | `curve`(환산·보간) | `computed` */
+  z_source?: string
+  level?: number
+  stack_max?: number | null
 }
 
 /** LASERDIAG.Sensor[k] (LGR_LaserSensorHealth) */
@@ -643,6 +914,7 @@ export interface LaserDiagEntry {
 
 /** GET /api/laser — 최신 진단 이력이 앞, para 는 레이저 관련 PARA.Sensor 멤버만. */
 export interface LaserSnapshot {
+  robot?: number
   plc: string
   at: string
   total: number
@@ -653,6 +925,43 @@ export interface LaserSnapshot {
   para: Record<string, number>
 }
 
+// ── PARA (/api/para?robot=) ─────────────────────────────────────────────────────
+// 선택한 로봇 PLC 의 PARA DB — 계약 선언 주석·형식과 함께. 읽기 전용.
+
+export type ParaScalar = number | boolean | string
+
+export interface ParaRow {
+  /** `Sensor.GIDL_ZOffset` */
+  path: string
+  name: string
+  ty: string
+  comment: string
+  /** 주석의 `[pNNN]` 번호 */
+  param: number | null
+  /** 그룹 안 깊이(0 = 최상위 구조체의 직접 멤버) */
+  depth: number
+  /** false = 하위 구조체 머리줄(값 없음) */
+  leaf: boolean
+  value: ParaScalar | ParaScalar[] | Record<string, unknown> | Record<string, unknown>[] | null
+}
+
+export interface ParaGroup {
+  name: string
+  ty: string
+  comment: string
+  rows: ParaRow[]
+}
+
+export interface ParaSnapshot {
+  robot: number
+  robot_name: string
+  plc: string
+  contract: string
+  at: string
+  seq: number
+  groups: ParaGroup[]
+}
+
 // ── 측정 기록 (/api/record) ─────────────────────────────────────────────────────
 // 콘솔 소유 레코드라 snake_case. 스냅샷 안의 PLC 값(PARA 멤버, LASERDIAG, MEASLOG Last)은 PLC 이름 그대로.
 
@@ -661,6 +970,8 @@ export interface RecordStart {
   kind: string
   note: string
   rate_ms: number
+  /** 기록할 로봇(없으면 기본 로봇). 기록은 전체에서 한 번에 하나. */
+  robot?: number | null
 }
 
 /** MEASLOG.Last 항목 (LGR_MeasureLog) 중 기록 분석에 쓰는 부분 */
@@ -691,6 +1002,8 @@ export interface RecordMeta {
   kind: string
   note: string
   plc: string
+  /** 기록한 로봇 id(여러 대 지원 이전 기록은 없음) */
+  robot?: number | null
   rate_ms: number
   started_at: string
   stopped_at: string | null

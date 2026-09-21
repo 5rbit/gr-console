@@ -1,11 +1,13 @@
 // 셀/스테이션 레이아웃 맵 — PLC 좌표계(mm) 위에 셀은 원, 스테이션은 정사각형(중심 = Position X/Y).
 //
-// 플롯 밖에는 아무것도 두지 않는다. 모드 토글은 왼쪽 위(`topLeft` 슬롯), 보기 조작(맞춤·확대·축소·회전·로봇·
-// 보기 설정·범례)은 오른쪽 위 아이콘 열과 팝업, 좌표·호버 정보는 왼쪽 아래 한 줄, 축 방향은 오른쪽 아래.
+// 플롯 밖에는 아무것도 두지 않는다. 모드 토글은 왼쪽 위(`topLeft` 슬롯), 오른쪽 위에는 **자주 쓰는 넷**
+// (맞춤·확대·축소·로봇 위치)만 세우고 회전·보기 설정·범례는 그 아래 ⋯ 하나로 접었다 — 회전은 이미
+// 보기 설정 안에 있었고, 범례는 한 번 읽고 마는 것이라 늘 자리를 차지할 이유가 없다.
+// 좌표·호버 정보는 왼쪽 아래 한 줄, 축 방향은 오른쪽 아래.
 // 셀 안에는 재고 개수만 크게 그린다(재고 0 = 회색). 로봇이 작업 중인 셀은 그 로봇 색 테두리(대기 = 점선).
 // 화면은 시계 방향 0·90·180·270° 로 돌릴 수 있고, 돌린 뒤 좌우·상하 반전도 된다(설정은 브라우저에 저장).
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Crosshair, Info, Maximize2, Minus, Plus, RotateCw, SlidersHorizontal } from 'lucide-react'
+import { Crosshair, Maximize2, Minus, MoreHorizontal, Plus } from 'lucide-react'
 import {
   ROTATIONS,
   SIZE_PRESETS,
@@ -25,6 +27,8 @@ import {
 } from '../../lib/task/layoutModel'
 import type { PlanStep } from '../../lib/task/plan'
 import { overlay as planOverlay } from '../../lib/task/plan'
+import { f1 } from '../../lib/meas/format'
+import { EmptyState } from '../../lib/ui/EmptyState'
 import { IconPopover, MapIconButton } from '../../lib/ui/IconPopover'
 import { Input } from '../../lib/ui/Input'
 import { Segmented } from '../../lib/ui/Segmented'
@@ -296,14 +300,14 @@ export function CellMap({
     const w = work?.get(`${hover.kind}-${hover.id}`)
     const stockText =
       hover.kind === 'cell'
-        ? ` · 재고 ${st?.count ?? 0}${st?.item_code ? ` (품목 ${st.item_code})` : ''}`
+        ? ` · Count ${st?.count ?? 0}${st?.item_code ? ` (ItemCode ${st.item_code})` : ''}`
         : ''
     return `${shapeInfo(hover)}${stockText}${w ? ` · ${w.label}` : ''}`
   })()
   const statusText =
     hoverText ??
     (cursor
-      ? `X ${cursor[0].toFixed(0)} · Y ${cursor[1].toFixed(0)} · 눈금 ${step} mm`
+      ? `X ${f1(cursor[0])} · Y ${f1(cursor[1])} · 눈금 ${step} mm`
       : `셀 ${cells.length} · 스테이션 ${stations.length}${previewShapes.length ? ` · 생성 예정 ${previewShapes.length}` : ''} · 눈금 ${step} mm${rot ? ` · 회전 ${rot}°` : ''}`)
 
   return (
@@ -313,8 +317,11 @@ export function CellMap({
       data-testid="cell-map"
     >
       {!shapes.length && !previewShapes.length ? (
-        <div className="absolute inset-0 flex items-center justify-center text-xs text-content-faint">
-          등록된 셀/스테이션이 없습니다 — PLC 읽기, Excel 가져오기 또는 레이아웃 편집 모드에서 생성
+        <div className="absolute inset-0">
+          <EmptyState
+            title="셀·스테이션 없음"
+            hint="PLC 읽기 · Excel 가져오기 · 레이아웃 편집으로 만듭니다"
+          />
         </div>
       ) : null}
       <svg
@@ -779,12 +786,6 @@ export function CellMap({
           testid="map-zoom-out"
         />
         <MapIconButton
-          icon={<RotateCw size={15} />}
-          title={`90° 회전 (지금 ${rot}°)`}
-          onClick={() => changeRot(((rot + 90) % 360) as Rotation)}
-          testid="map-rotate"
-        />
-        <MapIconButton
           icon={<Crosshair size={15} />}
           title="로봇 위치로 이동"
           disabled={!robots?.length}
@@ -797,9 +798,9 @@ export function CellMap({
           }}
         />
         <IconPopover
-          icon={<SlidersHorizontal size={15} />}
-          title="보기 설정"
-          testid="map-settings"
+          icon={<MoreHorizontal size={15} />}
+          title="더 보기 — 회전 · 보기 설정 · 범례"
+          testid="map-more"
           width={260}
         >
           <div className="flex flex-col gap-2">
@@ -881,71 +882,72 @@ export function CellMap({
               checked={footprint}
               onCheckedChange={setFootprint}
             />
-          </div>
-        </IconPopover>
-        <IconPopover icon={<Info size={15} />} title="범례" testid="map-legend" width={240}>
-          <ul className="flex flex-col gap-1.5 text-2xs text-content-tertiary">
-            <LegendRow
-              swatch={
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-info text-3xs font-semibold text-content-on-accent">
-                  3
-                </span>
-              }
-              text="셀 · 재고 있음 (숫자 = 개수, 색 = 구역)"
-            />
-            <LegendRow
-              swatch={
-                <span className="h-4 w-4 rounded-full border border-line-strong bg-surface-active" />
-              }
-              text="셀 · 재고 없음"
-            />
-            <LegendRow swatch={<span className="h-4 w-4 rounded-sm bg-warn" />} text="스테이션" />
-            <LegendRow
-              swatch={
-                <span className="h-4 w-4 rounded-full border-2 border-dashed border-degraded bg-degraded-soft" />
-              }
-              text="생성 예정 셀"
-            />
-            <LegendRow
-              swatch={
-                <span className="h-4 w-4 rounded-full border border-dashed border-content-muted" />
-              }
-              text="로컬 수정 (PLC 미반영)"
-            />
-            <LegendRow
-              swatch={<span className="h-4 w-4 rounded-full border-[3px] border-accent" />}
-              text="선택 / 대상"
-            />
-            {robotLegend.map((rb) => (
+            <div className="mt-1 border-t border-line-default pt-2 text-2xs font-semibold text-content-muted">
+              범례
+            </div>
+            <ul className="flex flex-col gap-1.5 text-2xs text-content-tertiary">
               <LegendRow
-                key={rb.name}
                 swatch={
-                  <span
-                    className="h-4 w-4 rounded-full border-[3px]"
-                    style={{ borderColor: rb.color }}
-                  />
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-info text-3xs font-semibold text-content-on-accent">
+                    3
+                  </span>
                 }
-                text={`${rb.name} 작업 중 (점선 = 대기)`}
+                text="셀 · 재고 있음 (숫자 = 개수, 색 = 구역)"
               />
-            ))}
-            <LegendRow
-              swatch={
-                <span className="rounded bg-accent px-1 text-3xs font-semibold text-content-on-accent">
-                  1P
-                </span>
-              }
-              text="계획 순번 (P = PICK, D = DROP)"
-            />
-            <LegendRow
-              swatch={
-                <span className="text-3xs font-semibold">
-                  <span className="text-fault-fg">X</span>
-                  <span className="text-ok-fg">Y</span>
-                </span>
-              }
-              text="오른쪽 아래 = +X / +Y 방향"
-            />
-          </ul>
+              <LegendRow
+                swatch={
+                  <span className="h-4 w-4 rounded-full border border-line-strong bg-surface-active" />
+                }
+                text="셀 · 재고 없음"
+              />
+              <LegendRow swatch={<span className="h-4 w-4 rounded-sm bg-warn" />} text="스테이션" />
+              <LegendRow
+                swatch={
+                  <span className="h-4 w-4 rounded-full border-2 border-dashed border-degraded bg-degraded-soft" />
+                }
+                text="생성 예정 셀"
+              />
+              <LegendRow
+                swatch={
+                  <span className="h-4 w-4 rounded-full border border-dashed border-content-muted" />
+                }
+                text="로컬 수정 (PLC 미반영)"
+              />
+              <LegendRow
+                swatch={<span className="h-4 w-4 rounded-full border-[3px] border-accent" />}
+                text="선택 / 대상"
+              />
+              {robotLegend.map((rb) => (
+                <LegendRow
+                  key={rb.name}
+                  swatch={
+                    <span
+                      className="h-4 w-4 rounded-full border-[3px]"
+                      style={{ borderColor: rb.color }}
+                    />
+                  }
+                  text={`${rb.name} 작업 중 (점선 = 대기)`}
+                />
+              ))}
+              <LegendRow
+                swatch={
+                  <span className="rounded bg-accent px-1 text-3xs font-semibold text-content-on-accent">
+                    1P
+                  </span>
+                }
+                text="계획 순번 (P = PICK, D = DROP)"
+              />
+              <LegendRow
+                swatch={
+                  <span className="text-3xs font-semibold">
+                    <span className="text-fault-fg">X</span>
+                    <span className="text-ok-fg">Y</span>
+                  </span>
+                }
+                text="오른쪽 아래 = +X / +Y 방향"
+              />
+            </ul>
+          </div>
         </IconPopover>
       </div>
 

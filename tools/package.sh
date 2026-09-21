@@ -56,12 +56,36 @@ cat > "$OUT/run-demo.sh" <<'EOF'
 # 장비 없이 화면만 — 가짜 PLC 로 켠다. 이 파일이 있는 폴더가 기준(data/ 가 여기 생긴다).
 cd "$(dirname "$0")" && exec ./gr-console --demo
 EOF
-chmod +x "$OUT/run-demo.sh" "$OUT/gr-console"* 2>/dev/null || true
+cat > "$OUT/run.sh" <<'EOF'
+#!/usr/bin/env sh
+# 실장비로 켠다. 이 파일이 있는 폴더가 기준(gr-console.toml · data/ 가 여기).
+cd "$(dirname "$0")" && exec ./gr-console "$@"
+EOF
+cat > "$OUT/stop.sh" <<'EOF'
+#!/usr/bin/env sh
+# 실행 중인 콘솔을 안전하게 끈다(진행 중인 PLC 쓰기를 마무리한 뒤 종료).
+cd "$(dirname "$0")" && exec ./gr-console --stop
+EOF
+chmod +x "$OUT/run-demo.sh" "$OUT/run.sh" "$OUT/stop.sh" "$OUT/gr-console"* 2>/dev/null || true
 cat > "$OUT/run-demo.cmd" <<'EOF'
 @echo off
 rem 장비 없이 화면만 — 가짜 PLC 로 켠다. 이 파일이 있는 폴더가 기준(data\ 가 여기 생긴다).
 cd /d "%~dp0"
 gr-console.exe --demo
+pause
+EOF
+cat > "$OUT/run.cmd" <<'EOF'
+@echo off
+rem 실장비로 켠다. 이 파일이 있는 폴더가 기준(gr-console.toml · data\ 가 여기).
+cd /d "%~dp0"
+gr-console.exe %*
+if errorlevel 1 pause
+EOF
+cat > "$OUT/stop.cmd" <<'EOF'
+@echo off
+rem 실행 중인 콘솔을 안전하게 끈다(진행 중인 PLC 쓰기를 마무리한 뒤 종료).
+cd /d "%~dp0"
+gr-console.exe --stop
 pause
 EOF
 printf '%s\n%s\n' "$NAME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$OUT/VERSION"

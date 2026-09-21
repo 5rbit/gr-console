@@ -1,8 +1,16 @@
-// 측정 모니터 공용 조각 — 칩, 키/값 표, 카드, 추세 셀, PLC 작업 표.
+// 측정 모니터 공용 조각 — 비트 격자, 키/값 표, 추세 셀, PLC 작업 표.
+//
+// 소제목(`Section`)은 킷으로 올라갔다(`lib/ui/Section`) — 측정 말고도 같은 물건이 필요했고, 두 벌은
+// 한쪽만 고쳐진다.
+//
+// 통계 카드 격자(`StatCards`)는 없앴다. 화면마다 아홉 개씩 서던 카드가 값 하나를 보더+면+그림자로
+// 감싸 화면의 첫 3분의 1을 먹었고, 카드 안의 값들이 서로 다른 x에 서서 세로로 훑을 수 없었다.
+// 그 자리는 화면 하나에 하나뿐인 머리 숫자 띠(`lib/ui/StatRow`)가 대신한다.
 import type { ReactNode } from 'react'
 import { KIND, STATUS } from '../../lib/gr/const'
-import { f0, f1, f2, flagStr, tt } from '../../lib/meas/format'
+import { delta, flagStr, pos, tt } from '../../lib/meas/format'
 import { DataTable } from '../../lib/ui/DataTable'
+import { FieldList } from '../../lib/ui/FieldList'
 import { StatusDot } from '../../lib/ui/StatusDot'
 import { statusTone } from '../../lib/ui/status'
 import type { Column } from '../../lib/ui/table'
@@ -20,15 +28,27 @@ export function Bits({
   keys,
   bad = [],
   warn = [],
+  inline = false,
 }: {
   obj: Record<string, unknown> | null | undefined
   keys: readonly string[]
   bad?: readonly string[]
   warn?: readonly string[]
+  /**
+   * 표 셀 안의 한 줄 — 격자(7rem 열)는 폭이 내용에 맞춰진 칸에서 한 열로 접혀 행이 네 배로
+   * 높아진다. 같은 열의 모든 행이 **같은 키 묶음**을 그리므로 한 줄로 펴도 열은 그대로 맞는다.
+   */
+  inline?: boolean
 }) {
   if (!obj) return <span className="text-content-muted">-</span>
   return (
-    <ul className="ds-bitgrid m-0 list-none p-0">
+    <ul
+      className={
+        inline
+          ? 'm-0 flex list-none items-center gap-x-3 p-0 whitespace-nowrap'
+          : 'ds-bitgrid m-0 list-none p-0'
+      }
+    >
       {keys
         .filter((k) => k in obj)
         .map((k) => {
@@ -45,74 +65,47 @@ export function Bits({
   )
 }
 
-/** 라벨/값 2열 표(PLC 블록처럼 8줄 안팎의 짧은 목록). */
+/**
+ * 라벨/값 짝 — 킷의 `FieldList` 한 줄 래퍼다.
+ *
+ * 전에는 제 `<table>` 을 그렸다. 같은 일을 하는 물건이 둘이면(킷의 인스펙터 + 이 표) 한쪽만
+ * 고쳐지고, 실제로 값 열 정렬·빈 값 표시가 갈려 있었다(킷은 "없는 값"을 점선 원으로 그리는데
+ * 이 표는 빈 칸으로 뒀다). 라벨 열 폭이 px 로 고정이라 여러 묶음의 값 열이 한 줄에 선다.
+ */
 export function KvTable({
   rows,
+  labelWidth = 150,
   className = '',
 }: {
-  rows: readonly [ReactNode, ReactNode][]
+  /** 라벨은 **짧게**(≤3 낱말) — 라벨 열은 줄바꿈하지 않는다. 설명은 `tooltip` 으로. */
+  rows: readonly (readonly [string, ReactNode, string?])[]
+  labelWidth?: number
   className?: string
 }) {
   return (
-    <table className={`w-full text-xs ${className}`}>
-      <tbody>
-        {rows.map(([k, v], i) => (
-          <tr key={i} className="border-b border-line-default last:border-0">
-            <td className="w-[40%] py-1 pr-2 text-content-muted">{k}</td>
-            <td className="py-1 font-mono tabular-nums">{v}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <FieldList
+      className={className}
+      columns={1}
+      dense
+      labelWidth={labelWidth}
+      items={rows.map(([label, value, tooltip]) => ({ label, value, tooltip, mono: true }))}
+    />
   )
 }
 
-export interface StatCardItem {
-  label: string
-  value: ReactNode
-  hint?: ReactNode
-  tone?: 'ok' | 'bad' | 'warn' | ''
-  big?: boolean
-}
-
-export function StatCards({ items }: { items: readonly StatCardItem[] }) {
-  return (
-    <div className="mb-3 flex flex-wrap gap-2">
-      {items.map((x, i) => (
-        <div
-          key={i}
-          className={`min-w-28 rounded-md border px-3 py-1.5 ${
-            x.tone === 'ok'
-              ? 'border-ok bg-ok-soft'
-              : x.tone === 'bad'
-                ? 'border-fault bg-fault-soft'
-                : x.tone === 'warn'
-                  ? 'border-warn bg-warn-soft'
-                  : 'border-line-default bg-surface-panel'
-          }`}
-        >
-          <div className="text-2xs text-content-muted">{x.label}</div>
-          <div
-            className={`font-mono tabular-nums ${x.big ? 'text-xl' : 'text-base'} font-semibold`}
-          >
-            {x.value}
-          </div>
-          {x.hint ? <div className="text-2xs text-content-muted">{x.hint}</div> : null}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/** 추세 값 셀: 평균 / EMA (최소 ~ 최대, n). */
+/**
+ * 추세 값 셀 — `평균 / EMA (최소~최대, n)` **한 줄**.
+ *
+ * 두 줄(`<br/>`)이었을 때는 이 셀이 든 행만 두 배로 높아져서, 옆의 한 줄짜리 숫자 열들이 행마다
+ * 위아래로 흩어졌다. 세로로 훑는 눈은 자리가 맞는 것만 비교할 수 있다.
+ */
 export function TrendCell({ t }: { t: Trend | undefined | null }) {
   if (!t || !t.Count) return <span className="text-content-muted">-</span>
   return (
-    <span title={`n=${t.Count}`} className="font-mono tabular-nums">
-      {f2(t.Avg)} / {f2(t.Ema)}
-      <br />
+    <span title={`n=${t.Count}`} className="font-mono whitespace-nowrap tabular-nums">
+      {delta(t.Avg)} / {delta(t.Ema)}{' '}
       <span className="text-content-muted">
-        {f2(t.Min)} ~ {f2(t.Max)} ({t.Count})
+        ({delta(t.Min)}~{delta(t.Max)}, {t.Count})
       </span>
     </span>
   )
@@ -139,14 +132,15 @@ export function TaskKv({ t }: { t: PlcTask | null | undefined }) {
         ['Cell', `${c.Id ?? ''}  (Sec ${c.Section ?? ''} Row ${c.Row ?? ''} Col ${c.Col ?? ''})`],
         [
           'Item',
-          `Code ${it.Code ?? ''} / ${it.Count ?? ''}단 / ID ${f1(it.InnerDiameter)} / OD ${f1(it.OuterDiameter)} / H ${f1(it.Height)}`,
+          `Code ${it.Code ?? ''} / Count ${it.Count ?? ''} / ID ${pos(it.InnerDiameter)} / OD ${pos(it.OuterDiameter)} / H ${pos(it.Height)}`,
+          'Code / Count / InnerDiameter / OuterDiameter / Height (mm)',
         ],
-        ['Position', `X ${f0(p[0])} Y ${f0(p[1])} Z ${f0(p[2])} G ${f0(p[3])}`],
+        ['Position (mm)', `X ${pos(p[0])} Y ${pos(p[1])} Z ${pos(p[2])} G ${pos(p[3])}`],
         [
-          'Cell 위치',
-          `X ${f0(cp[0])} Y ${f0(cp[1])} Z ${f0(cp[2])}  (명령 Z rel ${f1((p[2] ?? 0) - (cp[2] ?? 0))})`,
+          'Cell.Position (mm)',
+          `X ${pos(cp[0])} Y ${pos(cp[1])} Z ${pos(cp[2])}  (CmdZRel ${pos((p[2] ?? 0) - (cp[2] ?? 0))})`,
         ],
-        ['플래그', flagStr(t)],
+        ['Flags', flagStr(t)],
         [
           'Grip',
           `H ${t.GripHeight ?? ''} / PreGrip ${t.PreGripDelta ?? ''} / GripBack ${t.GripBackDelta ?? ''}`,
@@ -165,38 +159,63 @@ export function TaskKv({ t }: { t: PlcTask | null | undefined }) {
   )
 }
 
-// `priority` — PLC Task 표는 **어느 작업인가**로 훑는다: Work/Task가 1, 종류·Cell·Code가 2,
+/** 표 한 줄 = PLC 작업 하나. `group`은 그 작업이 어느 배열(대기열·완료·취소·거부)에서 왔는지다. */
+export interface TaskRow {
+  group: string
+  task: PlcTask
+}
+
+// `priority` — PLC Task 표는 **어느 작업인가**로 훑는다: 구분·Work/Task가 1, 종류·Cell·Code가 2,
 // 단·치수·좌표·플래그가 3이다(`docs/DESIGN.md` 4절).
-const TASK_COLS: Column<PlcTask>[] = [
-  { key: 'w', label: 'Work', get: (t) => t.WorkId, numeric: true, priority: 1 },
-  { key: 't', label: 'Task', get: (t) => t.TaskId, numeric: true, priority: 1 },
-  { key: 'ty', label: 'Type', get: (t) => tt(t.TaskType), priority: 2 },
-  { key: 'cell', label: 'Cell', get: (t) => t.Cell?.Id, numeric: true, priority: 2 },
-  { key: 'code', label: 'Code', get: (t) => t.Item?.Code, numeric: true, priority: 2 },
-  { key: 'cnt', label: '단', get: (t) => t.Item?.Count, numeric: true, priority: 3 },
-  { key: 'id', label: 'ID', get: (t) => f1(t.Item?.InnerDiameter), numeric: true, priority: 3 },
-  { key: 'h', label: 'H', get: (t) => f1(t.Item?.Height), numeric: true, priority: 3 },
-  { key: 'x', label: 'X', get: (t) => f0(t.Position?.[0]), numeric: true, priority: 3 },
-  { key: 'y', label: 'Y', get: (t) => f0(t.Position?.[1]), numeric: true, priority: 3 },
-  { key: 'z', label: 'Z', get: (t) => f0(t.Position?.[2]), numeric: true, priority: 3 },
-  { key: 'g', label: 'G', get: (t) => f0(t.Position?.[3]), numeric: true, priority: 3 },
-  { key: 'flags', label: '플래그', get: (t) => flagStr(t), priority: 3 },
+const TASK_COLS: Column<TaskRow>[] = [
+  { key: 'g', label: '구분', get: (r) => r.group, priority: 1 },
+  { key: 'w', label: 'Work', get: (r) => r.task.WorkId, numeric: true, priority: 1 },
+  { key: 't', label: 'Task', get: (r) => r.task.TaskId, numeric: true, priority: 1 },
+  { key: 'ty', label: 'Type', get: (r) => tt(r.task.TaskType), priority: 2 },
+  { key: 'cell', label: 'Cell', get: (r) => r.task.Cell?.Id, numeric: true, priority: 2 },
+  { key: 'code', label: 'Code', get: (r) => r.task.Item?.Code, numeric: true, priority: 2 },
+  { key: 'cnt', label: 'Count', get: (r) => r.task.Item?.Count, numeric: true, priority: 3 },
+  {
+    key: 'id',
+    label: 'ID (mm)',
+    get: (r) => pos(r.task.Item?.InnerDiameter),
+    numeric: true,
+    priority: 3,
+  },
+  { key: 'h', label: 'H (mm)', get: (r) => pos(r.task.Item?.Height), numeric: true, priority: 3 },
+  { key: 'x', label: 'X (mm)', get: (r) => pos(r.task.Position?.[0]), numeric: true, priority: 3 },
+  { key: 'y', label: 'Y (mm)', get: (r) => pos(r.task.Position?.[1]), numeric: true, priority: 3 },
+  { key: 'z', label: 'Z (mm)', get: (r) => pos(r.task.Position?.[2]), numeric: true, priority: 3 },
+  { key: 'g4', label: 'G (mm)', get: (r) => pos(r.task.Position?.[3]), numeric: true, priority: 3 },
+  { key: 'flags', label: 'Flags', get: (r) => flagStr(r.task), priority: 3 },
 ]
 
-/** PLC 작업 배열 표(비어 있는 항목은 뺀다). */
-export function TaskTableMini({
-  list,
-  empty = '없음',
+/**
+ * PLC 작업 배열들을 **한 표**로 — 대기열·완료·취소·거부가 열이 같은 표 넷이었다.
+ *
+ * 표가 넷이면 같은 머리글을 네 번 읽고, 어느 표가 비었는지 세로로 훑어야 한다. 구분 열 하나를
+ * 앞에 세우면 정렬로 묶어 볼 수 있고 빈 배열은 자리를 먹지 않는다.
+ */
+export function TaskTables({
+  groups,
+  empty = '작업 없음',
 }: {
-  list: readonly PlcTask[] | undefined
+  groups: readonly { label: string; list: readonly PlcTask[] | undefined }[]
   empty?: string
 }) {
-  const rows = (list ?? []).filter((t) => t && (t.WorkId || t.TaskId))
+  const rows: TaskRow[] = []
+  for (const g of groups) {
+    for (const t of g.list ?? []) {
+      if (t && (t.WorkId || t.TaskId)) rows.push({ group: g.label, task: t })
+    }
+  }
   return (
     <DataTable
       rows={rows}
       columns={TASK_COLS}
-      rowKey={(t) => `${t.WorkId}-${t.TaskId}`}
+      rowKey={(r) => `${r.group}-${r.task.WorkId}-${r.task.TaskId}`}
+      density="compact"
+      stickyHeader
       empty={empty}
     />
   )

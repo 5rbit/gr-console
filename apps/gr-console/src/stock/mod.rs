@@ -3,8 +3,12 @@
 //! - folded automatically from **completed** PICK / DROP tasks on the ledger (idempotent per task id).
 //!
 //! `compose` reads it to place Z on the stack:
-//! - PICK/MEASURE: `floor + H * (n - c) + H/2` (centre of the top tire of the `c` being taken)
-//! - DROP:         `floor + H * n + H/2`       (centre of the first tire landing on `n` already there)
+//! - PICK/MEASURE: `floor + H * (n - c) + grip` (top tire of the `c` being taken)
+//! - DROP:         `floor + H * n + grip`       (first tire landing on `n` already there)
+//!
+//! `grip` 은 기준(`mid` = H/2 — 기본, `pick_bead` = 상부 비드 − PickBeadOffset)에 따라 다르고,
+//! 눌림양(`ItemSpec.compression`)이 있으면 **타이어 위에 얹힌 개수**만큼 단 높이와 비드가 내려간다
+//! (`pressed_height`, 전체 규칙은 `registry::spec::stack_z_with` 와 `docs/item-spec-z.md`).
 
 pub mod routes;
 
@@ -44,23 +48,32 @@ pub struct Stock {
     lock: std::sync::Mutex<()>,
 }
 
-/// Z offset (from the tire bottom) where the gripper takes the tire: `mid` = Height/2, `bead` = UpperBidHeight
-/// (mid when the item has no bead height).
+/// Z offset (from the tire bottom) where the gripper takes the tire: `mid` = Height/2,
+/// `pick_bead` = 공칭 UpperBidHeight (mid when the item has no bead height).
+/// 눌림·PickBeadOffset·"측정 없으면 mid" 까지 태운 판은 `registry::spec::grip_point`.
 pub fn grip_offset(grip_ref: &str, item: &gr_proto::StockItem) -> f32 {
     let mid = item.height.max(0.0) / 2.0;
-    match grip_ref.trim().to_ascii_lowercase().as_str() {
-        "bead" if item.upper_bid_height > 0.0 => item.upper_bid_height,
+    match crate::registry::spec::normalize_grip_ref(grip_ref) {
+        "pick_bead" if item.upper_bid_height > 0.0 => item.upper_bid_height,
         _ => mid,
     }
 }
 
-/// Z of the gripper for a stack of `n` tires of height `h` on `floor`, taking/leaving `c`; `grip` = offset
-/// from the bottom of the tire being gripped (see `grip_offset`).
-pub fn stack_z(tt: TaskType, floor: f32, h: f32, grip: f32, n: u32, c: u32) -> f32 {
+/// 위에 `above` 개가 얹힌 타이어의 눌린 높이 — `Height − Compression·above`, 최소 `MIN_PITCH`.
+pub fn pressed_height(h: f32, compression: f32, above: u32) -> f32 {
+    let h = h.max(0.0);
+    if compression <= 0.0 || above == 0 {
+        return h;
+    }
+    (h - compression * above as f32).max(crate::registry::spec::MIN_PITCH)
+}
+
+/// 잡는 타이어 아래에 깔리는 개수 — PICK/MEASURE: `n − c`, DROP: `n`, 그 밖: 0(바닥).
+pub fn below_count(tt: TaskType, n: u32, c: u32) -> u32 {
     match tt {
-        TaskType::Pick | TaskType::Measure => floor + h * (n.saturating_sub(c.max(1)) as f32) + grip,
-        TaskType::Drop => floor + h * (n as f32) + grip,
-        _ => floor,
+        TaskType::Pick | TaskType::Measure => n.saturating_sub(c.max(1)),
+        TaskType::Drop => n,
+        _ => 0,
     }
 }
 
@@ -168,17 +181,29 @@ fn task_delta(t: &TaskData) -> Option<Delta> {
     }
 }
 
+/// Over-limit note for a folded entry: the cell now holds more than the item's `spec.stack_max`.
+/// The ledger path never refuses (the tires are physically there) — it only logs.
+pub fn over_limit_note(e: &StockEntry, spec: &crate::registry::spec::ItemSpec) -> Option<String> {
+    spec.exceeds(e.count).then(|| format!("cell {} holds {} of item {} > stack_max {}", e.cell_id, e.count, e.item_code, spec.stack_max))
+}
+
 /// Follows the ledger: every entry that becomes `Completed` is folded in once.
-pub fn spawn(stock: Arc<Stock>, events: broadcast::Sender<LedgerEvent>) {
+pub fn spawn(stock: Arc<Stock>, events: broadcast::Sender<LedgerEvent>, registry: Arc<crate::registry::Registry>) {
     tokio::spawn(async move {
         let mut rx = events.subscribe();
         loop {
             match rx.recv().await {
-                Ok(LedgerEvent::Upsert { task }) => {
-                    if let Err(e) = stock.apply_task(&task) {
-                        tracing::warn!("stock: apply {}: {e}", task.id);
+                Ok(LedgerEvent::Upsert { task }) => match stock.apply_task(&task) {
+                    Ok(Some(e)) if e.item_code != 0 => {
+                        if let Ok(Some(item)) = registry.item(e.item_code)
+                            && let Some(note) = over_limit_note(&e, &item.spec)
+                        {
+                            tracing::warn!("stock: {note} (task {})", task.id);
+                        }
                     }
-                }
+                    Ok(_) => {}
+                    Err(e) => tracing::warn!("stock: apply {}: {e}", task.id),
+                },
                 Ok(_) => {}
                 Err(broadcast::error::RecvError::Lagged(_)) => continue,
                 Err(broadcast::error::RecvError::Closed) => return,
@@ -192,21 +217,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn stack_z_matches_the_agreed_formulas() {
-        // pick: H*(n-1) + H/2 for one tire; drop: H*n + H/2
-        assert_eq!(stack_z(TaskType::Pick, 1000.0, 240.0, 120.0, 3, 1), 1000.0 + 240.0 * 2.0 + 120.0);
-        assert_eq!(stack_z(TaskType::Drop, 1000.0, 240.0, 120.0, 3, 1), 1000.0 + 240.0 * 3.0 + 120.0);
-        // taking 2 of 3 grips the middle tire; empty cell pick sits on the floor mid-tire
-        assert_eq!(stack_z(TaskType::Pick, 0.0, 240.0, 120.0, 3, 2), 240.0 + 120.0);
-        assert_eq!(stack_z(TaskType::Pick, 0.0, 240.0, 120.0, 0, 1), 120.0);
-        assert_eq!(stack_z(TaskType::Drop, 0.0, 240.0, 120.0, 0, 1), 120.0);
-        assert_eq!(stack_z(TaskType::Move, 50.0, 240.0, 120.0, 9, 1), 50.0);
-        // grip reference: bead uses UpperBidHeight, mid = H/2, bead without a bead height falls back
+    fn the_scalar_fallback_matches_the_agreed_formulas() {
+        // pick: the tire being taken sits on n − c below it; drop: on all n
+        assert_eq!(below_count(TaskType::Pick, 3, 1), 2);
+        assert_eq!(below_count(TaskType::Drop, 3, 1), 3);
+        assert_eq!(below_count(TaskType::Pick, 3, 2), 1, "taking 2 of 3 grips the middle tire");
+        assert_eq!(below_count(TaskType::Pick, 0, 1), 0);
+        assert_eq!(below_count(TaskType::Move, 9, 1), 0);
+        // compression: tire j of n carries n − j above it (the top one is not pressed)
+        assert_eq!(pressed_height(240.0, 8.0, 0), 240.0);
+        assert_eq!(pressed_height(240.0, 8.0, 3), 240.0 - 24.0);
+        assert_eq!(pressed_height(240.0, 300.0, 2), crate::registry::spec::MIN_PITCH, "clamped, never negative");
+        // grip reference: pick_bead uses UpperBidHeight, mid = H/2, no bead height falls back to mid.
+        // 옛 `bead` 는 `pick_bead` 로 읽힌다(`spec::normalize_grip_ref`).
         let it = gr_proto::StockItem { height: 240.0, upper_bid_height: 200.0, ..Default::default() };
         assert_eq!(grip_offset("mid", &it), 120.0);
-        assert_eq!(grip_offset("bead", &it), 200.0);
+        assert_eq!(grip_offset("pick_bead", &it), 200.0, "the PickBeadOffset and the 측정 없음 → mid rule live in spec::grip_point");
+        assert_eq!(grip_offset("bead", &it), 200.0, "legacy value reads as pick_bead");
         assert_eq!(grip_offset("bead", &gr_proto::StockItem { height: 240.0, ..Default::default() }), 120.0);
-        assert_eq!(stack_z(TaskType::Pick, 1000.0, 240.0, 200.0, 3, 1), 1000.0 + 480.0 + 200.0);
+    }
+
+    #[test]
+    fn over_limit_note_only_past_stack_max() {
+        let spec = crate::registry::spec::ItemSpec { stack_max: 4, ..Default::default() };
+        let e = |count| StockEntry { cell_id: 101, item_code: 1001, count, ..Default::default() };
+        assert!(over_limit_note(&e(4), &spec).is_none());
+        assert!(over_limit_note(&e(5), &spec).unwrap().contains("stack_max 4"));
+        assert!(over_limit_note(&e(50), &Default::default()).is_none(), "0 = unlimited");
     }
 
     #[test]
@@ -239,6 +276,8 @@ mod tests {
             plc: None,
             error: None,
             history: vec![],
+            station_offset: None,
+            pallet: None,
         };
         assert_eq!(s.apply_task(&mk("a", &t)).unwrap().unwrap().count, 2);
         assert!(s.apply_task(&mk("a", &t)).unwrap().is_none(), "second fold of the same task is ignored");

@@ -163,9 +163,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="1A" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STATUS</Name>
-          <Value>0</Value>
+          <DataTypeName>UInt</DataTypeName>
+          <Name>MEAS_STAT_SKU_COUNT_MISMATCH</Name>
+          <Value>5</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="1B" CompositionName="Comment">
@@ -173,7 +173,7 @@
               <MultilingualTextItem ID="1C" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: status (MEAS_STAT_*)</Text>
+                  <Text>SKU done - stack count differs by direction (X0)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="1D" CompositionName="Items">
@@ -185,7 +185,7 @@
               <MultilingualTextItem ID="1E" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 상태</Text>
+                  <Text>SKU 완료 - 방향별 단수 불일치 (DiagFlags X0)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -194,9 +194,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="1F" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK1_LOWER</Name>
-          <Value>1</Value>
+          <DataTypeName>UInt</DataTypeName>
+          <Name>MEAS_STAT_SKU_HEIGHT_SPREAD</Name>
+          <Value>6</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="20" CompositionName="Comment">
@@ -204,7 +204,7 @@
               <MultilingualTextItem ID="21" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #1 lower bead pos</Text>
+                  <Text>SKU done - exit height spread over limit (X1)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="22" CompositionName="Items">
@@ -216,7 +216,7 @@
               <MultilingualTextItem ID="23" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 1단 하비드</Text>
+                  <Text>SKU 완료 - 방향별 이탈 높이 편차 초과 (DiagFlags X1)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -225,9 +225,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="24" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK1_UPPER</Name>
-          <Value>2</Value>
+          <DataTypeName>UInt</DataTypeName>
+          <Name>MEAS_STAT_SKU_LAYER_OFFSET</Name>
+          <Value>7</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="25" CompositionName="Comment">
@@ -235,7 +235,7 @@
               <MultilingualTextItem ID="26" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #1 upper bead pos</Text>
+                  <Text>SKU done - layer center offset over limit (X4)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="27" CompositionName="Items">
@@ -247,7 +247,7 @@
               <MultilingualTextItem ID="28" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 1단 상비드</Text>
+                  <Text>SKU 완료 - 단별 편심 초과, 삐뚤게 쌓임 (DiagFlags X4)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -256,9 +256,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="29" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK2_LOWER</Name>
-          <Value>3</Value>
+          <DataTypeName>UInt</DataTypeName>
+          <Name>MEAS_STAT_SKU_LIFT_END</Name>
+          <Value>8</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="2A" CompositionName="Comment">
@@ -266,7 +266,7 @@
               <MultilingualTextItem ID="2B" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #2 lower bead pos</Text>
+                  <Text>SKU done - finished at lift end before all exits (X6)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="2C" CompositionName="Items">
@@ -278,7 +278,7 @@
               <MultilingualTextItem ID="2D" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 2단 하비드</Text>
+                  <Text>SKU 완료 - 모두 빠져나가기 전 리프트 끝 확정 (DiagFlags X6)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -287,9 +287,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="2E" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK2_UPPER</Name>
-          <Value>4</Value>
+          <DataTypeName>UInt</DataTypeName>
+          <Name>MEAS_STAT_SKU_NO_EDGE</Name>
+          <Value>9</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="2F" CompositionName="Comment">
@@ -297,7 +297,7 @@
               <MultilingualTextItem ID="30" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #2 upper bead pos</Text>
+                  <Text>SKU done - no exit edge (X7)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="31" CompositionName="Items">
@@ -309,7 +309,7 @@
               <MultilingualTextItem ID="32" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 2단 상비드</Text>
+                  <Text>SKU 완료 - 이탈 경계 없음 (DiagFlags X7)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -319,8 +319,8 @@
       <SW.Tags.PlcUserConstant ID="33" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK3_LOWER</Name>
-          <Value>5</Value>
+          <Name>MEAS_SKU_STATUS</Name>
+          <Value>0</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="34" CompositionName="Comment">
@@ -328,7 +328,7 @@
               <MultilingualTextItem ID="35" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #3 lower bead pos</Text>
+                  <Text>SKU.Data index: status (MEAS_STAT_*)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="36" CompositionName="Items">
@@ -340,7 +340,7 @@
               <MultilingualTextItem ID="37" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 3단 하비드</Text>
+                  <Text>SKU.Data 인덱스: 상태</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -350,8 +350,8 @@
       <SW.Tags.PlcUserConstant ID="38" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK3_UPPER</Name>
-          <Value>6</Value>
+          <Name>MEAS_SKU_STACK1_LOWER</Name>
+          <Value>1</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="39" CompositionName="Comment">
@@ -359,7 +359,7 @@
               <MultilingualTextItem ID="3A" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #3 upper bead pos</Text>
+                  <Text>SKU.Data index: stack #1 lower bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="3B" CompositionName="Items">
@@ -371,7 +371,7 @@
               <MultilingualTextItem ID="3C" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 3단 상비드</Text>
+                  <Text>SKU.Data 인덱스: 1단 하비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -381,8 +381,8 @@
       <SW.Tags.PlcUserConstant ID="3D" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK4_LOWER</Name>
-          <Value>7</Value>
+          <Name>MEAS_SKU_STACK1_UPPER</Name>
+          <Value>2</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="3E" CompositionName="Comment">
@@ -390,7 +390,7 @@
               <MultilingualTextItem ID="3F" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #4 lower bead pos</Text>
+                  <Text>SKU.Data index: stack #1 upper bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="40" CompositionName="Items">
@@ -402,7 +402,7 @@
               <MultilingualTextItem ID="41" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 4단 하비드</Text>
+                  <Text>SKU.Data 인덱스: 1단 상비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -412,8 +412,8 @@
       <SW.Tags.PlcUserConstant ID="42" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK4_UPPER</Name>
-          <Value>8</Value>
+          <Name>MEAS_SKU_STACK2_LOWER</Name>
+          <Value>3</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="43" CompositionName="Comment">
@@ -421,7 +421,7 @@
               <MultilingualTextItem ID="44" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #4 upper bead pos</Text>
+                  <Text>SKU.Data index: stack #2 lower bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="45" CompositionName="Items">
@@ -433,7 +433,7 @@
               <MultilingualTextItem ID="46" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 4단 상비드</Text>
+                  <Text>SKU.Data 인덱스: 2단 하비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -443,8 +443,8 @@
       <SW.Tags.PlcUserConstant ID="47" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK5_LOWER</Name>
-          <Value>9</Value>
+          <Name>MEAS_SKU_STACK2_UPPER</Name>
+          <Value>4</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="48" CompositionName="Comment">
@@ -452,7 +452,7 @@
               <MultilingualTextItem ID="49" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #5 lower bead pos</Text>
+                  <Text>SKU.Data index: stack #2 upper bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="4A" CompositionName="Items">
@@ -464,7 +464,7 @@
               <MultilingualTextItem ID="4B" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 5단 하비드</Text>
+                  <Text>SKU.Data 인덱스: 2단 상비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -474,8 +474,8 @@
       <SW.Tags.PlcUserConstant ID="4C" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK5_UPPER</Name>
-          <Value>10</Value>
+          <Name>MEAS_SKU_STACK3_LOWER</Name>
+          <Value>5</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="4D" CompositionName="Comment">
@@ -483,7 +483,7 @@
               <MultilingualTextItem ID="4E" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #5 upper bead pos</Text>
+                  <Text>SKU.Data index: stack #3 lower bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="4F" CompositionName="Items">
@@ -495,7 +495,7 @@
               <MultilingualTextItem ID="50" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 5단 상비드</Text>
+                  <Text>SKU.Data 인덱스: 3단 하비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -505,8 +505,8 @@
       <SW.Tags.PlcUserConstant ID="51" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK6_LOWER</Name>
-          <Value>11</Value>
+          <Name>MEAS_SKU_STACK3_UPPER</Name>
+          <Value>6</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="52" CompositionName="Comment">
@@ -514,7 +514,7 @@
               <MultilingualTextItem ID="53" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #6 lower bead pos</Text>
+                  <Text>SKU.Data index: stack #3 upper bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="54" CompositionName="Items">
@@ -526,7 +526,7 @@
               <MultilingualTextItem ID="55" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 6단 하비드</Text>
+                  <Text>SKU.Data 인덱스: 3단 상비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -536,8 +536,8 @@
       <SW.Tags.PlcUserConstant ID="56" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK6_UPPER</Name>
-          <Value>12</Value>
+          <Name>MEAS_SKU_STACK4_LOWER</Name>
+          <Value>7</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="57" CompositionName="Comment">
@@ -545,7 +545,7 @@
               <MultilingualTextItem ID="58" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #6 upper bead pos</Text>
+                  <Text>SKU.Data index: stack #4 lower bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="59" CompositionName="Items">
@@ -557,7 +557,7 @@
               <MultilingualTextItem ID="5A" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 6단 상비드</Text>
+                  <Text>SKU.Data 인덱스: 4단 하비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -567,8 +567,8 @@
       <SW.Tags.PlcUserConstant ID="5B" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK7_LOWER</Name>
-          <Value>13</Value>
+          <Name>MEAS_SKU_STACK4_UPPER</Name>
+          <Value>8</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="5C" CompositionName="Comment">
@@ -576,7 +576,7 @@
               <MultilingualTextItem ID="5D" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #7 lower bead pos</Text>
+                  <Text>SKU.Data index: stack #4 upper bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="5E" CompositionName="Items">
@@ -588,7 +588,7 @@
               <MultilingualTextItem ID="5F" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 7단 하비드</Text>
+                  <Text>SKU.Data 인덱스: 4단 상비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -598,8 +598,8 @@
       <SW.Tags.PlcUserConstant ID="60" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_STACK7_UPPER</Name>
-          <Value>14</Value>
+          <Name>MEAS_SKU_STACK5_LOWER</Name>
+          <Value>9</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="61" CompositionName="Comment">
@@ -607,7 +607,7 @@
               <MultilingualTextItem ID="62" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack #7 upper bead pos</Text>
+                  <Text>SKU.Data index: stack #5 lower bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="63" CompositionName="Items">
@@ -619,7 +619,7 @@
               <MultilingualTextItem ID="64" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 7단 상비드</Text>
+                  <Text>SKU.Data 인덱스: 5단 하비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -629,8 +629,8 @@
       <SW.Tags.PlcUserConstant ID="65" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_TOTAL_COUNT</Name>
-          <Value>17</Value>
+          <Name>MEAS_SKU_STACK5_UPPER</Name>
+          <Value>10</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="66" CompositionName="Comment">
@@ -638,7 +638,7 @@
               <MultilingualTextItem ID="67" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack total count</Text>
+                  <Text>SKU.Data index: stack #5 upper bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="68" CompositionName="Items">
@@ -650,7 +650,7 @@
               <MultilingualTextItem ID="69" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 스택 단수</Text>
+                  <Text>SKU.Data 인덱스: 5단 상비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -660,8 +660,8 @@
       <SW.Tags.PlcUserConstant ID="6A" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_EACH_HEIGHT</Name>
-          <Value>18</Value>
+          <Name>MEAS_SKU_STACK6_LOWER</Name>
+          <Value>11</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="6B" CompositionName="Comment">
@@ -669,7 +669,7 @@
               <MultilingualTextItem ID="6C" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: top tire height</Text>
+                  <Text>SKU.Data index: stack #6 lower bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="6D" CompositionName="Items">
@@ -681,7 +681,7 @@
               <MultilingualTextItem ID="6E" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 최상단 타이어 높이</Text>
+                  <Text>SKU.Data 인덱스: 6단 하비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -691,8 +691,8 @@
       <SW.Tags.PlcUserConstant ID="6F" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_SKU_TOTAL_HEIGHT</Name>
-          <Value>19</Value>
+          <Name>MEAS_SKU_STACK6_UPPER</Name>
+          <Value>12</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="70" CompositionName="Comment">
@@ -700,7 +700,7 @@
               <MultilingualTextItem ID="71" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>SKU.Data index: stack total height</Text>
+                  <Text>SKU.Data index: stack #6 upper bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="72" CompositionName="Items">
@@ -712,7 +712,7 @@
               <MultilingualTextItem ID="73" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>SKU.Data 인덱스: 스택 전체 높이</Text>
+                  <Text>SKU.Data 인덱스: 6단 상비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -722,8 +722,8 @@
       <SW.Tags.PlcUserConstant ID="74" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_STATUS</Name>
-          <Value>0</Value>
+          <Name>MEAS_SKU_STACK7_LOWER</Name>
+          <Value>13</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="75" CompositionName="Comment">
@@ -731,7 +731,7 @@
               <MultilingualTextItem ID="76" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [COMMON] status</Text>
+                  <Text>SKU.Data index: stack #7 lower bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="77" CompositionName="Items">
@@ -743,7 +743,7 @@
               <MultilingualTextItem ID="78" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [공통] 상태</Text>
+                  <Text>SKU.Data 인덱스: 7단 하비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -753,8 +753,8 @@
       <SW.Tags.PlcUserConstant ID="79" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_INNER_DIA</Name>
-          <Value>1</Value>
+          <Name>MEAS_SKU_STACK7_UPPER</Name>
+          <Value>14</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="7A" CompositionName="Comment">
@@ -762,7 +762,7 @@
               <MultilingualTextItem ID="7B" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [COMMON] inner diameter (laser in/out vs torque reconciled)</Text>
+                  <Text>SKU.Data index: stack #7 upper bead pos</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="7C" CompositionName="Items">
@@ -774,7 +774,7 @@
               <MultilingualTextItem ID="7D" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [공통] 내경(정합)</Text>
+                  <Text>SKU.Data 인덱스: 7단 상비드</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -784,8 +784,8 @@
       <SW.Tags.PlcUserConstant ID="7E" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_UPPER_BEAD_HEIGHT</Name>
-          <Value>2</Value>
+          <Name>MEAS_SKU_DIAG_FLAGS</Name>
+          <Value>15</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="7F" CompositionName="Comment">
@@ -793,7 +793,7 @@
               <MultilingualTextItem ID="80" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [COMMON] upper bead height (in/out average)</Text>
+                  <Text>SKU stack alignment diag flags (FUNC.MeasureSku.DiagFlags as word value)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="81" CompositionName="Items">
@@ -805,7 +805,7 @@
               <MultilingualTextItem ID="82" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [공통] 상단 비드 높이</Text>
+                  <Text>SKU 스택 정렬 진단 플래그 (FUNC.MeasureSku.DiagFlags, Word 값)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -815,8 +815,8 @@
       <SW.Tags.PlcUserConstant ID="83" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_TIRE_HEIGHT</Name>
-          <Value>3</Value>
+          <Name>MEAS_SKU_LAYER_OFFSET</Name>
+          <Value>16</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="84" CompositionName="Comment">
@@ -824,7 +824,7 @@
               <MultilingualTextItem ID="85" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [COMMON] tire height (in/out average)</Text>
+                  <Text>SKU max layer center offset (mm)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="86" CompositionName="Items">
@@ -836,7 +836,7 @@
               <MultilingualTextItem ID="87" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [공통] 타이어 높이</Text>
+                  <Text>SKU 단별 편심 최대 (mm)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -846,8 +846,8 @@
       <SW.Tags.PlcUserConstant ID="88" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_TORQ_INNER_DIA</Name>
-          <Value>7</Value>
+          <Name>MEAS_SKU_TOTAL_COUNT</Name>
+          <Value>17</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="89" CompositionName="Comment">
@@ -855,7 +855,7 @@
               <MultilingualTextItem ID="8A" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [TORQ] inner diameter by torque grip (avg - 5 mm)</Text>
+                  <Text>SKU.Data index: stack total count</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="8B" CompositionName="Items">
@@ -867,7 +867,7 @@
               <MultilingualTextItem ID="8C" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [토크] 토크 내경(보정 평균)</Text>
+                  <Text>SKU.Data 인덱스: 스택 단수</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -877,8 +877,8 @@
       <SW.Tags.PlcUserConstant ID="8D" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_TORQ_FACTOR</Name>
-          <Value>8</Value>
+          <Name>MEAS_SKU_EACH_HEIGHT</Name>
+          <Value>18</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="8E" CompositionName="Comment">
@@ -886,7 +886,7 @@
               <MultilingualTextItem ID="8F" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [TORQ] torque limit factor used</Text>
+                  <Text>SKU.Data index: top tire height</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="90" CompositionName="Items">
@@ -898,7 +898,7 @@
               <MultilingualTextItem ID="91" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [토크] 토크 계수</Text>
+                  <Text>SKU.Data 인덱스: 최상단 타이어 높이</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -908,8 +908,8 @@
       <SW.Tags.PlcUserConstant ID="92" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_IN_INNER_DIA</Name>
-          <Value>10</Value>
+          <Name>MEAS_SKU_TOTAL_HEIGHT</Name>
+          <Value>19</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="93" CompositionName="Comment">
@@ -917,7 +917,7 @@
               <MultilingualTextItem ID="94" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [IN] inner diameter (laser circle fit on insertion)</Text>
+                  <Text>SKU.Data index: stack total height</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="95" CompositionName="Items">
@@ -929,7 +929,7 @@
               <MultilingualTextItem ID="96" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [들어갈 때] 내경</Text>
+                  <Text>SKU.Data 인덱스: 스택 전체 높이</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -939,8 +939,8 @@
       <SW.Tags.PlcUserConstant ID="97" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_IN_UPPER_BEAD_HEIGHT</Name>
-          <Value>11</Value>
+          <Name>MEAS_ITEM_STATUS</Name>
+          <Value>0</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="98" CompositionName="Comment">
@@ -948,7 +948,7 @@
               <MultilingualTextItem ID="99" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [IN] upper bead height (laser closest Z)</Text>
+                  <Text>Item.Data [COMMON] status</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="9A" CompositionName="Items">
@@ -960,7 +960,7 @@
               <MultilingualTextItem ID="9B" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [들어갈 때] 상단 비드 높이</Text>
+                  <Text>Item.Data [공통] 상태</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -970,8 +970,8 @@
       <SW.Tags.PlcUserConstant ID="9C" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_IN_TIRE_HEIGHT</Name>
-          <Value>12</Value>
+          <Name>MEAS_ITEM_INNER_DIA</Name>
+          <Value>1</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="9D" CompositionName="Comment">
@@ -979,7 +979,7 @@
               <MultilingualTextItem ID="9E" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [IN] tire height (outside->inside edge Z)</Text>
+                  <Text>Item.Data [COMMON] inner diameter (laser in/out vs torque reconciled)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="9F" CompositionName="Items">
@@ -991,7 +991,7 @@
               <MultilingualTextItem ID="A0" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [들어갈 때] 타이어 높이</Text>
+                  <Text>Item.Data [공통] 내경(정합)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1001,8 +1001,8 @@
       <SW.Tags.PlcUserConstant ID="A1" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_IN_OFFSET_X</Name>
-          <Value>13</Value>
+          <Name>MEAS_ITEM_UPPER_BEAD_HEIGHT</Name>
+          <Value>2</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="A2" CompositionName="Comment">
@@ -1010,7 +1010,7 @@
               <MultilingualTextItem ID="A3" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [IN] centre offset X</Text>
+                  <Text>Item.Data [COMMON] upper bead height (in/out average)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="A4" CompositionName="Items">
@@ -1022,7 +1022,7 @@
               <MultilingualTextItem ID="A5" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [들어갈 때] 편심 X</Text>
+                  <Text>Item.Data [공통] 상단 비드 높이</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1032,8 +1032,8 @@
       <SW.Tags.PlcUserConstant ID="A6" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_IN_OFFSET_Y</Name>
-          <Value>14</Value>
+          <Name>MEAS_ITEM_TIRE_HEIGHT</Name>
+          <Value>3</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="A7" CompositionName="Comment">
@@ -1041,7 +1041,7 @@
               <MultilingualTextItem ID="A8" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [IN] centre offset Y</Text>
+                  <Text>Item.Data [COMMON] tire height (in/out average)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="A9" CompositionName="Items">
@@ -1053,7 +1053,7 @@
               <MultilingualTextItem ID="AA" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [들어갈 때] 편심 Y</Text>
+                  <Text>Item.Data [공통] 타이어 높이</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1063,8 +1063,8 @@
       <SW.Tags.PlcUserConstant ID="AB" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_OUT_INNER_DIA</Name>
-          <Value>15</Value>
+          <Name>MEAS_ITEM_TORQ_INNER_DIA</Name>
+          <Value>7</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="AC" CompositionName="Comment">
@@ -1072,7 +1072,7 @@
               <MultilingualTextItem ID="AD" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [OUT] inner diameter (laser circle fit on lift-out)</Text>
+                  <Text>Item.Data [TORQ] inner diameter by torque grip (avg - 5 mm)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="AE" CompositionName="Items">
@@ -1084,7 +1084,7 @@
               <MultilingualTextItem ID="AF" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [나갈 때] 내경</Text>
+                  <Text>Item.Data [토크] 토크 내경(보정 평균)</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1094,8 +1094,8 @@
       <SW.Tags.PlcUserConstant ID="B0" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_OUT_UPPER_BEAD_HEIGHT</Name>
-          <Value>16</Value>
+          <Name>MEAS_ITEM_TORQ_FACTOR</Name>
+          <Value>8</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="B1" CompositionName="Comment">
@@ -1103,7 +1103,7 @@
               <MultilingualTextItem ID="B2" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [OUT] upper bead height (laser closest Z)</Text>
+                  <Text>Item.Data [TORQ] torque limit factor used</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="B3" CompositionName="Items">
@@ -1115,7 +1115,7 @@
               <MultilingualTextItem ID="B4" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [나갈 때] 상단 비드 높이</Text>
+                  <Text>Item.Data [토크] 토크 계수</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1125,8 +1125,8 @@
       <SW.Tags.PlcUserConstant ID="B5" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_OUT_TIRE_HEIGHT</Name>
-          <Value>17</Value>
+          <Name>MEAS_ITEM_IN_INNER_DIA</Name>
+          <Value>10</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="B6" CompositionName="Comment">
@@ -1134,7 +1134,7 @@
               <MultilingualTextItem ID="B7" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [OUT] tire height (inside->outside edge Z)</Text>
+                  <Text>Item.Data [IN] inner diameter (laser circle fit on insertion)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="B8" CompositionName="Items">
@@ -1146,7 +1146,7 @@
               <MultilingualTextItem ID="B9" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [나갈 때] 타이어 높이</Text>
+                  <Text>Item.Data [들어갈 때] 내경</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1156,8 +1156,8 @@
       <SW.Tags.PlcUserConstant ID="BA" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_OUT_OFFSET_X</Name>
-          <Value>18</Value>
+          <Name>MEAS_ITEM_IN_UPPER_BEAD_HEIGHT</Name>
+          <Value>11</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="BB" CompositionName="Comment">
@@ -1165,7 +1165,7 @@
               <MultilingualTextItem ID="BC" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [OUT] centre offset X</Text>
+                  <Text>Item.Data [IN] upper bead height (laser closest Z)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="BD" CompositionName="Items">
@@ -1177,7 +1177,7 @@
               <MultilingualTextItem ID="BE" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [나갈 때] 편심 X</Text>
+                  <Text>Item.Data [들어갈 때] 상단 비드 높이</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1187,8 +1187,8 @@
       <SW.Tags.PlcUserConstant ID="BF" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_ITEM_OUT_OFFSET_Y</Name>
-          <Value>19</Value>
+          <Name>MEAS_ITEM_IN_TIRE_HEIGHT</Name>
+          <Value>12</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="C0" CompositionName="Comment">
@@ -1196,7 +1196,7 @@
               <MultilingualTextItem ID="C1" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>Item.Data [OUT] centre offset Y</Text>
+                  <Text>Item.Data [IN] tire height (outside->inside edge Z)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="C2" CompositionName="Items">
@@ -1208,7 +1208,7 @@
               <MultilingualTextItem ID="C3" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>Item.Data [나갈 때] 편심 Y</Text>
+                  <Text>Item.Data [들어갈 때] 타이어 높이</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1217,9 +1217,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="C4" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>USInt</DataTypeName>
-          <Name>MEAS_LOG_ITEM</Name>
-          <Value>1</Value>
+          <DataTypeName>Int</DataTypeName>
+          <Name>MEAS_ITEM_IN_OFFSET_X</Name>
+          <Value>13</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="C5" CompositionName="Comment">
@@ -1227,7 +1227,7 @@
               <MultilingualTextItem ID="C6" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text />
+                  <Text>Item.Data [IN] centre offset X</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="C7" CompositionName="Items">
@@ -1239,7 +1239,7 @@
               <MultilingualTextItem ID="C8" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>측정 이력 종류 : MeasureItem (MEASLOG.Last/Stat 인덱스)</Text>
+                  <Text>Item.Data [들어갈 때] 편심 X</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1248,9 +1248,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="C9" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>USInt</DataTypeName>
-          <Name>MEAS_LOG_SKU</Name>
-          <Value>2</Value>
+          <DataTypeName>Int</DataTypeName>
+          <Name>MEAS_ITEM_IN_OFFSET_Y</Name>
+          <Value>14</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="CA" CompositionName="Comment">
@@ -1258,7 +1258,7 @@
               <MultilingualTextItem ID="CB" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text />
+                  <Text>Item.Data [IN] centre offset Y</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="CC" CompositionName="Items">
@@ -1270,7 +1270,7 @@
               <MultilingualTextItem ID="CD" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>측정 이력 종류 : MeasureSku</Text>
+                  <Text>Item.Data [들어갈 때] 편심 Y</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1279,9 +1279,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="CE" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>USInt</DataTypeName>
-          <Name>MEAS_LOG_FLOOR</Name>
-          <Value>3</Value>
+          <DataTypeName>Int</DataTypeName>
+          <Name>MEAS_ITEM_OUT_INNER_DIA</Name>
+          <Value>15</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="CF" CompositionName="Comment">
@@ -1289,7 +1289,7 @@
               <MultilingualTextItem ID="D0" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text />
+                  <Text>Item.Data [OUT] inner diameter (laser circle fit on lift-out)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="D1" CompositionName="Items">
@@ -1301,7 +1301,7 @@
               <MultilingualTextItem ID="D2" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>측정 이력 종류 : MeasureFloor</Text>
+                  <Text>Item.Data [나갈 때] 내경</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1310,9 +1310,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="D3" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>USInt</DataTypeName>
-          <Name>MEAS_LOG_PICK</Name>
-          <Value>4</Value>
+          <DataTypeName>Int</DataTypeName>
+          <Name>MEAS_ITEM_OUT_UPPER_BEAD_HEIGHT</Name>
+          <Value>16</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="D4" CompositionName="Comment">
@@ -1320,7 +1320,7 @@
               <MultilingualTextItem ID="D5" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text />
+                  <Text>Item.Data [OUT] upper bead height (laser closest Z)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="D6" CompositionName="Items">
@@ -1332,7 +1332,7 @@
               <MultilingualTextItem ID="D7" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>측정 이력 종류 : PICK 하강 마지막 비드 측정</Text>
+                  <Text>Item.Data [나갈 때] 상단 비드 높이</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1341,9 +1341,9 @@
       </SW.Tags.PlcUserConstant>
       <SW.Tags.PlcUserConstant ID="D8" CompositionName="UserConstants">
         <AttributeList>
-          <DataTypeName>USInt</DataTypeName>
-          <Name>MEAS_LOG_MANUAL</Name>
-          <Value>5</Value>
+          <DataTypeName>Int</DataTypeName>
+          <Name>MEAS_ITEM_OUT_TIRE_HEIGHT</Name>
+          <Value>17</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="D9" CompositionName="Comment">
@@ -1351,7 +1351,7 @@
               <MultilingualTextItem ID="DA" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text />
+                  <Text>Item.Data [OUT] tire height (inside->outside edge Z)</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="DB" CompositionName="Items">
@@ -1363,7 +1363,7 @@
               <MultilingualTextItem ID="DC" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>측정 이력 종류 : 수동 측정 (PL_ManualMeasureItem)</Text>
+                  <Text>Item.Data [나갈 때] 타이어 높이</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1373,8 +1373,8 @@
       <SW.Tags.PlcUserConstant ID="DD" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_LOG_LAST</Name>
-          <Value>199</Value>
+          <Name>MEAS_ITEM_OUT_OFFSET_X</Name>
+          <Value>18</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="DE" CompositionName="Comment">
@@ -1382,7 +1382,7 @@
               <MultilingualTextItem ID="DF" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text />
+                  <Text>Item.Data [OUT] centre offset X</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="E0" CompositionName="Items">
@@ -1394,7 +1394,7 @@
               <MultilingualTextItem ID="E1" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>측정 이력 링버퍼 마지막 인덱스 (MEASLOG.Entry[0..199])</Text>
+                  <Text>Item.Data [나갈 때] 편심 X</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1404,8 +1404,8 @@
       <SW.Tags.PlcUserConstant ID="E2" CompositionName="UserConstants">
         <AttributeList>
           <DataTypeName>Int</DataTypeName>
-          <Name>MEAS_LOG_CODE_LAST</Name>
-          <Value>31</Value>
+          <Name>MEAS_ITEM_OUT_OFFSET_Y</Name>
+          <Value>19</Value>
         </AttributeList>
         <ObjectList>
           <MultilingualText ID="E3" CompositionName="Comment">
@@ -1413,7 +1413,7 @@
               <MultilingualTextItem ID="E4" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text />
+                  <Text>Item.Data [OUT] centre offset Y</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="E5" CompositionName="Items">
@@ -1423,6 +1423,223 @@
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="E6" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>Item.Data [나갈 때] 편심 Y</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="E7" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>USInt</DataTypeName>
+          <Name>MEAS_LOG_ITEM</Name>
+          <Value>1</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="E8" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="E9" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="EA" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="EB" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>측정 이력 종류 : MeasureItem (MEASLOG.Last/Stat 인덱스)</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="EC" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>USInt</DataTypeName>
+          <Name>MEAS_LOG_SKU</Name>
+          <Value>2</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="ED" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="EE" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="EF" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="F0" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>측정 이력 종류 : MeasureSku</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="F1" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>USInt</DataTypeName>
+          <Name>MEAS_LOG_FLOOR</Name>
+          <Value>3</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="F2" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="F3" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="F4" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="F5" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>측정 이력 종류 : MeasureFloor</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="F6" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>USInt</DataTypeName>
+          <Name>MEAS_LOG_PICK</Name>
+          <Value>4</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="F7" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="F8" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="F9" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="FA" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>측정 이력 종류 : PICK 하강 마지막 비드 측정</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="FB" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>USInt</DataTypeName>
+          <Name>MEAS_LOG_MANUAL</Name>
+          <Value>5</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="FC" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="FD" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="FE" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="FF" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>측정 이력 종류 : 수동 측정 (PL_ManualMeasureItem)</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="100" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>Int</DataTypeName>
+          <Name>MEAS_LOG_LAST</Name>
+          <Value>199</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="101" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="102" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="103" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="104" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>측정 이력 링버퍼 마지막 인덱스 (MEASLOG.Entry[0..199])</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="105" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>Int</DataTypeName>
+          <Name>MEAS_LOG_CODE_LAST</Name>
+          <Value>31</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="106" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="107" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="108" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="109" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
                   <Text>동일 규격(Item Code) 별 누적 슬롯 마지막 인덱스 (MEASLOG.ByCode[0..31])</Text>

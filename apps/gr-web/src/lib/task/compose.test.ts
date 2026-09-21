@@ -105,7 +105,7 @@ describe('draft → request + validation', () => {
         count: 999,
         params: { grip_height: -1, avoid: true },
       }),
-    ).toEqual(['수량은 1..255', '그립 높이: 0 이상의 수여야 합니다'])
+    ).toEqual(['수량은 1..255', 'GripHeight: 0 이상의 수여야 합니다'])
     expect(targetKindsFor('MEASURE')).toEqual(['cell'])
     expect(targetKindsFor('DROP')).toEqual(['cell', 'station'])
   })
@@ -173,8 +173,8 @@ describe('preview fields', () => {
     expect(by.Z).toBe('1980')
     expect(by.G).toBe('351')
     expect(by.TaskType).toBe('0x41')
-    expect(by['품목']).toBe('1001 × 3')
-    expect(by['켜진 플래그']).toBe('완료 후 상승, 회피')
+    expect(by['Item (Code × Count)']).toBe('1001 × 3')
+    expect(by.Flags).toBe('LiftUpAfterComplete, Avoid')
     expect(previewFields(null)).toEqual([])
   })
 })

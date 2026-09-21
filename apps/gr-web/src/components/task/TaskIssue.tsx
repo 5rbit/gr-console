@@ -1,17 +1,22 @@
-// 작업 명령 화면 — 왼쪽 레지스트리 레일(레이아웃 맵·재고·셀·스테이션·품목), 오른쪽 사이드바.
+// 작업 명령 화면 — 왼쪽 레지스트리 레일(맵 + 표 한 면), 오른쪽 작업 카드 하나.
 //   레이아웃 편집 모드: 오른쪽 = 셀/스테이션 리스트 + 생성 규칙
-//   그 밖:              오른쪽 = 게이트 + 순차 계획 / 단일 명령
+//   그 밖:              오른쪽 = 작업 카드(순차 계획 ↔ 단일 명령 두 모드)
+//
+// 게이트는 머리띠 오른쪽 한 줄(`GateChip`)로 들어갔다 — 배너 한 덩이가 카드를 아래로 밀지 않는다.
 //
 // 목록·계획(되돌리기 스택)·맵 모드·선택·화면 이동은 여기서 들어 레일·맵·사이드바가 한 상태를 본다.
 // 계획·맵 모드·레일 탭은 브라우저에 저장돼 새로고침에도 남는다.
+// 레일의 레이아웃+표(나눠 보기)에서 표 행을 고르면 맵이 그 대상으로 이동·강조하고, 맵에서 고르면
+// 표가 그 행으로 따라간다(`tableSel` + `reveal`).
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Send } from 'lucide-react'
+import { Send, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useRegistry } from '../../lib/registry'
 import { robots } from '../../lib/robots'
 import { stock as stockStore } from '../../lib/stock'
 import { useStore } from '../../lib/store'
 import type { Shape } from '../../lib/task/layoutModel'
+import { parseRailTab } from '../../lib/task/railSplitModel'
 import {
   EMPTY_HISTORY,
   commit,
@@ -21,14 +26,15 @@ import {
   type History,
   type PlanStep,
 } from '../../lib/task/plan'
+import { planInbox } from '../../lib/task/planInbox'
 import { ScreenHeader } from '../../lib/ui/ScreenHeader'
-import { Segmented } from '../../lib/ui/Segmented'
 import { toast } from '../../lib/ui/toast'
 import { cn } from '../../lib/utils'
 import type {
   Cell,
   CellUpsert,
   Defaults,
+  Gate,
   GripRef,
   Item,
   Station,
@@ -37,17 +43,15 @@ import type {
 } from '../../lib/types'
 import { ComposeCard } from './ComposeCard'
 import { DefaultsDialog } from './DefaultsDialog'
-import { GateBanner, useGate } from './GateBanner'
+import { useGate } from './GateBanner'
 import { LayoutSidePanel, type SideTab } from './LayoutSidePanel'
 import { LayoutTab, MAP_MODES, type MapMode } from './LayoutTab'
-import { PlanCard } from './PlanCard'
-import { RegistryRail, type RailTab } from './RegistryRail'
+import { PlanCard, type PlanMode } from './PlanCard'
+import { RAIL_KEY, RegistryRail, type RailTab } from './RegistryRail'
 
 const PLAN_KEY = 'gr-plan'
 const MODE_KEY = 'gr-cellmap-mode'
-const RAIL_KEY = 'gr-rail-tab'
-const RAIL_TABS: readonly RailTab[] = ['layout', 'stock', 'cell', 'station', 'item']
-type Side = 'single' | 'plan'
+type Side = PlanMode
 
 function loadPlan(): PlanStep[] {
   try {
@@ -74,6 +78,53 @@ function persist(key: string, v: string) {
   }
 }
 
+/**
+ * 게이트 한 줄 — 머리띠 오른쪽에 색으로 선다.
+ *
+ * 전에는 오른쪽 칸 맨 위에 배너 한 덩이(닫혔을 때 사유 목록까지)가 서서, 계획 카드를 아래로
+ * 밀어냈다. 게이트는 **제출 버튼을 누를 수 있나**를 말하는 한 비트라 색 하나면 충분하다 —
+ * 막힌 사유는 손이 멈췄을 때(툴팁) 읽고, 제출 버튼 자신도 같은 이유로 잠긴다.
+ */
+function GateChip({ gate, error }: { gate: Gate | null; error: string | null }) {
+  const tone = error
+    ? 'border-warn bg-warn-soft text-warn-fg'
+    : !gate
+      ? 'border-line-default text-content-faint'
+      : gate.can_submit
+        ? 'border-ok bg-ok-soft text-ok-fg'
+        : 'border-fault bg-fault-soft text-fault-fg'
+  const text = error
+    ? '게이트 조회 실패'
+    : !gate
+      ? '게이트 확인 중…'
+      : gate.can_submit
+        ? '제출 가능'
+        : `제출 불가 ${gate.reasons.length}`
+  const why = error
+    ? `게이트 조회 실패 — ${error}`
+    : gate && !gate.can_submit
+      ? gate.reasons.join(' · ')
+      : 'PLC가 새 작업을 받을 수 있습니다'
+  return (
+    <span
+      className={cn(
+        'flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-2xs whitespace-nowrap',
+        tone,
+      )}
+      title={why}
+      data-testid="gate-banner"
+      data-state={error ? 'error' : !gate ? 'wait' : gate.can_submit ? 'open' : 'closed'}
+    >
+      {error || (gate && !gate.can_submit) ? (
+        <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+      ) : (
+        <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+      )}
+      {text}
+    </span>
+  )
+}
+
 export default function TaskIssue() {
   const items = useRegistry<Item>(api.items)
   const cells = useRegistry<Cell>(api.cells)
@@ -97,7 +148,13 @@ export default function TaskIssue() {
   const [focusStep, setFocusStep] = useState<PlanStep | null>(null)
   // 맵 모드 · 레일 탭 · 편집 선택 · 생성 예정 셀 · 화면 이동
   const [mapMode, setMapMode] = useState<MapMode>(() => loadChoice(MODE_KEY, MAP_MODES, 'plan'))
-  const [railTab, setRailTab] = useState<RailTab>(() => loadChoice(RAIL_KEY, RAIL_TABS, 'layout'))
+  const [railTab, setRailTab] = useState<RailTab>(() => {
+    try {
+      return parseRailTab(localStorage.getItem(RAIL_KEY))
+    } catch {
+      return 'split'
+    }
+  })
   const [editSel, setEditSel] = useState<Target | null>(null)
   const [sideTab, setSideTab] = useState<SideTab>('cell')
   const [preview, setPreview] = useState<CellUpsert[]>([])
@@ -106,7 +163,21 @@ export default function TaskIssue() {
   // 레이아웃 편집 그리드의 저장 전 초안 — 맵에 바로 그린다.
   const [cellDraft, setCellDraft] = useState<Cell[] | null>(null)
   const [stationDraft, setStationDraft] = useState<Station[] | null>(null)
-  const editing = mapMode === 'edit' && railTab === 'layout'
+  // 편집은 맵이 보일 때만 — 맵만(레이아웃)이든 나눠 보기든.
+  const editing = mapMode === 'edit' && (railTab === 'layout' || railTab === 'split')
+  // 레일 표(셀/스테이션)의 선택. 편집 중에는 편집 선택(`editSel`)이 그 자리를 맡는다.
+  const [tableSel, setTableSel] = useState<Target | null>(null)
+  // 맵·계획에서 고른 대상을 표로 보내는 신호(표 토글 전환 + 행 스크롤).
+  const [reveal, setReveal] = useState<{ target: Target; nonce: number } | null>(null)
+  const pickTarget = useCallback((t: Target) => {
+    setTableSel(t)
+    setReveal({ target: t, nonce: Date.now() })
+  }, [])
+  // 작성 카드 대상이 바뀌면 그쪽이 강조를 가져간다(표에서 고른 것보다 나중 일이므로).
+  const onComposeTarget = useCallback((t: Target | null) => {
+    setCurrent(t)
+    setTableSel(null)
+  }, [])
 
   useEffect(() => persist(PLAN_KEY, JSON.stringify(plan)), [plan])
 
@@ -127,7 +198,11 @@ export default function TaskIssue() {
       if (!defaults) return
       try {
         setDefaults(await api.defaultsSave({ ...defaults, grip_ref: g }))
-        toast.ok(g === 'bead' ? '그립 기준: 상부 비드 높이' : '그립 기준: 타이어 중간(H/2)')
+        toast.ok(
+          g === 'pick_bead'
+            ? '그립 기준: bead+offset — 잰 상부 비드 − PickBeadOffset (못 잰 품목은 타이어 중간)'
+            : '그립 기준: 타이어 중간(H/2)',
+        )
       } catch (e) {
         toast.error(`그립 기준 저장 실패 — ${e instanceof Error ? e.message : String(e)}`)
       }
@@ -136,6 +211,18 @@ export default function TaskIssue() {
   )
 
   const setPlan = useCallback((next: PlanStep[]) => setHist((h) => commit(h, next)), [])
+
+  // 다른 화면(팔렛 패턴)이 보낸 스텝 — 마운트 때와 도착할 때 한 번의 편집(되돌리기 한 칸)으로 끝에 붙인다.
+  useEffect(() => {
+    const drain = () => {
+      const steps = planInbox.take()
+      if (steps.length === 0) return
+      setHist((h) => commit(h, [...h.present, ...steps]))
+      setSide('plan')
+    }
+    drain()
+    return planInbox.subscribe(drain)
+  }, [])
   const doUndo = useCallback(() => setHist((h) => undo(h)), [])
   const doRedo = useCallback(() => setHist((h) => redo(h)), [])
 
@@ -183,15 +270,20 @@ export default function TaskIssue() {
         return commit(h, [...h.present, step])
       })
       setSide('plan')
+      pickTarget(target)
     },
-    [items.items],
+    [items.items, pickTarget],
   )
 
-  const compose = useCallback((target: Target, shape: Shape, type: TaskType) => {
-    setPicked({ target, type, nonce: Date.now() })
-    setSide('single')
-    toast.info(`${type} · ${shape.label} → 작성 카드`)
-  }, [])
+  const compose = useCallback(
+    (target: Target, shape: Shape, type: TaskType) => {
+      setPicked({ target, type, nonce: Date.now() })
+      setSide('single')
+      toast.info(`${type} · ${shape.label} → 작성 카드`)
+      pickTarget(target)
+    },
+    [pickTarget],
+  )
 
   const changeMode = useCallback((m: MapMode) => {
     setMapMode(m)
@@ -202,8 +294,13 @@ export default function TaskIssue() {
     persist(RAIL_KEY, t)
   }, [])
 
-  // 맵 강조: 편집 = 리스트 선택, 단일 명령 = 작성 카드 대상, 계획 = 표에서 고른 스텝
-  const selected = editing ? editSel : side === 'single' ? current : (focusStep?.target ?? null)
+  // 맵 강조: 편집 = 리스트 선택, 단일 명령 = 작성 카드 대상, 계획 = 계획 표에서 고른 스텝.
+  // 레일 표에서 고른 행이 있으면 그것이 먼저다(계획 스텝을 고르면 `tableSel`도 그 대상으로 옮긴다).
+  const selected = editing
+    ? editSel
+    : side === 'single'
+      ? (tableSel ?? current)
+      : (tableSel ?? focusStep?.target ?? null)
   const layout = useMemo(
     () => (
       <LayoutTab
@@ -221,9 +318,11 @@ export default function TaskIssue() {
         mapStations={editing ? stationDraft : null}
         onPlanAdd={planAdd}
         onCompose={compose}
+        onTargetPick={pickTarget}
         onEditSelect={(t) => {
           setEditSel(t)
           setSideTab(t.kind)
+          setReveal({ target: t, nonce: Date.now() })
         }}
         onItemsChanged={() => void items.reload()}
       />
@@ -252,23 +351,17 @@ export default function TaskIssue() {
       <ScreenHeader
         title="작업 명령"
         icon={<Send className="h-4 w-4" />}
-        items={[
-          { label: '품목', value: String(items.items.length) },
-          { label: '셀', value: String(cells.items.length) },
-          { label: '재고', value: String(stockStore.all.reduce((a, s) => a + s.count, 0)) },
-          { label: '계획', value: String(plan.length) },
-          {
-            label: '게이트',
-            value: gate ? (gate.can_submit ? '열림' : `닫힘 ${gate.reasons.length}`) : '…',
-          },
-        ]}
+        items={[{ label: 'Plan', value: String(plan.length) }]}
         trailing={
-          <span
-            className="text-xs text-content-muted"
-            data-testid="task-robot"
-            title="사이드바 로봇 목록에서 바꿉니다"
-          >
-            로봇 <b className="text-content-primary">{robots.current?.name ?? '…'}</b>
+          <span className="flex items-center gap-3">
+            <GateChip gate={gate} error={gateError} />
+            <span
+              className="text-xs text-content-muted"
+              data-testid="task-robot"
+              title="사이드바 로봇 목록에서 바꿉니다"
+            >
+              로봇 <b className="text-content-primary">{robots.current?.name ?? '…'}</b>
+            </span>
           </span>
         }
       />
@@ -284,13 +377,23 @@ export default function TaskIssue() {
             layout={layout}
             tab={railTab}
             onTabChange={changeRail}
+            selected={editing ? editSel : tableSel}
+            onSelect={(t) => {
+              if (editing) {
+                setEditSel(t)
+                if (t) setSideTab(t.kind)
+              } else setTableSel(t)
+              if (t) setFocus({ target: t, nonce: Date.now() })
+            }}
+            reveal={reveal}
           />
         </section>
         <section
           className={cn(
+            // `min-w-0` 이 없으면 표·카드 안의 긴 값이 이 칸을 밀어 1280px 에서 왼쪽 레일을 잡아먹는다.
             editing
-              ? 'flex min-h-0 w-[620px] min-w-[560px] flex-[2] flex-col'
-              : 'flex min-h-0 w-[460px] min-w-[400px] flex-[2] flex-col',
+              ? 'flex min-h-0 w-[620px] min-w-0 flex-[2] flex-col'
+              : 'flex min-h-0 w-[460px] min-w-0 flex-[2] flex-col',
             editing ? '' : 'gap-3 overflow-y-auto p-3',
           )}
           aria-label={editing ? '레이아웃 편집' : '작업 작성'}
@@ -312,41 +415,32 @@ export default function TaskIssue() {
               onStationDraft={setStationDraft}
             />
           ) : (
-            <>
-              <GateBanner gate={gate} error={gateError} />
-              <Segmented
-                ariaLabel="작성 방식"
-                value={side}
-                onChange={setSide}
-                className="self-start"
-                options={[
-                  { id: 'plan', label: '순차 계획', badge: plan.length || '', testid: 'side-plan' },
-                  { id: 'single', label: '단일 명령', testid: 'side-single' },
-                ]}
-              />
-              <div className={side === 'plan' ? '' : 'hidden'}>
-                <PlanCard
-                  steps={plan}
-                  onChange={setPlan}
-                  canUndo={hist.past.length > 0}
-                  canRedo={hist.future.length > 0}
-                  onUndo={doUndo}
-                  onRedo={doRedo}
-                  cells={cells.items}
-                  stations={stations.items}
-                  items={items.items}
-                  stockNow={stockStore.map}
-                  gate={gate}
-                  onFocus={(s) => {
-                    setFocusStep(s)
-                    if (s) setFocus({ target: s.target, nonce: Date.now() })
-                  }}
-                  gripRef={gripRef}
-                  onGripRefChange={(g) => void setGripRef(g)}
-                />
-              </div>
-              <div className={side === 'single' ? '' : 'hidden'}>
+            <PlanCard
+              steps={plan}
+              onChange={setPlan}
+              canUndo={hist.past.length > 0}
+              canRedo={hist.future.length > 0}
+              onUndo={doUndo}
+              onRedo={doRedo}
+              cells={cells.items}
+              stations={stations.items}
+              items={items.items}
+              stockNow={stockStore.map}
+              gate={gate}
+              onFocus={(s) => {
+                setFocusStep(s)
+                if (s) {
+                  setFocus({ target: s.target, nonce: Date.now() })
+                  pickTarget(s.target)
+                }
+              }}
+              gripRef={gripRef}
+              onGripRefChange={(g) => void setGripRef(g)}
+              mode={side}
+              onModeChange={setSide}
+              single={
                 <ComposeCard
+                  chrome={false}
                   items={items.items}
                   cells={cells.items}
                   stations={stations.items}
@@ -354,10 +448,10 @@ export default function TaskIssue() {
                   gate={gate}
                   onOpenDefaults={() => setDefaultsOpen(true)}
                   pickedTarget={picked}
-                  onTargetChange={setCurrent}
+                  onTargetChange={onComposeTarget}
                 />
-              </div>
-            </>
+              }
+            />
           )}
         </section>
       </div>

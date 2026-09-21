@@ -329,7 +329,7 @@ export function CommandPalette() {
               autoFocus
               value={text}
               placeholder={asking.prompt?.placeholder}
-              className="h-8 rounded-md border border-line-strong bg-transparent px-2 text-sm focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+              className="h-control-md rounded-md border border-line-strong bg-transparent px-2 text-sm focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
               data-testid="palette-prompt"
               onChange={(e) => setText(e.target.value)}
             />
@@ -346,7 +346,7 @@ export function CommandPalette() {
                 value={query}
                 placeholder="명령 검색 — 패널 · 배치 · 존 · 설정"
                 aria-label="명령 검색"
-                className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-content-faint"
+                className="h-menubar min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-content-faint"
                 data-testid="palette-input"
                 onChange={(e) => {
                   palette.setQuery(e.target.value)
