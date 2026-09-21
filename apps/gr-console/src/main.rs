@@ -286,6 +286,8 @@ async fn main() -> anyhow::Result<()> {
         }
     };
     let st = AppState { cfg: cfg.clone(), plcs, cmd, robots, task_events, db, ledger, registry, scenario, stock, recorder, trace, events, shutdown: sd.clone() };
+    // 로봇 실제 상태(HoldItem · 링)와 Hand · 이송 지시를 상시 맞춘다 — 콘솔 DB 만 고친다.
+    stock::sync::spawn(st.clone());
 
     // demo: seed registries from the fake PLC tables once they are readable
     if cfg.demo {

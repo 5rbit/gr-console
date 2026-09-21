@@ -97,6 +97,78 @@ async fn order(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<
     Ok(axum::Json(json!({ "order": o, "tasks": tasks, "stock_changes": changes })))
 }
 
+/// `GET /api/stock/sync` — 로봇별 동기화 경고(Hand · 이송 지시 vs PLC).
+async fn sync_list(State(st): State<AppState>) -> ApiResult<Json> {
+    let t = st.stock.sync.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let out: Vec<Json> = st.robots.iter().map(|r| json!({ "robot": r.id, "robot_name": r.name, "plc": r.plc, "issues": t.issues(&r.plc) })).collect();
+    Ok(axum::Json(Json::Array(out)))
+}
+
+#[derive(Deserialize)]
+struct ResolveBody {
+    /// `clear_hand` | `adopt_plc`
+    action: String,
+    /// `adopt_plc` 의 품목·개수 — 없으면 PLC Completed 링의 마지막 PICK.
+    #[serde(default)]
+    item_code: Option<u32>,
+    #[serde(default)]
+    count: Option<u32>,
+}
+
+/// `POST /api/stock/sync/{robot}/resolve` — 동기화 경고를 한 번에 고친다(콘솔 DB 만, PLC 에는 쓰지 않는다).
+/// - `clear_hand`: Hand 를 비우고 걸려 있던 이송 지시를 `aborted`(사유: PLC 빈 그리퍼).
+/// - `adopt_plc`: PLC 가 들고 있는 것으로 Hand 를 채우고 `in_hand` 지시를 연다(`source = plc-sync`).
+async fn sync_resolve(State(st): State<AppState>, Path(robot): Path<u8>, axum::Json(b): axum::Json<ResolveBody>) -> ApiResult<Json> {
+    let r = st.robot(Some(robot))?;
+    let p = crate::issue::projected_hand(&st, Some(robot))?;
+    if !p.pending.is_empty() {
+        return Err(ApiError::Conflict(format!("{}: 진행 중 PICK/DROP {} 건 — 끝난 뒤에 고치세요", r.name, p.pending.len())));
+    }
+    let hand = st.stock.hand(&r.plc)?;
+    let out = match b.action.as_str() {
+        "clear_hand" => {
+            if let Some(id) = &hand.transfer_order_id {
+                st.stock.abort_order(id, "동기화: PLC 빈 그리퍼 — Hand 비움", false)?;
+            }
+            st.stock.set_hand(&r.plc, 0, 0, "sync-resolve: Hand 비움 (PLC 빈 그리퍼)", None, hand.transfer_order_id.as_deref())?
+        }
+        "adopt_plc" => {
+            let last = st.robot_plc(r).ok().and_then(|h| h.decode_path("OPCUA", "STAT")).and_then(|v| gr_proto::StatusView::from_json(&v).ok()).map(|v| super::sync::PlcView::from_status(&v));
+            if let Some(v) = &last
+                && !v.hold_item
+            {
+                return Err(ApiError::Conflict(format!("{}: PLC HoldItem = 0 — 들고 있지 않아 맞출 것이 없음", r.name)));
+            }
+            let cand = last.and_then(|v| v.last_pick);
+            let (item, count) = match (b.item_code, b.count, cand) {
+                (Some(i), Some(n), _) if n > 0 => (i, n),
+                (_, _, Some((i, n))) => (b.item_code.unwrap_or(i), b.count.filter(|n| *n > 0).unwrap_or(n)),
+                _ => return Err(ApiError::BadRequest("PLC 에 마지막 PICK 이 없음 — item_code 와 count 를 주세요".into())),
+            };
+            let order = match hand.transfer_order_id.clone() {
+                Some(id) => id,
+                None => {
+                    let n = super::transfer::NewOrder {
+                        robot: Some(r.id),
+                        plc: r.plc.clone(),
+                        item_code: item,
+                        count,
+                        source: "plc-sync".into(),
+                        note: "PLC HoldItem 기준 Hand 맞춤".into(),
+                        ..Default::default()
+                    };
+                    st.stock.open_in_hand_order(n, "동기화: PLC 가 들고 있음 — Hand 맞춤")?.id
+                }
+            };
+            st.stock.set_hand(&r.plc, item, count, "sync-resolve: PLC 기준 Hand 맞춤", None, Some(&order))?
+        }
+        a => return Err(ApiError::BadRequest(format!("unknown action {a} (clear_hand | adopt_plc)"))),
+    };
+    st.stock.sync.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clear(&r.plc);
+    let _ = st.stock.events.send(super::StockEvent::Sync { plc: r.plc.clone(), issues: vec![] });
+    Ok(axum::Json(serde_json::to_value(out).unwrap_or_default()))
+}
+
 async fn list(State(st): State<AppState>) -> ApiResult<Json> {
     Ok(axum::Json(serde_json::to_value(st.stock.list()?).unwrap_or_default()))
 }
@@ -190,6 +262,8 @@ pub fn router() -> Router<AppState> {
         .route("/api/stock/hands", get(hands))
         .route("/api/stock/hand/{robot}", put(set_hand))
         .route("/api/stock/projected", get(projected))
+        .route("/api/stock/sync", get(sync_list))
+        .route("/api/stock/sync/{robot}/resolve", post(sync_resolve))
         .route("/api/transfer-orders", get(orders))
         .route("/api/transfer-orders/{id}", get(order))
         .route("/api/stock/{cell}", put(set).delete(remove))

@@ -8,7 +8,8 @@
 //! |-----------------|-------------------|-------------|
 //! | 없음            | —                 | planned     |
 //! | 진행 중         | 무엇이든          | picking     |
-//! | 실패·거부·취소·Lost | —             | failed      |
+//! | 취소            | —                 | aborted     |
+//! | 실패·거부·Lost  | —                 | failed      |
 //! | 완료            | 없음 / 실패·취소  | in_hand     |
 //! | 완료            | 진행 중           | dropping    |
 //! | 완료            | 완료              | done        |
@@ -81,6 +82,8 @@ pub fn derive(cur: OrderState, pick: Option<TaskState>, drop: Option<TaskState>)
             Some(d) if !bad(d) && d != TaskState::Draft => OrderState::Dropping,
             _ => OrderState::InHand,
         },
+        // 시작 전 PICK 을 취소하면 짝 DROP 도 같이 취소된다 — 사람이 끝낸 지시.
+        Some(TaskState::Canceled) => OrderState::Aborted,
         Some(p) if bad(p) => OrderState::Failed,
         Some(_) => OrderState::Picking,
     }
@@ -231,6 +234,13 @@ pub fn set_state(o: &mut TransferOrder, to: OrderState, note: &str) {
     o.updated_at = now;
 }
 
+/// 이력에 메모 한 줄(상태는 그대로).
+pub fn add_note(o: &mut TransferOrder, note: &str) {
+    let now = now_str();
+    o.history.push(OrderStep { at: now.clone(), from: Some(o.state), to: o.state, note: note.into() });
+    o.updated_at = now;
+}
+
 /// Task 하나의 상태를 지시에 반영한다(PICK/DROP 이 아니면 아무것도 안 한다). 바뀐 지시를 돌려준다.
 /// 재시도로 새 PICK 이 오면(앞 PICK 이 실패) 그 Task 로 바꿔 단다.
 pub fn apply_task_state(o: &mut TransferOrder, tt: TaskType, task_id: &str, state: TaskState) -> bool {
@@ -369,6 +379,7 @@ mod tests {
         assert_eq!(derive(O::Dropping, Some(Completed), Some(Completed)), O::Done);
         assert_eq!(derive(O::Dropping, Some(Completed), Some(Canceled)), O::InHand, "tires stay on the gripper");
         assert_eq!(derive(O::Picking, Some(Rejected), Some(Queued)), O::Failed);
+        assert_eq!(derive(O::Picking, Some(Canceled), Some(Canceled)), O::Aborted, "PICK 취소 = 짝 전체 중단");
         assert_eq!(derive(O::Aborted, Some(Completed), Some(Completed)), O::Aborted);
     }
 

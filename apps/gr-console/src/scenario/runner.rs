@@ -12,7 +12,8 @@
 //! 큐 깊이 1(`queue_depth_reason`): PLC 에는 실행 중 1 건 + 다음 1 건까지만. 로봇 원장에 Submitted/Accepted/Queued 가
 //! 하나라도 있으면 다음 스텝은 **예정**으로 기다린다. 미리 넣은 실행은 마지막 Task 가 **완료**돼야 끝난다(`drain`).
 //!
-//! PICK/DROP 짝: PICK 이 나가면 짝 DROP 은 정지·일시정지를 미루고 반드시 이어 보낸다(정지는 DROP 제출 뒤 적용).
+//! PICK/DROP 짝(로봇별): 한 로봇의 PICK 이 나가면 그 로봇의 짝 DROP 이 나갈 때까지 정지·일시정지를 미룬다 — 그 사이의
+//! 다른 로봇 스텝(회피 MOVE 등)은 그대로 돈다. 짝이 걸려 있는 로봇이 하나라도 있으면 정지는 모든 짝의 DROP 제출 뒤 적용.
 //! PICK 이 실패하면 DROP 은 보내지 않고 멈춘다. 짝의 실패는 `skip` 이어도 실행을 멈춘다(`decide_pair`).
 //!
 //! 이송 지시: PICK 을 보내기 전에 짝마다 `TO-…` 를 열고(`planned`) PICK·DROP 요청에 같은 id 를 단다. 보내지 못한 채
@@ -139,6 +140,16 @@ pub fn earlier_broken(done: &[(u32, u32, u32, TaskState)]) -> Option<String> {
         .map(|(i, w, t, s)| format!("앞 스텝 {} 의 Task {w}/{t} 가 {} — 이 스텝부터 보내지 않음 (이미 넣은 Task 는 PLC 버퍼에 남아 있을 수 있음)", i + 1, s.as_str()))
 }
 
+/// 밖에서(PLC·다른 화면) 취소·실패된 앞 스텝 중 실행을 멈출 것 — PICK/DROP 은 짝이 깨지므로 늘 멈추고,
+/// 그 밖의 스텝은 `on_failure = skip` 이면 넘긴다.
+pub fn breaks_run(step: &Step) -> bool {
+    matches!(step.task_type, gr_proto::TaskType::Pick | gr_proto::TaskType::Drop) || step.on_failure != OnFailure::Skip
+}
+
+fn stops_run(scenario: &Scenario, states: Vec<(u32, u32, u32, TaskState)>) -> Vec<(u32, u32, u32, TaskState)> {
+    states.into_iter().filter(|(i, ..)| scenario.steps.get(*i as usize).is_none_or(breaks_run)).collect()
+}
+
 /// 미리 넣기 검사에 볼 최근 결과 수(버퍼 4 칸보다 넉넉히).
 const EARLIER_LOOKBACK: usize = 8;
 
@@ -243,17 +254,17 @@ enum Outcome {
 
 pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, plan: Plan, mut ctl: watch::Receiver<Ctl>) {
     let run_id = runner.current().run_id;
-    // PICK 이 나갔고 짝 DROP 이 아직이다 — 정지·일시정지를 DROP 제출 뒤로 미룬다.
-    let mut holding = false;
+    // 로봇별: PICK 이 나갔고 짝 DROP 이 아직이다 — 비어 있지 않으면 정지·일시정지를 미룬다.
+    let mut holding: std::collections::BTreeSet<u8> = Default::default();
     // 접수까지만 기다린 스텝이 있었다 — 끝에 마지막 Task 완료까지 기다린다.
     let mut prequeued = false;
-    // 지금 짝의 이송 지시(PICK 전에 열고 DROP 이 도달하면 놓는다).
-    let mut pair_order: Option<String> = None;
+    // 로봇별 지금 짝의 이송 지시(PICK 전에 열고 DROP 이 도달하면 놓는다).
+    let mut pair_order: std::collections::BTreeMap<u8, String> = Default::default();
     tracing::info!(run = %run_id, scenario = %scenario.name, steps = plan.step_count, iterations = ?plan.total_iterations, "scenario run started");
     let mut cur = plan.first();
     let mut error: Option<String> = None;
     let final_phase: Phase = 'outer: loop {
-        if !holding && wait_resumed(&mut ctl).await == Go::Stopped {
+        if holding.is_empty() && wait_resumed(&mut ctl).await == Go::Stopped {
             break Phase::Stopped;
         }
         runner.update(|g| {
@@ -263,22 +274,27 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
             g.note = None;
         });
         let step = &scenario.steps[cur.step_index as usize];
-        let tail = holding && step.task_type == gr_proto::TaskType::Drop;
+        // 이 스텝이 갈 로봇(설정 id) — 짝·지시는 로봇별이다.
+        let rid = st.robot(plan.robot_for(step)).map(|r| r.id).unwrap_or(0);
+        // 짝이 걸려 있으면(어느 로봇이든) 정지·일시정지를 미룬 채 보낸다.
+        let tail = !holding.is_empty();
         let mut attempt = 0u32;
         loop {
             attempt += 1;
-            if step.task_type == gr_proto::TaskType::Pick && pair_order.is_none() {
-                match open_pair_order(&st, &scenario, cur, step, plan.robot_for(step), &run_id) {
-                    Ok(id) => pair_order = Some(id),
+            if step.task_type == gr_proto::TaskType::Pick && !pair_order.contains_key(&rid) {
+                match open_pair_order(&st, &scenario, &plan, cur, step, &run_id) {
+                    Ok(id) => {
+                        pair_order.insert(rid, id);
+                    }
                     Err(e) => tracing::warn!(step = cur.step_index, %e, "transfer order: open failed"),
                 }
             }
-            let order = matches!(step.task_type, gr_proto::TaskType::Pick | gr_proto::TaskType::Drop).then(|| pair_order.clone()).flatten();
+            let order = matches!(step.task_type, gr_proto::TaskType::Pick | gr_proto::TaskType::Drop).then(|| pair_order.get(&rid).cloned()).flatten();
             let (outcome, result) = execute_step(&st, &runner, &scenario, &run_id, step, plan.robot_for(step), cur, attempt, tail, order, &mut ctl).await;
             runner.update(|g| g.push_result(result));
             if !matches!(outcome, Outcome::Reached) && step.task_type == gr_proto::TaskType::Pick {
                 // 보내지 못한 PICK 의 지시는 닫는다(보냈다가 실패한 것은 원장이 failed 로 옮긴다). 재시도는 새 지시로.
-                close_unsent(&st, pair_order.take(), "PICK 을 보내지 못함");
+                close_unsent(&st, pair_order.remove(&rid), "PICK 을 보내지 못함");
             }
             match outcome {
                 Outcome::Reached => break,
@@ -297,7 +313,10 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
                     }
                     Decision::Abort => {
                         let label = if step.label.is_empty() { step.task_type.name().to_string() } else { step.label.clone() };
-                        error = Some(format!("스텝 {} ({label}) 실패: {msg}", cur.step_index + 1));
+                        // 다른 로봇의 짝이 걸린 채 멈추면 그 로봇 Hand 에 타이어가 남는다 — 사유에 적는다(동기화 경고로도 뜬다).
+                        let open: Vec<String> = holding.iter().filter(|r| **r != rid || step.task_type != gr_proto::TaskType::Drop).map(|r| format!("로봇 {r}")).collect();
+                        let open = if open.is_empty() { String::new() } else { format!(" — 짝 DROP 을 보내지 못한 로봇: {} (Hand 확인)", open.join(", ")) };
+                        error = Some(format!("스텝 {} ({label}) 실패: {msg}{open}", cur.step_index + 1));
                         break 'outer Phase::Failed;
                     }
                 },
@@ -306,12 +325,18 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
         if step.wait_for == WaitFor::Accepted {
             prequeued = true;
         }
-        holding = step.task_type == gr_proto::TaskType::Pick;
-        if step.task_type == gr_proto::TaskType::Drop {
-            pair_order = None;
+        match step.task_type {
+            gr_proto::TaskType::Pick => {
+                holding.insert(rid);
+            }
+            gr_proto::TaskType::Drop => {
+                holding.remove(&rid);
+                pair_order.remove(&rid);
+            }
+            _ => {}
         }
         if step.wait_after_ms > 0 {
-            if holding {
+            if !holding.is_empty() {
                 tokio::time::sleep(Duration::from_millis(step.wait_after_ms)).await;
             } else if sleep_interruptible(step.wait_after_ms, &mut ctl).await == Go::Stopped {
                 break Phase::Stopped;
@@ -322,10 +347,12 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
             None => break Phase::Done,
         }
     };
-    close_unsent(&st, pair_order.take(), "실행이 끝남 — 보내지 않은 짝");
+    for (_, id) in std::mem::take(&mut pair_order) {
+        close_unsent(&st, Some(id), "실행이 끝남 — 보내지 않은 짝");
+    }
     // 미리 넣은 실행은 마지막 Task 가 완료돼야 끝난다.
     let final_phase = if final_phase == Phase::Done && prequeued {
-        match drain(&st, &runner, &mut ctl).await {
+        match drain(&st, &runner, &scenario, &mut ctl).await {
             Drain::Done => Phase::Done,
             Drain::Stopped => Phase::Stopped,
             Drain::Failed(msg) => {
@@ -354,10 +381,11 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
     tracing::info!(run = %run_id, phase = final_phase.as_str(), results = snap.results.len(), "scenario run ended");
 }
 
-/// 짝의 이송 지시를 연다 — 출발 = PICK 대상, 도착 = 다음 스텝(짝 DROP) 대상.
-fn open_pair_order(st: &AppState, scenario: &Scenario, cur: Cursor, step: &Step, robot: Option<u8>, run_id: &str) -> Result<String, ApiError> {
-    let r = st.robot(robot)?;
-    let to = scenario.steps.get(cur.step_index as usize + 1).filter(|n| n.task_type == gr_proto::TaskType::Drop).and_then(|n| n.target.clone());
+/// 짝의 이송 지시를 연다 — 출발 = PICK 대상, 도착 = 같은 로봇의 다음 스텝(짝 DROP) 대상.
+fn open_pair_order(st: &AppState, scenario: &Scenario, plan: &Plan, cur: Cursor, step: &Step, run_id: &str) -> Result<String, ApiError> {
+    let r = st.robot(plan.robot_for(step))?;
+    let to =
+        scenario.steps.iter().skip(cur.step_index as usize + 1).find(|n| plan.robot_for(n) == plan.robot_for(step)).filter(|n| n.task_type == gr_proto::TaskType::Drop).and_then(|n| n.target.clone());
     let n = crate::stock::transfer::NewOrder {
         robot: Some(r.id),
         plc: r.plc.clone(),
@@ -387,11 +415,11 @@ enum Drain {
 }
 
 /// 모든 스텝을 보낸 뒤 — 이번 실행의 Task 가 전부 완료될 때까지(정지하면 Task 는 PLC 에 남는다).
-async fn drain(st: &AppState, runner: &Arc<Runner>, ctl: &mut watch::Receiver<Ctl>) -> Drain {
+async fn drain(st: &AppState, runner: &Arc<Runner>, scenario: &Scenario, ctl: &mut watch::Receiver<Ctl>) -> Drain {
     let mut noted = false;
     loop {
         let states = run_states(st, runner, super::MAX_RESULTS);
-        if let Some(msg) = earlier_broken(&states) {
+        if let Some(msg) = earlier_broken(&stops_run(scenario, states.clone())) {
             return Drain::Failed(msg);
         }
         let left = states.iter().filter(|(_, _, _, s)| *s != TaskState::Completed).count();
@@ -463,11 +491,11 @@ async fn execute_step(
     // submission gate
     let mut last_note: Option<String> = None;
     loop {
-        if let Some(msg) = earlier_broken(&earlier_states(st, runner)) {
+        if let Some(msg) = earlier_broken(&stops_run(scenario, earlier_states(st, runner))) {
             return fail(res, msg);
         }
         let c = *ctl.borrow_and_update();
-        // 짝 DROP 은 정지·일시정지를 미룬다(PICK 이 이미 나갔다).
+        // 짝이 걸려 있으면(PICK 이 이미 나갔다) 정지·일시정지를 미룬다.
         if !tail && c.stop {
             return stopped(res, "제출 전 정지됨");
         }
@@ -518,7 +546,8 @@ async fn execute_step(
     let mut tick = tokio::time::interval(Duration::from_millis(LEDGER_POLL_MS));
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     // PICK 을 보낸 뒤에는 정지를 미룬다 — 짝 DROP 까지 보내고 멈춘다.
-    let holds = step.task_type == gr_proto::TaskType::Pick;
+    // (짝이 걸린 동안 보내는 스텝도 같다 — `tail`.)
+    let holds = tail || step.task_type == gr_proto::TaskType::Pick;
     loop {
         if !holds && ctl.borrow().stop {
             res.state = state;
@@ -598,6 +627,15 @@ mod tests {
         assert!(queue_depth_reason([Queued]).is_some(), "nothing running but one queued");
         assert!(queue_depth_reason([Submitted]).is_some() && queue_depth_reason([Accepted]).is_some());
         assert_eq!(queue_depth_reason([]), None);
+    }
+
+    #[test]
+    fn external_cancel_stops_pairs_and_honours_skip_for_others() {
+        use gr_proto::TaskType::*;
+        let st = |t, f| Step { task_type: t, on_failure: f, ..Default::default() };
+        assert!(breaks_run(&st(Pick, OnFailure::Skip)) && breaks_run(&st(Drop, OnFailure::Skip)));
+        assert!(breaks_run(&st(Move, OnFailure::Stop)));
+        assert!(!breaks_run(&st(Move, OnFailure::Skip)) && !breaks_run(&st(Measure, OnFailure::Skip)));
     }
 
     #[test]

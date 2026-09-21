@@ -14,6 +14,7 @@
 //! (`pressed_height`, 전체 규칙은 `registry::spec::stack_z_with` 와 `docs/item-spec-z.md`).
 
 pub mod routes;
+pub mod sync;
 pub mod transfer;
 
 use std::sync::{Arc, PoisonError};
@@ -56,6 +57,11 @@ pub enum StockEvent {
         hand: HandEntry,
         reason: String,
     },
+    /// 로봇 실제 상태와의 동기화 경고 목록이 바뀜(`sync.rs`).
+    Sync {
+        plc: String,
+        issues: Vec<sync::SyncIssue>,
+    },
 }
 
 /// 로봇 그리퍼에 든 화물. `plc` = 로봇 상태 PLC 이름(원장 `plc_name`).
@@ -75,6 +81,8 @@ pub struct Stock {
     db: Db,
     pub events: broadcast::Sender<StockEvent>,
     lock: std::sync::Mutex<()>,
+    /// 동기화 판정 이력(로봇별 경고).
+    pub sync: std::sync::Mutex<sync::Tracker>,
 }
 
 /// Z offset (from the tire bottom) where the gripper takes the tire: `mid` = Height/2,
@@ -109,7 +117,7 @@ pub fn below_count(tt: TaskType, n: u32, c: u32) -> u32 {
 impl Stock {
     pub fn new(db: Db) -> Arc<Stock> {
         let (tx, _) = broadcast::channel(256);
-        Arc::new(Stock { db, events: tx, lock: std::sync::Mutex::new(()) })
+        Arc::new(Stock { db, events: tx, lock: std::sync::Mutex::new(()), sync: Default::default() })
     }
 
     pub fn list(&self) -> Result<Vec<StockEntry>, ApiError> {
@@ -204,18 +212,58 @@ impl Stock {
             return Ok(None);
         }
         let _g = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
-        self.apply_locked(e)
+        self.apply_locked(e, None)
+    }
+
+    /// 동기화가 찾은 "완료됐는데 안 접힌" Task 를 접는다 — 재고 기록 사유 `plc-sync`.
+    pub fn apply_task_sync(&self, e: &LedgerEntry) -> Result<Option<StockEntry>, ApiError> {
+        let _g = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        self.apply_locked(e, Some("plc-sync"))
+    }
+
+    /// 완료됐는데 아직 재고에 안 접힌 PICK/DROP(동기화 판정용).
+    pub fn unfolded<'a>(&self, entries: &'a [LedgerEntry]) -> Result<Vec<&'a LedgerEntry>, ApiError> {
+        let mut out = Vec::new();
+        for e in entries {
+            if e.state == TaskState::Completed && task_delta(&e.plc_task).is_some() && !self.is_applied(&e.id)? {
+                out.push(e);
+            }
+        }
+        Ok(out)
+    }
+
+    /// 이송 지시 이력에 한 줄(상태는 그대로) — 동기화 경고 등.
+    pub fn note_order(&self, id: &str, note: &str) -> Result<(), ApiError> {
+        let _g = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(mut o) = transfer::get(&self.db, id)? {
+            transfer::add_note(&mut o, note);
+            transfer::save(&self.db, &o)?;
+        }
+        Ok(())
+    }
+
+    /// 사람이 고친 Hand 의 새 지시(`adopt_plc`) — `in_hand` 로 연다.
+    pub fn open_in_hand_order(&self, n: transfer::NewOrder, note: &str) -> Result<transfer::TransferOrder, ApiError> {
+        let _g = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut o = transfer::create(&self.db, n, transfer::OrderState::Planned)?;
+        transfer::set_state(&mut o, transfer::OrderState::InHand, note);
+        transfer::save(&self.db, &o)?;
+        Ok(o)
     }
 
     /// `apply_task` 본체 — 호출자가 `lock` 을 잡고 있어야 한다.
-    fn apply_locked(&self, e: &LedgerEntry) -> Result<Option<StockEntry>, ApiError> {
+    fn apply_locked(&self, e: &LedgerEntry, prefix: Option<&str>) -> Result<Option<StockEntry>, ApiError> {
         let Some(delta) = task_delta(&e.plc_task) else { return Ok(None) };
         if e.state != TaskState::Completed || self.is_applied(&e.id)? {
             return Ok(None);
         }
         let cur = self.get(delta.cell_id)?.unwrap_or(StockEntry { cell_id: delta.cell_id, ..Default::default() });
         let (item_code, count) = fold(cur.item_code, cur.count, &delta);
-        let reason = format!("{} #{}:{} {}", if delta.count >= 0 { "DROP" } else { "PICK" }, e.work_id, e.task_id, delta.count);
+        let base = format!("{} #{}:{} {}", if delta.count >= 0 { "DROP" } else { "PICK" }, e.work_id, e.task_id, delta.count);
+        let reason = match prefix {
+            Some(p) => format!("{p}: {base}"),
+            None => base,
+        };
         let h = self.hand(&e.plc_name)?;
         // 이 이동의 이송 지시 — Task 에 달려 있으면 그것, DROP 은 손에 든 화물의 지시, 둘 다 없으면(외부 Task) 새로 연다.
         let mut order = match e.transfer_order_id.as_deref().or(if delta.count > 0 { h.transfer_order_id.as_deref() } else { None }) {
@@ -336,7 +384,7 @@ impl Stock {
         for e in entries {
             let fresh = e.ended_at.as_deref().and_then(crate::ledger::parse_rfc3339).map(|t| (now - t).whole_milliseconds() <= FRESH_FOLD_MS as i128).unwrap_or(false);
             if e.state == TaskState::Completed && fresh && task_delta(&e.plc_task).is_some() {
-                self.apply_locked(e)?;
+                self.apply_locked(e, None)?;
             }
         }
         Ok(())
