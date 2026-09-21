@@ -320,3 +320,18 @@ PARA 슬롯 `p973`.
 를 넣는다 — `issue::compose_from` 과 팔렛 `pallet::compose` 가 같은 값을 쓰므로 옛 "Dist = 0 경고" 는 더 이상
 나오지 않는다. 저장된 기본값의 0 은 migration `0006_console_v2` 가 150 으로 옮긴다. `DragInHeight` · `DragOutHeight` 는
 그대로 0 이면 지정 없음이다.
+
+## MOVE 방식 — `params.move_mode` (2026-09-21)
+
+| move_mode | Z | Avoid | 품목·수량 | GR2 동작 |
+|---|---|---|---|---|
+| `top` (화면 기본) | 9999 | 끔 | 불필요 | Z HomePos 유지 → 대상 XY 로 이동 → 끝 (하강·그립 없음) |
+| `avoid` | 9999 | 켬 | 불필요 | 상단에서 **X 만** 이동, Y 는 지금 위치 유지 (회피) |
+| `stack` (요청에 없을 때) | 바닥 + 스택 높이 + `move_clearance`(기본 500) | 끔 | 선택(없으면 셀 재고 품목) | 그 Z 까지 내려갔다 올라와 끝 |
+
+근거(GR2_PLC): `isValidTaskData` 34행(MOVE ∧ Z=9999 는 Z 범위 검사 면제) · 38행(MOVE 는 G 범위 면제) ·
+85행(MOVE 는 ItemCode 0 허용), `isValidTaskArea` 83행(Avoid 또는 MOVE ∧ Z=9999 면 영역 검사 전체 면제),
+`PL_Task_V2` 299행 `isTaskMove` → 300 스텝 XY 이동 뒤 999(937·958행), Avoid 면 Y = 현재 위치(859–865행).
+`stack` 에서 하강 MOVE 는 400 스텝 FLD 검사(6006)를 받으므로 여유를 너무 작게 잡지 않는다.
+요청에 모드가 없으면 예전과 같은 `stack` 이고, 빈 셀이면 옛 "바닥 + 500" 과 값이 같다(재고가 있으면 그 위로 올라간다).
+`move_mode` · `move_clearance` 는 `TaskParams` 밖의 키라 compose 가 원본 `params` JSON 에서 읽는다(기본값 `by.MOVE.<kind>` 도 가능).

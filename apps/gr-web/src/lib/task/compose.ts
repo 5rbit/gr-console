@@ -5,6 +5,7 @@
 import { PARAM_LABELS } from '../gr/const'
 import { robots } from '../robots'
 import type { Defaults, TargetKind, TaskParams, TaskRequest, TaskType } from '../types'
+import { moveErrors, moveOf, moveParams, sentItem } from './moveMode'
 import type { ComposePreview, Draft } from './types'
 
 export type ParamKey = keyof TaskParams
@@ -55,9 +56,9 @@ export function buildRequest(d: Draft): TaskRequest {
   return {
     type: d.type,
     target: d.target,
-    item_code: d.item_code,
+    item_code: sentItem(d),
     count: Math.max(1, Math.floor(d.count || 1)),
-    params: { ...d.params },
+    params: { ...d.params, ...(d.type === 'MOVE' ? moveParams(moveOf(d)) : {}) },
     position_override: null,
     note: d.note,
     source: null,
@@ -77,6 +78,7 @@ export function validateDraft(d: Draft): string[] {
     out.push(`${d.type}에는 ${d.target.kind === 'station' ? '스테이션' : '셀'}을 쓸 수 없습니다`)
   if (itemRequired(d.type) && d.item_code === null) out.push('품목을 고르세요')
   if (!Number.isFinite(d.count) || d.count < 1 || d.count > 255) out.push('수량은 1..255')
+  if (d.type === 'MOVE') out.push(...moveErrors(moveOf(d)))
   for (const [k, v] of Object.entries(d.params)) {
     if (v === undefined) continue
     if (BOOL_PARAMS.has(k as ParamKey)) {

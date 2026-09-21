@@ -1,4 +1,5 @@
 // 작업 명령 슬라이스 로컬 타입 — 공유 `types.ts`에 없는 응답 모양만 여기 둔다.
+import type { MoveOpts } from './moveMode'
 import type { PlcTask, TaskParams, TaskType, Target } from '../types'
 
 /** `POST /api/cells/push` / `/api/stations/push` 응답 — 쓰기 후 재읽기 검증 결과. */
@@ -133,4 +134,6 @@ export interface Draft {
   station_offset?: boolean
   /** 단수 Max 무시 — `true` 면 요청에 `ignore_stack_max: true`. */
   ignore_stack_max?: boolean
+  /** MOVE 방식(없으면 `top`) — 요청 `params.move_mode`. */
+  move?: MoveOpts | null
 }

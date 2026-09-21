@@ -40,6 +40,9 @@ pub struct Composed {
     /// 켜진 팔렛 프로파일 스테이션 + `pallet` 요청일 때 슬롯·드래그 근거(`pallet::compose`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pallet: Option<crate::pallet::compose::PalletAudit>,
+    /// MOVE 의 모드·Z 근거(`params.move_mode`).
+    #[serde(rename = "move", skip_serializing_if = "Option::is_none")]
+    pub move_audit: Option<MoveAudit>,
 }
 
 /// 셀 단수 Max 검사 결과.
@@ -99,10 +102,66 @@ pub fn enforce_stack_limit(st: &AppState, req: &TaskRequest, task: &TaskData) ->
 const G_MIN: f32 = 200.0;
 /// G = inner diameter minus this clearance.
 const G_CLEARANCE: f32 = 30.0;
-/// MOVE hovers this far above the cell floor.
-const MOVE_CLEARANCE: f32 = 500.0;
+/// MOVE `stack` 모드의 기본 여유 — 스택 윗면(빈 셀이면 바닥) 위 이만큼(옛 "바닥 + 500" 과 같은 값).
+pub const MOVE_CLEARANCE: f32 = 500.0;
+/// GR2 가 "하강 없는 이동" 으로 읽는 Z — `isValidTaskData`(Z 범위 검사 면제) · `isValidTaskArea`(영역 검사
+/// 면제) · `PL_Task_V2` `isTaskMove`(Z HomePos 유지 → XY 이동 → 999, 하강·그립 없음).
+pub const MOVE_TOP_Z: f32 = 9999.0;
 /// Default G for UP / no-item tasks.
 const G_DEFAULT: f32 = 300.0;
+
+/// MOVE 작성 방식 — 요청 `params.move_mode`(없으면 `stack`, 예전 동작).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MoveMode {
+    /// 대상 위로 내려간다: Z = 바닥 + 스택 높이(재고 × 품목) + `move_clearance`. 내려갔다 올라와 끝난다.
+    Stack,
+    /// Z = 9999 — Z 상단(HomePos)을 유지한 채 대상 XY 로만 이동. 품목·수량 불필요.
+    Top,
+    /// `Avoid` 플래그 + Z = 9999 — 상단에서 **X 만** 대상으로(Y 는 지금 위치 유지). 회피용.
+    Avoid,
+}
+
+impl MoveMode {
+    pub fn parse(s: &str) -> Result<MoveMode, ApiError> {
+        Ok(match s.trim().to_ascii_lowercase().as_str() {
+            "" | "stack" | "hover" => MoveMode::Stack,
+            "top" | "position" | "9999" => MoveMode::Top,
+            "avoid" => MoveMode::Avoid,
+            other => return Err(ApiError::BadRequest(format!("unknown move_mode {other} (stack | top | avoid)"))),
+        })
+    }
+}
+
+/// MOVE 작성 근거 — 미리보기가 Z 가 어디서 왔는지 보인다.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct MoveAudit {
+    pub mode: MoveMode,
+    /// 요청에 모드가 없어 기본(`stack`)을 썼다.
+    pub defaulted: bool,
+    /// `stack` 의 여유(mm).
+    pub clearance: f32,
+    /// `stack` 에서 쓴 스택 높이(바닥 위, mm)와 개수 — 모르면 `None`.
+    pub stack_height: Option<f32>,
+    pub stack_count: u32,
+    pub z: f32,
+}
+
+/// `params.move_mode` / `params.move_clearance` — 요청이 먼저, 없으면 기본값 `by[MOVE][kind]`.
+/// `TaskParams` 는 모르는 키를 버리므로 이 둘은 원본 JSON 에서 읽는다(시나리오 스텝 `params` 로도 실린다).
+fn move_options(defaults: &Defaults, kind: &str, req: &Json) -> Result<(MoveMode, bool, f32), ApiError> {
+    let by = defaults.by.get(TaskType::Move.name()).and_then(|m| m.get(kind));
+    let pick = |k: &str| req.get(k).filter(|v| !v.is_null()).or_else(|| by.and_then(|b| b.get(k)).filter(|v| !v.is_null()));
+    let (mode, defaulted) = match pick("move_mode") {
+        Some(v) => (MoveMode::parse(v.as_str().ok_or_else(|| ApiError::BadRequest("move_mode 는 문자열(stack | top | avoid)".into()))?)?, false),
+        None => (MoveMode::Stack, true),
+    };
+    let clearance = match pick("move_clearance") {
+        Some(v) => v.as_f64().filter(|c| c.is_finite() && (0.0..=5000.0).contains(c)).ok_or_else(|| ApiError::BadRequest(format!("move_clearance {v} — 0..5000 mm")))? as f32,
+        None => MOVE_CLEARANCE,
+    };
+    Ok((mode, defaulted, clearance))
+}
 
 pub fn parse_task_type(s: &str) -> Result<TaskType, ApiError> {
     Ok(match s.trim().to_ascii_uppercase().as_str() {
@@ -386,10 +445,17 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
     if params.use_drag_in && params.drag_in_dist == 0 {
         params.drag_in_dist = gr_proto::DEFAULT_DRAG_DIST;
     }
+    // MOVE 모드 — 모드를 정했으면 Avoid 플래그는 모드가 정한다(`avoid` 만 켜고, `stack`·`top` 은 끈다:
+    // Avoid 가 켜져 있으면 PLC 가 하강도 Y 이동도 하지 않는다).
+    let move_opts = if tt == TaskType::Move { Some(move_options(defaults, &kind, &req.params)?) } else { None };
+    if let Some((mode, false, _)) = move_opts {
+        params.avoid = mode == MoveMode::Avoid;
+    }
     params.apply(&mut task);
 
     // Z from the cell stock (n tires already there), G from the inner diameter. The UI can override the whole position.
     let mut stack_z = None;
+    let mut move_audit = None;
     if req.position_override.is_none() && task.cell.id != 0 {
         let c = task.item.count.max(1) as u32;
         let floor = task.cell.position[2];
@@ -419,7 +485,26 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
                 stack_z = Some(z);
                 v
             }
-            TaskType::Move => floor + MOVE_CLEARANCE,
+            TaskType::Move => {
+                let (mode, defaulted, clearance) = move_opts.unwrap_or((MoveMode::Stack, true, MOVE_CLEARANCE));
+                let (z, stack_height) = match mode {
+                    MoveMode::Top | MoveMode::Avoid => (MOVE_TOP_Z, None),
+                    MoveMode::Stack => {
+                        // 스택 윗면 = 아래 n 개(눌림 반영)의 높이 — DROP 이 새 타이어를 얹을 자리와 같다.
+                        let sh = if n == 0 {
+                            Some(0.0)
+                        } else if task.item.height > 0.0 {
+                            Some(stack_z_with(TaskType::Drop, 0.0, &task.item, spec, "mid", n, 1).base)
+                        } else {
+                            warnings.push(format!("cell {} 재고 {n}개인데 품목 높이를 몰라 스택 높이를 뺀 Z 입니다 — top 모드(Z 9999)를 쓰세요", task.cell.id));
+                            None
+                        };
+                        (floor + sh.unwrap_or(0.0) + clearance, sh)
+                    }
+                };
+                move_audit = Some(MoveAudit { mode, defaulted, clearance, stack_height, stack_count: n, z });
+                z
+            }
             TaskType::Up => task.position[2],
         };
         if task.item.inner_diameter > 0.0 {
@@ -444,7 +529,7 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
     if let Some((axis, v)) = ["X", "Y", "Z", "G"].iter().zip(task.position).find(|(_, v)| !v.is_finite() || *v < 0.0) {
         warnings.push(format!("position {axis} = {v} is not a valid coordinate"));
     }
-    Ok(Composed { task, params, warnings, robot: String::new(), plc: String::new(), station_offset: None, stack_z, stack_limit: limit, pallet: None })
+    Ok(Composed { task, params, warnings, robot: String::new(), plc: String::new(), station_offset: None, stack_z, stack_limit: limit, pallet: None, move_audit })
 }
 
 #[cfg(test)]
@@ -563,6 +648,67 @@ mod tests {
         r.position_override = Some([1.0, 2.0, 3.0, 4.0]);
         let c = compose_from(&d, &r, Some(cell()), None, None, None).unwrap();
         assert_eq!(c.task.position, [1.0, 2.0, 3.0, 4.0]);
+    }
+
+    /// MOVE 모드 — 없으면 옛 동작(stack, 빈 셀이면 바닥 + 500), top/avoid 는 Z 9999(GR2 하강 없는 이동).
+    #[test]
+    fn move_modes() {
+        let d = defaults();
+        let mv = |params: Json, item: Option<StockItem>, stock: Option<(u32, u32)>| {
+            let mut r = req("MOVE", "cell");
+            r.item_code = item.as_ref().map(|i| i.code);
+            r.count = 0;
+            r.params = params;
+            compose_from(&d, &r, Some(cell()), item, stock, None)
+        };
+        // 모드 없음: 빈/모르는 셀은 예전과 같은 바닥 + 500, Avoid 는 기본값 그대로
+        let c = mv(json!({}), None, None).unwrap();
+        assert_eq!(c.task.position[2], 1500.0 + MOVE_CLEARANCE);
+        let a = c.move_audit.clone().unwrap();
+        assert_eq!((a.mode, a.defaulted, a.stack_height), (MoveMode::Stack, true, Some(0.0)));
+        assert!(c.warnings.is_empty(), "품목·수량 없는 MOVE 는 경고 없음: {:?}", c.warnings);
+        assert_eq!((c.task.item.code, c.task.item.count), (0, 0));
+        // stack: 재고 5 × 240 위 + 여유 100
+        let c = mv(json!({ "move_mode": "stack", "move_clearance": 100 }), Some(item()), Some((1001, 5))).unwrap();
+        assert_eq!(c.task.position[2], 1500.0 + 5.0 * 240.0 + 100.0);
+        assert_eq!(c.move_audit.as_ref().unwrap().stack_height, Some(1200.0));
+        assert!(!c.task.avoid);
+        // 재고가 있는데 품목 높이를 모르면 경고(스택 높이 없이 계산)
+        let c = mv(json!({ "move_mode": "stack" }), None, Some((0, 3))).unwrap();
+        assert!(c.warnings.iter().any(|w| w.contains("top 모드")), "{:?}", c.warnings);
+        // top: Z 9999, 품목·수량 없어도 경고 없음, Avoid 꺼짐(기본값이 켜 두었어도)
+        let mut da = defaults();
+        da.base.avoid = true;
+        let mut r = req("MOVE", "cell");
+        r.item_code = None;
+        r.count = 0;
+        r.params = json!({ "move_mode": "top" });
+        let c = compose_from(&da, &r, Some(cell()), None, Some((1001, 4)), None).unwrap();
+        assert_eq!(c.task.position[2], MOVE_TOP_Z);
+        assert_eq!((c.task.position[0], c.task.position[1]), (12000.0, 3000.0));
+        assert!(!c.task.avoid && !c.params.avoid);
+        assert!(c.warnings.is_empty(), "{:?}", c.warnings);
+        // avoid: Avoid 켜짐 + Z 9999
+        let c = mv(json!({ "move_mode": "avoid" }), None, None).unwrap();
+        assert_eq!(c.task.position[2], MOVE_TOP_Z);
+        assert!(c.task.avoid);
+        assert_eq!(c.move_audit.unwrap().mode, MoveMode::Avoid);
+        // 기본값 by[MOVE][cell] 로도 정할 수 있고 요청이 이긴다
+        let mut db = defaults();
+        db.by.entry("MOVE".into()).or_default().insert("cell".into(), json!({ "move_mode": "top" }));
+        let mut r = req("MOVE", "cell");
+        r.item_code = None;
+        let c = compose_from(&db, &r, Some(cell()), None, None, None).unwrap();
+        assert_eq!(c.task.position[2], MOVE_TOP_Z);
+        r.params = json!({ "move_mode": "stack" });
+        assert_eq!(compose_from(&db, &r, Some(cell()), None, None, None).unwrap().task.position[2], 1500.0 + MOVE_CLEARANCE);
+        // 잘못된 값은 400, 다른 종류에는 영향 없음
+        assert!(mv(json!({ "move_mode": "fly" }), None, None).is_err());
+        assert!(mv(json!({ "move_clearance": -1 }), None, None).is_err());
+        let mut p = req("PICK", "cell");
+        p.params = json!({ "move_mode": "top" });
+        let c = compose_from(&d, &p, Some(cell()), Some(item()), Some((1001, 5)), None).unwrap();
+        assert!(c.move_audit.is_none() && c.task.position[2] < 9000.0);
     }
 
     /// 바닥 Z 가 음수인 셀(바닥 평탄도 보정) — 경고 없이 작성되고 Z 는 바닥 + 스택 + 그립이다

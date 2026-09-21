@@ -6,7 +6,16 @@
 //   ② 없으면 프로파일에서 파생한 하중 곡선으로: floor + 아래 타이어들의 PressedHeight 합 + grip.
 //   ③ 잰 게 하나도 없으면 grip = mid(H/2). 스칼라 Compression 은 ②·③ 의 아래 타이어 높이에만 쓴다.
 // 되돌리기/다시실행은 계획 배열의 스냅샷 스택이다.
-import { MIN_PITCH, absUpperBead, compressionOf, measuredBead, pickBeadOffset, profileOf, specOf, stackBase } from '../items/levelsModel'
+import {
+  MIN_PITCH,
+  absUpperBead,
+  compressionOf,
+  measuredBead,
+  pickBeadOffset,
+  profileOf,
+  specOf,
+  stackBase,
+} from '../items/levelsModel'
 import type {
   Cell,
   GripRef,
@@ -21,6 +30,8 @@ import type {
   Target,
   TaskRequest,
 } from '../types'
+import { validateDraft } from './compose'
+import { moveOf, moveParams, sentItem, moveZ, type MoveOpts } from './moveMode'
 
 export interface PlanStep {
   id: string
@@ -33,6 +44,8 @@ export interface PlanStep {
   robot?: number | null
   /** 팔렛 슬롯(팔렛 패턴 화면이 싣는다) — compose 가 슬롯 XY·드래그를 정한다. */
   pallet?: PalletRef | null
+  /** MOVE 방식(없으면 화면 기본 `top`) — `toRequest` 가 `params.move_mode` 로 싣는다. */
+  move?: MoveOpts | null
 }
 
 export interface PlanRow extends PlanStep {
@@ -96,7 +109,9 @@ export const GRIP_REFS: readonly { id: GripRef; label: string; title: string }[]
 /** 옛 값(`bead`)·오타를 정본으로 — 백엔드 `spec::normalize_grip_ref` 과 같다. */
 export function normalizeGripRef(ref: string | null | undefined): GripRef {
   const v = (ref ?? '').trim().toLowerCase().replace(/[-+ ]/g, '_')
-  return v === 'bead' || v === 'pick_bead' || v === 'pickbead' || v === 'bead_offset' ? 'pick_bead' : 'mid'
+  return v === 'bead' || v === 'pick_bead' || v === 'pickbead' || v === 'bead_offset'
+    ? 'pick_bead'
+    : 'mid'
 }
 
 /**
@@ -150,7 +165,8 @@ export function planZ(
   c: number,
 ): { z: number; ref: GripRef; source: 'profile' | 'curve' | 'computed' } {
   const h = item?.height ?? 0
-  if (type !== 'PICK' && type !== 'MEASURE' && type !== 'DROP') return { z: floor, ref: 'mid', source: 'computed' }
+  if (type !== 'PICK' && type !== 'MEASURE' && type !== 'DROP')
+    return { z: floor, ref: 'mid', source: 'computed' }
   const spec = item ? specOf(item) : null
   const level = belowCount(type, n, c) + 1
   const above = aboveCount(type, n, c)
@@ -158,10 +174,21 @@ export function planZ(
     const prof = profileOf(spec, level + above)
     const abs = prof ? absUpperBead(prof, level) : null
     if (abs !== null)
-      return { z: floor + Math.max(Math.max(abs, MIN_PITCH) - pickBeadOffset(spec), 0), ref: 'pick_bead', source: 'profile' }
+      return {
+        z: floor + Math.max(Math.max(abs, MIN_PITCH) - pickBeadOffset(spec), 0),
+        ref: 'pick_bead',
+        source: 'profile',
+      }
   }
   const grip = gripOffset(gripRef ?? 'mid', item, above)
-  const bead = spec && item ? measuredBead({ height: h, upper_bead_height: item.upper_bead_height ?? 0, lower_bead_height: 0 }, spec, above) : null
+  const bead =
+    spec && item
+      ? measuredBead(
+          { height: h, upper_bead_height: item.upper_bead_height ?? 0, lower_bead_height: 0 },
+          spec,
+          above,
+        )
+      : null
   return {
     z: stackZ(type, floor, h, n, c, grip, spec ? compressionOf(spec) : 0),
     ref: bead === null ? 'mid' : 'pick_bead',
@@ -262,9 +289,22 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
     const st = cell ? (sim.get(cell.id) ?? { item_code: 0, count: 0 }) : null
     const n = st ? st.count : 0
     let z: number | null = null
-    if (floor !== null && h !== null) z = planZ(s.type, floor, item, ctx.gripRef ?? 'mid', n, s.count).z
-    else if (floor !== null && s.type === 'MOVE') z = floor
-    if (cell) {
+    if (s.type === 'MOVE') {
+      const mv = moveOf(s)
+      // 스택 높이 — 스텝 품목, 없으면 셀 재고의 품목(백엔드도 재고 품목으로 채운다)
+      const stackItem =
+        item ?? (st?.item_code ? ctx.items.find((it) => it.code === st.item_code) : undefined)
+      const sh =
+        n === 0
+          ? 0
+          : stackItem && stackItem.height > 0
+            ? stackBase(stackItem.height, compressionOf(specOf(stackItem)), n, n)
+            : null
+      if (mv.mode === 'stack' && sh === null) warnings.push('스택 높이 모름 — Top 권장')
+      if (floor !== null) z = moveZ(mv, floor, sh)
+    } else if (floor !== null && h !== null)
+      z = planZ(s.type, floor, item, ctx.gripRef ?? 'mid', n, s.count).z
+    if (cell && s.type !== 'MOVE') {
       if ((s.type === 'PICK' || s.type === 'MEASURE') && n === 0) warnings.push('셀 재고 없음')
       else if (s.type === 'PICK' && n < s.count) warnings.push(`재고 ${n} < 수량 ${s.count}`)
       if (n > 0 && st!.item_code && s.item_code !== null && st!.item_code !== s.item_code)
@@ -330,6 +370,34 @@ export function patch(
 }
 
 /** PICK ↔ DROP 토글 (그 외 종류는 PICK 으로). */
+/**
+ * 종류 바꾸기 — MOVE 로 바꿀 때 방식이 없으면 화면 기본(`top`)을 붙인다. 다른 종류로 가도 `move` 는
+ * 남겨 둔다(요청에는 MOVE 일 때만 실린다) — 다시 MOVE 로 오면 고른 방식이 그대로다.
+ */
+export function retype(s: PlanStep, type: TaskType): Partial<Omit<PlanStep, 'id'>> {
+  return type === 'MOVE' ? { type, move: moveOf(s) } : { type }
+}
+
+/** 편집 팝업 검증 — 작성 카드(`validateDraft`)와 같은 규칙 + MOVE·팔렛. 문제가 없으면 빈 배열. */
+export function stepErrors(s: PlanStep): string[] {
+  const out = validateDraft({
+    type: s.type,
+    target: s.target,
+    item_code: s.item_code,
+    count: s.count,
+    params: {},
+    note: s.note,
+    move: s.move,
+  })
+  const p = s.pallet
+  if (p && !p.auto) {
+    if (!Number.isInteger(p.seq) || (p.seq ?? 0) < 1) out.push('Pallet Seq: 1 이상의 정수')
+    if (!Number.isInteger(p.level) || (p.level ?? 0) < 1) out.push('Pallet Level: 1 이상의 정수')
+  }
+  if (p && s.target.kind !== 'station') out.push('Pallet 은 스테이션 대상에만')
+  return out
+}
+
 export function toggleType(steps: readonly PlanStep[], id: string): PlanStep[] {
   return steps.map((s) => (s.id === id ? { ...s, type: s.type === 'PICK' ? 'DROP' : 'PICK' } : s))
 }
@@ -369,9 +437,9 @@ export function toRequest(s: PlanStep, fallback: number | null = null): TaskRequ
   return {
     type: s.type,
     target: s.target,
-    item_code: s.item_code,
+    item_code: sentItem(s),
     count: Math.max(1, s.count),
-    params: {},
+    params: s.type === 'MOVE' ? moveParams(moveOf(s)) : {},
     position_override: null,
     note: s.note,
     source: null,
@@ -390,9 +458,9 @@ export function toScenario(
     label: `${i + 1}. ${s.type} ${s.target.kind === 'cell' ? 'Cell' : 'Station'} #${s.target.id}`,
     type: s.type,
     target: s.target,
-    item_code: s.item_code,
+    item_code: sentItem(s),
     count: Math.max(1, s.count),
-    params: {},
+    params: s.type === 'MOVE' ? moveParams(moveOf(s)) : {},
     wait_for: 'completed',
     wait_after_ms: 0,
     on_failure: 'stop',

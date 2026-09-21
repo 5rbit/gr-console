@@ -25,6 +25,15 @@ import {
   validateDraft,
 } from '../../lib/task/compose'
 import type { ComposePreview, Draft } from '../../lib/task/types'
+import {
+  MOVE_CLEARANCE_DEFAULT,
+  MOVE_MODES,
+  moveOf,
+  moveUsesItem,
+  sentItem,
+} from '../../lib/task/moveMode'
+import { Field } from '../../lib/ui/Field'
+import { Segmented } from '../../lib/ui/Segmented'
 import { Button } from '../../lib/ui/Button'
 import { Card } from '../../lib/ui/Card'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
@@ -40,6 +49,7 @@ import type {
   Gate,
   GripRef,
   Item,
+  MoveMode,
   Station,
   Target,
   Task,
@@ -49,7 +59,7 @@ import type {
 import { gripLabel } from '../../lib/task/plan'
 import { f1 } from '../../lib/meas/format'
 import { ItemPicker } from '../shared/ItemPicker'
-import { TargetPicker } from '../shared/TargetPicker'
+import { TargetPicker, stockItemFor } from '../shared/TargetPicker'
 import { TaskParamFields } from '../shared/TaskParamFields'
 import { AckBanner, type AckPhase } from './AckBanner'
 import { PositionPreview } from './PositionPreview'
@@ -119,6 +129,8 @@ export function ComposeCard({
     [defaults, draft.type, kind],
   )
   const overrideCount = Object.keys(draft.params).length
+  const isMove = draft.type === 'MOVE'
+  const mv = moveOf(draft)
   // 미리보기가 백엔드에서 온 대상 이름을 들고 있으면 그것이 진실이다 — 작성 뒤에 사이드바 선택이
   // 바뀌었어도 확인 창은 **이 요청이 실제로 갈 곳**을 말한다.
   const targetRobot =
@@ -188,11 +200,15 @@ export function ComposeCard({
     try {
       const t = await api.taskCreate(request, true)
       setAck({ task: t, phase: t.ack || TERMINAL.has(t.state) ? 'done' : 'waiting' })
-      toast.info(withRobotChip(targetRobot, `#${t.seq} 제출됨 — Work ${t.work_id} / Task ${t.task_id}`))
+      toast.info(
+        withRobotChip(targetRobot, `#${t.seq} 제출됨 — Work ${t.work_id} / Task ${t.task_id}`),
+      )
       if (!(t.ack || TERMINAL.has(t.state))) watchAck(t)
     } catch (e) {
       // 거부 사유는 백엔드가 이미 `GR1: …` 으로 내지만, 그러지 못한 오류(네트워크 등)도 대상을 말한다.
-      toast.error(robotFailure(targetRobot.name, '제출 실패', e instanceof Error ? e.message : String(e)))
+      toast.error(
+        robotFailure(targetRobot.name, '제출 실패', e instanceof Error ? e.message : String(e)),
+      )
     } finally {
       setSubmitting(false)
     }
@@ -215,18 +231,20 @@ export function ComposeCard({
               </option>
             ))}
           </Select>
-          <Input
-            label="Count"
-            type="number"
-            mono
-            min={1}
-            max={255}
-            step="1"
-            className="w-20"
-            value={String(draft.count)}
-            onValueChange={(s) => set({ count: Number(s) })}
-            data-testid="compose-count"
-          />
+          {isMove ? null : (
+            <Input
+              label="Count"
+              type="number"
+              mono
+              min={1}
+              max={255}
+              step="1"
+              className="w-20"
+              value={String(draft.count)}
+              onValueChange={(s) => set({ count: Number(s) })}
+              data-testid="compose-count"
+            />
+          )}
           <Input
             label="Note"
             className="min-w-40 flex-1"
@@ -236,15 +254,55 @@ export function ComposeCard({
           />
         </div>
 
+        {isMove ? (
+          <div className="flex flex-wrap items-end gap-2">
+            <Field label="MoveMode">
+              <Segmented<MoveMode>
+                ariaLabel="MoveMode"
+                value={mv.mode}
+                onChange={(mode) => set({ move: { ...mv, mode } })}
+                options={MOVE_MODES.map((m) => ({ ...m, testid: `compose-move-${m.id}` }))}
+              />
+            </Field>
+            {mv.mode === 'stack' ? (
+              <Input
+                label="Clearance (mm)"
+                type="number"
+                mono
+                min={0}
+                step="1"
+                className="w-28"
+                value={
+                  mv.clearance === null || mv.clearance === undefined ? '' : String(mv.clearance)
+                }
+                placeholder={String(MOVE_CLEARANCE_DEFAULT)}
+                onValueChange={(s) =>
+                  set({ move: { ...mv, clearance: s.trim() === '' ? null : Number(s) } })
+                }
+                data-testid="compose-clearance"
+              />
+            ) : null}
+            <span className="pb-2">
+              <HelpTip
+                title="MoveMode"
+                text="Top: Z 9999 — 상단에서 XY 이동만. Avoid: Z 9999 + Avoid — X 만 이동(Y 유지). Stack: 스택 윗면 + Clearance 까지 내려갔다 올라옴."
+              />
+            </span>
+          </div>
+        ) : null}
+
         <TargetPicker
           value={draft.target}
-          onChange={(target) => set({ target })}
+          onChange={(target) =>
+            setDraft((d) => ({ ...d, target, item_code: d.item_code ?? stockItemFor(target) }))
+          }
           cells={cells}
           stations={stations}
+          items={items}
           kinds={kinds}
         />
 
-        <div className="flex flex-wrap items-end gap-2">
+        <div className={isMove && !moveUsesItem(mv) ? 'hidden' : 'flex flex-wrap items-end gap-2'}>
           <ItemPicker
             value={draft.item_code}
             onChange={(item_code) => set({ item_code })}
@@ -411,7 +469,12 @@ export function ComposeCard({
             labelWidth={72}
             items={[
               robotField(targetRobot, '대상 로봇'),
-              { label: '종류', value: draft.type },
+              {
+                label: '종류',
+                value: isMove
+                  ? `MOVE · ${MOVE_MODES.find((m) => m.id === mv.mode)?.label ?? mv.mode}`
+                  : draft.type,
+              },
               {
                 label: '대상',
                 value: draft.target
@@ -421,7 +484,7 @@ export function ComposeCard({
               },
               {
                 label: '품목',
-                value: draft.item_code !== null ? `${draft.item_code} × ${draft.count}` : '',
+                value: sentItem(draft) !== null ? `${draft.item_code} × ${draft.count}` : '',
                 missing: '품목 없음',
               },
               ...(preview

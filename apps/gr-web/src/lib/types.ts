@@ -396,6 +396,12 @@ export interface Target {
   id: number
 }
 
+/** MOVE 작성 방식 — 요청 `params.move_mode`(백엔드 `issue::MoveMode`). stack = 스택 윗면 + 여유까지 하강, top = Z 9999(상단 유지 XY 이동), avoid = Avoid + Z 9999(상단에서 X 만). */
+export type MoveMode = 'stack' | 'top' | 'avoid'
+
+/** 작업 요청 `params` — 튜닝 값(부분) + MOVE 옵션(`TaskParams` 밖의 키라 백엔드가 원본 JSON 에서 읽는다). */
+export type TaskRequestParams = Partial<TaskParams> & { move_mode?: MoveMode; move_clearance?: number }
+
 export interface TaskParams {
   lift_up_height: number
   grip_height: number
@@ -491,7 +497,7 @@ export interface TaskRequest {
   target: Target | null
   item_code: number | null
   count: number
-  params: Partial<TaskParams>
+  params: TaskRequestParams
   position_override: [number, number, number, number] | null
   note: string
   source: { scenario_id: string; run_id: string; iteration: number; step_index: number } | null
@@ -548,6 +554,10 @@ export interface TaskQuery {
   robot?: number
   state?: TaskState[] | 'active' | 'terminal'
   type?: TaskType
+  /** 출처 — 콘솔·시나리오·외부(PLC 에서 처음 본 Task). */
+  origin?: Task['origin']
+  /** RFC 3339 — `created_at` 하한. */
+  since?: string
   q?: string
   limit?: number
   offset?: number
@@ -576,7 +586,7 @@ export interface ScenarioStep {
   target: Target | null
   item_code: number | null
   count: number
-  params: Partial<TaskParams>
+  params: TaskRequestParams
   wait_for: 'accepted' | 'completed'
   wait_after_ms: number
   on_failure: 'stop' | 'skip' | 'retry'

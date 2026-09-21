@@ -7,7 +7,7 @@
 // 껍데기가 둘이면 머리띠도 둘이다. 모드를 카드 머리줄로 들여 한 줄을 없앴다.
 // 그립 기준·되돌리기·다시실행·비우기는 ⋯ 로, 시나리오 이름은 저장 팝업으로 내렸다.
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ListOrdered, Play, Save, Send, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ListOrdered, Pencil, Play, Save, Send, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import { taskDataRows } from '../../lib/gr/plcShape'
 import { nav } from '../../lib/nav'
@@ -22,6 +22,7 @@ import {
   patch,
   planRows,
   remove,
+  retype,
   toRequest,
   toScenario,
   type PlanRow,
@@ -35,6 +36,7 @@ import { FormDialog } from '../../lib/ui/Dialog'
 import { FieldList } from '../../lib/ui/FieldList'
 import { Input } from '../../lib/ui/Input'
 import { f1 } from '../../lib/meas/format'
+import { itemLabel } from '../../lib/items/model'
 import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
 import type { Column } from '../../lib/ui/table'
@@ -47,6 +49,8 @@ import {
   type RobotChipModel,
 } from '../../lib/robotContext'
 import { RobotChip, robotField } from '../shared/RobotChip'
+import { MOVE_MODES, moveOf, moveUsesItem, sentItem } from '../../lib/task/moveMode'
+import { PlanStepDialog } from './PlanStepDialog'
 import { useStore } from '../../lib/store'
 import type { Cell, Gate, GripRef, Item, Station, StockEntry, TaskType } from '../../lib/types'
 import { cn } from '../../lib/utils'
@@ -96,6 +100,12 @@ function StepPreview({ row }: { row: PlanRow }) {
       ) : null}
     </>
   )
+}
+
+/** MOVE 방식의 짧은 이름(Top · Avoid · Stack). */
+function moveLabel(s: PlanStep): string {
+  const m = moveOf(s).mode
+  return MOVE_MODES.find((x) => x.id === m)?.label ?? m
 }
 
 /** 이 카드의 두 모드. 전에는 카드 밖 토글 + 카드 둘이었다 — 한 작업면의 두 모드로 합쳤다. */
@@ -158,6 +168,8 @@ export function PlanCard({
   const [confirmClear, setConfirmClear] = useState(false)
   const [busy, setBusy] = useState(false)
   const [focus, setFocus] = useState<string | null>(null)
+  const [editing, setEditing] = useState<string | null>(null)
+  const editRow = editing ? (rows.find((r) => r.id === editing) ?? null) : null
   const warnCount = rows.reduce((a, r) => a + r.warnings.length, 0)
   const first = rows[0] ?? null
   // 스텝이 제 로봇을 들고 있으면 그 호기로 간다 — 확인 창은 **실제로 갈 곳**을 말해야 한다.
@@ -195,19 +207,26 @@ export function PlanCard({
       sortable: false,
       priority: 1,
       cell: (r) => (
-        <Select
-          dense
-          className="w-auto"
-          value={r.type}
-          onValueChange={(v) => onChange(patch(steps, r.id, { type: v as TaskType }))}
-          aria-label="Type"
-        >
-          {TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </Select>
+        <span className="flex items-center gap-1">
+          <Select
+            dense
+            className="w-auto"
+            value={r.type}
+            onValueChange={(v) => onChange(patch(steps, r.id, retype(r, v as TaskType)))}
+            aria-label="Type"
+          >
+            {TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </Select>
+          {r.type === 'MOVE' ? (
+            <span className="text-3xs text-content-muted" data-testid={`plan-move-${r.no}`}>
+              {moveLabel(r)}
+            </span>
+          ) : null}
+        </span>
       ),
     },
     {
@@ -254,23 +273,26 @@ export function PlanCard({
       label: 'ItemCode',
       sortable: false,
       priority: 2,
-      cell: (r) => (
-        <Select
-          dense
-          value={r.item_code === null ? '' : String(r.item_code)}
-          onValueChange={(v) =>
-            onChange(patch(steps, r.id, { item_code: v === '' ? null : Number(v) }))
-          }
-          aria-label="ItemCode"
-        >
-          <option value="">(없음)</option>
-          {items.map((it) => (
-            <option key={it.code} value={String(it.code)}>
-              {it.code}
-            </option>
-          ))}
-        </Select>
-      ),
+      cell: (r) =>
+        r.type === 'MOVE' && !moveUsesItem(moveOf(r)) ? (
+          <span className="text-content-faint">-</span>
+        ) : (
+          <Select
+            dense
+            value={r.item_code === null ? '' : String(r.item_code)}
+            onValueChange={(v) =>
+              onChange(patch(steps, r.id, { item_code: v === '' ? null : Number(v) }))
+            }
+            aria-label="ItemCode"
+          >
+            <option value="">(없음)</option>
+            {items.map((it) => (
+              <option key={it.code} value={String(it.code)}>
+                {itemLabel(it)}
+              </option>
+            ))}
+          </Select>
+        ),
     },
     {
       key: 'count',
@@ -278,20 +300,25 @@ export function PlanCard({
       sortable: false,
       numeric: true,
       priority: 1,
-      cell: (r) => (
-        <Input
-          dense
-          type="number"
-          mono
-          min={1}
-          max={20}
-          step="1"
-          className="w-14"
-          value={String(r.count)}
-          onValueChange={(s) => onChange(patch(steps, r.id, { count: Math.max(1, Number(s) || 1) }))}
-          aria-label="Count"
-        />
-      ),
+      cell: (r) =>
+        r.type === 'MOVE' ? (
+          <span className="text-content-faint">-</span>
+        ) : (
+          <Input
+            dense
+            type="number"
+            mono
+            min={1}
+            max={20}
+            step="1"
+            className="w-14"
+            value={String(r.count)}
+            onValueChange={(s) =>
+              onChange(patch(steps, r.id, { count: Math.max(1, Number(s) || 1) }))
+            }
+            aria-label="Count"
+          />
+        ),
     },
     {
       key: 'stock',
@@ -367,7 +394,8 @@ export function PlanCard({
     try {
       const t = await api.taskCreate(toRequest(first, robots.selected), true)
       // 스텝이 제 로봇을 들고 있으면(계획 표의 Robot 열) 그쪽, 아니면 카드 대상.
-      const who = first.robot === null || first.robot === undefined ? robot : robots.chipOf(first.robot)
+      const who =
+        first.robot === null || first.robot === undefined ? robot : robots.chipOf(first.robot)
       toast.info(
         withRobotChip(
           who,
@@ -376,7 +404,9 @@ export function PlanCard({
       )
       onChange(remove(steps, first.id))
     } catch (e) {
-      toast.error(robotFailure(nextRobot.name, '제출 실패', e instanceof Error ? e.message : String(e)))
+      toast.error(
+        robotFailure(nextRobot.name, '제출 실패', e instanceof Error ? e.message : String(e)),
+      )
     } finally {
       setBusy(false)
     }
@@ -476,6 +506,17 @@ export function PlanCard({
             rowDetail={(r) => <StepPreview row={r} />}
             actions={(r) => (
               <>
+                <Button
+                  size="icon-sm"
+                  intent="ghost"
+                  icon={<Pencil className="h-3.5 w-3.5" />}
+                  title="편집"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setEditing(r.id)
+                  }}
+                  data-testid={`plan-edit-${r.no}`}
+                />
                 <Button
                   size="icon-sm"
                   intent="ghost"
@@ -588,6 +629,20 @@ export function PlanCard({
         />
       </FormDialog>
 
+      {editRow ? (
+        <PlanStepDialog
+          key={editRow.id}
+          step={steps.find((s) => s.id === editRow.id) ?? editRow}
+          no={editRow.no}
+          onClose={() => setEditing(null)}
+          onApply={(next) => onChange(patch(steps, next.id, next))}
+          cells={cells}
+          stations={stations}
+          items={items}
+          robot={robot}
+        />
+      ) : null}
+
       <ConfirmDialog
         open={confirmNext}
         onOpenChange={setConfirmNext}
@@ -607,14 +662,17 @@ export function PlanCard({
               labelWidth={72}
               items={[
                 robotField(nextRobot, '대상 로봇'),
-                { label: '종류', value: first.type },
+                {
+                  label: '종류',
+                  value: first.type === 'MOVE' ? `MOVE · ${moveLabel(first)}` : first.type,
+                },
                 {
                   label: '대상',
                   value: `${first.target.kind === 'cell' ? 'Cell' : 'Station'} #${first.target.id}`,
                 },
                 {
                   label: '품목',
-                  value: first.item_code !== null ? `${first.item_code} × ${first.count}` : '',
+                  value: sentItem(first) !== null ? `${first.item_code} × ${first.count}` : '',
                   missing: '품목 없음',
                 },
                 {
