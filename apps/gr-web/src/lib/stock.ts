@@ -2,11 +2,12 @@
 import { api } from './api'
 import { stockFeed } from './feeds'
 import { Store } from './store'
-import type { HandEntry, StockEntry, StockEvent } from './types'
+import type { HandEntry, StockEntry, StockEvent, SyncIssue } from './types'
 
 class StockStore extends Store {
   #map = new Map<number, StockEntry>()
   #hands = new Map<string, HandEntry>()
+  #sync = new Map<string, SyncIssue[]>()
   #ready = false
   #refs = 0
   #release: (() => void) | null = null
@@ -29,6 +30,10 @@ class StockStore extends Store {
   get hands(): ReadonlyMap<string, HandEntry> {
     return this.#hands
   }
+  /** 로봇(상태 PLC 이름)의 동기화 경고 — PLC 실제 상태와 Hand · 이송 지시가 어긋남. */
+  syncIssues(plc: string): readonly SyncIssue[] {
+    return this.#sync.get(plc) ?? []
+  }
   /** 첫 스냅샷을 받았는가. */
   get ready(): boolean {
     return this.#ready
@@ -38,6 +43,9 @@ class StockStore extends Store {
     if (ev.kind === 'snapshot') {
       this.#map = new Map(ev.stock.map((s) => [s.cell_id, s]))
       this.#ready = true
+    } else if (ev.kind === 'sync') {
+      this.#sync = new Map(this.#sync)
+      this.#sync.set(ev.plc, ev.issues)
     } else if (ev.kind === 'hand') {
       this.#hands = new Map(this.#hands)
       this.#hands.set(ev.hand.plc, ev.hand)
@@ -64,6 +72,15 @@ class StockStore extends Store {
           const m = new Map(this.#hands)
           for (const h of hs) if (!m.has(h.plc)) m.set(h.plc, h)
           this.#hands = m
+          this.notify()
+        })
+        .catch(() => {})
+      void api
+        .stockSync()
+        .then((rs) => {
+          const m = new Map(this.#sync)
+          for (const r of rs) if (!m.has(r.plc)) m.set(r.plc, r.issues)
+          this.#sync = m
           this.notify()
         })
         .catch(() => {})

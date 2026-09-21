@@ -33,7 +33,9 @@ import type {
   Station,
   StationUpsert,
   StatusEvent,
+  HandEntry,
   HandView,
+  SyncIssue,
   StockEntry,
   StockProjected,
   TransferOrder,
@@ -347,6 +349,14 @@ export const api = {
   stockHands: () => getJson<HandView[]>('/api/stock/hands'),
   /** 진행 중 PICK/DROP 을 반영한 셀 재고·Hand */
   stockProjected: () => getJson<StockProjected>('/api/stock/projected'),
+  /** 로봇별 동기화 경고 */
+  stockSync: () =>
+    getJson<{ robot: number; robot_name: string; plc: string; issues: SyncIssue[] }[]>(
+      '/api/stock/sync',
+    ),
+  /** 동기화 경고를 한 번에 고친다(콘솔 DB 만) */
+  stockSyncResolve: (robot: number, action: string) =>
+    postJson<HandEntry>(`/api/stock/sync/${robot}/resolve`, { action }),
   /** 이송 지시 목록(최신 먼저) */
   transferOrders: (
     q: { robot?: number | null; state?: string; cell?: number; limit?: number } = {},

@@ -16,6 +16,7 @@ import type {
   TaskType,
 } from '../types'
 import { PARAM_LABELS, TASK_TYPES } from '../gr/const'
+import { pairIssuesOf } from '../task/plan'
 
 export interface ValidationIssue {
   /** `null` = 시나리오 수준(이름·스텝 없음). */
@@ -203,22 +204,10 @@ export function validateScenario(
       )
         push('params', `'${k}' 값 형식 오류`)
     }
-    // PICK/DROP 은 늘 한 짝(백엔드 `validate_pairs`) — PICK 바로 다음은 같은 로봇·품목·수량의 DROP.
-    if (st.type === 'PICK') {
-      const n = s.steps[i + 1]
-      if (!n) push('type', 'PICK 뒤에 짝 DROP 이 없음')
-      else if (n.type !== 'DROP')
-        push('type', `PICK 바로 다음은 짝 DROP — 스텝 ${i + 2} 이 ${n.type}`)
-      else if ((n.robot ?? null) !== (st.robot ?? null))
-        push('type', `짝 DROP(스텝 ${i + 2})의 로봇이 다름`)
-      else if (st.item_code !== null && n.item_code !== null && st.item_code !== n.item_code)
-        push('type', `짝 DROP(스텝 ${i + 2}) 품목 ${n.item_code} ≠ ${st.item_code}`)
-      else if (n.count !== st.count)
-        push('type', `짝 DROP(스텝 ${i + 2}) 수량 ${n.count} ≠ ${st.count}`)
-    } else if (st.type === 'DROP' && s.steps[i - 1]?.type !== 'PICK') {
-      push('type', 'DROP 바로 앞에 짝 PICK 이 없음')
-    }
   })
+  // PICK/DROP 짝(백엔드 `validate_pairs`) — 같은 로봇의 다음 스텝이 짝 DROP. 다른 로봇 스텝은 사이에 와도 된다.
+  for (const p of pairIssuesOf(s.steps))
+    out.push({ step_index: p.index, field: 'type', message: p.message })
   return out
 }
 

@@ -235,11 +235,21 @@ describe('plan', () => {
     ).toEqual([])
     const gap = pairIssues([st('a', 'PICK', 7), st('m', 'MOVE', null), st('b', 'DROP', 7)])
     expect(gap.map((p) => p.no)).toEqual([1, 3])
+    // 다른 로봇의 스텝(회피 MOVE · 다른 짝)은 사이에 와도 된다
+    expect(
+      pairIssues([
+        st('a', 'PICK', 7, 1, 1),
+        st('m', 'MOVE', null, 1, 2),
+        st('c', 'PICK', 8, 1, 2),
+        st('b', 'DROP', 7, 1, 1),
+        st('d', 'DROP', 8, 1, 2),
+      ]),
+    ).toEqual([])
     expect(pairIssues([st('a', 'PICK', 7), st('b', 'DROP', 8)])[0].message).toContain('품목 8')
     expect(pairIssues([st('a', 'PICK', 7, 2), st('b', 'DROP', 7, 1)])[0].message).toContain('수량')
-    expect(pairIssues([st('a', 'PICK', 7), st('b', 'DROP', 7, 1, 2)], 1)[0].message).toContain(
-      '로봇',
-    )
+    expect(pairIssues([st('a', 'PICK', 7), st('b', 'DROP', 7, 1, 2)], 1).map((p) => p.no)).toEqual([
+      1, 2,
+    ])
     expect(pairIssues([st('a', 'PICK', 7), st('b', 'DROP', 7, 1, 2)], 2)).toEqual([])
     expect(pairIssues([st('a', 'PICK', 7)])[0].message).toContain('짝 DROP')
     // 짝 위반은 행 경고로도 선다

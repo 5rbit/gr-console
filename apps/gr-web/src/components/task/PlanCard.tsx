@@ -63,8 +63,10 @@ import type {
   Item,
   Station,
   StockEntry,
+  SyncIssue,
   TaskType,
 } from '../../lib/types'
+import { SyncIssuesDialog } from './SyncIssuesDialog'
 import { cn } from '../../lib/utils'
 
 const TYPES: TaskType[] = ['PICK', 'DROP', 'MEASURE', 'MOVE']
@@ -151,6 +153,8 @@ export interface PlanCardProps {
   hand?: { item_code: number; count: number } | null
   /** 지금 Hand(표 값) — 머리줄에 품목 × 개수와 이송 지시를 보인다. */
   handNow?: HandEntry | null
+  /** 이 로봇의 동기화 경고(PLC 실제 상태 vs Hand · 이송 지시). */
+  sync?: readonly SyncIssue[]
 }
 
 export function PlanCard({
@@ -174,7 +178,9 @@ export function PlanCard({
   single,
   hand = null,
   handNow = null,
+  sync = [],
 }: PlanCardProps) {
+  const [syncOpen, setSyncOpen] = useState(false)
   useStore(robots)
   const runRobot = robots.selected
   const rows = useMemo(
@@ -522,6 +528,18 @@ export function PlanCard({
         >
           Hand: {handNow && handNow.count > 0 ? `${handNow.item_code} ×${handNow.count}` : '–'}
         </span>
+        {sync.length ? (
+          <Button
+            size="sm"
+            intent="outline"
+            className="text-warn-fg"
+            title={sync.map((i) => i.message).join(' · ')}
+            onClick={() => setSyncOpen(true)}
+            data-testid="plan-sync"
+          >
+            동기화 {sync.length}
+          </Button>
+        ) : null}
         {/* 이 카드가 만드는 명령은 전부 이 호기로 간다 — 놓칠 수 없는 자리(머리줄 오른쪽)에 늘 선다. */}
         <RobotChip
           chip={robot}
@@ -721,6 +739,13 @@ export function PlanCard({
         />
       ) : null}
 
+      <SyncIssuesDialog
+        open={syncOpen}
+        onOpenChange={setSyncOpen}
+        robot={robot}
+        robotId={runRobot}
+        issues={sync}
+      />
       <ConfirmDialog
         open={confirmNext}
         onOpenChange={setConfirmNext}

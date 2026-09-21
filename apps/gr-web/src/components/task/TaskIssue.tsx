@@ -483,6 +483,7 @@ export default function TaskIssue() {
                 stockNow={stockPlan}
                 hand={projected?.hands.find((h) => h.robot === robots.selected) ?? null}
                 handNow={robots.current ? stockStore.hand(robots.current.plc) : null}
+                sync={robots.current ? stockStore.syncIssues(robots.current.plc) : []}
                 gate={gate}
                 robot={chip}
                 onFocus={(s) => {

@@ -914,6 +914,18 @@ export type StockEvent =
   | { kind: 'upsert'; entry: StockEntry; reason: string }
   | { kind: 'remove'; cell_id: number }
   | { kind: 'hand'; hand: HandEntry; reason: string }
+  | { kind: 'sync'; plc: string; issues: SyncIssue[] }
+
+/** 로봇 실제 상태(PLC HoldItem · 링)와 콘솔 Hand · 이송 지시의 불일치(`stock/sync.rs`). */
+export interface SyncIssue {
+  code: 'hand_stale' | 'plc_holds' | 'sensor_mismatch' | 'task_lost' | string
+  message: string
+  transfer_order_id: string | null
+  /** 한 번에 고치는 동작 — `clear_hand` · `adopt_plc`(콘솔 DB 만 고친다) */
+  actions: string[]
+  candidate?: [number, number]
+  since: string
+}
 
 /** 로봇 그리퍼에 든 화물(PICK 완료로 들어오고 DROP 완료로 나간다). `plc` = 로봇 상태 PLC. */
 export interface HandEntry {

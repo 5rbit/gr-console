@@ -40,6 +40,7 @@ import {
   stepSummary,
 } from '../../lib/scenario/model'
 import { RunDialog } from './RunDialog'
+import { TaskActions } from '../taskmgr/TaskActions'
 
 export interface ScenarioRunnerProps {
   /** 편집 중인(저장된) 시나리오 — 실행 대상. */
@@ -497,6 +498,11 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
           empty="기록 없음"
           emptyHint="이번 실행에서 끝난 스텝이 아직 없습니다."
           testid="run-log"
+          // 스텝별 취소 — 이미 로봇 대기열에 들어간(미리 넣은) Task 를 여기서 지운다. 짝(PICK/DROP)은 확인 창이 말한다.
+          actions={(r) => {
+            const t = r.task_id ? live(r.task_id) : null
+            return t ? <TaskActions task={t} row only={['cancel']} testid="run-row-action" /> : null
+          }}
         />
       </Dialog>
 

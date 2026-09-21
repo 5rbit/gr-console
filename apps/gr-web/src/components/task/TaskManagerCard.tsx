@@ -44,6 +44,7 @@ import { RobotChip } from '../shared/RobotChip'
 import TaskDetail, { TASK_DETAIL_PANEL } from '../taskmgr/TaskDetail'
 import { StateCell } from '../taskmgr/TaskTable'
 import { TransferOrdersDialog } from './TransferOrdersDialog'
+import { TaskActions } from '../taskmgr/TaskActions'
 
 const LIMIT = 20
 const VIEW_KEY = 'gr-issue-tm-view'
@@ -237,6 +238,12 @@ export function TaskManagerCard() {
         emptyDense
         empty={view === 'live' ? '진행 중인 Task 없음' : '종결된 Task 없음'}
         testid={view === 'live' ? 'tm-live-table' : 'tm-history-table'}
+        // 진행 중 Task 는 여기서 바로 취소(로봇 대기열에서 삭제) — 확인 창이 로봇과 짝(PICK/DROP)을 말한다.
+        actions={
+          view === 'live'
+            ? (t) => <TaskActions task={t} row only={['cancel']} testid="tm-row-action" />
+            : undefined
+        }
       />
 
       {view === 'history' ? (

@@ -20,6 +20,7 @@ import {
   allowedActions,
   cascadeAfter,
   isTerminal,
+  pairCancel,
   dimsLabel,
   isRobotAction,
   targetOf,
@@ -119,7 +120,10 @@ function identity(task: Task, robot: RobotChipModel): FieldItem[] {
   return [
     // 첫 줄이 로봇이다 — 이 Task 의 주인(원장 PLC)이지 사이드바 선택이 아니다.
     robotField(robot, 'Robot'),
-    { label: 'TaskType', value: typeName(task.plc_task?.TaskType) || req?.type?.toUpperCase() || null },
+    {
+      label: 'TaskType',
+      value: typeName(task.plc_task?.TaskType) || req?.type?.toUpperCase() || null,
+    },
     { label: 'Target', value: t ? `${t.kind === 'station' ? 'Station' : 'Cell'} ${t.id}` : null },
     {
       label: 'Item',
@@ -165,16 +169,18 @@ export function TaskActions({
   // 넘침 메뉴 — 버튼으로 서지 않은 조작. 상태가 허용하지 않는 것도 **사유를 달아 남긴다**
   // (회색으로 침묵하는 대신 왜 안 되는지 말한다 — DESIGN.md 4절 ⑥).
   // 행 모드에서는 `overflow` 를 무시한다 — 자리 규칙(위 `overflow` 주석)이 코드에서도 한 번 더 막는다.
-  const rest: MenuItem[] = overflow && !row
-    ? ALL_ACTIONS.filter((a) => !actions.includes(a)).map((a) => ({
-        label: ACTION_LABEL[a],
-        danger: DANGER.has(a),
-        disabled: allowed.includes(a) ? undefined : whyNot(a, task.state),
-        run: () => setPending(a),
-      }))
-    : []
+  const rest: MenuItem[] =
+    overflow && !row
+      ? ALL_ACTIONS.filter((a) => !actions.includes(a)).map((a) => ({
+          label: ACTION_LABEL[a],
+          danger: DANGER.has(a),
+          disabled: allowed.includes(a) ? undefined : whyNot(a, task.state),
+          run: () => setPending(a),
+        }))
+      : []
   if (actions.length === 0 && rest.length === 0) return null
   const tail = pending === 'cancel' && task.state !== 'draft' ? cascadeAfter(tasks.list, task) : []
+  const pair = pending === 'cancel' ? pairCancel(tasks.list, task) : null
 
   const run = async (a: TaskAction) => {
     setBusy(a)
@@ -243,6 +249,17 @@ export function TaskActions({
               같은 WorkId의 뒤 Task {tail.length}건도 함께 취소됩니다 —{' '}
               {tail.map((t) => `#${t.seq}(TaskId ${t.task_id})`).join(' · ')}
             </p>
+          ) : null}
+          {pair && pair.with.length > 0 ? (
+            <span className="mt-3 block text-warn-fg" data-testid="pair-cancel-note">
+              PICK/DROP 짝 — {pair.with.map((t) => `#${t.seq}`).join(' · ')} 도 함께 취소됩니다
+              (이송 지시 {task.transfer_order_id} 중단)
+            </span>
+          ) : null}
+          {pair?.warning ? (
+            <span className="mt-3 block text-warn-fg" data-testid="pair-cancel-warning">
+              {pair.warning}
+            </span>
           ) : null}
           {pending === 'fail' ? (
             <Input

@@ -293,27 +293,51 @@ export interface PairIssue {
 }
 
 /**
- * PICK/DROP 은 늘 한 짝 — PICK 바로 다음 스텝은 같은 로봇·품목·수량의 DROP, DROP 바로 앞은 그 PICK.
- * MOVE/MEASURE 는 짝과 짝 사이에만 선다. 위반이 있으면 실행하지 않는다(백엔드도 시작 때 거부).
+ * PICK/DROP 은 늘 한 짝 — 한 로봇의 PICK 다음 **그 로봇의 다음 스텝**은 같은 품목·수량의 DROP 이고, DROP 앞의 그 로봇
+ * 스텝은 짝 PICK 이다. 다른 로봇의 스텝(충돌 회피 MOVE · 대기)은 짝 사이에 와도 된다. 위반이 있으면 실행하지 않는다
+ * (백엔드 `scenario::io::validate_pairs` 도 시작 때 거부).
  */
 export function pairIssues(
   steps: readonly PlanStep[],
   runRobot: number | null = null,
 ): PairIssue[] {
-  const out: PairIssue[] = []
-  const robotOf = (s: PlanStep) => s.robot ?? runRobot
+  return pairIssuesOf(
+    steps.map((s) => ({
+      type: s.type,
+      robot: s.robot ?? runRobot,
+      item_code: s.item_code,
+      count: s.count,
+    })),
+  ).map((p) => ({ id: steps[p.index].id, no: p.index + 1, message: p.message }))
+}
+
+/** 짝 검사 본체 — 계획 표와 시나리오 편집이 같이 쓴다. `robot` 은 이미 실행 로봇으로 채운 값. */
+export function pairIssuesOf(
+  steps: readonly {
+    type: TaskType
+    robot?: number | null
+    item_code: number | null
+    count: number
+  }[],
+): { index: number; message: string }[] {
+  const out: { index: number; message: string }[] = []
+  const same = (a: number, b: number) => (steps[a].robot ?? null) === (steps[b].robot ?? null)
   steps.forEach((s, i) => {
-    const push = (message: string) => out.push({ id: s.id, no: i + 1, message })
+    const push = (message: string) => out.push({ index: i, message })
     if (s.type === 'PICK') {
-      const n = steps[i + 1]
-      if (!n) push('PICK 뒤에 짝 DROP 이 없음')
-      else if (n.type !== 'DROP') push(`PICK 바로 다음은 짝 DROP — 스텝 ${i + 2} 이 ${n.type}`)
-      else if (robotOf(n) !== robotOf(s)) push(`짝 DROP(스텝 ${i + 2})의 로봇이 다름`)
+      let j = i + 1
+      while (j < steps.length && !same(i, j)) j++
+      const n = steps[j]
+      if (!n) push('PICK 뒤에 같은 로봇의 짝 DROP 이 없음')
+      else if (n.type !== 'DROP')
+        push(`PICK 다음 같은 로봇 스텝은 짝 DROP — 스텝 ${j + 1} 이 ${n.type}`)
       else if (s.item_code !== null && n.item_code !== null && s.item_code !== n.item_code)
-        push(`짝 DROP(스텝 ${i + 2}) 품목 ${n.item_code} ≠ ${s.item_code}`)
-      else if (n.count !== s.count) push(`짝 DROP(스텝 ${i + 2}) 수량 ${n.count} ≠ ${s.count}`)
-    } else if (s.type === 'DROP' && steps[i - 1]?.type !== 'PICK') {
-      push('DROP 바로 앞에 짝 PICK 이 없음')
+        push(`짝 DROP(스텝 ${j + 1}) 품목 ${n.item_code} ≠ ${s.item_code}`)
+      else if (n.count !== s.count) push(`짝 DROP(스텝 ${j + 1}) 수량 ${n.count} ≠ ${s.count}`)
+    } else if (s.type === 'DROP') {
+      let p = i - 1
+      while (p >= 0 && !same(i, p)) p--
+      if (p < 0 || steps[p].type !== 'PICK') push('DROP 앞의 같은 로봇 스텝이 짝 PICK 이 아님')
     }
   })
   return out
