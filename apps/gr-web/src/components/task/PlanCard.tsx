@@ -19,6 +19,7 @@ import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
 import {
   GRIP_REFS,
   move,
+  pairIssues,
   patch,
   planRows,
   remove,
@@ -54,7 +55,16 @@ import { RobotChip, robotField } from '../shared/RobotChip'
 import { MOVE_MODES, moveOf, moveUsesItem, sentItem } from '../../lib/task/moveMode'
 import { PlanStepDialog } from './PlanStepDialog'
 import { useStore } from '../../lib/store'
-import type { Cell, Gate, GripRef, Item, Station, StockEntry, TaskType } from '../../lib/types'
+import type {
+  Cell,
+  Gate,
+  GripRef,
+  HandEntry,
+  Item,
+  Station,
+  StockEntry,
+  TaskType,
+} from '../../lib/types'
 import { cn } from '../../lib/utils'
 
 const TYPES: TaskType[] = ['PICK', 'DROP', 'MEASURE', 'MOVE']
@@ -137,6 +147,10 @@ export interface PlanCardProps {
   robot: RobotChipModel
   /** 단일 명령 모드의 내용(작성 카드). */
   single?: ReactNode
+  /** 계획 시작 때의 예상 Hand(진행 중 PICK/DROP 반영) — 표의 "들고 있음" 출발점. */
+  hand?: { item_code: number; count: number } | null
+  /** 지금 Hand(표 값) — 머리줄에 품목 × 개수와 이송 지시를 보인다. */
+  handNow?: HandEntry | null
 }
 
 export function PlanCard({
@@ -158,12 +172,23 @@ export function PlanCard({
   onModeChange,
   robot,
   single,
+  hand = null,
+  handNow = null,
 }: PlanCardProps) {
   useStore(robots)
+  const runRobot = robots.selected
   const rows = useMemo(
-    () => planRows(steps, { cells, stations, items, stockNow, gripRef }),
-    [steps, cells, stations, items, stockNow, gripRef],
+    () => planRows(steps, { cells, stations, items, stockNow, gripRef, robot: runRobot, hand }),
+    [steps, cells, stations, items, stockNow, gripRef, runRobot, hand],
   )
+  // PICK/DROP 짝이 어긋난 계획은 실행하지 않는다(백엔드도 시작 때 거부) — 저장은 된다.
+  const pairs = useMemo(() => pairIssues(steps, runRobot), [steps, runRobot])
+  const pairBlock = pairs.length
+    ? `PICK/DROP 짝 — ${pairs
+        .slice(0, 3)
+        .map((p) => `스텝 ${p.no}: ${p.message}`)
+        .join(' · ')}${pairs.length > 3 ? ` 외 ${pairs.length - 3}건` : ''}`
+    : undefined
   const [name, setName] = useState('')
   const [saveOpen, setSaveOpen] = useState(false)
   const [confirmNext, setConfirmNext] = useState(false)
@@ -482,6 +507,21 @@ export function PlanCard({
             : '한 건 작성 → 제출'}
         </span>
         <span className="flex-1" />
+        {/* 그리퍼에 든 화물 — PICK/DROP 짝 사이(또는 DROP 이 취소돼 남은) 타이어. */}
+        <span
+          className={cn(
+            'text-2xs whitespace-nowrap',
+            handNow && handNow.count > 0 ? 'text-content-secondary' : 'text-content-faint',
+          )}
+          title={
+            handNow && handNow.count > 0
+              ? `그리퍼에 든 화물${handNow.transfer_order_id ? ` — 이송 지시 ${handNow.transfer_order_id}` : ''}`
+              : '그리퍼 비어 있음'
+          }
+          data-testid="plan-hand"
+        >
+          Hand: {handNow && handNow.count > 0 ? `${handNow.item_code} ×${handNow.count}` : '–'}
+        </span>
         {/* 이 카드가 만드는 명령은 전부 이 호기로 간다 — 놓칠 수 없는 자리(머리줄 오른쪽)에 늘 선다. */}
         <RobotChip
           chip={robot}
@@ -585,9 +625,9 @@ export function PlanCard({
             checked={preQueue}
             onCheckedChange={setPreQueue}
             title={
-              '켜면 시나리오 실행 때 스텝마다 GR 접수까지만 기다리고 다음 스텝을 버퍼(4칸)에 미리 넣습니다. ' +
+              '켜면 시나리오 실행 때 앞 Task 가 실행에 들어가면 다음 1건을 미리 넣습니다(실행 중 + 다음 1건, 나머지는 예정). ' +
               'Z 는 진행 중 Task 를 반영한 예상 재고로 작성되고, 앞 Task 가 실패·취소되면 실행이 멈춥니다. ' +
-              '끄면 스텝마다 완료를 기다립니다.'
+              'PICK/DROP 짝 사이에서는 멈추지 않고, 마지막 Task 가 완료돼야 실행이 끝납니다. 끄면 스텝마다 완료를 기다립니다.'
             }
             testid="plan-prequeue"
           />
@@ -596,12 +636,14 @@ export function PlanCard({
             size="sm"
             intent="primary"
             icon={<Send className="h-3.5 w-3.5" />}
-            disabled={!first || busy || !gate?.can_submit}
+            disabled={!first || busy || !gate?.can_submit || first.type === 'PICK'}
             title={
-              !gate?.can_submit
-                ? // 비활성은 침묵하지 않고 **누가 왜** 막았는지 말한다.
-                  (gate?.reasons.join(' · ') ?? withRobotChip(robot, '게이트 확인 중'))
-                : `첫 스텝만 지금 ${robotLabel(nextRobot)} 로 제출`
+              first?.type === 'PICK'
+                ? 'PICK 은 DROP 과 짝으로만 보냅니다 — 시나리오로 저장 → 저장 후 실행'
+                : !gate?.can_submit
+                  ? // 비활성은 침묵하지 않고 **누가 왜** 막았는지 말한다.
+                    (gate?.reasons.join(' · ') ?? withRobotChip(robot, '게이트 확인 중'))
+                  : `첫 스텝만 지금 ${robotLabel(nextRobot)} 로 제출`
             }
             onClick={() => setConfirmNext(true)}
             data-testid="plan-next"
@@ -632,8 +674,10 @@ export function PlanCard({
             size="sm"
             intent="outline"
             icon={<Play className="h-3.5 w-3.5" />}
-            disabled={!steps.length || busy}
-            title={steps.length ? '저장한 뒤 바로 실행합니다' : '계획이 비어 있습니다'}
+            disabled={!steps.length || busy || pairs.length > 0}
+            title={
+              pairBlock ?? (steps.length ? '저장한 뒤 바로 실행합니다' : '계획이 비어 있습니다')
+            }
             onClick={() => {
               setSaveOpen(false)
               void saveScenario(true)
@@ -656,7 +700,10 @@ export function PlanCard({
           columns={1}
           dense
           labelWidth={72}
-          items={[{ label: '실행 방식', value: preQueueLabel(preQueue) }]}
+          items={[
+            { label: '실행 방식', value: preQueueLabel(preQueue) },
+            ...(pairBlock ? [{ label: '실행 불가', value: pairBlock }] : []),
+          ]}
         />
       </FormDialog>
 

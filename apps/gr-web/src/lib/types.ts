@@ -400,7 +400,10 @@ export interface Target {
 export type MoveMode = 'stack' | 'top' | 'avoid'
 
 /** 작업 요청 `params` — 튜닝 값(부분) + MOVE 옵션(`TaskParams` 밖의 키라 백엔드가 원본 JSON 에서 읽는다). */
-export type TaskRequestParams = Partial<TaskParams> & { move_mode?: MoveMode; move_clearance?: number }
+export type TaskRequestParams = Partial<TaskParams> & {
+  move_mode?: MoveMode
+  move_clearance?: number
+}
 
 export interface TaskParams {
   lift_up_height: number
@@ -511,6 +514,8 @@ export interface TaskRequest {
   ignore_stack_max?: boolean
   /** 팔렛 슬롯 — 켜진 팔렛 프로파일이 있는 스테이션 대상에만(백엔드 `pallet::compose::PalletRef`). */
   pallet?: PalletRef | null
+  /** 이송 지시(PICK/DROP 한 짝) — 실행기가 단다. */
+  transfer_order_id?: string | null
 }
 
 /** `{seq, level}`(1-based) 또는 `{auto: true}`(스테이션 재고로 다음 슬롯). */
@@ -541,6 +546,8 @@ export interface Task {
   plc: { step: number; queue_index: number | null; last_seen_at: string } | null
   error: string | null
   history: TaskTransition[]
+  /** 이송 지시(PICK/DROP 한 짝, `TO-YYMMDD-NNNN`) */
+  transfer_order_id?: string | null
 }
 
 export interface TaskPage {
@@ -906,6 +913,77 @@ export type StockEvent =
   | { kind: 'snapshot'; stock: StockEntry[] }
   | { kind: 'upsert'; entry: StockEntry; reason: string }
   | { kind: 'remove'; cell_id: number }
+  | { kind: 'hand'; hand: HandEntry; reason: string }
+
+/** 로봇 그리퍼에 든 화물(PICK 완료로 들어오고 DROP 완료로 나간다). `plc` = 로봇 상태 PLC. */
+export interface HandEntry {
+  plc: string
+  item_code: number
+  count: number
+  transfer_order_id?: string | null
+  updated_at: string
+}
+
+/** `GET /api/stock/hands` 한 줄 — 표 값 + 진행 중 PICK/DROP 을 반영한 예상 값. */
+export interface HandView extends HandEntry {
+  robot: number
+  robot_name: string
+  projected: { item_code: number; count: number }
+  pending: number
+  lost: number
+}
+
+/** `GET /api/stock/projected` — 셀 재고 + Hand 에 진행 중 PICK/DROP 을 접은 값(계획 표의 출발점). */
+export interface StockProjected {
+  cells: StockEntry[]
+  hands: { plc: string; robot: number | null; item_code: number; count: number }[]
+}
+
+export type TransferOrderState =
+  'planned' | 'picking' | 'in_hand' | 'dropping' | 'done' | 'failed' | 'aborted'
+
+/** 이송 지시 — PICK/DROP 한 짝(`stock::transfer`). */
+export interface TransferOrder {
+  id: string
+  seq: number
+  robot: number | null
+  plc: string
+  item_code: number
+  count: number
+  from: Target | null
+  to: Target | null
+  pick_task: string | null
+  drop_task: string | null
+  pick_state: TaskState | null
+  drop_state: TaskState | null
+  state: TransferOrderState
+  source: string
+  note: string
+  created_at: string
+  updated_at: string
+  ended_at: string | null
+  history: { at: string; from: TransferOrderState | null; to: TransferOrderState; note: string }[]
+}
+
+export interface StockChange {
+  id: number
+  at: string
+  kind: 'cell' | 'hand'
+  key: string
+  item_before: number
+  count_before: number
+  item_after: number
+  count_after: number
+  reason: string
+  task_id: string | null
+  transfer_order_id: string | null
+}
+
+export interface TransferOrderDetail {
+  order: TransferOrder
+  tasks: Task[]
+  stock_changes: StockChange[]
+}
 
 /** `GET /api/stock/z` — 지금 재고 기준으로 백엔드가 쓸 Z */
 export interface StockZ {

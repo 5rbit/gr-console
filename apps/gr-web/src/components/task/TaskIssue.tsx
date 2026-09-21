@@ -16,6 +16,7 @@ import { robots } from '../../lib/robots'
 import { gateFor, robotLabel, withRobot } from '../../lib/robotContext'
 import { RobotChip } from '../shared/RobotChip'
 import { stock as stockStore } from '../../lib/stock'
+import { tasks as taskStore } from '../../lib/tasks'
 import { useStore } from '../../lib/store'
 import type { PreviewCell } from '../../lib/task/layoutGen'
 import type { Shape } from '../../lib/task/layoutModel'
@@ -40,6 +41,8 @@ import type {
   GripRef,
   Item,
   Station,
+  StockEntry,
+  StockProjected,
   Target,
   TaskType,
 } from '../../lib/types'
@@ -88,7 +91,15 @@ function persist(key: string, v: string) {
  * 밀어냈다. 게이트는 **제출 버튼을 누를 수 있나**를 말하는 한 비트라 색 하나면 충분하다 —
  * 막힌 사유는 손이 멈췄을 때(툴팁) 읽고, 제출 버튼 자신도 같은 이유로 잠긴다.
  */
-function GateChip({ gate, error, robot }: { gate: Gate | null; error: string | null; robot: string }) {
+function GateChip({
+  gate,
+  error,
+  robot,
+}: {
+  gate: Gate | null
+  error: string | null
+  robot: string
+}) {
   const tone = error
     ? 'border-warn bg-warn-soft text-warn-fg'
     : !gate
@@ -135,9 +146,32 @@ export default function TaskIssue() {
   const items = useRegistry<Item>(api.items)
   const cells = useRegistry<Cell>(api.cells)
   const stations = useRegistry<Station>(api.stations)
-  useStore(stockStore, robots)
+  useStore(stockStore, robots, taskStore)
   useEffect(() => stockStore.start(), [])
   useEffect(() => robots.start(), [])
+  useEffect(() => taskStore.start(), [])
+  // 계획 표의 출발점 = **예상** 재고(진행 중 PICK/DROP 반영, Hand 포함) — 제출 때 백엔드가 쓰는 값과 같다.
+  // 재고가 바뀌거나 진행 중 Task 의 상태가 바뀌면 다시 읽는다.
+  const activeKey = taskStore.active.map((t) => `${t.id}:${t.state}`).join(',')
+  const [projected, setProjected] = useState<StockProjected | null>(null)
+  useEffect(() => {
+    let live = true
+    api
+      .stockProjected()
+      .then((p) => {
+        if (live) setProjected(p)
+      })
+      .catch(() => {
+        if (live) setProjected(null)
+      })
+    return () => {
+      live = false
+    }
+  }, [stockStore.map, stockStore.hands, activeKey])
+  const stockPlan = useMemo<ReadonlyMap<number, StockEntry>>(
+    () => (projected ? new Map(projected.cells.map((c) => [c.cell_id, c])) : stockStore.map),
+    [projected, stockStore.map],
+  )
   // 게이트·제출·계획 스텝이 모두 **이 하나**를 본다. 화면 어디도 다른 호기를 겨냥하지 않는다.
   const robot = robots.selected
   const chip = robots.chip
@@ -436,47 +470,49 @@ export default function TaskIssue() {
             />
           ) : (
             <>
-            <PlanCard
-              steps={plan}
-              onChange={setPlan}
-              canUndo={hist.past.length > 0}
-              canRedo={hist.future.length > 0}
-              onUndo={doUndo}
-              onRedo={doRedo}
-              cells={cells.items}
-              stations={stations.items}
-              items={items.items}
-              stockNow={stockStore.map}
-              gate={gate}
-              robot={chip}
-              onFocus={(s) => {
-                setFocusStep(s)
-                if (s) {
-                  setFocus({ target: s.target, nonce: Date.now() })
-                  pickTarget(s.target)
+              <PlanCard
+                steps={plan}
+                onChange={setPlan}
+                canUndo={hist.past.length > 0}
+                canRedo={hist.future.length > 0}
+                onUndo={doUndo}
+                onRedo={doRedo}
+                cells={cells.items}
+                stations={stations.items}
+                items={items.items}
+                stockNow={stockPlan}
+                hand={projected?.hands.find((h) => h.robot === robots.selected) ?? null}
+                handNow={robots.current ? stockStore.hand(robots.current.plc) : null}
+                gate={gate}
+                robot={chip}
+                onFocus={(s) => {
+                  setFocusStep(s)
+                  if (s) {
+                    setFocus({ target: s.target, nonce: Date.now() })
+                    pickTarget(s.target)
+                  }
+                }}
+                gripRef={gripRef}
+                onGripRefChange={(g) => void setGripRef(g)}
+                mode={side}
+                onModeChange={setSide}
+                single={
+                  <ComposeCard
+                    chrome={false}
+                    items={items.items}
+                    cells={cells.items}
+                    stations={stations.items}
+                    defaults={defaults}
+                    gate={gate}
+                    robot={chip}
+                    onOpenDefaults={() => setDefaultsOpen(true)}
+                    pickedTarget={picked}
+                    onTargetChange={onComposeTarget}
+                  />
                 }
-              }}
-              gripRef={gripRef}
-              onGripRefChange={(g) => void setGripRef(g)}
-              mode={side}
-              onModeChange={setSide}
-              single={
-                <ComposeCard
-                  chrome={false}
-                  items={items.items}
-                  cells={cells.items}
-                  stations={stations.items}
-                  defaults={defaults}
-                  gate={gate}
-                  robot={chip}
-                  onOpenDefaults={() => setDefaultsOpen(true)}
-                  pickedTarget={picked}
-                  onTargetChange={onComposeTarget}
-                />
-              }
-            />
-            {/* 작업 카드 아래 — Task Manager 원장(진행 · 히스토리), 고른 로봇 것만. */}
-            <TaskManagerCard />
+              />
+              {/* 작업 카드 아래 — Task Manager 원장(진행 · 히스토리), 고른 로봇 것만. */}
+              <TaskManagerCard />
             </>
           )}
         </section>

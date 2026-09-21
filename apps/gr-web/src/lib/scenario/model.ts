@@ -12,6 +12,7 @@ import type {
   Station,
   StepResult,
   TaskParams,
+  TaskState,
   TaskType,
 } from '../types'
 import { PARAM_LABELS, TASK_TYPES } from '../gr/const'
@@ -123,7 +124,11 @@ export function toUpsert(s: Scenario): ScenarioUpsert {
     name: s.name,
     description: s.description,
     repeat: s.repeat,
-    steps: s.steps.map((st) => ({ ...st, target: st.target ? { ...st.target } : null, params: { ...st.params } })),
+    steps: s.steps.map((st) => ({
+      ...st,
+      target: st.target ? { ...st.target } : null,
+      params: { ...st.params },
+    })),
   }
 }
 
@@ -145,7 +150,8 @@ export function paramCount(step: ScenarioStep): number {
 /** 한 줄 요약 — "PICK Cell#101 ×2 · 1001". */
 export function stepSummary(step: ScenarioStep): string {
   const parts: string[] = [step.type]
-  if (step.target) parts.push(`${TARGET_KIND_LABEL[step.target.kind] ?? step.target.kind}#${step.target.id}`)
+  if (step.target)
+    parts.push(`${TARGET_KIND_LABEL[step.target.kind] ?? step.target.kind}#${step.target.id}`)
   if (step.count > 1) parts.push(`×${step.count}`)
   if (step.item_code !== null) parts.push(`· ${step.item_code}`)
   return parts.join(' ')
@@ -158,7 +164,10 @@ export interface RegistryLists {
 }
 
 /** 로컬 검증 — 백엔드 `validate`와 같은 규칙. 레지스트리 목록이 비어 있으면(아직 안 받음) 참조 검사는 건너뛴다. */
-export function validateScenario(s: ScenarioUpsert, reg?: Partial<RegistryLists>): ValidationIssue[] {
+export function validateScenario(
+  s: ScenarioUpsert,
+  reg?: Partial<RegistryLists>,
+): ValidationIssue[] {
   const out: ValidationIssue[] = []
   if (!s.name.trim()) out.push({ step_index: null, field: 'name', message: '이름이 비어 있음' })
   if (s.steps.length === 0) out.push({ step_index: null, field: 'steps', message: '스텝이 없음' })
@@ -170,7 +179,8 @@ export function validateScenario(s: ScenarioUpsert, reg?: Partial<RegistryLists>
     if (!TASK_TYPES.includes(st.type)) push('type', `알 수 없는 작업 종류 '${st.type}'`)
     if (!Number.isInteger(st.count) || st.count < 1) push('count', '수량은 1 이상')
     else if (st.count > 255) push('count', '수량은 255 이하')
-    if (NEEDS_ITEM.has(st.type) && st.item_code === null) push('item_code', `${st.type}에는 품목이 필요`)
+    if (NEEDS_ITEM.has(st.type) && st.item_code === null)
+      push('item_code', `${st.type}에는 품목이 필요`)
     if (st.item_code !== null && items && !items.has(st.item_code))
       push('item_code', `품목 ${st.item_code} 이(가) 레지스트리에 없음`)
     if (!st.target) {
@@ -184,14 +194,83 @@ export function validateScenario(s: ScenarioUpsert, reg?: Partial<RegistryLists>
       else if (st.target.kind === 'station' && stations && !stations.has(st.target.id))
         push('target', `스테이션 ${st.target.id} 이(가) 레지스트리에 없음`)
     }
-    if (!Number.isInteger(st.wait_after_ms) || st.wait_after_ms < 0) push('wait_after_ms', '대기 시간은 0 이상')
+    if (!Number.isInteger(st.wait_after_ms) || st.wait_after_ms < 0)
+      push('wait_after_ms', '대기 시간은 0 이상')
     for (const [k, v] of Object.entries(st.params)) {
       if (!PARAM_KEYS.has(k)) push('params', `알 수 없는 파라미터 '${k}'`)
-      else if (BOOL_PARAM_KEYS.has(k as keyof TaskParams) ? typeof v !== 'boolean' : typeof v !== 'number')
+      else if (
+        BOOL_PARAM_KEYS.has(k as keyof TaskParams) ? typeof v !== 'boolean' : typeof v !== 'number'
+      )
         push('params', `'${k}' 값 형식 오류`)
+    }
+    // PICK/DROP 은 늘 한 짝(백엔드 `validate_pairs`) — PICK 바로 다음은 같은 로봇·품목·수량의 DROP.
+    if (st.type === 'PICK') {
+      const n = s.steps[i + 1]
+      if (!n) push('type', 'PICK 뒤에 짝 DROP 이 없음')
+      else if (n.type !== 'DROP')
+        push('type', `PICK 바로 다음은 짝 DROP — 스텝 ${i + 2} 이 ${n.type}`)
+      else if ((n.robot ?? null) !== (st.robot ?? null))
+        push('type', `짝 DROP(스텝 ${i + 2})의 로봇이 다름`)
+      else if (st.item_code !== null && n.item_code !== null && st.item_code !== n.item_code)
+        push('type', `짝 DROP(스텝 ${i + 2}) 품목 ${n.item_code} ≠ ${st.item_code}`)
+      else if (n.count !== st.count)
+        push('type', `짝 DROP(스텝 ${i + 2}) 수량 ${n.count} ≠ ${st.count}`)
+    } else if (st.type === 'DROP' && s.steps[i - 1]?.type !== 'PICK') {
+      push('type', 'DROP 바로 앞에 짝 PICK 이 없음')
     }
   })
   return out
+}
+
+/** 실행 화면의 스텝 상태 — 아직 안 보낸 스텝은 **예정**. */
+export type StepPhase = '예정' | '제출됨' | '실행 중' | '완료' | '실패'
+
+export function phaseOf(state: TaskState | null | undefined): StepPhase {
+  switch (state) {
+    case 'submitted':
+    case 'accepted':
+    case 'queued':
+      return '제출됨'
+    case 'running':
+      return '실행 중'
+    case 'completed':
+      return '완료'
+    case 'rejected':
+    case 'failed':
+    case 'canceled':
+    case 'lost':
+      return '실패'
+    default:
+      return '예정'
+  }
+}
+
+/**
+ * 이번 회차 스텝별 상태 — 각 스텝의 마지막 결과가 가리키는 Task 의 **지금** 상태(`live`, 없으면 결과 때 상태).
+ * 결과가 없으면 예정, Task 없이 끝난 결과(작성·제출 실패)는 실패.
+ */
+export function stepPhases(
+  stepCount: number,
+  iteration: number,
+  results: readonly StepResultView[],
+  live: (taskId: string) => TaskState | null | undefined,
+): StepPhase[] {
+  const out: StepPhase[] = Array.from({ length: stepCount }, () => '예정')
+  for (const r of results) {
+    if (r.iteration !== iteration || r.step_index < 0 || r.step_index >= stepCount) continue
+    out[r.step_index] = r.task_id ? phaseOf(live(r.task_id) ?? r.state) : '실패'
+  }
+  return out
+}
+
+/** "완료 3 · 실행 중 1 · 예정 4" — 0 인 것은 뺀다. */
+export function phaseSummary(phases: readonly StepPhase[]): string {
+  const order: StepPhase[] = ['완료', '실행 중', '제출됨', '예정', '실패']
+  return order
+    .map((p) => [p, phases.filter((x) => x === p).length] as const)
+    .filter(([, n]) => n > 0)
+    .map(([p, n]) => `${p} ${n}`)
+    .join(' · ')
 }
 
 /** 검증 결과를 (스텝, 필드) → 메시지로 — 그리드가 칸을 붉게 칠할 때 쓴다. */

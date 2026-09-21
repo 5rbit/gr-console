@@ -33,7 +33,11 @@ import type {
   Station,
   StationUpsert,
   StatusEvent,
+  HandView,
   StockEntry,
+  StockProjected,
+  TransferOrder,
+  TransferOrderDetail,
   StockZ,
   Task,
   TaskPage,
@@ -339,6 +343,19 @@ export const api = {
     putJson<StockEntry>(`/api/stock/${cell}`, body),
   stockDelete: (cell: number) => del(`/api/stock/${cell}`),
   stockClear: () => postJson<{ removed: number }>('/api/stock/clear'),
+  /** 로봇별 Hand(표 + 예상) */
+  stockHands: () => getJson<HandView[]>('/api/stock/hands'),
+  /** 진행 중 PICK/DROP 을 반영한 셀 재고·Hand */
+  stockProjected: () => getJson<StockProjected>('/api/stock/projected'),
+  /** 이송 지시 목록(최신 먼저) */
+  transferOrders: (
+    q: { robot?: number | null; state?: string; cell?: number; limit?: number } = {},
+  ) =>
+    getJson<{ items: TransferOrder[]; total: number }>(
+      `/api/transfer-orders${qs({ robot: q.robot ?? undefined, state: q.state, cell: q.cell, limit: q.limit })}`,
+    ),
+  transferOrder: (id: string) =>
+    getJson<TransferOrderDetail>(`/api/transfer-orders/${encodeURIComponent(id)}`),
   stockZ: (type: TaskType, cell: number, item?: number | null, count = 1) =>
     getJson<StockZ>(`/api/stock/z${qs({ type, cell, item: item ?? undefined, count })}`),
 

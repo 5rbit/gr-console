@@ -18,6 +18,7 @@ import {
   redo,
   simulateStock,
   foldStock,
+  pairIssues,
   stackZ,
   stepForClick,
   toScenario,
@@ -96,7 +97,13 @@ describe('plan', () => {
       const above = 5 - k
       let bottom = 0
       for (let j = 1; j < k; j++) bottom += 240 - 8 * (5 - j)
-      return { level: k, lower_bead: bottom + 20, upper_bead: bottom + 220 - 8 * above, stack_height: k === 5 ? 1120 : null, source: 'measured' as const }
+      return {
+        level: k,
+        lower_bead: bottom + 20,
+        upper_bead: bottom + 220 - 8 * above,
+        stack_height: k === 5 ? 1120 : null,
+        source: 'measured' as const,
+      }
     })
     const bead = {
       ...item(1003, 240),
@@ -105,7 +112,17 @@ describe('plan', () => {
         ...DEFAULT_SPEC,
         stack_max: 5,
         compression: 8,
-        profiles: [{ count: 5, rows: profRows, total_height: 1120, each_height: 224, sample_plc: 'GR2', sample_seq: 7, at: 't' }],
+        profiles: [
+          {
+            count: 5,
+            rows: profRows,
+            total_height: 1120,
+            each_height: 224,
+            sample_plc: 'GR2',
+            sample_seq: 7,
+            at: 't',
+          },
+        ],
       },
     } as Item
     // 한 번에 c 개를 집으면 잡는 타이어 위에 c−1 개가 얹혀 있다(DROP 은 0)
@@ -119,14 +136,38 @@ describe('plan', () => {
     expect(gripOffset('bead', bead, 4)).toBe(158)
     // 한 번도 안 잰 품목·하중은 mid(H/2)
     expect(gripOffset('pick_bead', item(1001, 240), 0)).toBe(120)
-    expect(gripOffset('pick_bead', { ...bead, spec: { ...DEFAULT_SPEC, stack_max: 5, compression: 8 } } as Item, 0)).toBe(120)
+    expect(
+      gripOffset(
+        'pick_bead',
+        { ...bead, spec: { ...DEFAULT_SPEC, stack_max: 5, compression: 8 } } as Item,
+        0,
+      ),
+    ).toBe(120)
     // 그 크기를 통째로 잰 프로파일이 있으면 절대값을 그대로 쓴다(환산·합산 없음)
-    expect(planZ('PICK', 1500, bead, 'pick_bead', 5, 1)).toEqual({ z: 1500 + 1100 - 30, ref: 'pick_bead', source: 'profile' })
-    expect(planZ('PICK', 1500, bead, 'pick_bead', 5, 5)).toEqual({ z: 1500 + 188 - 30, ref: 'pick_bead', source: 'profile' })
+    expect(planZ('PICK', 1500, bead, 'pick_bead', 5, 1)).toEqual({
+      z: 1500 + 1100 - 30,
+      ref: 'pick_bead',
+      source: 'profile',
+    })
+    expect(planZ('PICK', 1500, bead, 'pick_bead', 5, 5)).toEqual({
+      z: 1500 + 188 - 30,
+      ref: 'pick_bead',
+      source: 'profile',
+    })
     // 잰 적 없는 크기는 곡선으로 환산, 잰 게 없으면 mid
-    expect(planZ('PICK', 1500, bead, 'pick_bead', 3, 1)).toMatchObject({ source: 'curve', ref: 'pick_bead' })
-    expect(planZ('PICK', 1500, item(1001, 240), 'pick_bead', 3, 1)).toMatchObject({ source: 'computed', ref: 'mid' })
-    expect(planZ('MOVE', 1500, bead, 'pick_bead', 3, 1)).toEqual({ z: 1500, ref: 'mid', source: 'computed' })
+    expect(planZ('PICK', 1500, bead, 'pick_bead', 3, 1)).toMatchObject({
+      source: 'curve',
+      ref: 'pick_bead',
+    })
+    expect(planZ('PICK', 1500, item(1001, 240), 'pick_bead', 3, 1)).toMatchObject({
+      source: 'computed',
+      ref: 'mid',
+    })
+    expect(planZ('MOVE', 1500, bead, 'pick_bead', 3, 1)).toEqual({
+      z: 1500,
+      ref: 'mid',
+      source: 'computed',
+    })
     // 눌림은 아래 스택 높이에도 먹는다 — 백엔드 stack_z_with 과 같은 수
     expect(stackZ('PICK', 1500, 240, 5, 1, 190, 8)).toBe(1500 + 880 + 190)
     expect(stackZ('DROP', 1500, 240, 5, 1, 190, 8)).toBe(1500 + 1120 + 190)
@@ -166,6 +207,69 @@ describe('plan', () => {
     const sim = simulateStock(steps, stock)
     expect(sim.get(101)?.count).toBe(2)
     expect(sim.get(102)?.count).toBe(0)
+  })
+
+  it('pairIssues: PICK must be followed by its DROP (same robot, item, count)', () => {
+    const st = (
+      id: string,
+      type: PlanStep['type'],
+      item: number | null,
+      count = 1,
+      robot?: number,
+    ): PlanStep => ({
+      id,
+      type,
+      target: { kind: 'cell', id: 101 },
+      item_code: item,
+      count,
+      note: '',
+      robot,
+    })
+    expect(
+      pairIssues([
+        st('m', 'MOVE', null),
+        st('a', 'PICK', 7, 2),
+        st('b', 'DROP', 7, 2),
+        st('c', 'MEASURE', 7),
+      ]),
+    ).toEqual([])
+    const gap = pairIssues([st('a', 'PICK', 7), st('m', 'MOVE', null), st('b', 'DROP', 7)])
+    expect(gap.map((p) => p.no)).toEqual([1, 3])
+    expect(pairIssues([st('a', 'PICK', 7), st('b', 'DROP', 8)])[0].message).toContain('품목 8')
+    expect(pairIssues([st('a', 'PICK', 7, 2), st('b', 'DROP', 7, 1)])[0].message).toContain('수량')
+    expect(pairIssues([st('a', 'PICK', 7), st('b', 'DROP', 7, 1, 2)], 1)[0].message).toContain(
+      '로봇',
+    )
+    expect(pairIssues([st('a', 'PICK', 7), st('b', 'DROP', 7, 1, 2)], 2)).toEqual([])
+    expect(pairIssues([st('a', 'PICK', 7)])[0].message).toContain('짝 DROP')
+    // 짝 위반은 행 경고로도 선다
+    const rows = planRows([st('a', 'PICK', 1001), st('m', 'MOVE', null)], ctx)
+    expect(rows[0].warnings.some((w) => w.includes('짝 DROP'))).toBe(true)
+  })
+
+  it('planRows starts from the robot hand (tires already on the gripper)', () => {
+    const drop: PlanStep = {
+      id: 'd',
+      type: 'DROP',
+      target: { kind: 'cell', id: 102 },
+      item_code: 1001,
+      count: 1,
+      note: '',
+    }
+    const pick: PlanStep = {
+      id: 'p',
+      type: 'PICK',
+      target: { kind: 'cell', id: 101 },
+      item_code: 1001,
+      count: 1,
+      note: '',
+    }
+    expect(
+      planRows([pick, drop], { ...ctx, hand: { item_code: 1001, count: 1 } })[0].warnings,
+    ).toContain('이미 들고 있음 (앞의 PICK 미완)')
+    expect(planRows([pick, drop], { ...ctx, hand: null })[0].warnings).not.toContain(
+      '이미 들고 있음 (앞의 PICK 미완)',
+    )
   })
 
   it('foldStock mirrors the backend stock fold (completion and pre-queue projection)', () => {

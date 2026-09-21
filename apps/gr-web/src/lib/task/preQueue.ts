@@ -19,5 +19,5 @@ export function writePreQueue(on: boolean): void {
 
 /** 확인 창·토스트에 쓰는 한 줄. */
 export function preQueueLabel(on: boolean): string {
-  return on ? 'Pre-queue — 접수되면 다음 스텝 미리 넣기' : '완료 대기 — 스텝마다 완료 후 다음'
+  return on ? 'Pre-queue — 실행 중 + 다음 1건 미리 넣기' : '완료 대기 — 스텝마다 완료 후 다음'
 }

@@ -56,13 +56,7 @@ export interface TaskDetailProps {
   onNavigate?: (id: string) => void
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string
-  children: React.ReactNode
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-1.5">
       <h4 className="m-0 flex items-center text-2xs font-semibold tracking-wide text-content-muted uppercase">
@@ -212,6 +206,13 @@ export default function TaskDetail({ id, ids = [], onNavigate }: TaskDetailProps
     { label: 'Origin', value: ORIGIN_LABEL[t.origin] },
     { label: 'WorkId', value: t.work_id, mono: true },
     { label: 'TaskId', value: t.task_id, mono: true },
+    {
+      label: 'TransferOrder',
+      value: t.transfer_order_id ?? null,
+      mono: true,
+      missing:
+        '이송 지시 없음(PICK/DROP 이 아니거나 외부 Task — 완료 때 재고 기록에 자동 지시가 붙는다)',
+    },
     { label: 'TaskType', value: typeName(t.plc_task?.TaskType) },
     {
       label: 'Target',
@@ -516,7 +517,13 @@ export default function TaskDetail({ id, ids = [], onNavigate }: TaskDetailProps
         ) : null}
 
         {tab === 'json' ? (
-          <JsonView value={t} rootLabel="task" defaultDepth={1} height={520} highlightChanges={false} />
+          <JsonView
+            value={t}
+            rootLabel="task"
+            defaultDepth={1}
+            height={520}
+            highlightChanges={false}
+          />
         ) : null}
       </div>
     </div>

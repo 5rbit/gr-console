@@ -279,6 +279,44 @@ export interface PlanContext {
   stockNow: ReadonlyMap<number, StockEntry>
   /** 그립 기준(기본 mid). */
   gripRef?: GripRef
+  /** 로봇 없는 스텝이 갈 로봇(짝 검사의 "같은 로봇"). */
+  robot?: number | null
+  /** 계획 시작 때 로봇이 들고 있는 화물(예상 Hand) — 첫 스텝의 "들고 있음" 판단에 쓴다. */
+  hand?: { item_code: number; count: number } | null
+}
+
+/** PICK/DROP 짝 위반 한 줄(백엔드 `scenario::io::validate_pairs` 와 같은 규칙). */
+export interface PairIssue {
+  id: string
+  no: number
+  message: string
+}
+
+/**
+ * PICK/DROP 은 늘 한 짝 — PICK 바로 다음 스텝은 같은 로봇·품목·수량의 DROP, DROP 바로 앞은 그 PICK.
+ * MOVE/MEASURE 는 짝과 짝 사이에만 선다. 위반이 있으면 실행하지 않는다(백엔드도 시작 때 거부).
+ */
+export function pairIssues(
+  steps: readonly PlanStep[],
+  runRobot: number | null = null,
+): PairIssue[] {
+  const out: PairIssue[] = []
+  const robotOf = (s: PlanStep) => s.robot ?? runRobot
+  steps.forEach((s, i) => {
+    const push = (message: string) => out.push({ id: s.id, no: i + 1, message })
+    if (s.type === 'PICK') {
+      const n = steps[i + 1]
+      if (!n) push('PICK 뒤에 짝 DROP 이 없음')
+      else if (n.type !== 'DROP') push(`PICK 바로 다음은 짝 DROP — 스텝 ${i + 2} 이 ${n.type}`)
+      else if (robotOf(n) !== robotOf(s)) push(`짝 DROP(스텝 ${i + 2})의 로봇이 다름`)
+      else if (s.item_code !== null && n.item_code !== null && s.item_code !== n.item_code)
+        push(`짝 DROP(스텝 ${i + 2}) 품목 ${n.item_code} ≠ ${s.item_code}`)
+      else if (n.count !== s.count) push(`짝 DROP(스텝 ${i + 2}) 수량 ${n.count} ≠ ${s.count}`)
+    } else if (s.type === 'DROP' && steps[i - 1]?.type !== 'PICK') {
+      push('DROP 바로 앞에 짝 PICK 이 없음')
+    }
+  })
+  return out
 }
 
 /** 표에 보일 행 — 재고 전/후, Z, 경고. */
@@ -286,9 +324,16 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
   const sim = new Map<number, { item_code: number; count: number }>()
   for (const [k, v] of ctx.stockNow) sim.set(k, { item_code: v.item_code, count: v.count })
   const rows: PlanRow[] = []
-  let carry: Carry | null = null
+  // 로봇이 이미 들고 있으면(앞 짝의 DROP 이 취소됨 등) 그 화물을 들고 시작한다.
+  let carry: Carry | null =
+    ctx.hand && ctx.hand.count > 0
+      ? { item_code: ctx.hand.item_code || null, count: ctx.hand.count }
+      : null
+  const pairs = new Map<string, string[]>()
+  for (const p of pairIssues(steps, ctx.robot ?? null))
+    pairs.set(p.id, [...(pairs.get(p.id) ?? []), p.message])
   steps.forEach((s, i) => {
-    const warnings: string[] = []
+    const warnings: string[] = [...(pairs.get(s.id) ?? [])]
     const cell = s.target.kind === 'cell' ? ctx.cells.find((c) => c.id === s.target.id) : null
     const station =
       s.target.kind === 'station' ? ctx.stations.find((c) => c.id === s.target.id) : null
@@ -455,8 +500,8 @@ export function toRequest(s: PlanStep, fallback: number | null = null): TaskRequ
 }
 
 /**
- * 계획 → 시나리오. `preQueue` 면 스텝마다 **접수(accepted)** 까지만 기다리고 다음 스텝을 보낸다 — GR 버퍼(4 칸)에
- * 자리가 있으면 앞 Task 가 끝나기 전에 다음 Task 가 들어간다. 백엔드는 진행 중 Task 를 반영한 예상 재고로 Z 를
+ * 계획 → 시나리오. `preQueue` 면 스텝마다 **접수(accepted)** 까지만 기다리고 다음 스텝을 보낸다 — 백엔드 실행기가
+ * PLC 에 실행 중 + 다음 1 건까지만 두므로 앞 Task 가 끝나기 전에 다음 1 건이 들어간다. 백엔드는 진행 중 Task 를 반영한 예상 재고로 Z 를
  * 작성하므로(같은 셀 DROP → PICK) 이 표의 재고 시뮬레이션과 같은 값이 나간다. 기본은 완료(completed) 대기.
  */
 export function toScenario(

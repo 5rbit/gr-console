@@ -4,7 +4,7 @@
 //   히스토리 = 서버 페이징(종결, 최신 순) — 필터(State·TaskType·Origin·Since)는 대화상자로 접는다.
 // 칸이 좁아 열은 다섯뿐이다. 나머지(Ack·사유·시각·요청·PLC)는 행을 누르면 뜨는 Task 상세 팝업에 있다.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Filter, History, ListChecks, RefreshCw } from 'lucide-react'
+import { ArrowLeftRight, Filter, History, ListChecks, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { panels } from '../../lib/panels'
 import { visibleInterval } from '../../lib/poll'
@@ -43,6 +43,7 @@ import type { Column } from '../../lib/ui/table'
 import { RobotChip } from '../shared/RobotChip'
 import TaskDetail, { TASK_DETAIL_PANEL } from '../taskmgr/TaskDetail'
 import { StateCell } from '../taskmgr/TaskTable'
+import { TransferOrdersDialog } from './TransferOrdersDialog'
 
 const LIMIT = 20
 const VIEW_KEY = 'gr-issue-tm-view'
@@ -117,6 +118,7 @@ export function TaskManagerCard() {
   // ── 히스토리(서버 페이징) ──
   const [filter, setFilter] = useState<HistoryFilter>(EMPTY_HISTORY_FILTER)
   const [filterOpen, setFilterOpen] = useState(false)
+  const [ordersOpen, setOrdersOpen] = useState(false)
   const [offset, setOffset] = useState(0)
   const [page, setPage] = useState<TaskPage | null>(null)
   const [loading, setLoading] = useState(false)
@@ -206,6 +208,16 @@ export function TaskManagerCard() {
             <Filter size={13} />
           </Button>
         ) : null}
+        <Button
+          size="icon-sm"
+          intent="ghost"
+          aria-label="이송 이력"
+          title="이송 이력 — PICK/DROP 짝(TO-…)별 재고 이동"
+          onClick={() => setOrdersOpen(true)}
+          data-testid="tm-orders"
+        >
+          <ArrowLeftRight size={13} />
+        </Button>
         <RobotChip
           chip={chip}
           testid="tm-robot"
@@ -253,6 +265,11 @@ export function TaskManagerCard() {
         </div>
       ) : null}
 
+      <TransferOrdersDialog
+        open={ordersOpen}
+        onOpenChange={setOrdersOpen}
+        robot={robots.selected}
+      />
       <Dialog
         open={filterOpen}
         onOpenChange={setFilterOpen}
