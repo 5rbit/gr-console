@@ -128,6 +128,8 @@ export interface CellMapProps {
   onContext?: (t: Target, shape: Shape, e: React.MouseEvent) => void
   /** 셀 재고 — 원 안의 개수. */
   stock?: ReadonlyMap<number, StockEntry>
+  /** 함께 강조할 셀들(품목 선택 → 그 품목이 든 셀). 선택 링보다 한 단계 약한 실선 링. */
+  highlight?: { label: string; cells: ReadonlySet<number> }
   /** 순차 계획 — 순번 배지 + 경로(명령 생성 모드에서만 넘긴다). */
   plan?: readonly PlanStep[]
   /** 생성 예정 셀(레이아웃 편집 모드에서만 넘긴다) — 충돌 판정이 실려 있으면 색과 툴팁이 달라진다. */
@@ -153,6 +155,7 @@ export function CellMap({
   onPick,
   onContext,
   stock,
+  highlight,
   plan,
   preview,
   work,
@@ -301,6 +304,7 @@ export function CellMap({
   const centre = (s: Shape) => toScreen(v, s.x, s.y)
   const zoomCenter = (f: number) => setView(zoomAt(v, dim.w / 2, dim.h / 2, f))
 
+  const zBad = cells.filter((c) => c.position[2] <= 0).length
   const hoverText = (() => {
     if (!hover) return null
     const st = hover.kind === 'cell' ? stock?.get(hover.id) : undefined
@@ -315,7 +319,7 @@ export function CellMap({
     hoverText ??
     (cursor
       ? `X ${f1(cursor[0])} · Y ${f1(cursor[1])} · 눈금 ${step} mm`
-      : `셀 ${cells.length} · 스테이션 ${stations.length}${previewShapes.length ? ` · 생성 예정 ${previewShapes.length}` : ''} · 눈금 ${step} mm${rot ? ` · 회전 ${rot}°` : ''}`)
+      : `${highlight ? `${highlight.label} ${highlight.cells.size}칸 · ` : ''}셀 ${cells.length} · 스테이션 ${stations.length}${previewShapes.length ? ` · 생성 예정 ${previewShapes.length}` : ''}${zBad ? ` · 바닥 Z ≤ 0 ${zBad}칸` : ''} · 눈금 ${step} mm${rot ? ` · 회전 ${rot}°` : ''}`)
 
   return (
     <div
@@ -521,6 +525,7 @@ export function CellMap({
           const [sx, sy] = centre(s)
           const key = `${s.kind}-${s.id}`
           const sel = sameTarget(selected, s)
+          const hl = !sel && s.kind === 'cell' && !!highlight?.cells.has(s.id)
           const hov = hover === s
           const n = s.kind === 'cell' ? (stock?.get(s.id)?.count ?? 0) : 0
           const empty = s.kind === 'cell' && n === 0
@@ -531,9 +536,9 @@ export function CellMap({
               : empty
                 ? 'fill-surface-active'
                 : sectionFill(s.section)
-          // 테두리는 **한 겹만** 주장한다: 선택 링은 맨 위 따로 한 번 그리고(아래 오버레이),
-          // 도형 자체는 조용한 윤곽만 둔다. 로컬 수정은 점선 링이 아니라 작은 점 하나,
-          // 문제(바닥 Z ≤ 0)는 경고색 점선 링 하나 — 점선은 **문제에만** 쓴다.
+          // 테두리(링)는 **고른 것**에만 쓴다: 선택(굵은 액센트 + 후광, 맨 위 오버레이) · 품목 강조
+          // (얇은 액센트) · 로봇 작업(로봇 색, 대기 = 점선) · 호버(옅은 회색). 도형 자체는 조용한
+          // 윤곽만 둔다. 상태는 링이 아니라 표식이다 — 로컬 수정 = 오른쪽 위 점, 바닥 Z ≤ 0 = 왼쪽 위 ▲.
           const stroke = empty ? 'stroke-line-strong' : 'stroke-surface-panel/70'
           const shapeCls = cn('cursor-pointer', fill, stroke, !s.use && 'opacity-40')
           const sw = 1
@@ -599,19 +604,17 @@ export function CellMap({
                   data-testid={`map-hover-${key}`}
                 />
               ) : null}
-              {problem ? (
+              {hl ? (
+                // 품목 강조 — 선택 링(굵은 액센트 + 후광)보다 한 단계 약한 실선 액센트 링.
                 <circle
                   cx={sx}
                   cy={sy}
-                  r={rr + 2}
+                  r={rr + 3}
                   fill="none"
-                  className="pointer-events-none stroke-warn"
+                  className="pointer-events-none stroke-accent"
                   strokeWidth={2}
-                  strokeDasharray="5 3"
-                  data-testid={`map-problem-${key}`}
-                >
-                  <title>{problem}</title>
-                </circle>
+                  data-testid={`map-hl-${key}`}
+                />
               ) : null}
               {s.kind === 'cell' ? (
                 <circle
@@ -634,6 +637,23 @@ export function CellMap({
                   {...handlers}
                 />
               )}
+              {problem ? (
+                // 문제(바닥 Z ≤ 0) — 링이 아니라 왼쪽 위 작은 경고 삼각형. 링은 선택·강조·작업이
+                // 쓰는 말이라, 같은 칸 34개가 모두 링을 두르면 무엇을 고른 것인지 안 보인다.
+                <path
+                  d={(() => {
+                    const m = Math.min(Math.max(rr * 0.22, 3), 5)
+                    const cx = sx - rr * 0.72
+                    const cy = sy - rr * 0.72
+                    return `M${cx} ${cy - m}L${cx + m} ${cy + m * 0.8}L${cx - m} ${cy + m * 0.8}Z`
+                  })()}
+                  className="fill-warn stroke-surface-panel"
+                  strokeWidth={1}
+                  data-testid={`map-problem-${key}`}
+                >
+                  <title>{problem}</title>
+                </path>
+              ) : null}
               {s.dirty ? (
                 // 로컬 수정 — 도형을 둘러싸지 않고 오른쪽 위 점 하나로만 알린다(40칸을 고쳐도 조용하다).
                 <circle
@@ -1014,7 +1034,15 @@ export function CellMap({
                 swatch={
                   <span className="h-4 w-4 rounded-full border-2 border-dashed border-warn bg-warn-soft" />
                 }
-                text="충돌·경고 — 건너뜀 · 겹침 · 바닥 Z ≤ 0"
+                text="생성 예정 충돌 — 건너뜀 · 겹침"
+              />
+              <LegendRow
+                swatch={
+                  <svg viewBox="0 0 10 10" className="h-3 w-3" aria-hidden="true">
+                    <path d="M5 1L9.5 9H0.5Z" className="fill-warn" />
+                  </svg>
+                }
+                text="바닥 Z ≤ 0 (PLC 거부) — 칸 왼쪽 위 ▲"
               />
               <LegendRow
                 swatch={<span className="h-2 w-2 rounded-full bg-accent" />}
@@ -1025,6 +1053,10 @@ export function CellMap({
                   <span className="h-4 w-4 rounded-full border-[3px] border-accent bg-accent-soft" />
                 }
                 text="선택 / 대상"
+              />
+              <LegendRow
+                swatch={<span className="h-4 w-4 rounded-full border-2 border-accent" />}
+                text="고른 품목이 든 셀"
               />
               {robotLegend.map((rb) => (
                 <LegendRow

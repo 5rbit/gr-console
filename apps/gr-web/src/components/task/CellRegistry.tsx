@@ -1,5 +1,5 @@
 // 셀 레지스트리 — 로컬 사본 표 + 툴바(PLC 읽기/쓰기/차이, Excel). 행 상태 배지: PLC 동일 / 로컬 수정 / 로컬.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Grid3x3 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { taskApi } from '../../lib/task/api'
@@ -14,6 +14,7 @@ import { toast } from '../../lib/ui/toast'
 import type { Cell, CellUpsert } from '../../lib/types'
 import { FIELD, USE_FALSE } from '../../lib/fieldNames'
 import { CellForm, EMPTY_CELL } from './forms'
+import type { MenuEntry } from '../../lib/task/menuEntries'
 import { RegistryToolbar, type RegistryIo } from './RegistryToolbar'
 
 /** 행 출처 배지 — 로컬 사본이 PLC와 어떤 관계인지. */
@@ -66,9 +67,20 @@ export interface CellRegistryProps {
   onSelect?: (id: number | null) => void
   /** 좁은 사이드바 — 핵심 열만, 툴바 아이콘만. */
   compact?: boolean
+  /** 레일이 넘기는 머리줄 조작(표 종류 토글 + 검색)과 ⋯ 보기 항목. */
+  lead?: ReactNode
+  menuExtra?: MenuEntry[]
 }
 
-export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: CellRegistryProps) {
+export function CellRegistry({
+  reg,
+  q,
+  selectedId,
+  onSelect,
+  compact = false,
+  lead,
+  menuExtra,
+}: CellRegistryProps) {
   useStore(robots)
   const [selLocal, setSelLocal] = useState<number | null>(null)
   const selected = selectedId !== undefined ? selectedId : selLocal
@@ -193,6 +205,8 @@ export function CellRegistry({ reg, q, selectedId, onSelect, compact = false }: 
         compact={compact}
         title="셀"
         icon={<Grid3x3 size={14} />}
+        lead={lead}
+        menuExtra={menuExtra}
         what="셀"
         rows={reg.items.length}
         dirty={dirty}

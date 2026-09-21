@@ -12,6 +12,11 @@ export interface ToolbarProps {
   icon?: React.ReactNode
   /** 이 띠가 무엇을 조작하는지. */
   title?: string
+  /**
+   * 제목 자리를 대신하는 조작(표 종류 토글 · 검색 등). 있으면 아이콘·제목은 그리지 않는다 —
+   * 토글이 곧 "이 띠가 무엇을 조작하는지"를 말한다.
+   */
+  lead?: React.ReactNode
   /** 대상·범위 같은 부차 정보(제목보다 작고 흐리게). 값을 늘어놓는 자리가 아니다. */
   meta?: React.ReactNode
   /** `danger` — 되돌릴 수 없는 조작이 사는 띠. */
@@ -26,6 +31,7 @@ export interface ToolbarProps {
 export function Toolbar({
   icon,
   title = '',
+  lead,
   meta,
   tone = 'default',
   dense = false,
@@ -42,10 +48,11 @@ export function Toolbar({
         className,
       )}
     >
-      {icon ? (
+      {lead}
+      {icon && !lead ? (
         <span className={danger ? 'flex text-fault-fg' : 'flex text-content-muted'}>{icon}</span>
       ) : null}
-      {title ? (
+      {title && !lead ? (
         <span
           className={cn(
             'text-xs font-semibold whitespace-nowrap',

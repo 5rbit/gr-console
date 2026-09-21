@@ -1,5 +1,5 @@
 // 재고 레일 탭 — 등록된 셀마다 재고(품목·개수)를 보고 고친다. 완료된 PICK/DROP 은 백엔드가 자동 반영한다.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, Boxes, Eraser, Pencil } from 'lucide-react'
 import { api } from '../../lib/api'
 import { stock as stockStore } from '../../lib/stock'
@@ -16,6 +16,8 @@ import { StatusBadge } from '../../lib/ui/StatusBadge'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
 import { Toolbar } from '../../lib/ui/Toolbar'
+import { OverflowMenu } from '../../lib/ui/OverflowMenu'
+import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
 import type { Cell, Item, StockEntry } from '../../lib/types'
 import { ItemPicker } from '../shared/ItemPicker'
 import { EMPTY_ITEM, FormErrors, ItemFields, validateItem } from './forms'
@@ -184,10 +186,40 @@ export interface StockRegistryProps {
   items: readonly Item[]
   q: string
   onItemsChanged?: () => void
+  /** 고른 셀(= 맵 선택) — 행을 누르면 맵이 그 셀을 강조한다. 고치는 일은 연필 버튼. */
+  selectedId?: number | null
+  onSelect?: (id: number | null) => void
+  /** 레일이 넘기는 머리줄 조작(표 종류 토글 + 검색)과 ⋯ 보기 항목. */
+  lead?: ReactNode
+  menuExtra?: MenuEntry[]
 }
 
-export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistryProps) {
+export function StockRegistry({
+  cells,
+  items,
+  q,
+  onItemsChanged,
+  selectedId,
+  onSelect,
+  lead,
+  menuExtra = [],
+}: StockRegistryProps) {
   useStore(stockStore)
+  const [selLocal, setSelLocal] = useState<number | null>(null)
+  const selected = selectedId !== undefined ? selectedId : selLocal
+  const pick = (id: number) => {
+    const next = id === selected ? null : id
+    if (selectedId === undefined) setSelLocal(next)
+    onSelect?.(next)
+  }
+  // 맵에서 고른 셀이 표 밖(스크롤 아래)에 있으면 선택이 안 보인다 — 선택 행을 끌어온다.
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (selected === null) return
+    box.current
+      ?.querySelector('[data-testid="dt-row"].bg-accent-soft')
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
   const [edit, setEdit] = useState<StockEdit | null>(null)
   const [clearAll, setClearAll] = useState(false)
   const version = stockStore.getSnapshot()
@@ -288,8 +320,13 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="stock-registry">
-      <Toolbar icon={<Boxes size={14} />} title="재고" meta={`${rows.length}칸 · 합계 ${total}개`}>
-        <span className="flex-1" />
+      <Toolbar
+        icon={<Boxes size={14} />}
+        title="재고"
+        lead={lead}
+        dense
+        meta={`${rows.length}칸 · 합계 ${total}개`}
+      >
         <Button
           size="sm"
           intent="ghost"
@@ -299,8 +336,11 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
         >
           전체 비우기
         </Button>
+        {menuExtra.length ? (
+          <OverflowMenu items={menuItems(menuExtra)} title="보기" testid="stock-more" />
+        ) : null}
       </Toolbar>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto" ref={box}>
         <DataTable
           rows={rows}
           columns={columns}
@@ -311,7 +351,8 @@ export function StockRegistry({ cells, items, q, onItemsChanged }: StockRegistry
               ? '검색어를 지우거나 Id·Section·Row·Col 의 다른 조각으로 찾으세요.'
               : '셀 표에서 PLC 읽기·Excel 가져오기로 셀을 먼저 등록하세요.'
           }
-          onPick={openEdit}
+          selected={selected === null ? null : String(selected)}
+          onPick={(r) => pick(r.cell.id)}
           actions={(r) => (
             <Button
               size="icon-sm"

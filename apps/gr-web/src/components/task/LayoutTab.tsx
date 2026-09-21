@@ -42,6 +42,8 @@ export interface LayoutTabProps {
   plan: readonly PlanStep[]
   /** 강조할 대상. */
   selected: Target | null
+  /** 이 품목이 든 셀을 모두 강조한다(레일 품목 표 선택). */
+  highlightItem?: number | null
   mode: MapMode
   onModeChange: (m: MapMode) => void
   /** 생성 예정 셀(편집 모드) — 충돌 판정이 실려 있다. */
@@ -69,6 +71,7 @@ export function LayoutTab({
   items,
   plan,
   selected,
+  highlightItem = null,
   mode,
   onModeChange,
   preview,
@@ -88,6 +91,18 @@ export function LayoutTab({
   useEffect(() => allStatus.start(), [])
   useEffect(() => tasks.start(), [])
   const [info, setInfo] = useState<Shape | null>(null)
+  const stockVer = stockStore.getSnapshot()
+  const highlight = useMemo(() => {
+    if (highlightItem === null) return undefined
+    const ids = cellList
+      .filter((c) => {
+        const s = stockStore.get(c.id)
+        return s?.item_code === highlightItem && s.count > 0
+      })
+      .map((c) => c.id)
+    return { label: `ItemCode ${highlightItem}`, cells: new Set(ids) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stockVer 가 재고 변경을 대표한다
+  }, [highlightItem, cellList, stockVer])
   const [stockEdit, setStockEdit] = useState<StockEdit | null>(null)
   const next = nextType(plan)
 
@@ -239,6 +254,7 @@ export function LayoutTab({
         stations={stationList}
         selected={mode === 'monitor' && info ? { kind: info.kind, id: info.id } : selected}
         stock={stockStore.map}
+        highlight={highlight}
         plan={mode === 'plan' ? plan : undefined}
         preview={mode === 'edit' ? preview : undefined}
         work={work}

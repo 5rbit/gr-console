@@ -87,6 +87,10 @@ export interface RegistryToolbarProps<T> {
   extra?: React.ReactNode
   /** 목록을 다시 받는다(읽기·가져오기·쓰기 뒤). */
   reload: () => Promise<void>
+  /** 제목 자리에 둘 조작(레일의 표 종류 토글 + 검색) — `Toolbar.lead`. */
+  lead?: React.ReactNode
+  /** ⋯ 메뉴 끝에 붙일 항목(레일의 보기 전환). */
+  menuExtra?: MenuEntry[]
   /** 바깥에서 부를 조작을 여기에 걸어 준다(`RegistryActions`). */
   actions?: React.MutableRefObject<RegistryActions | null>
 }
@@ -135,6 +139,8 @@ export function RegistryToolbar<T>({
   compact = false,
   hideCrud = false,
   actions,
+  lead,
+  menuExtra = [],
 }: RegistryToolbarProps<T>) {
   const hasPlc = !!io.plc
   /** Excel 로 추가하는 레지스트리인가 — `추가`가 두 쪽 버튼이 된다. */
@@ -320,6 +326,7 @@ export function RegistryToolbar<T>({
       disabled: busy !== null ? '다른 조작이 도는 중' : undefined,
     },
     { label: '목록 새로고침', run: () => void reload() },
+    ...menuExtra,
   ]
 
   // `추가 ▾` — 행을 만드는 두 길(폼 · Excel)과 Excel 을 쓰는 데 필요한 둘(양식 · 지금 목록).
@@ -347,6 +354,7 @@ export function RegistryToolbar<T>({
       <Toolbar
         icon={icon}
         title={title}
+        lead={lead}
         dense
         meta={
           <span className="tabular-nums">

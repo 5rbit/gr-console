@@ -1,5 +1,5 @@
 // 스테이션 레지스트리 — 셀과 같은 틀, 열이 더 많다(컨베이어·그룹·연결·센서).
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Factory } from 'lucide-react'
 import { api } from '../../lib/api'
 import { taskApi } from '../../lib/task/api'
@@ -12,6 +12,7 @@ import type { Station, StationUpsert } from '../../lib/types'
 import { FIELD, USE_FALSE } from '../../lib/fieldNames'
 import { RowBadge } from './CellRegistry'
 import { EMPTY_STATION, StationForm } from './forms'
+import type { MenuEntry } from '../../lib/task/menuEntries'
 import { RegistryToolbar, type RegistryIo } from './RegistryToolbar'
 
 const f1 = (n: number) => (Math.round(n * 10) / 10).toString()
@@ -60,6 +61,9 @@ export interface StationRegistryProps {
   onSelect?: (id: number | null) => void
   /** 좁은 사이드바 — 핵심 열만, 툴바 아이콘만. */
   compact?: boolean
+  /** 레일이 넘기는 머리줄 조작(표 종류 토글 + 검색)과 ⋯ 보기 항목. */
+  lead?: ReactNode
+  menuExtra?: MenuEntry[]
 }
 
 export function StationRegistry({
@@ -68,6 +72,8 @@ export function StationRegistry({
   selectedId,
   onSelect,
   compact = false,
+  lead,
+  menuExtra,
 }: StationRegistryProps) {
   const [selLocal, setSelLocal] = useState<number | null>(null)
   const selected = selectedId !== undefined ? selectedId : selLocal
@@ -192,6 +198,8 @@ export function StationRegistry({
         compact={compact}
         title="스테이션"
         icon={<Factory size={14} />}
+        lead={lead}
+        menuExtra={menuExtra}
         what="스테이션"
         rows={reg.items.length}
         dirty={dirty}

@@ -1,6 +1,10 @@
 // 레지스트리 레일 — **맵 + 표 한 면이 기본 화면**이고, 머리줄 하나가 "맵 옆에 어떤 표를 둘지"만 고른다.
 // 화면 왼쪽을 차지한다.
 //
+// 그 머리줄(표 토글 넷 + 검색)은 **표의 조작 띠 왼쪽에 앉는다**(`Toolbar.lead`). 맵 위에 따로 한 줄,
+// 표 위에 또 "셀 37건" 한 줄이면 같은 표를 두 띠가 나눠 말한다 — 고르는 곳과 그 결과가 한 줄에
+// 있어야 한다. 보기 전환은 그 표의 ⋯ 끝에 붙는다. 표가 없는 **맵만 보기**에서만 머리줄이 따로 선다.
+//
 // 전에는 탭이 여섯이었다(레이아웃+표 · 레이아웃 · 재고 · 셀 · 스테이션 · 품목). 그런데 `레이아웃`은
 // `레이아웃+표`에서 표를 접은 것일 뿐이고, `셀`·`스테이션`·`재고`·`품목`은 나눠 보기 안 표 토글과
 // **같은 네 가지**였다 — 같은 선택을 두 줄에서 두 번 물었고, 표 머리줄에는 그 둘을 오가는 버튼이
@@ -97,6 +101,9 @@ export interface RegistryRailProps {
   /** 셀/스테이션 표의 선택 — 바깥이 쥐면 맵 강조와 한 상태가 된다. */
   selected?: Target | null
   onSelect?: (t: Target | null) => void
+  /** 품목 표의 선택 — 맵이 그 품목이 든 셀들을 강조한다. */
+  itemSel?: number | null
+  onItemSelect?: (code: number | null) => void
   /** 맵에서 고른 대상 — nonce 가 바뀔 때마다 나눠 보기의 표를 그 종류로 옮긴다. */
   reveal?: { target: Target; nonce: number } | null
 }
@@ -110,6 +117,8 @@ export function RegistryRail({
   onTabChange,
   selected,
   onSelect,
+  itemSel,
+  onItemSelect,
   reveal,
 }: RegistryRailProps) {
   const [tabLocal, setTab] = useState<RailTab>(() => {
@@ -195,6 +204,13 @@ export function RegistryRail({
   }, [split, side])
   const bounds = splitBounds(total)
 
+  // 품목 강조는 품목 표를 보는 동안만 — 다른 표로 가면 맵의 품목 링이 남아 선택처럼 보인다.
+  const itemShown = showMap && table === 'item'
+  useEffect(() => {
+    if (!itemShown && itemSel != null) onItemSelect?.(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 보기 전환 때만 푼다
+  }, [itemShown])
+
   const cellSel =
     selected === undefined ? undefined : selected?.kind === 'cell' ? selected.id : null
   const stationSel =
@@ -204,7 +220,17 @@ export function RegistryRail({
 
   function body(t: SplitTable, compact: boolean) {
     const needle = q.trim()
-    if (t === 'item') return <ItemRegistry reg={items} q={needle} />
+    const rail = { lead, menuExtra: viewMenu }
+    if (t === 'item')
+      return (
+        <ItemRegistry
+          reg={items}
+          q={needle}
+          selectedCode={itemSel}
+          onSelect={onItemSelect}
+          {...rail}
+        />
+      )
     if (t === 'cell')
       return (
         <CellRegistry
@@ -213,6 +239,7 @@ export function RegistryRail({
           selectedId={cellSel}
           onSelect={pick('cell')}
           compact={compact}
+          {...rail}
         />
       )
     if (t === 'station')
@@ -223,6 +250,7 @@ export function RegistryRail({
           selectedId={stationSel}
           onSelect={pick('station')}
           compact={compact}
+          {...rail}
         />
       )
     return (
@@ -231,6 +259,9 @@ export function RegistryRail({
         items={items.items}
         q={needle}
         onItemsChanged={() => void items.reload()}
+        selectedId={cellSel}
+        onSelect={pick('cell')}
+        {...rail}
       />
     )
   }
@@ -263,27 +294,36 @@ export function RegistryRail({
     },
   ]
 
+  // 표 종류 토글 + 검색 — 표의 조작 띠 왼쪽(맵만 보기에서는 맵 위 한 줄)에 앉는다.
+  const lead = (
+    <span className="flex min-w-0 items-center gap-2">
+      <Segmented
+        ariaLabel="표 종류"
+        value={table}
+        onChange={pickTable}
+        options={SPLIT_TABLES.map((t) => ({
+          id: t,
+          label: TABLE_LABEL[t],
+          testid: `rail-${t}`,
+        }))}
+      />
+      <SearchBox table={table} q={q} onChange={setQ} className="w-44 flex-initial" />
+    </span>
+  )
+
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="registry-rail">
-      <div className="flex min-h-screen-header flex-none items-center gap-2 border-b border-line-default px-2 py-1">
-        <Segmented
-          ariaLabel="표 종류"
-          value={table}
-          onChange={pickTable}
-          options={SPLIT_TABLES.map((t) => ({
-            id: t,
-            label: TABLE_LABEL[t],
-            testid: `rail-${t}`,
-          }))}
-        />
-        <SearchBox table={table} q={q} onChange={setQ} className="w-44 flex-initial" />
-        <span className="flex-1" />
-        <OverflowMenu
-          items={menuItems(viewMenu)}
-          title="보기 — 맵만 · 표만 · 나누는 방향"
-          testid="rail-more"
-        />
-      </div>
+      {mapOnly ? (
+        <div className="flex min-h-control-sm flex-none items-center gap-2 border-b border-line-default px-2 py-1">
+          {lead}
+          <span className="flex-1" />
+          <OverflowMenu
+            items={menuItems(viewMenu)}
+            title="보기 — 맵만 · 표만 · 나누는 방향"
+            testid="rail-more"
+          />
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1">
         {showMap ? (
           <div

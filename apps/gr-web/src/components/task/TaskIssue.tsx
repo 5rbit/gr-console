@@ -177,6 +177,8 @@ export default function TaskIssue() {
   const editing = mapMode === 'edit' && (railTab === 'layout' || railTab === 'split')
   // 레일 표(셀/스테이션)의 선택. 편집 중에는 편집 선택(`editSel`)이 그 자리를 맡는다.
   const [tableSel, setTableSel] = useState<Target | null>(null)
+  // 레일 품목 표의 선택 — 맵이 그 품목이 든 셀들을 강조한다.
+  const [itemSel, setItemSel] = useState<number | null>(null)
   // 맵·계획에서 고른 대상을 표로 보내는 신호(표 토글 전환 + 행 스크롤).
   const [reveal, setReveal] = useState<{ target: Target; nonce: number } | null>(null)
   const pickTarget = useCallback((t: Target) => {
@@ -323,6 +325,7 @@ export default function TaskIssue() {
         items={items.items}
         plan={plan}
         selected={selected}
+        highlightItem={itemSel}
         mode={mapMode}
         onModeChange={changeMode}
         preview={preview}
@@ -350,6 +353,7 @@ export default function TaskIssue() {
       items,
       plan,
       selected,
+      itemSel,
       mapMode,
       changeMode,
       preview,
@@ -398,6 +402,8 @@ export default function TaskIssue() {
               } else setTableSel(t)
               if (t) setFocus({ target: t, nonce: Date.now() })
             }}
+            itemSel={itemSel}
+            onItemSelect={setItemSel}
             reveal={reveal}
           />
         </section>

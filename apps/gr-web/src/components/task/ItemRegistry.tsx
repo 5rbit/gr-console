@@ -1,6 +1,6 @@
 // 품목(타이어 코드) 레지스트리 — 콘솔 전용(PLC 테이블 없음). Excel은 품목 전용(`Items` 시트).
 // 넓은 표·복제·여러 건 삭제는 `화물 규격` 화면(`components/items/ItemsPage`)이 맡고, 여기서는 그리로 간다.
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Maximize2, Package } from 'lucide-react'
 import { api } from '../../lib/api'
 import { nav } from '../../lib/nav'
@@ -13,6 +13,7 @@ import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
 import type { Item, ItemUpsert } from '../../lib/types'
 import { EMPTY_ITEM, ItemForm } from './forms'
+import type { MenuEntry } from '../../lib/task/menuEntries'
 import { RegistryToolbar, type RegistryIo } from './RegistryToolbar'
 
 const f1 = (n: number) => (Math.round(n * 10) / 10).toString()
@@ -47,10 +48,28 @@ const IO: RegistryIo<Item> = {
 export interface ItemRegistryProps {
   reg: Registry<Item>
   q: string
+  /** 바깥(레이아웃 맵)이 선택을 쥘 때 — 고른 품목이 든 셀을 맵이 강조한다. */
+  selectedCode?: number | null
+  onSelect?: (code: number | null) => void
+  /** 레일이 넘기는 머리줄 조작(표 종류 토글 + 검색)과 ⋯ 보기 항목. */
+  lead?: ReactNode
+  menuExtra?: MenuEntry[]
 }
 
-export function ItemRegistry({ reg, q }: ItemRegistryProps) {
-  const [selected, setSelected] = useState<number | null>(null)
+export function ItemRegistry({
+  reg,
+  q,
+  selectedCode,
+  onSelect,
+  lead,
+  menuExtra,
+}: ItemRegistryProps) {
+  const [selLocal, setSelLocal] = useState<number | null>(null)
+  const selected = selectedCode !== undefined ? selectedCode : selLocal
+  const setSelected = (code: number | null) => {
+    if (selectedCode === undefined) setSelLocal(code)
+    onSelect?.(code)
+  }
   const [form, setForm] = useState<{
     open: boolean
     editing: boolean
@@ -148,6 +167,8 @@ export function ItemRegistry({ reg, q }: ItemRegistryProps) {
       <RegistryToolbar<Item>
         title="품목"
         icon={<Package size={14} />}
+        lead={lead}
+        menuExtra={menuExtra}
         what="품목"
         rows={reg.items.length}
         dirty={0}
