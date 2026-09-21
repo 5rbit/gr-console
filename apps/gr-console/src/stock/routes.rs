@@ -113,6 +113,9 @@ struct ResolveBody {
     item_code: Option<u32>,
     #[serde(default)]
     count: Option<u32>,
+    /// `apply_task` | `ignore_task` 의 원장 Task id.
+    #[serde(default)]
+    task_id: Option<String>,
 }
 
 /// `POST /api/stock/sync/{robot}/resolve` — 동기화 경고를 한 번에 고친다(콘솔 DB 만, PLC 에는 쓰지 않는다).
@@ -120,6 +123,15 @@ struct ResolveBody {
 /// - `adopt_plc`: PLC 가 들고 있는 것으로 Hand 를 채우고 `in_hand` 지시를 연다(`source = plc-sync`).
 async fn sync_resolve(State(st): State<AppState>, Path(robot): Path<u8>, axum::Json(b): axum::Json<ResolveBody>) -> ApiResult<Json> {
     let r = st.robot(Some(robot))?;
+    // 손 정정 뒤에 끝난 Task — 반영/무시(정확히 한 번 기록된다).
+    if matches!(b.action.as_str(), "apply_task" | "ignore_task") {
+        let id = b.task_id.as_deref().ok_or_else(|| ApiError::BadRequest("task_id 가 필요합니다".into()))?;
+        let (_, e) = st.find_task(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
+        st.stock.decide_held(&e, b.action == "apply_task")?;
+        st.stock.sync.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clear(&r.plc);
+        let _ = st.stock.events.send(super::StockEvent::Sync { plc: r.plc.clone(), issues: vec![] });
+        return Ok(axum::Json(json!({ "task_id": id, "action": b.action })));
+    }
     let p = crate::issue::projected_hand(&st, Some(robot))?;
     if !p.pending.is_empty() {
         return Err(ApiError::Conflict(format!("{}: 진행 중 PICK/DROP {} 건 — 끝난 뒤에 고치세요", r.name, p.pending.len())));
@@ -162,11 +174,25 @@ async fn sync_resolve(State(st): State<AppState>, Path(robot): Path<u8>, axum::J
             };
             st.stock.set_hand(&r.plc, item, count, "sync-resolve: PLC 기준 Hand 맞춤", None, Some(&order))?
         }
-        a => return Err(ApiError::BadRequest(format!("unknown action {a} (clear_hand | adopt_plc)"))),
+        a => return Err(ApiError::BadRequest(format!("unknown action {a} (clear_hand | adopt_plc | apply_task | ignore_task)"))),
     };
     st.stock.sync.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clear(&r.plc);
     let _ = st.stock.events.send(super::StockEvent::Sync { plc: r.plc.clone(), issues: vec![] });
     Ok(axum::Json(serde_json::to_value(out).unwrap_or_default()))
+}
+
+/// `GET /api/anticol` — 두 로봇 영역 간격(기본 PLC PARA p11 + p16 + p13 = 2403 mm).
+async fn anticol_get(State(st): State<AppState>) -> ApiResult<Json> {
+    Ok(axum::Json(serde_json::to_value(crate::area::load(&st.db)).unwrap_or_default()))
+}
+
+/// `PUT /api/anticol` — 간격·사용 여부 바꾸기.
+async fn anticol_put(State(st): State<AppState>, axum::Json(b): axum::Json<crate::area::AreaConfig>) -> ApiResult<Json> {
+    if !(b.separation_mm.is_finite() && (0.0..=20000.0).contains(&b.separation_mm)) {
+        return Err(ApiError::BadRequest(format!("separation_mm {} — 0..20000 mm", b.separation_mm)));
+    }
+    st.db.set_setting(crate::area::SETTING_KEY, &serde_json::to_string(&b)?)?;
+    Ok(axum::Json(serde_json::to_value(b).unwrap_or_default()))
 }
 
 async fn list(State(st): State<AppState>) -> ApiResult<Json> {
@@ -262,6 +288,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/stock/hands", get(hands))
         .route("/api/stock/hand/{robot}", put(set_hand))
         .route("/api/stock/projected", get(projected))
+        .route("/api/anticol", get(anticol_get).put(anticol_put))
         .route("/api/stock/sync", get(sync_list))
         .route("/api/stock/sync/{robot}/resolve", post(sync_resolve))
         .route("/api/transfer-orders", get(orders))

@@ -11,6 +11,7 @@
 //! 규칙(`reconcile`, 순수):
 //! 1. 로봇이 바쁘면(Now 에 Task, 또는 진행 중 PICK/DROP) 손을 비교하지 않는다 — 작업 중의 과도 상태는 불일치가 아니다.
 //! 2. 원장은 완료인데 재고에 안 접힌 PICK/DROP(구독 누락 등)은 **자동으로 접는다**(`plc-sync`) — PLC 링이 근거라 모호하지 않다.
+//!    단 완료 뒤 그 셀·Hand 를 손으로 고쳤으면(`Stock::held_reason`) 접지 않고 경고 + "반영"/"무시".
 //! 3. 콘솔 Hand 에 화물이 있는데 PLC 는 HoldItem=0 · 감지 없음 → 경고 + "Hand 비움".
 //! 4. 콘솔 Hand 는 비었는데 PLC HoldItem=1 → 경고 + "PLC 기준 Hand 맞춤".
 //! 5. HoldItem 과 그리퍼 감지가 다름 → 알림(동작 없음). Lost 된 PICK/DROP → 경고.
@@ -59,6 +60,9 @@ pub struct SyncIssue {
     pub transfer_order_id: Option<String>,
     /// 한 번에 고치는 동작 — `clear_hand` · `adopt_plc`.
     pub actions: Vec<String>,
+    /// `apply_task`/`ignore_task` 의 대상 Task(원장 id).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
     /// `adopt_plc` 후보(PLC Completed 링의 마지막 PICK).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub candidate: Option<(u32, u32)>,
@@ -68,7 +72,7 @@ pub struct SyncIssue {
 
 impl SyncIssue {
     fn key(&self) -> String {
-        format!("{}|{}", self.code, self.transfer_order_id.as_deref().unwrap_or(""))
+        format!("{}|{}|{}", self.code, self.transfer_order_id.as_deref().unwrap_or(""), self.task_id.as_deref().unwrap_or(""))
     }
 }
 
@@ -89,11 +93,11 @@ fn pick_or_drop(e: &LedgerEntry) -> bool {
 }
 
 fn issue(code: &str, message: String, order: Option<String>, actions: &[&str], candidate: Option<(u32, u32)>) -> SyncIssue {
-    SyncIssue { code: code.into(), message, transfer_order_id: order, actions: actions.iter().map(|a| a.to_string()).collect(), candidate, since: String::new() }
+    SyncIssue { code: code.into(), message, transfer_order_id: order, actions: actions.iter().map(|a| a.to_string()).collect(), task_id: None, candidate, since: String::new() }
 }
 
-/// 순수 판정 — `entries` 는 이 로봇의 원장, `unfolded` 는 그중 완료됐는데 재고에 안 접힌 PICK/DROP.
-pub fn reconcile(hand: &HandEntry, plc: &PlcView, entries: &[LedgerEntry], unfolded: &[&LedgerEntry]) -> Check {
+/// 순수 판정 — `entries` 는 이 로봇의 원장, `unfolded` 는 그중 완료됐는데 재고에 안 접힌 PICK/DROP 과 손 정정 가드 사유.
+pub fn reconcile(hand: &HandEntry, plc: &PlcView, entries: &[LedgerEntry], unfolded: &[(&LedgerEntry, Option<String>)]) -> Check {
     let mut out = Check::default();
     for e in entries.iter().filter(|e| e.state == TaskState::Lost && pick_or_drop(e)) {
         out.issues.push(issue(
@@ -104,15 +108,22 @@ pub fn reconcile(hand: &HandEntry, plc: &PlcView, entries: &[LedgerEntry], unfol
             None,
         ));
     }
+    // 손 정정 뒤에 끝난 Task — 자동으로 접지 않고 사람이 정한다(바빠도 알린다).
+    for (e, why) in unfolded.iter().filter_map(|(e, w)| w.as_ref().map(|w| (e, w))) {
+        let mut i =
+            issue("held_completion", format!("Task #{} {}/{} 완료가 재고에 반영되지 않음 — {why}", e.seq, e.work_id, e.task_id), e.transfer_order_id.clone(), &["apply_task", "ignore_task"], None);
+        i.task_id = Some(e.id.clone());
+        out.issues.push(i);
+    }
     let busy = plc.busy || entries.iter().any(|e| is_pending(e.state) && pick_or_drop(e));
+    let mut free: Vec<&&LedgerEntry> = unfolded.iter().filter(|(_, w)| w.is_none()).map(|(e, _)| e).collect();
+    if !free.is_empty() {
+        free.sort_by_key(|e| e.seq);
+        out.fixes = free.into_iter().map(|e| Fix::Fold(e.id.clone())).collect();
+        return out; // 접은 뒤 다음 판정에서 손을 비교한다
+    }
     if busy {
         return out;
-    }
-    if !unfolded.is_empty() {
-        let mut v: Vec<&&LedgerEntry> = unfolded.iter().collect();
-        v.sort_by_key(|e| e.seq);
-        out.fixes = v.into_iter().map(|e| Fix::Fold(e.id.clone())).collect();
-        return out; // 접은 뒤 다음 판정에서 손을 비교한다
     }
     let console = hand.count > 0;
     if console && !plc.hold_item && !plc.item_detect {
@@ -285,9 +296,14 @@ mod tests {
     #[test]
     fn missed_completion_is_folded_automatically() {
         let done = e("d", 2, TaskType::Drop, TaskState::Completed);
-        let c = reconcile(&hand(2), &idle(false), std::slice::from_ref(&done), &[&done]);
+        let c = reconcile(&hand(2), &idle(false), std::slice::from_ref(&done), &[(&done, None)]);
         assert_eq!(c.fixes, vec![Fix::Fold("d".into())]);
         assert!(c.issues.is_empty());
+        // 완료 뒤 손 정정이 있으면 자동으로 접지 않고 반영/무시를 묻는다
+        let c = reconcile(&hand(2), &idle(false), std::slice::from_ref(&done), &[(&done, Some("셀 401 손 정정".into()))]);
+        assert!(c.fixes.is_empty());
+        assert_eq!((c.issues[0].code.as_str(), c.issues[0].task_id.as_deref()), ("held_completion", Some("d")));
+        assert_eq!(c.issues[0].actions, vec!["apply_task".to_string(), "ignore_task".to_string()]);
     }
 
     #[test]
@@ -329,7 +345,7 @@ mod tests {
         assert!(!s.changed);
         // 자동 접기도 이어져야 한다
         let done = e("d", 2, TaskType::Drop, TaskState::Completed);
-        let fold = || reconcile(&hand(2), &idle(false), std::slice::from_ref(&done), &[&done]);
+        let fold = || reconcile(&hand(2), &idle(false), std::slice::from_ref(&done), &[(&done, None)]);
         assert!(t.step("GR2", fold(), t0, "g").fixes.is_empty());
         assert_eq!(t.step("GR2", fold(), t0 + Duration::from_millis(DEBOUNCE_MS), "h").fixes, vec![Fix::Fold("d".into())]);
     }

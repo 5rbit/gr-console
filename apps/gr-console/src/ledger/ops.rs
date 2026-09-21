@@ -142,6 +142,13 @@ pub async fn create_and_submit(
     if submit_now && let Some(req) = &request {
         crate::issue::enforce_stack_limit(st, req, &task)?;
         crate::issue::enforce_hand(st, req, &task)?;
+        // 두 로봇 영역 — 단일 명령은 기다리지 않고 거부한다(시나리오 실행기는 게이트에서 기다린다).
+        if req.source.is_none() && task.cell.id != 0 {
+            let cfg = crate::area::load(&st.db);
+            if let Some((b, mine)) = crate::area::check(st, &cfg, r, task.position[0], None, &Default::default()) {
+                return Err(ApiError::Conflict(with_robot(&r.name, &crate::area::wait_reason(&b, mine, cfg.separation_mm))));
+            }
+        }
     }
     let audit = match &request {
         Some(req) => crate::issue::refresh_station_offset(st, req, &mut task, submit_now)?,
@@ -228,8 +235,8 @@ pub fn cancel_refusal(delete_allowed: bool, auto: bool, item_detect: bool, runni
 
 /// 짝 취소 — 같은 이송 지시의 다른 Task 를 어떻게 할지. `(같이 지울 Task, 경고)`.
 /// - PICK 취소: 짝 DROP(끝나지 않은)도 같이 지운다(DROP 이 PICK 없이 돌면 빈 그리퍼로 내려간다).
-/// - DROP 취소: 짝 PICK 이 아직 시작 전이면 같이 지운다. 이미 돌거나 끝났으면 DROP 만 지우고 경고 —
-///   타이어가 그리퍼에 남는다(지시는 in_hand, 복구는 단독 DROP 또는 Hand 비움).
+/// - DROP 취소: 짝 PICK 이 아직 시작 전이면 같이 지운다. PICK 이 도는 중이면 DROP 만 지우고 경고(PICK 이 끝나면 타이어가
+///   그리퍼에 남는다). PICK 이 끝났으면 PLC 가 그리퍼 화물 데이터를 지우므로 콘솔 Hand 도 비우고 지시는 aborted(`Stock::on_task`).
 pub fn pair_cancel(entries: &[LedgerEntry], e: &LedgerEntry) -> (Vec<LedgerEntry>, Option<String>) {
     let Some(to) = e.transfer_order_id.as_deref() else { return (Vec::new(), None) };
     let tt = gr_proto::TaskType::from_code(e.plc_task.task_type);
@@ -240,7 +247,7 @@ pub fn pair_cancel(entries: &[LedgerEntry], e: &LedgerEntry) -> (Vec<LedgerEntry
         Some(gr_proto::TaskType::Drop) => match partner {
             Some(p) if matches!(p.state, TaskState::Draft | TaskState::Submitted | TaskState::Accepted | TaskState::Queued) => (vec![p.clone()], None),
             Some(p) => (Vec::new(), Some(format!("짝 PICK #{} 이 {} — DROP 만 취소하면 타이어가 그리퍼(Hand)에 남습니다 (이송 지시 {to})", p.seq, p.state.as_str()))),
-            None if done_pick() => (Vec::new(), Some(format!("짝 PICK 이 이미 완료 — 타이어가 그리퍼(Hand)에 남습니다 (이송 지시 {to}). 복구: 단독 DROP 또는 Hand 비움"))),
+            None if done_pick() => (Vec::new(), Some(format!("짝 PICK 은 이미 완료 — PLC 가 DROP 삭제와 함께 그리퍼 화물 데이터를 지우므로 콘솔 Hand 도 비우고 이송 지시 {to} 를 중단합니다"))),
             None => (Vec::new(), None),
         },
         _ => (Vec::new(), None),
@@ -252,7 +259,14 @@ pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
     let _busy = st.shutdown.enter(format!("Task 취소 {id}"))?;
     let (r, e) = st.find_task(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
     match e.state {
-        TaskState::Draft => return r.ledger.transition(e, TaskState::Canceled, Actor::Ui, Some("draft discarded".into())),
+        TaskState::Draft => {
+            // 콘솔만 들고 있는 초안 — PLC 와 무관, 어느 모드에서나 지운다. 짝 초안도 같이.
+            let (pair, _) = pair_cancel(&r.ledger.list(), &e);
+            for p in pair.into_iter().filter(|p| p.state == TaskState::Draft) {
+                r.ledger.transition(p, TaskState::Canceled, Actor::Ui, Some("draft discarded (짝 초안)".into()))?;
+            }
+            return r.ledger.transition(e, TaskState::Canceled, Actor::Ui, Some("draft discarded".into()));
+        }
         TaskState::Submitted | TaskState::Accepted | TaskState::Queued | TaskState::Running | TaskState::Lost => {}
         s => return Err(ApiError::Conflict(format!("cannot cancel a {} task", s.as_str()))),
     }

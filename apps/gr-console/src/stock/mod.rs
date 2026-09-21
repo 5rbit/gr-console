@@ -222,11 +222,11 @@ impl Stock {
     }
 
     /// 완료됐는데 아직 재고에 안 접힌 PICK/DROP(동기화 판정용).
-    pub fn unfolded<'a>(&self, entries: &'a [LedgerEntry]) -> Result<Vec<&'a LedgerEntry>, ApiError> {
+    pub fn unfolded<'a>(&self, entries: &'a [LedgerEntry]) -> Result<Vec<(&'a LedgerEntry, Option<String>)>, ApiError> {
         let mut out = Vec::new();
         for e in entries {
             if e.state == TaskState::Completed && task_delta(&e.plc_task).is_some() && !self.is_applied(&e.id)? {
-                out.push(e);
+                out.push((e, self.held_reason(e)?));
             }
         }
         Ok(out)
@@ -252,9 +252,18 @@ impl Stock {
     }
 
     /// `apply_task` 본체 — 호출자가 `lock` 을 잡고 있어야 한다.
+    /// 완료 반영 본체(정확히 한 번 — `stock_applied` 가 Task id 로 막는다). `force` 가 아니면 손 정정 가드를 본다:
+    /// 대상 셀이나 Hand 가 이 Task 완료 **뒤에** 손으로 고쳐졌으면 반영하지 않는다(`held_reason`, 동기화 경고로 사람이 정한다).
     fn apply_locked(&self, e: &LedgerEntry, prefix: Option<&str>) -> Result<Option<StockEntry>, ApiError> {
+        self.apply_locked_with(e, prefix, false)
+    }
+
+    fn apply_locked_with(&self, e: &LedgerEntry, prefix: Option<&str>, force: bool) -> Result<Option<StockEntry>, ApiError> {
         let Some(delta) = task_delta(&e.plc_task) else { return Ok(None) };
         if e.state != TaskState::Completed || self.is_applied(&e.id)? {
+            return Ok(None);
+        }
+        if !force && self.held_reason(e)?.is_some() {
             return Ok(None);
         }
         let cur = self.get(delta.cell_id)?.unwrap_or(StockEntry { cell_id: delta.cell_id, ..Default::default() });
@@ -300,7 +309,7 @@ impl Stock {
     /// 같은 셀을 다시 만지는 작업(DROP → PICK)의 Z 가 틀리지 않게, 완료 때 `apply_task` 가 할 일을 미리 계산한다.
     ///
     /// 한 번만 세기(이중 계산 없음): `lock` 을 잡은 채
-    /// 1. 방금 `Completed` 가 됐는데 구독 태스크(`spawn`)가 아직 접지 않은 작업은 **여기서 접는다**(멱등, `FRESH_FOLD_MS` 안만),
+    /// 1. `Completed` 인데 아직 안 접힌 작업은 **여기서 접는다**(Task id 로 정확히 한 번, 원장 순서, 손 정정 가드),
     /// 2. 표를 읽고,
     /// 3. 진행 중(`Submitted`/`Accepted`/`Queued`/`Running`) 작업만 원장 순서(`seq`)로 더한다.
     ///
@@ -322,8 +331,17 @@ impl Stock {
         if e.state == TaskState::Completed && !self.is_applied(&e.id)? {
             return Ok(None); // 접기가 재고와 함께 옮긴다
         }
+        let picked = o.pick_state == Some(TaskState::Completed);
         if transfer::apply_task_state(&mut o, tt, &e.id, e.state) {
             transfer::save(&self.db, &o)?;
+            // PLC 에서 DROP 을 지우면 PLC 가 그리퍼 화물 데이터(GRIPPER.Item)도 지운다(CL_Common_Command) — 콘솔 Hand 도 비운다.
+            if tt == TaskType::Drop && e.state == TaskState::Canceled && picked {
+                let h = self.hand(&e.plc_name)?;
+                if h.count > 0 && h.transfer_order_id.as_deref().is_none_or(|x| x == id) {
+                    let reason = format!("task-delete: DROP #{}:{} 취소 — PLC 가 그리퍼 화물 데이터를 지움", e.work_id, e.task_id);
+                    self.set_hand(&e.plc_name, 0, 0, &reason, Some(&e.id), Some(id))?;
+                }
+            }
             return Ok(Some(o));
         }
         Ok(None)
@@ -378,15 +396,59 @@ impl Stock {
         Ok(project_all(cells, hands, &entries))
     }
 
-    /// 방금(`FRESH_FOLD_MS` 안) `Completed` 가 됐는데 아직 안 접힌 작업을 접는다(멱등). 잠금을 잡고 부른다.
-    fn fold_fresh(&self, entries: &[LedgerEntry]) -> Result<(), ApiError> {
-        let now = time::OffsetDateTime::now_utc();
-        for e in entries {
-            let fresh = e.ended_at.as_deref().and_then(crate::ledger::parse_rfc3339).map(|t| (now - t).whole_milliseconds() <= FRESH_FOLD_MS as i128).unwrap_or(false);
-            if e.state == TaskState::Completed && fresh && task_delta(&e.plc_task).is_some() {
-                self.apply_locked(e, None)?;
+    /// `Completed` 인데 아직 안 접힌 작업을 원장 순서(`seq`)로 접는다 — Task id 로 정확히 한 번, 손 정정 가드. 잠금을 잡고 부른다.
+    fn fold_fresh(&self, entries: &[LedgerEntry]) -> Result<usize, ApiError> {
+        let mut done: Vec<&LedgerEntry> = entries.iter().filter(|e| e.state == TaskState::Completed && task_delta(&e.plc_task).is_some()).collect();
+        done.sort_by_key(|e| e.seq);
+        let mut n = 0;
+        for e in done {
+            if self.apply_locked(e, None)?.is_some() {
+                n += 1;
             }
         }
+        Ok(n)
+    }
+
+    /// 기동 때 따라잡기 — 콘솔이 꺼진 동안 끝난(원장 완료, 재고 미반영) Task 를 원장 순서로 반영한다(같은 가드). 반영한 수.
+    pub fn catch_up(&self, entries: &[LedgerEntry]) -> Result<usize, ApiError> {
+        let _g = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        self.fold_fresh(entries)
+    }
+
+    /// 손 정정 가드 — 대상 셀·Hand 의 마지막 손 정정(`manual` · `sync-resolve`)이 이 Task 완료 시각 뒤면 그 사유.
+    pub fn held_reason(&self, e: &LedgerEntry) -> Result<Option<String>, ApiError> {
+        let Some(delta) = task_delta(&e.plc_task) else { return Ok(None) };
+        let Some(ended) = e.ended_at.as_deref().and_then(crate::ledger::parse_rfc3339) else { return Ok(None) };
+        for (kind, key, what) in [("cell", delta.cell_id.to_string(), format!("셀 {}", delta.cell_id)), ("hand", e.plc_name.clone(), format!("Hand {}", e.plc_name))] {
+            let last: Option<String> = self.db.with(|c| {
+                c.query_row("SELECT at FROM stock_log WHERE kind = ?1 AND key = ?2 AND (reason LIKE 'manual%' OR reason LIKE 'sync-resolve%') ORDER BY id DESC LIMIT 1", (kind, &key), |r| r.get(0))
+                    .map(Some)
+                    .or_else(|x| if x == rusqlite::Error::QueryReturnedNoRows { Ok(None) } else { Err(x) })
+            })?;
+            if let Some(at) = last
+                && crate::ledger::parse_rfc3339(&at).is_some_and(|t| t > ended)
+            {
+                return Ok(Some(format!("{what} 을 완료({}) 뒤 {at} 에 손으로 고침", e.ended_at.as_deref().unwrap_or(""))));
+            }
+        }
+        Ok(None)
+    }
+
+    /// 가드로 멈춘 Task 를 사람이 정한다 — `apply` 면 그대로 반영, 아니면 반영 없이 "무시" 로 한 번 기록.
+    pub fn decide_held(&self, e: &LedgerEntry, apply: bool) -> Result<(), ApiError> {
+        let _g = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        if self.is_applied(&e.id)? {
+            return Ok(());
+        }
+        if apply {
+            self.apply_locked_with(e, Some("sync-resolve: 반영"), true)?;
+            return Ok(());
+        }
+        let Some(delta) = task_delta(&e.plc_task) else { return Ok(()) };
+        let cur = self.get(delta.cell_id)?.map(|s| (s.item_code, s.count)).unwrap_or((0, 0));
+        let reason = format!("sync-resolve: 무시 — {} #{}:{} (손 정정 뒤 완료)", if delta.count >= 0 { "DROP" } else { "PICK" }, e.work_id, e.task_id);
+        transfer::log_change(&self.db, "cell", &delta.cell_id.to_string(), cur, cur, &reason, Some(&e.id), e.transfer_order_id.as_deref())?;
+        self.db.with(|c| c.execute("INSERT OR IGNORE INTO stock_applied (task_id, applied_at, outcome) VALUES (?1, ?2, 'ignored')", (&e.id, now_str())))?;
         Ok(())
     }
 }
@@ -447,10 +509,6 @@ pub fn hand_check(tt: TaskType, hand: &HandEntry, item_code: u32, count: u32) ->
         _ => Ok(()),
     }
 }
-
-/// 방금 끝난 작업을 `projected` 가 대신 접어 주는 창(ms). 그보다 오래된 미적용 `Completed` 는
-/// 운전자가 재고를 손으로 고쳤을 수 있으므로 건드리지 않는다.
-pub const FRESH_FOLD_MS: u64 = 60_000;
 
 /// 재고에 아직 접히지 않은 작업 하나(예상 재고의 근거).
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -720,10 +778,10 @@ mod tests {
         // 늦게 온 구독 태스크의 접기는 무시된다
         assert!(s.apply_task(&done).unwrap().is_none());
         assert_eq!(s.projected(401, || vec![done.clone()]).unwrap().count(), 4);
-        // 오래된 미적용 Completed 는 건드리지 않는다(운전자가 재고를 고쳤을 수 있음)
+        // 오래된 미적용 Completed 도 접는다(시간 창 없음) — 단, 그 뒤 손 정정이 있으면 가드가 멈춘다(아래 시험)
         let mut old = entry("o", 2, TaskType::Drop, 401, 1001, 1, TaskState::Completed);
         old.ended_at = Some("2020-01-01T00:00:00Z".into());
-        assert_eq!(s.projected(401, || vec![old]).unwrap().count(), 4);
+        assert_eq!(s.projected(401, || vec![old]).unwrap().count(), 5);
     }
 
     /// 짝 접기: PICK 완료 → 셀 − 2, Hand + 2 · DROP 완료 → Hand 0, 대상 셀 + 2. 예상 값도 같은 모양.
@@ -791,12 +849,12 @@ mod tests {
         s.on_task(&pick).unwrap();
         assert_eq!(s.order(&o.id).unwrap().unwrap().state, O::InHand);
         assert_eq!(s.hand("GR2").unwrap().transfer_order_id.as_deref(), Some(o.id.as_str()));
-        // DROP 대기 → dropping, 취소 → in_hand(재고 그대로)
+        // DROP 대기 → dropping, 실패 → in_hand(타이어는 손에, 재고 그대로)
         s.on_task(&with(entry("d1", 2, TaskType::Drop, 402, 2011, 2, TaskState::Queued))).unwrap();
         assert_eq!(s.order(&o.id).unwrap().unwrap().state, O::Dropping);
-        let canceled = with(entry("d1", 2, TaskType::Drop, 402, 2011, 2, TaskState::Canceled));
-        s.apply_task(&canceled).unwrap();
-        s.on_task(&canceled).unwrap();
+        let failed = with(entry("d1", 2, TaskType::Drop, 402, 2011, 2, TaskState::Failed));
+        s.apply_task(&failed).unwrap();
+        s.on_task(&failed).unwrap();
         assert_eq!(s.order(&o.id).unwrap().unwrap().state, O::InHand);
         assert_eq!((s.get(401).unwrap().unwrap().count, s.hand("GR2").unwrap().count), (3, 2));
         // 단독 DROP(지시 없이) — 손에 걸린 TO 로 이어져 done
@@ -809,6 +867,64 @@ mod tests {
         let rows: Vec<(&str, &str, u32, u32)> = log.iter().map(|c| (c.kind.as_str(), c.key.as_str(), c.count_before, c.count_after)).collect();
         assert_eq!(rows, vec![("cell", "401", 5, 3), ("hand", "GR2", 0, 2), ("cell", "402", 0, 2), ("hand", "GR2", 2, 0)]);
         assert!(log.iter().all(|c| c.transfer_order_id.as_deref() == Some(o.id.as_str()) && c.task_id.is_some()));
+    }
+
+    /// PLC 에서 DROP 을 지우면 PLC 가 그리퍼 화물 데이터를 지운다 — 콘솔 Hand 도 비우고 지시는 aborted, 기록 사유 task-delete.
+    #[test]
+    fn deleting_the_drop_clears_the_hand() {
+        use transfer::OrderState as O;
+        let s = Stock::new(Db::open_memory().unwrap());
+        s.set(401, 2011, 5, "", "seed").unwrap();
+        let o = s.open_order(transfer::NewOrder { plc: "GR2".into(), item_code: 2011, count: 2, ..Default::default() }).unwrap();
+        let with = |mut e: LedgerEntry| {
+            e.transfer_order_id = Some(o.id.clone());
+            e
+        };
+        let pick = with(entry("p", 1, TaskType::Pick, 401, 2011, 2, TaskState::Completed));
+        s.apply_task(&pick).unwrap();
+        s.on_task(&pick).unwrap();
+        s.on_task(&with(entry("d", 2, TaskType::Drop, 402, 2011, 2, TaskState::Running))).unwrap();
+        s.on_task(&with(entry("d", 2, TaskType::Drop, 402, 2011, 2, TaskState::Canceled))).unwrap();
+        assert_eq!(s.order(&o.id).unwrap().unwrap().state, O::Aborted);
+        let h = s.hand("GR2").unwrap();
+        assert_eq!((h.count, h.transfer_order_id), (0, None));
+        assert_eq!(s.get(401).unwrap().unwrap().count, 3, "cell keeps the PICK");
+        let last = s.order_changes(&o.id).unwrap().pop().unwrap();
+        assert!(last.reason.starts_with("task-delete") && last.kind == "hand" && last.count_after == 0, "{last:?}");
+    }
+
+    /// 완료 반영: Task id 로 정확히 한 번, 원장 순서로, 완료 뒤 손 정정이 있으면 멈추고(가드) 사람이 반영/무시.
+    #[test]
+    fn completion_is_applied_exactly_once_in_order_with_a_manual_guard() {
+        let s = Stock::new(Db::open_memory().unwrap());
+        s.set(401, 2011, 5, "", "seed").unwrap();
+        // 따라잡기(기동): 원장 순서 — DROP(seq 2) 이 PICK(seq 1) 보다 먼저 와도 PICK 부터
+        let pick = entry("p", 1, TaskType::Pick, 401, 2011, 2, TaskState::Completed);
+        let drop = entry("d", 2, TaskType::Drop, 402, 2011, 2, TaskState::Completed);
+        assert_eq!(s.catch_up(&[drop.clone(), pick.clone()]).unwrap(), 2);
+        let log: Vec<String> = s.db.with(|c| c.prepare("SELECT reason FROM stock_log WHERE task_id IS NOT NULL ORDER BY id")?.query_map([], |r| r.get(0))?.collect()).unwrap();
+        assert!(log[0].starts_with("PICK") && log.last().unwrap().starts_with("DROP"), "{log:?}");
+        // 두 번째 따라잡기·이벤트 접기는 아무것도 안 한다
+        assert_eq!(s.catch_up(&[drop.clone(), pick.clone()]).unwrap(), 0);
+        assert!(s.apply_task(&drop).unwrap().is_none());
+        assert_eq!((s.get(401).unwrap().unwrap().count, s.get(402).unwrap().unwrap().count, s.hand("GR2").unwrap().count), (3, 2, 0));
+        // 가드: 완료(2020) 뒤에 셀 403 을 손으로 고침 → 자동 반영하지 않고 사유를 낸다
+        s.set_logged(403, 2011, 4, "", "manual", None, None).unwrap();
+        let mut old = entry("o", 3, TaskType::Drop, 403, 2011, 1, TaskState::Completed);
+        old.ended_at = Some("2020-01-01T00:00:00Z".into());
+        assert_eq!(s.catch_up(std::slice::from_ref(&old)).unwrap(), 0);
+        assert!(s.held_reason(&old).unwrap().unwrap().contains("셀 403"));
+        assert_eq!(s.unfolded(std::slice::from_ref(&old)).unwrap().len(), 1);
+        // 무시 → 기록만, 다시는 안 뜬다
+        s.decide_held(&old, false).unwrap();
+        assert!(s.unfolded(std::slice::from_ref(&old)).unwrap().is_empty());
+        assert_eq!(s.get(403).unwrap().unwrap().count, 4);
+        // 반영 → 가드를 넘어 한 번
+        let mut old2 = entry("o2", 4, TaskType::Drop, 403, 2011, 1, TaskState::Completed);
+        old2.ended_at = Some("2020-01-01T00:00:00Z".into());
+        s.decide_held(&old2, true).unwrap();
+        s.decide_held(&old2, true).unwrap();
+        assert_eq!(s.get(403).unwrap().unwrap().count, 5);
     }
 
     /// 지시 없이 PLC 에서 온(외부) PICK 도 완료 때 TO 가 생겨 추적된다. 손 정정(`set`)은 지시 없이 manual 로 남는다.

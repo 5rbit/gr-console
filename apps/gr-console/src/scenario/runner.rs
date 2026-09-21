@@ -250,6 +250,54 @@ enum Outcome {
     Reached,
     Failed(String),
     Stopped,
+    /// 사람이 지운 예정 스텝(보내지 않음).
+    Skipped,
+    /// 영역을 막은 로봇의 걸린 짝 DROP(계획에서 뒤 스텝)을 먼저 낸다.
+    RunAhead(u32),
+    /// 두 로봇 영역 교착 — `on_failure` 와 상관없이 멈춘다.
+    Deadlock(String),
+}
+
+/// 영역 교착으로 보기 전 기다리는 시간(상대 로봇이 잠깐 서 있는 것과 구분).
+pub const AREA_DEADLOCK_MS: u64 = 10_000;
+
+/// 같은 로봇의 다음 스텝이 짝 DROP 이면 그 인덱스.
+pub fn pair_drop_step(steps: &[Step], plan: &Plan, i: usize) -> Option<usize> {
+    let r = plan.robot_for(&steps[i]);
+    steps.iter().enumerate().skip(i + 1).find(|(_, n)| plan.robot_for(n) == r).filter(|(_, n)| n.task_type == gr_proto::TaskType::Drop).map(|(j, _)| j)
+}
+
+/// 사람이 지우려는 예정 스텝(이번 회차) — 짝까지 묶은 목록, 또는 지울 수 없는 사유.
+/// 이미 보낸(결과가 있는) 스텝과 지금 보내는 중인 스텝은 지울 수 없다(그건 Task 취소). PICK 을 지우면 짝 DROP 도,
+/// 아직 안 나간 PICK 의 DROP 을 지우면 그 PICK 도 지운다.
+pub fn skip_set(steps: &[Step], plan: &Plan, cur: Cursor, cur_sent: bool, results: &[StepResult], idx: u32) -> Result<Vec<u32>, String> {
+    let n = steps.len() as u32;
+    if idx >= n {
+        return Err(format!("스텝 {} 없음", idx + 1));
+    }
+    let sent = |i: u32| (i < cur.step_index) || (i == cur.step_index && cur_sent) || results.iter().any(|r| r.iteration == cur.iteration && r.step_index == i && r.task_id.is_some());
+    if sent(idx) {
+        return Err(format!("스텝 {} 은 이미 로봇에 보냄 — Task 취소로 지우세요", idx + 1));
+    }
+    let mut out = vec![idx];
+    let s = &steps[idx as usize];
+    match s.task_type {
+        gr_proto::TaskType::Pick => out.extend(pair_drop_step(steps, plan, idx as usize).map(|j| j as u32)),
+        gr_proto::TaskType::Drop => {
+            let r = plan.robot_for(s);
+            if let Some((p, ps)) = steps[..idx as usize].iter().enumerate().rev().find(|(_, p)| plan.robot_for(p) == r)
+                && ps.task_type == gr_proto::TaskType::Pick
+            {
+                if sent(p as u32) {
+                    return Err(format!("짝 PICK(스텝 {}) 이 이미 나감 — DROP 만 지우면 타이어가 그리퍼에 남습니다. Task 취소로 처리하세요", p + 1));
+                }
+                out.push(p as u32);
+            }
+        }
+        _ => {}
+    }
+    out.sort();
+    Ok(out)
 }
 
 pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, plan: Plan, mut ctl: watch::Receiver<Ctl>) {
@@ -260,6 +308,10 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
     let mut prequeued = false;
     // 로봇별 지금 짝의 이송 지시(PICK 전에 열고 DROP 이 도달하면 놓는다).
     let mut pair_order: std::collections::BTreeMap<u8, String> = Default::default();
+    // 로봇별 걸린 짝의 DROP 목표 X — 다른 로봇 영역 검사에 쓴다(DROP 이 나가면 원장이 대신 잡는다).
+    let mut pair_x: std::collections::BTreeMap<u8, f32> = Default::default();
+    // 영역 교착을 풀려고 먼저 낸 스텝(회차, 인덱스) — 차례가 오면 건너뛴다.
+    let mut ran_ahead: std::collections::BTreeSet<(u32, u32)> = Default::default();
     tracing::info!(run = %run_id, scenario = %scenario.name, steps = plan.step_count, iterations = ?plan.total_iterations, "scenario run started");
     let mut cur = plan.first();
     let mut error: Option<String> = None;
@@ -274,6 +326,20 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
             g.note = None;
         });
         let step = &scenario.steps[cur.step_index as usize];
+        // 먼저 낸 스텝 · 사람이 지운 예정 스텝은 건너뛴다.
+        let deleted = runner.current().skipped.contains(&(cur.iteration, cur.step_index));
+        if ran_ahead.remove(&(cur.iteration, cur.step_index)) || deleted {
+            if deleted {
+                runner.update(|g| g.push_result(skipped_result(cur)));
+            }
+            match plan.advance(cur) {
+                Some(n) => {
+                    cur = n;
+                    continue;
+                }
+                None => break Phase::Done,
+            }
+        }
         // 이 스텝이 갈 로봇(설정 id) — 짝·지시는 로봇별이다.
         let rid = st.robot(plan.robot_for(step)).map(|r| r.id).unwrap_or(0);
         // 짝이 걸려 있으면(어느 로봇이든) 정지·일시정지를 미룬 채 보낸다.
@@ -290,8 +356,11 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
                 }
             }
             let order = matches!(step.task_type, gr_proto::TaskType::Pick | gr_proto::TaskType::Drop).then(|| pair_order.get(&rid).cloned()).flatten();
-            let (outcome, result) = execute_step(&st, &runner, &scenario, &run_id, step, plan.robot_for(step), cur, attempt, tail, order, &mut ctl).await;
-            runner.update(|g| g.push_result(result));
+            let ctx = StepCtx { plan: &plan, pair_x: &pair_x };
+            let (outcome, result) = execute_step(&st, &runner, &scenario, &run_id, step, plan.robot_for(step), cur, attempt, tail, order, &ctx, &mut ctl).await;
+            if !matches!(outcome, Outcome::RunAhead(_)) {
+                runner.update(|g| g.push_result(result));
+            }
             if !matches!(outcome, Outcome::Reached) && step.task_type == gr_proto::TaskType::Pick {
                 // 보내지 못한 PICK 의 지시는 닫는다(보냈다가 실패한 것은 원장이 failed 로 옮긴다). 재시도는 새 지시로.
                 close_unsent(&st, pair_order.remove(&rid), "PICK 을 보내지 못함");
@@ -299,6 +368,36 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
             match outcome {
                 Outcome::Reached => break,
                 Outcome::Stopped => break 'outer Phase::Stopped,
+                Outcome::Skipped => break,
+                Outcome::Deadlock(msg) => {
+                    error = Some(format!("스텝 {} 실행 멈춤 — {msg}", cur.step_index + 1));
+                    break 'outer Phase::Failed;
+                }
+                Outcome::RunAhead(j) => {
+                    // 막은 로봇의 걸린 짝 DROP 을 먼저 낸다(그 로봇 순서는 그대로 — 같은 로봇의 다음 스텝이 그 DROP 이다).
+                    attempt -= 1;
+                    let s2 = &scenario.steps[j as usize];
+                    let rid2 = st.robot(plan.robot_for(s2)).map(|r| r.id).unwrap_or(0);
+                    let cur2 = Cursor { iteration: cur.iteration, step_index: j };
+                    runner.update(|g| g.note = Some(format!("영역 교착 풀기: 스텝 {} ({}) 을 먼저 냄", j + 1, s2.task_type.name())));
+                    let ctx = StepCtx { plan: &plan, pair_x: &pair_x };
+                    let (o2, r2) = execute_step(&st, &runner, &scenario, &run_id, s2, plan.robot_for(s2), cur2, 1, true, pair_order.get(&rid2).cloned(), &ctx, &mut ctl).await;
+                    runner.update(|g| g.push_result(r2));
+                    match o2 {
+                        Outcome::Reached => {
+                            holding.remove(&rid2);
+                            pair_order.remove(&rid2);
+                            pair_x.remove(&rid2);
+                            ran_ahead.insert((cur.iteration, j));
+                            continue;
+                        }
+                        Outcome::Stopped => break 'outer Phase::Stopped,
+                        _ => {
+                            error = Some(format!("스텝 {} 을 먼저 내려다 실패 — 영역 교착을 풀지 못함", j + 1));
+                            break 'outer Phase::Failed;
+                        }
+                    }
+                }
                 Outcome::Failed(msg) => match decide_pair(step.task_type, decide(step.on_failure, attempt, MAX_RETRIES)) {
                     Decision::Next => {
                         tracing::warn!(step = cur.step_index, %msg, "step failed — skipped");
@@ -325,13 +424,18 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
         if step.wait_for == WaitFor::Accepted {
             prequeued = true;
         }
+        let skipped_now = runner.current().skipped.contains(&(cur.iteration, cur.step_index));
         match step.task_type {
-            gr_proto::TaskType::Pick => {
+            gr_proto::TaskType::Pick if !skipped_now => {
                 holding.insert(rid);
+                if let Some(x) = pair_drop_step(&scenario.steps, &plan, cur.step_index as usize).and_then(|j| scenario.steps[j].target.as_ref()).and_then(|t| crate::area::target_x(&st, t)) {
+                    pair_x.insert(rid, x);
+                }
             }
             gr_proto::TaskType::Drop => {
                 holding.remove(&rid);
                 pair_order.remove(&rid);
+                pair_x.remove(&rid);
             }
             _ => {}
         }
@@ -437,6 +541,26 @@ async fn drain(st: &AppState, runner: &Arc<Runner>, scenario: &Scenario, ctl: &m
     }
 }
 
+fn skipped_result(cur: Cursor) -> StepResult {
+    StepResult {
+        iteration: cur.iteration,
+        step_index: cur.step_index,
+        task_id: None,
+        state: TaskState::Canceled,
+        ack: None,
+        started_at: now_str(),
+        ended_at: Some(now_str()),
+        error: Some("예정 스텝 삭제됨 (보내지 않음)".into()),
+        attempt: 0,
+    }
+}
+
+/// 실행기 문맥(영역 검사용).
+struct StepCtx<'a> {
+    plan: &'a Plan,
+    pair_x: &'a std::collections::BTreeMap<u8, f32>,
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn execute_step(
     st: &AppState,
@@ -449,6 +573,7 @@ async fn execute_step(
     attempt: u32,
     tail: bool,
     order: Option<String>,
+    ctx: &StepCtx<'_>,
     ctl: &mut watch::Receiver<Ctl>,
 ) -> (Outcome, StepResult) {
     let mut res = StepResult { iteration: cur.iteration, step_index: cur.step_index, task_id: None, state: TaskState::Failed, ack: None, started_at: now_str(), ended_at: None, error: None, attempt };
@@ -484,15 +609,31 @@ async fn execute_step(
         Err(e) => return fail(res, format!("robot: {e}")),
     };
     // 먼저 한 번 작성해 잘못된 스텝은 게이트를 기다리지 않고 바로 실패시킨다(보낼 값은 게이트 뒤에 다시 작성).
-    if let Err(e) = crate::issue::compose(st, &req) {
-        return fail(res, format!("compose: {e}"));
-    }
+    let first = match crate::issue::compose(st, &req) {
+        Ok(c) => c,
+        Err(e) => return fail(res, format!("compose: {e}")),
+    };
+    // 영역: 목표 X(작성 값), PICK 이면 짝 DROP 목표 X 까지.
+    let area_cfg = crate::area::load(&st.db);
+    let target_x = (first.task.cell.id != 0).then_some(first.task.position[0]);
+    let pair_drop_x = (step.task_type == gr_proto::TaskType::Pick)
+        .then(|| pair_drop_step(&scenario.steps, ctx.plan, cur.step_index as usize))
+        .flatten()
+        .and_then(|j| scenario.steps[j].target.as_ref())
+        .and_then(|t| crate::area::target_x(st, t));
+    let mut blocked_since: Option<std::time::Instant> = None;
 
     // submission gate
     let mut last_note: Option<String> = None;
     loop {
         if let Some(msg) = earlier_broken(&stops_run(scenario, earlier_states(st, runner))) {
             return fail(res, msg);
+        }
+        if runner.current().skipped.contains(&(cur.iteration, cur.step_index)) {
+            res.state = TaskState::Canceled;
+            res.error = Some("예정 스텝 삭제됨 (보내지 않음)".into());
+            res.ended_at = Some(now_str());
+            return (Outcome::Skipped, res);
         }
         let c = *ctl.borrow_and_update();
         // 짝이 걸려 있으면(PICK 이 이미 나갔다) 정지·일시정지를 미룬다.
@@ -507,11 +648,48 @@ async fn execute_step(
         }
         let g = crate::ledger::ops::gate(st, robot);
         let depth = queue_depth_reason(robot.ledger.list().iter().map(|e| e.state));
-        if g.can_submit && depth.is_none() {
+        // 두 로봇 영역 — 겹치면 예정으로 기다리고, 교착이면 풀거나 멈춘다.
+        let area = target_x.and_then(|x| crate::area::check(st, &area_cfg, robot, x, pair_drop_x, ctx.pair_x));
+        let area_reason = match &area {
+            None => {
+                blocked_since = None;
+                None
+            }
+            Some((b, mine)) => {
+                let ahead = ctx.pair_x.contains_key(&b.robot).then(|| {
+                    scenario
+                        .steps
+                        .iter()
+                        .enumerate()
+                        .skip(cur.step_index as usize + 1)
+                        .find(|(_, s)| st.robot(ctx.plan.robot_for(s)).map(|r| r.id).ok() == Some(b.robot))
+                        .filter(|(_, s)| s.task_type == gr_proto::TaskType::Drop)
+                        .map(|(j, _)| j as u32)
+                });
+                match crate::area::resolve(b, ahead.flatten(), cur.step_index + 1, *mine, area_cfg.separation_mm) {
+                    crate::area::Resolve::RunAhead(j) => return (Outcome::RunAhead(j), res),
+                    crate::area::Resolve::Deadlock(msg) => {
+                        let since = *blocked_since.get_or_insert_with(std::time::Instant::now);
+                        if since.elapsed() >= Duration::from_millis(AREA_DEADLOCK_MS) {
+                            res.error = Some(msg.clone());
+                            res.ended_at = Some(now_str());
+                            return (Outcome::Deadlock(msg), res);
+                        }
+                        Some(crate::area::wait_reason(b, *mine, area_cfg.separation_mm))
+                    }
+                    crate::area::Resolve::Wait => {
+                        blocked_since = None;
+                        Some(crate::area::wait_reason(b, *mine, area_cfg.separation_mm))
+                    }
+                }
+            }
+        };
+        if g.can_submit && depth.is_none() && area_reason.is_none() {
             break;
         }
         let mut reasons = g.reasons;
         reasons.extend(depth);
+        reasons.extend(area_reason);
         let note = format!("제출 대기: {}", reasons.join("; "));
         if last_note.as_deref() != Some(&note) {
             runner.update(|s| s.note = Some(note.clone()));
@@ -636,6 +814,40 @@ mod tests {
         assert!(breaks_run(&st(Pick, OnFailure::Skip)) && breaks_run(&st(Drop, OnFailure::Skip)));
         assert!(breaks_run(&st(Move, OnFailure::Stop)));
         assert!(!breaks_run(&st(Move, OnFailure::Skip)) && !breaks_run(&st(Measure, OnFailure::Skip)));
+    }
+
+    fn st(tt: gr_proto::TaskType, robot: Option<u8>) -> Step {
+        Step { task_type: tt, robot, ..Default::default() }
+    }
+
+    /// 예정 스텝 지우기 — 짝을 같이, 이미 보낸 것은 거부.
+    #[test]
+    fn deleting_scheduled_steps_keeps_pairs_together() {
+        use gr_proto::TaskType::*;
+        let steps = vec![st(Pick, Some(1)), st(Move, Some(2)), st(Drop, Some(1)), st(Pick, Some(1)), st(Drop, Some(1))];
+        let sc = Scenario { steps: steps.clone(), repeat: 1, ..Default::default() };
+        let plan = Plan::new(&sc, &RunOptions::default()).unwrap();
+        let at = |i| Cursor { iteration: 1, step_index: i };
+        // PICK 을 지우면 같은 로봇의 짝 DROP 도(다른 로봇 스텝 건너)
+        assert_eq!(skip_set(&steps, &plan, at(0), false, &[], 3), Ok(vec![3, 4]));
+        assert_eq!(skip_set(&steps, &plan, at(0), false, &[], 0), Ok(vec![0, 2]));
+        // 안 나간 PICK 의 DROP 을 지우면 PICK 도
+        assert_eq!(skip_set(&steps, &plan, at(0), false, &[], 2), Ok(vec![0, 2]));
+        // PICK 이 나갔으면(지금 스텝, 보냄) DROP 만 지울 수 없다
+        assert!(skip_set(&steps, &plan, at(0), true, &[], 2).unwrap_err().contains("짝 PICK"));
+        // 지난 스텝은 Task 취소로
+        assert!(skip_set(&steps, &plan, at(2), false, &[], 1).unwrap_err().contains("이미"));
+        assert_eq!(skip_set(&steps, &plan, at(1), false, &[], 1), Ok(vec![1]));
+    }
+
+    #[test]
+    fn pair_drop_step_follows_the_same_robot() {
+        use gr_proto::TaskType::*;
+        let steps = vec![st(Pick, Some(1)), st(Move, Some(2)), st(Drop, Some(1)), st(Pick, Some(2)), st(Move, Some(2))];
+        let sc = Scenario { steps: steps.clone(), repeat: 1, ..Default::default() };
+        let plan = Plan::new(&sc, &RunOptions::default()).unwrap();
+        assert_eq!(pair_drop_step(&steps, &plan, 0), Some(2));
+        assert_eq!(pair_drop_step(&steps, &plan, 3), None, "robot 2's next step is a MOVE");
     }
 
     #[test]

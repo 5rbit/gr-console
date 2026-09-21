@@ -10,7 +10,8 @@
 //! | 진행 중         | 무엇이든          | picking     |
 //! | 취소            | —                 | aborted     |
 //! | 실패·거부·Lost  | —                 | failed      |
-//! | 완료            | 없음 / 실패·취소  | in_hand     |
+//! | 완료            | 없음 / 실패·Lost  | in_hand     |
+//! | 완료            | 취소(PLC 삭제)    | aborted — PLC 가 그리퍼 화물 데이터를 지운다, Hand 도 비움 |
 //! | 완료            | 진행 중           | dropping    |
 //! | 완료            | 완료              | done        |
 //!
@@ -79,6 +80,8 @@ pub fn derive(cur: OrderState, pick: Option<TaskState>, drop: Option<TaskState>)
         None | Some(TaskState::Draft) => cur,
         Some(TaskState::Completed) => match drop {
             Some(TaskState::Completed) => OrderState::Done,
+            // PLC 에서 DROP 을 지우면 그리퍼 화물 데이터도 지워진다 — 사람이 끝낸 지시(Hand 도 비운다).
+            Some(TaskState::Canceled) => OrderState::Aborted,
             Some(d) if !bad(d) && d != TaskState::Draft => OrderState::Dropping,
             _ => OrderState::InHand,
         },
@@ -274,6 +277,7 @@ pub fn apply_task_state(o: &mut TransferOrder, tt: TaskType, task_id: &str, stat
     }
     let to = derive(o.state, o.pick_state, o.drop_state);
     let note = match (tt, state) {
+        (TaskType::Drop, TaskState::Canceled) if o.pick_state == Some(TaskState::Completed) => "DROP 취소 — PLC 가 그리퍼 화물 데이터를 지움 (Hand 비움)".to_string(),
         (TaskType::Drop, s) if bad(s) && to == OrderState::InHand => format!("DROP {} — 타이어는 Hand 에 남음", s.as_str()),
         (t, s) => format!("{} {}", t.name(), s.as_str()),
     };
@@ -377,7 +381,8 @@ mod tests {
         assert_eq!(derive(O::Picking, Some(Completed), Some(Queued)), O::Dropping);
         assert_eq!(derive(O::Picking, Some(Completed), None), O::InHand);
         assert_eq!(derive(O::Dropping, Some(Completed), Some(Completed)), O::Done);
-        assert_eq!(derive(O::Dropping, Some(Completed), Some(Canceled)), O::InHand, "tires stay on the gripper");
+        assert_eq!(derive(O::Dropping, Some(Completed), Some(Canceled)), O::Aborted, "PLC delete clears the gripper item");
+        assert_eq!(derive(O::Dropping, Some(Completed), Some(Failed)), O::InHand, "failed DROP: tires stay on the gripper");
         assert_eq!(derive(O::Picking, Some(Rejected), Some(Queued)), O::Failed);
         assert_eq!(derive(O::Picking, Some(Canceled), Some(Canceled)), O::Aborted, "PICK 취소 = 짝 전체 중단");
         assert_eq!(derive(O::Aborted, Some(Completed), Some(Completed)), O::Aborted);
@@ -395,14 +400,14 @@ mod tests {
         assert_eq!(o.state, OrderState::Picking);
         apply_task_state(&mut o, TaskType::Pick, "p1", Completed);
         assert_eq!(o.state, OrderState::Dropping);
-        apply_task_state(&mut o, TaskType::Drop, "d1", Canceled);
+        apply_task_state(&mut o, TaskType::Drop, "d1", Failed);
         assert_eq!(o.state, OrderState::InHand);
         assert!(o.history.last().unwrap().note.contains("Hand"));
         // 같은 지시로 새 DROP — 앞 DROP 이 취소됐으니 바꿔 단다
         apply_task_state(&mut o, TaskType::Drop, "d2", Submitted);
         assert_eq!((o.state, o.drop_task.as_deref()), (OrderState::Dropping, Some("d2")));
         // 늦게 온 옛 DROP 이벤트는 새 DROP 을 덮지 않는다
-        assert!(!apply_task_state(&mut o, TaskType::Drop, "d1", Canceled));
+        assert!(!apply_task_state(&mut o, TaskType::Drop, "d1", Failed));
         apply_task_state(&mut o, TaskType::Drop, "d2", Completed);
         assert_eq!(o.state, OrderState::Done);
         assert!(o.ended_at.is_some());

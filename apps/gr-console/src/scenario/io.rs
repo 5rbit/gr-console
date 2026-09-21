@@ -284,6 +284,21 @@ pub fn validate_pairs(steps: &[Step], run_robot: Option<u8>, start_step: u32) ->
 pub fn validate(st: &AppState, s: &Scenario) -> Result<Vec<Issue>, ApiError> {
     let mut out = validate_shape(s);
     out.extend(validate_pairs(&s.steps, None, 0));
+    // 두 로봇 영역(정적) — 이웃한 두 스텝이 다른 로봇이고 목표 X 가 간격 안이면 알린다(실행 때는 영역 대기).
+    let cfg = crate::area::load(&st.db);
+    if cfg.enabled && st.robots.len() > 1 {
+        for (i, w) in s.steps.windows(2).enumerate() {
+            let (a, b) = (&w[0], &w[1]);
+            let (Ok(ra), Ok(rb)) = (st.robot(a.robot), st.robot(b.robot)) else { continue };
+            if ra.id == rb.id {
+                continue;
+            }
+            let (Some(xa), Some(xb)) = (a.target.as_ref().and_then(|t| crate::area::target_x(st, t)), b.target.as_ref().and_then(|t| crate::area::target_x(st, t))) else { continue };
+            if let Some(w) = crate::area::static_warning(&ra.name, xa, &rb.name, xb, cfg.separation_mm) {
+                out.push(issue(i + 1, "area", w));
+            }
+        }
+    }
     for (i, step) in s.steps.iter().enumerate() {
         if let Some(t) = &step.target {
             let known = match t.kind.as_str() {
