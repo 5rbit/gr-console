@@ -4,6 +4,10 @@
 //! Per step: compose → wait for the submission gate (250 ms poll, honours pause/stop) →
 //! `create_and_submit` → follow the ledger entry (broadcast events, 500 ms poll fallback) until the
 //! step's `wait_for` state is reached or the task ends badly → apply `on_failure` → `wait_after_ms`.
+//!
+//! 미리 넣기(`wait_for = accepted`): 다음 스텝은 앞 Task 가 끝나기 전에 작성된다. 작성은 진행 중 작업을
+//! 반영한 예상 재고(`issue::projected_stock`)로 하고, 게이트를 통과한 뒤 **다시** 작성해 보낸다. 앞 스텝의
+//! Task 가 나중에 실패·취소·Lost 가 되면(`earlier_broken`) 그 뒤 스텝은 보내지 않고 실행을 멈춘다.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -116,6 +120,31 @@ pub fn decide(policy: OnFailure, attempt: u32, max_retries: u32) -> Decision {
             }
         }
     }
+}
+
+/// 이번 실행에서 이미 넘어간(도달한) 스텝의 Task 가 나중에 나쁘게 끝났는가 — 미리 넣기에서 앞 Task 가 실패하면
+/// 뒤 Task 의 전제(재고·들고 있는 화물)가 틀어진다. `(step_index, work_id, task_id, 지금 상태)` 중 첫 번째.
+pub fn earlier_broken(done: &[(u32, u32, u32, TaskState)]) -> Option<String> {
+    done.iter()
+        .find(|(_, _, _, s)| matches!(s, TaskState::Rejected | TaskState::Failed | TaskState::Canceled | TaskState::Lost))
+        .map(|(i, w, t, s)| format!("앞 스텝 {} 의 Task {w}/{t} 가 {} — 이 스텝부터 보내지 않음 (이미 넣은 Task 는 PLC 버퍼에 남아 있을 수 있음)", i + 1, s.as_str()))
+}
+
+/// 미리 넣기 검사에 볼 최근 결과 수(버퍼 4 칸보다 넉넉히).
+const EARLIER_LOOKBACK: usize = 8;
+
+fn earlier_states(st: &AppState, runner: &Runner) -> Vec<(u32, u32, u32, TaskState)> {
+    let snap = runner.current();
+    snap.results
+        .iter()
+        .rev()
+        .filter(|r| r.error.is_none())
+        .take(EARLIER_LOOKBACK)
+        .filter_map(|r| {
+            let (_, e) = st.find_task(r.task_id.as_deref()?)?;
+            Some((r.step_index, e.work_id, e.task_id, e.state))
+        })
+        .collect()
 }
 
 /// `Some(true)` = the awaited state is reached, `Some(false)` = the task ended badly,
@@ -296,14 +325,17 @@ async fn execute_step(
         Ok(r) => r,
         Err(e) => return fail(res, format!("robot: {e}")),
     };
-    let composed = match crate::issue::compose(st, &req) {
-        Ok(c) => c,
-        Err(e) => return fail(res, format!("compose: {e}")),
-    };
+    // 먼저 한 번 작성해 잘못된 스텝은 게이트를 기다리지 않고 바로 실패시킨다(보낼 값은 게이트 뒤에 다시 작성).
+    if let Err(e) = crate::issue::compose(st, &req) {
+        return fail(res, format!("compose: {e}"));
+    }
 
     // submission gate
     let mut last_note: Option<String> = None;
     loop {
+        if let Some(msg) = earlier_broken(&earlier_states(st, runner)) {
+            return fail(res, msg);
+        }
         let c = *ctl.borrow_and_update();
         if c.stop {
             return stopped(res, "제출 전 정지됨");
@@ -331,6 +363,11 @@ async fn execute_step(
     if last_note.is_some() {
         runner.update(|s| s.note = None);
     }
+    // 게이트를 기다리는 동안 앞 Task 가 끝나 재고가 접혔거나 스테이션 트래킹이 바뀌었을 수 있다 — 보내기 직전 값으로.
+    let composed = match crate::issue::compose(st, &req) {
+        Ok(c) => c,
+        Err(e) => return fail(res, format!("compose: {e}")),
+    };
 
     // subscribe before submitting so the first transition cannot be missed
     let mut rx = st.task_events.subscribe();
@@ -410,6 +447,17 @@ mod tests {
             c = plan.advance(cur);
         }
         out
+    }
+
+    #[test]
+    fn earlier_broken_stops_on_bad_end_only() {
+        use TaskState::*;
+        assert_eq!(earlier_broken(&[]), None);
+        assert_eq!(earlier_broken(&[(0, 1, 1, Completed), (1, 1, 2, Running), (2, 1, 3, Queued), (3, 1, 4, Accepted)]), None);
+        for bad in [Failed, Canceled, Rejected, Lost] {
+            let m = earlier_broken(&[(0, 1, 1, Completed), (1, 260921, 7, bad)]).unwrap();
+            assert!(m.contains("앞 스텝 2") && m.contains("260921/7") && m.contains(bad.as_str()), "{m}");
+        }
     }
 
     #[test]

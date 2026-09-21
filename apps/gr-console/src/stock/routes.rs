@@ -75,7 +75,9 @@ fn one() -> u32 {
 async fn z_preview(State(st): State<AppState>, Query(q): Query<ZQuery>) -> ApiResult<Json> {
     let tt = parse_task_type(&q.task_type)?;
     let cell = st.registry.cell(q.cell)?.ok_or_else(|| ApiError::NotFound(format!("cell {}", q.cell)))?.cell;
-    let stock = st.stock.get(q.cell)?;
+    // compose 와 같은 예상 재고(진행 중 PICK/DROP 반영).
+    let proj = crate::issue::projected_stock(&st, q.cell)?;
+    let stock = proj.projected.clone();
     let code = q.item.or(stock.as_ref().map(|s| s.item_code)).filter(|c| *c != 0);
     let entry = match code {
         Some(c) => st.registry.item(c)?,
@@ -90,7 +92,7 @@ async fn z_preview(State(st): State<AppState>, Query(q): Query<ZQuery>) -> ApiRe
     Ok(axum::Json(
         json!({ "cell": q.cell, "type": tt.name(), "item_code": code, "height": item.height, "grip_ref": z.grip_ref, "grip_ref_asked": grip_ref, "grip": z.grip, "stock": n, "floor": cell.position[2],
         "z": z.z, "z_source": z.z_source, "level": z.level, "below": z.below, "above": z.above, "base": z.base, "upper_bead": z.upper_bead, "pick_bead_offset": z.pick_bead_offset,
-        "compression": z.compression, "used": z.used, "warnings": z.warnings, "stack_max": spec.as_ref().map(|s| s.stack_max) }),
+        "compression": z.compression, "used": z.used, "warnings": z.warnings, "stack_max": spec.as_ref().map(|s| s.stack_max), "stock_base": proj.base_count(), "pending": proj.pending.len() }),
     ))
 }
 
