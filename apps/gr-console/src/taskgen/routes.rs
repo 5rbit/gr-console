@@ -63,6 +63,11 @@ async fn remove(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult
     Ok(axum::Json(json!({ "removed": id })))
 }
 
+/// PLC 계산 간격(두 로봇 중 큰 값) — 콘솔 간격의 하한.
+pub fn plc_max(st: &AppState) -> Option<f64> {
+    crate::params::plc_anticol(st).iter().filter_map(|p| p.separation).fold(None, |a, x| Some(a.map_or(x, |a: f64| a.max(x))))
+}
+
 async fn params_get(State(st): State<AppState>) -> ApiResult<Json> {
     let p = crate::params::current(&st.db);
     Ok(axum::Json(json!({
@@ -71,6 +76,8 @@ async fn params_get(State(st): State<AppState>) -> ApiResult<Json> {
         "defaults": crate::params::Params::default(),
         "spec": crate::params::spec(),
         "plc": crate::params::plc_anticol(&st),
+        "plc_separation_max": plc_max(&st),
+        "warnings": crate::params::warnings(&st.db, &p),
         "config": { "echo_timeout_ms": st.cfg.cmd.echo_timeout_ms },
         "robots": st.robots.iter().map(|r| json!({ "id": r.id, "name": r.name })).collect::<Vec<_>>(),
     })))
@@ -85,6 +92,7 @@ struct PutParams {
 
 async fn params_put(State(st): State<AppState>, axum::Json(b): axum::Json<PutParams>) -> ApiResult<Json> {
     let by = if b.by.trim().is_empty() { "console" } else { b.by.trim() };
+    crate::params::check_plc_floor(b.params.anticol_separation_mm, plc_max(&st)).map_err(ApiError::BadRequest)?;
     let (v, p, ch) = crate::params::save(&st.db, b.params, by)?;
     Ok(axum::Json(json!({ "version": v, "params": p, "changes": ch.iter().map(|(k, a, n)| json!({ "key": k, "old": a, "new": n })).collect::<Vec<_>>() })))
 }

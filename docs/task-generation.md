@@ -33,7 +33,9 @@
 
 ## 영역 (충돌 방지 구역)
 
-- 간격 = `anticol_separation_mm`(기본 PLC PARA p11 1903 + p16 400 + p13 100 = 2403) + 두 로봇의 `robot_margin_mm`.
+- 간격 = `anticol_separation_mm`(기본 **5000 mm** — 안전값) + 두 로봇의 `robot_margin_mm`. PLC 계산값(p11 1903 + p16 400 +
+  p13 100 = 2403, 두 로봇 중 큰 값)은 참고로 보이고(다르면 ≠) **하한**이다 — 그보다 작게는 저장되지 않는다.
+  예전 기본값 2403 이 사람 손을 안 탄 채 저장돼 있으면 5000 으로 올리고, 사람이 저장한 값은 그대로 두되 경고한다.
 - 후보 영역 = 로봇 시작 X(앞 Task 목표 → 지금 X) ~ 목표, 짝이면 DROP 목표까지.
 - 다른 로봇이 잡은 영역 = 지금 X + 발행된 진행 중 Task 목표 + 예정 영역 + 이번 판정에서 고른 것.
   **PLC 가 받은 명령(Accepted/Queued/Running)이 있으면 지금 X 는 빼고 목표만**(X 에서 서로 건너지 못한다).
@@ -58,7 +60,7 @@
 
 | Name | Unit | Default | 출처 |
 | --- | --- | --- | --- |
-| anticol_separation_mm | mm | 2403 | PLC PARA p11/p12 + p16 + p13 (로봇별 실측 비교) |
+| anticol_separation_mm | mm | 5000 | 하한 = PLC PARA p11/p12 + p16 + p13 (로봇별 실측 비교, 두 로봇 중 큰 값) |
 | anticol_enabled | | true | |
 | robot_margin_mm | mm | {} | 로봇별 그리퍼·타이어 여유 |
 | gen_tick_ms | ms | 1000 | |

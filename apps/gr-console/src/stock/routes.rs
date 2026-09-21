@@ -181,7 +181,7 @@ async fn sync_resolve(State(st): State<AppState>, Path(robot): Path<u8>, axum::J
     Ok(axum::Json(serde_json::to_value(out).unwrap_or_default()))
 }
 
-/// `GET /api/anticol` — 두 로봇 영역 간격(기본 PLC PARA p11 + p16 + p13 = 2403 mm).
+/// `GET /api/anticol` — 두 로봇 영역 간격(기본 안전값 5000 mm, 하한 = PLC PARA p11 + p16 + p13).
 async fn anticol_get(State(st): State<AppState>) -> ApiResult<Json> {
     Ok(axum::Json(serde_json::to_value(crate::area::load(&st.db)).unwrap_or_default()))
 }
@@ -189,6 +189,7 @@ async fn anticol_get(State(st): State<AppState>) -> ApiResult<Json> {
 /// `PUT /api/anticol` — 간격·사용 여부 바꾸기.
 async fn anticol_put(State(st): State<AppState>, axum::Json(b): axum::Json<crate::area::AreaConfig>) -> ApiResult<Json> {
     // 파라미터 한 곳(`params`)에 쓴다 — 범위 검사·이력도 거기서.
+    crate::params::check_plc_floor(b.separation_mm, crate::taskgen::routes::plc_max(&st)).map_err(ApiError::BadRequest)?;
     let mut p = crate::params::current(&st.db);
     p.anticol_separation_mm = b.separation_mm;
     p.anticol_enabled = b.enabled;

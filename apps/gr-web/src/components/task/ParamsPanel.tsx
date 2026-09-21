@@ -158,7 +158,7 @@ export function ParamsPanel() {
               )
               .join('\n')}
           >
-            {plcSep.map((p) => `${p.name} ${p.separation}`).join(' · ')}
+            {plcSep.map((p) => `${p.name} ${p.separation}`).join(' · ')} (하한)
             {plcSep.some((p) => p.separation !== state.params[s.key]) ? (
               <span className="text-warn-fg"> ≠</span>
             ) : null}
@@ -210,6 +210,11 @@ export function ParamsPanel() {
           저장
         </Button>
       </div>
+      {state.warnings.map((w) => (
+        <span key={w} className="text-warn-fg" data-testid="params-warning">
+          {w}
+        </span>
+      ))}
       {view === 'values' ? (
         <DataTable
           rows={state.spec}

@@ -356,7 +356,7 @@ export const api = {
   /** 동기화 경고를 한 번에 고친다(콘솔 DB 만) */
   stockSyncResolve: (robot: number, action: string, task_id?: string | null) =>
     postJson<unknown>(`/api/stock/sync/${robot}/resolve`, { action, task_id: task_id ?? undefined }),
-  /** 두 로봇 영역 간격(기본 PLC PARA 합 2403 mm) */
+  /** 두 로봇 영역 간격(기본 안전값 5000 mm, 하한 = PLC PARA 합) */
   anticol: () => getJson<{ separation_mm: number; enabled: boolean }>('/api/anticol'),
   /** 이송 지시 목록(최신 먼저) */
   transferOrders: (

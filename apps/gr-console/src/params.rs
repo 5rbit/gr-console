@@ -53,7 +53,7 @@ pub struct Params {
 impl Default for Params {
     fn default() -> Self {
         Params {
-            anticol_separation_mm: 1903.0 + 400.0 + 100.0,
+            anticol_separation_mm: SAFE_SEPARATION_MM,
             anticol_enabled: true,
             robot_margin_mm: BTreeMap::new(),
             gen_tick_ms: 1000,
@@ -111,8 +111,8 @@ pub fn spec() -> Vec<Spec> {
             Some(0.0),
             Some(20000.0),
             false,
-            Some("PLC PARA p11/p12 XLength + p16 AntiColMargin_Avoid + p13 AntiColMargin_Default"),
-            "두 로봇 X 사이 최소 간격. 이 안에 두 로봇 작업 영역이 겹치면 생성·발행하지 않는다.",
+            Some("하한 = PLC PARA p11/p12 XLength + p16 AntiColMargin_Avoid + p13 AntiColMargin_Default (두 로봇 중 큰 값)"),
+            "두 로봇 X 사이 최소 간격. 이 안에 두 로봇 작업 영역이 겹치면 생성·발행하지 않는다. 기본 5000 mm(안전), PLC 계산값보다 작게는 저장할 수 없다.",
         ),
         s("anticol_enabled", "AntiCollision", "", None, None, false, None, "영역 검사 사용(로봇이 하나면 어차피 안 한다)."),
         s("robot_margin_mm", "AntiCollision", "mm", Some(0.0), Some(3000.0), false, None, "로봇별 추가 여유(영역 양쪽) — 그리퍼·타이어 폭. 예: {\"1\": 200}"),
@@ -168,7 +168,43 @@ pub fn diff(old: &Params, new: &Params) -> Vec<Change> {
     spec().iter().filter(|sp| a[sp.key] != b[sp.key]).map(|sp| (sp.key.to_string(), a[sp.key].clone(), b[sp.key].clone())).collect()
 }
 
+/// 안전 기본 간격(mm) — PLC 계산값(p11 + p16 + p13 = 2403)보다 넉넉하게(사용자 결정 2026-09-21).
+pub const SAFE_SEPARATION_MM: f32 = 5000.0;
+/// 예전 기본값(PLC 합) — 저장본이 이 값이고 사람이 바꾼 적이 없으면 새 기본값으로 올린다.
+pub const OLD_DEFAULT_SEPARATION_MM: f32 = 2403.0;
+
 static CACHE: RwLock<Option<(u32, Params)>> = RwLock::new(None);
+
+/// 사람이 `anticol_separation_mm` 을 저장한 적이 있나(이력의 바뀐 값에 그 키가 있나).
+pub fn separation_user_set(db: &Db) -> bool {
+    db.with(|c| c.query_row("SELECT COUNT(*) FROM sched_params WHERE changes_json LIKE '%\"anticol_separation_mm\"%'", [], |r| r.get::<_, i64>(0))).unwrap_or(0) > 0
+}
+
+/// 예전 기본값(2403) 그대로인 저장본을 안전 기본값(5000)으로 — 사람이 직접 저장한 값은 그대로 둔다.
+pub fn migrate_separation(p: &mut Params, user_set: bool) -> bool {
+    if !user_set && (p.anticol_separation_mm - OLD_DEFAULT_SEPARATION_MM).abs() < 0.5 {
+        p.anticol_separation_mm = SAFE_SEPARATION_MM;
+        return true;
+    }
+    false
+}
+
+/// PLC 계산 간격(두 로봇 중 큰 값)보다 작은 간격은 저장하지 않는다.
+pub fn check_plc_floor(sep: f32, plc_max: Option<f64>) -> Result<(), String> {
+    match plc_max {
+        Some(m) if (sep as f64) < m => Err(format!("anticol_separation_mm {sep:.0} mm 는 PLC 계산 간격 {m:.0} mm(p11/p12 + p16 + p13, 두 로봇 중 큰 값)보다 작을 수 없습니다")),
+        _ => Ok(()),
+    }
+}
+
+/// 화면 경고 — 사람이 저장한 간격이 안전 기본값보다 작다.
+pub fn warnings(db: &Db, p: &Params) -> Vec<String> {
+    let mut out = Vec::new();
+    if p.anticol_separation_mm < SAFE_SEPARATION_MM && separation_user_set(db) {
+        out.push(format!("anticol_separation_mm {:.0} mm 는 사용자가 저장한 값 — 안전 기본값 {SAFE_SEPARATION_MM:.0} mm 보다 작습니다", p.anticol_separation_mm));
+    }
+    out
+}
 
 /// 지금 값(캐시). 저장된 것이 없으면 기본값 — 옛 `settings.anticol` 이 있으면 간격·사용을 거기서 가져온다.
 pub fn current(db: &Db) -> Params {
@@ -195,7 +231,9 @@ fn load(db: &Db) -> (u32, Params) {
         .ok()
         .flatten();
     if let Some((v, d)) = row {
-        return (v, serde_json::from_str(&d).unwrap_or_default());
+        let mut p: Params = serde_json::from_str(&d).unwrap_or_default();
+        migrate_separation(&mut p, separation_user_set(db));
+        return (v, p);
     }
     let mut p = Params::default();
     if let Ok(Some(s)) = db.setting("anticol")
@@ -203,6 +241,7 @@ fn load(db: &Db) -> (u32, Params) {
     {
         if let Some(x) = j["separation_mm"].as_f64() {
             p.anticol_separation_mm = x as f32;
+            migrate_separation(&mut p, false);
         }
         if let Some(b) = j["enabled"].as_bool() {
             p.anticol_enabled = b;
@@ -298,7 +337,7 @@ mod tests {
     #[test]
     fn defaults_validate_and_locked_values_stay_fixed() {
         let p = Params::default();
-        assert_eq!(p.anticol_separation_mm, 2403.0);
+        assert_eq!(p.anticol_separation_mm, 5000.0, "safe default");
         assert!(validate(&p).is_ok());
         let mut bad = p.clone();
         bad.issue_queue_depth = 2;
@@ -330,11 +369,45 @@ mod tests {
         assert_eq!(save(&db, p.clone(), "tester").unwrap().0, 1, "no change → no new version");
         let h = history(&db, 10).unwrap();
         assert_eq!(h[0]["saved_by"], "tester");
-        assert_eq!(h[0]["changes"][0]["old"], 2403.0);
+        assert_eq!(h[0]["changes"][0]["old"], 5000.0);
         assert_eq!(current(&db).margin(2), 150.0);
         // 되돌리기 = 기본값 저장
         let (v, back, _) = save(&db, Params::default(), "tester").unwrap();
-        assert_eq!((v, back.anticol_separation_mm), (2, 2403.0));
+        assert_eq!((v, back.anticol_separation_mm), (2, 5000.0));
         reset_cache();
+    }
+
+    #[test]
+    fn old_default_migrates_but_user_values_stay() {
+        let mut p = Params { anticol_separation_mm: 2403.0, ..Default::default() };
+        assert!(migrate_separation(&mut p, false));
+        assert_eq!(p.anticol_separation_mm, 5000.0);
+        let mut u = Params { anticol_separation_mm: 2403.0, ..Default::default() };
+        assert!(!migrate_separation(&mut u, true), "user saved 2403 explicitly");
+        assert_eq!(u.anticol_separation_mm, 2403.0);
+        let mut other = Params { anticol_separation_mm: 3000.0, ..Default::default() };
+        assert!(!migrate_separation(&mut other, false));
+        // 저장본(사람이 바꾼 적 없는 예전 기본값)은 읽을 때 5000, 사람이 저장한 2403 은 그대로 + 경고
+        let db = Db::open_memory().unwrap();
+        let old = serde_json::to_string(&Params { anticol_separation_mm: 2403.0, ..Default::default() }).unwrap();
+        db.with(|c| c.execute("INSERT INTO sched_params (version, doc_json, saved_at, saved_by, changes_json) VALUES (1, ?1, 'a', 'x', '[{\"key\":\"gen_tick_ms\"}]')", [&old])).unwrap();
+        assert_eq!(load(&db).1.anticol_separation_mm, 5000.0);
+        db.with(|c| {
+            c.execute(
+                "INSERT INTO sched_params (version, doc_json, saved_at, saved_by, changes_json) VALUES (2, ?1, 'b', 'op', '[{\"key\":\"anticol_separation_mm\",\"old\":5000,\"new\":2403}]')",
+                [&old],
+            )
+        })
+        .unwrap();
+        let (_, kept) = load(&db);
+        assert_eq!(kept.anticol_separation_mm, 2403.0);
+        assert!(warnings(&db, &kept)[0].contains("사용자가 저장"));
+    }
+
+    #[test]
+    fn separation_cannot_go_below_the_plc_value() {
+        assert!(check_plc_floor(2000.0, Some(2403.0)).unwrap_err().contains("2403"));
+        assert!(check_plc_floor(2403.0, Some(2403.0)).is_ok());
+        assert!(check_plc_floor(100.0, None).is_ok(), "no PLC snapshot — range check only");
     }
 }

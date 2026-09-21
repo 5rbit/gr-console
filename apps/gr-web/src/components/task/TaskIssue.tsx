@@ -168,7 +168,7 @@ export default function TaskIssue() {
       live = false
     }
   }, [stockStore.map, stockStore.hands, activeKey])
-  // 두 로봇 영역 간격(백엔드 설정, 기본 PLC PARA 합 2403 mm) — 계획 표의 정적 경고.
+  // 두 로봇 영역 간격(백엔드 파라미터, 기본 안전값 5000 mm) — 계획 표의 정적 경고.
   const [anticolSep, setAnticolSep] = useState<number | null>(null)
   useEffect(() => {
     let live = true

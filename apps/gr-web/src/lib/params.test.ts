@@ -15,8 +15,8 @@ const spec = (key: string, min: number | null, max: number | null): ParamSpec =>
 
 describe('params text round trip', () => {
   it('numbers, ranges, maps, booleans, optional', () => {
-    expect(fromText('2500', spec('anticol_separation_mm', 0, 20000), 2403)).toEqual({ ok: 2500 })
-    expect(fromText('-1', spec('anticol_separation_mm', 0, 20000), 2403)).toMatchObject({
+    expect(fromText('2500', spec('anticol_separation_mm', 0, 20000), 5000)).toEqual({ ok: 2500 })
+    expect(fromText('-1', spec('anticol_separation_mm', 0, 20000), 5000)).toMatchObject({
       error: expect.stringContaining('0..20000'),
     })
     expect(fromText('x', spec('gen_tick_ms', 200, 10000), 1000)).toMatchObject({

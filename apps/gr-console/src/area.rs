@@ -4,6 +4,7 @@
 //! - 축 = X. ID 1(GR1)이 X 작은 쪽, ID 2(GR2)가 큰 쪽이고 GR2 가 우선(`isHighPriorityRobot := ID = 2`).
 //! - 회피 간격 = `XLengthFront/Rear`(p11/p12 = 1903) + `AntiColMargin_Avoid`(p16 = 400) + `AntiColMargin_Default`(p13 = 100)
 //!   = **2403 mm** (로봇 X 사이). 상대의 현재·목표 위치에서 이만큼 떨어진 곳까지만 가고(목표를 깎는다) 기다린다.
+//!   콘솔 기본 간격은 이보다 넉넉한 **5000 mm**(안전), PLC 값보다 작게는 저장하지 못한다(`params::check_plc_floor`).
 //!   목표가 상대 영역 안이면 `Task.Status.AvoidReq`(GCS 회피 요청), 60 s 이어지면 교착 알람 1117/1119, 접근 알람 1118.
 //! - 고장 한계 = XLength + p13 + `AntiColMargin_Pos`(p15 = 300) + 양쪽 감속거리 → 1110/1111. XAC 거리 센서 → 1108/1109.
 //! - 위치 교환: GRM 을 거쳐 `MACHINE.AntiCol.GR[n].Position/TargetPosition/Speed/DecelDist`(`FB_Comm_GRM`).
@@ -13,7 +14,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// 간격 설정 — 기본은 PLC PARA 값의 합(2403 mm). `settings.anticol` 로 바꾼다.
+/// 간격 설정 — 기본은 안전값 5000 mm(PLC PARA 합 2403 mm 는 참고·하한). 값은 `params.rs`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AreaConfig {
@@ -25,7 +26,7 @@ pub struct AreaConfig {
 
 impl Default for AreaConfig {
     fn default() -> Self {
-        AreaConfig { separation_mm: 1903.0 + 400.0 + 100.0, enabled: true }
+        AreaConfig { separation_mm: crate::params::SAFE_SEPARATION_MM, enabled: true }
     }
 }
 
@@ -234,8 +235,8 @@ mod tests {
     }
 
     #[test]
-    fn default_separation_is_the_plc_sum() {
-        assert_eq!(AreaConfig::default().separation_mm, 2403.0);
+    fn default_separation_is_the_safe_value() {
+        assert_eq!(AreaConfig::default().separation_mm, 5000.0);
     }
 
     #[test]

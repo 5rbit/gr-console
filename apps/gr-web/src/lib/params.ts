@@ -32,6 +32,10 @@ export interface ParamsState {
   defaults: ParamValues
   spec: ParamSpec[]
   plc: PlcAnticol[]
+  /** PLC 계산 간격(두 로봇 중 큰 값) — 콘솔 간격의 하한 */
+  plc_separation_max: number | null
+  /** 사람이 저장한 간격이 안전 기본값보다 작다 등 */
+  warnings: string[]
   config: { echo_timeout_ms: number }
   robots: { id: number; name: string }[]
 }
