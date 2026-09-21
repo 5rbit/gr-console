@@ -10,7 +10,10 @@ import {
   ratioToPx,
   serializeSplit,
   splitBounds,
+  TABLES_BY_MODE,
+  tableFor,
   tableForPick,
+  withTable,
 } from './railSplitModel'
 
 describe('clampRatio', () => {
@@ -45,17 +48,46 @@ describe('parseSplit / serializeSplit', () => {
       ratio: MAX_RATIO,
       orient: 'side',
       table: 'cell',
+      opsTable: 'stock',
     })
-    expect(parseSplit('{"ratio":0.3,"orient":"diag","table":"stock"}')).toEqual({
+    expect(parseSplit('{"ratio":0.3,"orient":"diag","table":"station","opsTable":"cell"}')).toEqual({
       ratio: 0.3,
       orient: 'stack',
-      table: 'stock',
+      table: 'station',
+      opsTable: 'stock',
+    })
+  })
+
+  it('모드별 표 이전의 저장 값 — 운용 표였으면 opsTable 로 옮긴다', () => {
+    expect(parseSplit('{"ratio":0.5,"orient":"stack","table":"item"}')).toMatchObject({
+      table: 'cell',
+      opsTable: 'item',
     })
   })
 
   it('왕복한다', () => {
-    const s = { ratio: 0.42, orient: 'side' as const, table: 'station' as const }
+    const s = {
+      ratio: 0.42,
+      orient: 'side' as const,
+      table: 'station' as const,
+      opsTable: 'offset' as const,
+    }
     expect(parseSplit(serializeSplit(s))).toEqual(s)
+  })
+})
+
+describe('tableFor / withTable', () => {
+  it('모드 묶음 밖의 표는 그 묶음의 첫 표로', () => {
+    const s = { ...DEFAULT_SPLIT, table: 'item' as const, opsTable: 'cell' as const }
+    expect(tableFor(s, 'edit')).toBe('cell')
+    expect(tableFor(s, 'ops')).toBe('stock')
+    expect(TABLES_BY_MODE.edit).toEqual(['cell', 'station'])
+  })
+  it('한 모드의 선택만 바꾼다', () => {
+    const s = withTable(DEFAULT_SPLIT, 'ops', 'offset')
+    expect(s.opsTable).toBe('offset')
+    expect(s.table).toBe(DEFAULT_SPLIT.table)
+    expect(tableFor(withTable(s, 'edit', 'station'), 'edit')).toBe('station')
   })
 })
 
@@ -78,11 +110,14 @@ describe('splitBounds / ratioToPx / pxToRatio', () => {
 })
 
 describe('tableForPick', () => {
-  it('누른 종류의 표로 옮기되 재고 표는 셀에서 지킨다', () => {
-    expect(tableForPick('item', 'cell')).toBe('cell')
-    expect(tableForPick('station', 'cell')).toBe('cell')
-    expect(tableForPick('stock', 'cell')).toBe('stock')
-    expect(tableForPick('cell', 'station')).toBe('station')
-    expect(tableForPick('stock', 'station')).toBe('station')
+  it('편집: 누른 종류의 배치 표', () => {
+    expect(tableForPick('station', 'cell', 'edit')).toBe('cell')
+    expect(tableForPick('cell', 'station', 'edit')).toBe('station')
+  })
+  it('운용: 셀 → 재고(품목 표는 지킨다), 스테이션 → 스테이션 보정', () => {
+    expect(tableForPick('offset', 'cell', 'ops')).toBe('stock')
+    expect(tableForPick('item', 'cell', 'ops')).toBe('item')
+    expect(tableForPick('stock', 'station', 'ops')).toBe('offset')
+    expect(tableForPick('item', 'station', 'ops')).toBe('offset')
   })
 })

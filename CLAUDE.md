@@ -22,6 +22,9 @@ docs/              DESIGN.md(UI 규칙) · ui-ux-plan.md(결정 기록) · layou
 그라디언트/블러/이모지 · 알약 모양 · 킷의 컨트롤 높이 · **`dark:` 짝과 원시 색 스케일**). 기준선 방식이고
 지금 기준선은 **0**이라 새 위반 하나가 곧 실패다 — 기준선을 올리는 커밋은 리뷰에서 막는다.
 
+**레이아웃 맵(`CellMap`)의 색·윤곽·구역·계획 태그는 사용자와 조율한 표준이다** — `docs/DESIGN.md` 4절 ⑨,
+판정은 `apps/gr-web/src/lib/task/mapStyleModel.ts`. 다른 작업 중에 임의로 바꾸지 않는다.
+
 색은 **뜻으로 부른다**: `bg-surface-panel` · `text-content-muted` · `bg-warn-soft` ·
 `text-accent-text`. 기본은 화이트톤이고 다크는 `tokens.css`의 `[data-theme='dark']` 한 블록이 든다 —
 `dark:` 짝을 손으로 달 일이 없다.

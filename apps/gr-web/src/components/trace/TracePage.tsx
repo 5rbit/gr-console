@@ -12,7 +12,12 @@ import { Waves } from 'lucide-react'
 import { robots } from '../../lib/robots'
 import { visibleInterval } from '../../lib/poll'
 import { useStore } from '../../lib/store'
-import { traceApi, type TraceChannelMeta, type TraceMark, type TraceMeta } from '../../lib/trace/api'
+import {
+  traceApi,
+  type TraceChannelMeta,
+  type TraceMark,
+  type TraceMeta,
+} from '../../lib/trace/api'
 import { Button } from '../../lib/ui/Button'
 import { Card } from '../../lib/ui/Card'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
@@ -104,6 +109,7 @@ function Trace() {
   useEffect(() => traceLive.start(), [])
 
   const [ov, setOv] = useState<{
+    plc?: string
     link_ready: boolean
     current: TraceMeta | null
     sessions: TraceMeta[]
@@ -189,7 +195,10 @@ function Trace() {
     lag: replay ? 0 : traceLive.lag,
   })
 
-  const plc = robots.current?.plc ?? ''
+  // 트레이스는 서버가 정한 PLC 로만 간다(TRACE_LNK 가 있는 로봇) — 사이드바에서 GR1 을 골라도 GR2 레이아웃 채널을
+  // GR1 로 보내지 않는다. 옛 서버(plc 없음)면 선택 로봇.
+  const plc = ov?.plc ?? robots.current?.plc ?? ''
+  const traceRobot = robots.list.find((r) => r.plc === plc)?.id ?? robots.selected
   const blocked = startDisabledReason({
     linkReady: ov?.link_ready ?? false,
     running,
@@ -207,7 +216,7 @@ function Trace() {
     try {
       const r = await traceApi.start({
         plc,
-        robot: robots.selected,
+        robot: traceRobot,
         channels: selection,
         divider: Number(cfg.divider),
         flush_ms: Number(cfg.flushMs),
@@ -259,7 +268,11 @@ function Trace() {
       try {
         // 재생 행 수는 **차트 폭**이 정한다 — 화면보다 촘촘한 행은 그려도 보이지 않는다.
         const s = await traceApi.session(m.id, budgetFor(plotPx))
-        setReplay({ meta: s.meta, marks: s.marks ?? [], src: new RowArray(stripCycle(s.rows), s.meta.channels.length) })
+        setReplay({
+          meta: s.meta,
+          marks: s.marks ?? [],
+          src: new RowArray(stripCycle(s.rows), s.meta.channels.length),
+        })
         setCursor(null)
         setHidden(new Set())
       } catch (e) {
@@ -302,9 +315,24 @@ function Trace() {
   /** 손실 집계 — 값이 알람인 자리만 색을 받는다(Rows 는 화면 머리띠가 말한다). */
   const lossStats: StatItem[] = [
     { label: 'Chunks', value: h.chunks },
-    { label: 'Overrun', value: h.overrun, tone: h.overrun > 0 ? 'fault' : 'neutral', title: 'PLC 가 버린 표본 수' },
-    { label: 'Gaps', value: h.gaps, tone: h.gaps > 0 ? 'warn' : 'neutral', title: '청크 사이가 끊긴 횟수' },
-    { label: 'SSE lag', value: h.lag, tone: h.lag > 0 ? 'warn' : 'neutral', title: '브라우저가 건너뛴 이벤트 수' },
+    {
+      label: 'Overrun',
+      value: h.overrun,
+      tone: h.overrun > 0 ? 'fault' : 'neutral',
+      title: 'PLC 가 버린 표본 수',
+    },
+    {
+      label: 'Gaps',
+      value: h.gaps,
+      tone: h.gaps > 0 ? 'warn' : 'neutral',
+      title: '청크 사이가 끊긴 횟수',
+    },
+    {
+      label: 'SSE lag',
+      value: h.lag,
+      tone: h.lag > 0 ? 'warn' : 'neutral',
+      title: '브라우저가 건너뛴 이벤트 수',
+    },
   ]
 
   /** 채널별 현재·커서 값 — 읽는 표. 색 막대는 파형 범례와 같은 채널 색이다. */
@@ -351,7 +379,7 @@ function Trace() {
         icon={<Waves className="h-4 w-4" />}
         items={[
           { label: '링크', value: ov?.link_ready ? '준비' : '없음' },
-          { label: '세션', value: current ? (current.label || current.id) : '정지' },
+          { label: '세션', value: current ? current.label || current.id : '정지' },
           { label: 'Rows', value: String(h.rows) },
           { label: 'SSE', value: traceLive.connected ? '연결' : traceLive.error ? '오류' : '대기' },
         ]}
@@ -379,7 +407,11 @@ function Trace() {
                         if (e.key === 'Enter') void mark(markText)
                       }}
                     />
-                    <Button size="sm" disabled={!markText.trim()} onClick={() => void mark(markText)}>
+                    <Button
+                      size="sm"
+                      disabled={!markText.trim()}
+                      onClick={() => void mark(markText)}
+                    >
                       마크
                     </Button>
                     <Button size="sm" intent="danger" loading={busy} onClick={() => void stop()}>
@@ -412,8 +444,18 @@ function Trace() {
                       hint={`≥ ${FLUSH_MIN_MS}`}
                       title="PLC 가 청크를 올려 보내는 주기"
                     />
-                    <Input label="Label" value={label} onValueChange={setLabel} placeholder="예: 400 단계 멈춤 재현" />
-                    <Input label="Note" value={note} onValueChange={setNote} placeholder="조건 · 품목 · 파라미터" />
+                    <Input
+                      label="Label"
+                      value={label}
+                      onValueChange={setLabel}
+                      placeholder="예: 400 단계 멈춤 재현"
+                    />
+                    <Input
+                      label="Note"
+                      value={note}
+                      onValueChange={setNote}
+                      placeholder="조건 · 품목 · 파라미터"
+                    />
                   </div>
                   <dl className="flex flex-wrap items-center gap-x-4 text-2xs">
                     <div className="flex items-center gap-1">
@@ -424,7 +466,9 @@ function Trace() {
                     </div>
                     <div className="flex items-center gap-1">
                       <dt className="text-content-faint">브라우저 링 (s)</dt>
-                      <dd className="font-mono tabular-nums text-content-secondary">{RING_MS / 1000}</dd>
+                      <dd className="font-mono tabular-nums text-content-secondary">
+                        {RING_MS / 1000}
+                      </dd>
                       <HelpTip
                         title="브라우저 링"
                         text={`라이브 차트는 최근 ${RING_MS / 1000}초만 들고 있습니다. 그 앞 구간은 정지한 뒤 세션 재생으로 봅니다(세션 파일에는 다 남습니다).`}
@@ -494,7 +538,9 @@ function Trace() {
                 {cursor !== null && (
                   <div className="flex items-center gap-1">
                     <dt className="text-content-faint">커서</dt>
-                    <dd className="font-mono tabular-nums text-content-secondary">{fmtT(cursor)}</dd>
+                    <dd className="font-mono tabular-nums text-content-secondary">
+                      {fmtT(cursor)}
+                    </dd>
                   </div>
                 )}
               </dl>
@@ -511,7 +557,9 @@ function Trace() {
               marks={marks.map((m) => ({ t_ms: m.t_ms, text: m.text }))}
               version={version}
               height={CHART_H}
-              empty={running ? '첫 청크를 기다리는 중…' : '세션을 시작하거나 저장된 세션을 재생하세요'}
+              empty={
+                running ? '첫 청크를 기다리는 중…' : '세션을 시작하거나 저장된 세션을 재생하세요'
+              }
               onCursor={setCursor}
               onWidth={setPlotPx}
             />
@@ -567,7 +615,9 @@ function Trace() {
                 stickyHeader
                 className="max-h-80 overflow-y-auto"
                 empty="채널 없음"
-                emptyHint={running ? '기록 중인 세션의 채널을 기다립니다' : '새 트레이스에서 채널을 고르세요'}
+                emptyHint={
+                  running ? '기록 중인 세션의 채널을 기다립니다' : '새 트레이스에서 채널을 고르세요'
+                }
                 testid="trace-values"
               />
             </Card>

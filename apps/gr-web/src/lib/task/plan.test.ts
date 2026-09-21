@@ -15,6 +15,9 @@ import {
   nextType,
   overlay,
   planRows,
+  sameStationGroup,
+  stationGroup,
+  toRequest,
   redo,
   simulateStock,
   stackZ,
@@ -95,7 +98,13 @@ describe('plan', () => {
       const above = 5 - k
       let bottom = 0
       for (let j = 1; j < k; j++) bottom += 240 - 8 * (5 - j)
-      return { level: k, lower_bead: bottom + 20, upper_bead: bottom + 220 - 8 * above, stack_height: k === 5 ? 1120 : null, source: 'measured' as const }
+      return {
+        level: k,
+        lower_bead: bottom + 20,
+        upper_bead: bottom + 220 - 8 * above,
+        stack_height: k === 5 ? 1120 : null,
+        source: 'measured' as const,
+      }
     })
     const bead = {
       ...item(1003, 240),
@@ -104,7 +113,17 @@ describe('plan', () => {
         ...DEFAULT_SPEC,
         stack_max: 5,
         compression: 8,
-        profiles: [{ count: 5, rows: profRows, total_height: 1120, each_height: 224, sample_plc: 'GR2', sample_seq: 7, at: 't' }],
+        profiles: [
+          {
+            count: 5,
+            rows: profRows,
+            total_height: 1120,
+            each_height: 224,
+            sample_plc: 'GR2',
+            sample_seq: 7,
+            at: 't',
+          },
+        ],
       },
     } as Item
     // 한 번에 c 개를 집으면 잡는 타이어 위에 c−1 개가 얹혀 있다(DROP 은 0)
@@ -118,14 +137,38 @@ describe('plan', () => {
     expect(gripOffset('bead', bead, 4)).toBe(158)
     // 한 번도 안 잰 품목·하중은 mid(H/2)
     expect(gripOffset('pick_bead', item(1001, 240), 0)).toBe(120)
-    expect(gripOffset('pick_bead', { ...bead, spec: { ...DEFAULT_SPEC, stack_max: 5, compression: 8 } } as Item, 0)).toBe(120)
+    expect(
+      gripOffset(
+        'pick_bead',
+        { ...bead, spec: { ...DEFAULT_SPEC, stack_max: 5, compression: 8 } } as Item,
+        0,
+      ),
+    ).toBe(120)
     // 그 크기를 통째로 잰 프로파일이 있으면 절대값을 그대로 쓴다(환산·합산 없음)
-    expect(planZ('PICK', 1500, bead, 'pick_bead', 5, 1)).toEqual({ z: 1500 + 1100 - 30, ref: 'pick_bead', source: 'profile' })
-    expect(planZ('PICK', 1500, bead, 'pick_bead', 5, 5)).toEqual({ z: 1500 + 188 - 30, ref: 'pick_bead', source: 'profile' })
+    expect(planZ('PICK', 1500, bead, 'pick_bead', 5, 1)).toEqual({
+      z: 1500 + 1100 - 30,
+      ref: 'pick_bead',
+      source: 'profile',
+    })
+    expect(planZ('PICK', 1500, bead, 'pick_bead', 5, 5)).toEqual({
+      z: 1500 + 188 - 30,
+      ref: 'pick_bead',
+      source: 'profile',
+    })
     // 잰 적 없는 크기는 곡선으로 환산, 잰 게 없으면 mid
-    expect(planZ('PICK', 1500, bead, 'pick_bead', 3, 1)).toMatchObject({ source: 'curve', ref: 'pick_bead' })
-    expect(planZ('PICK', 1500, item(1001, 240), 'pick_bead', 3, 1)).toMatchObject({ source: 'computed', ref: 'mid' })
-    expect(planZ('MOVE', 1500, bead, 'pick_bead', 3, 1)).toEqual({ z: 1500, ref: 'mid', source: 'computed' })
+    expect(planZ('PICK', 1500, bead, 'pick_bead', 3, 1)).toMatchObject({
+      source: 'curve',
+      ref: 'pick_bead',
+    })
+    expect(planZ('PICK', 1500, item(1001, 240), 'pick_bead', 3, 1)).toMatchObject({
+      source: 'computed',
+      ref: 'mid',
+    })
+    expect(planZ('MOVE', 1500, bead, 'pick_bead', 3, 1)).toEqual({
+      z: 1500,
+      ref: 'mid',
+      source: 'computed',
+    })
     // 눌림은 아래 스택 높이에도 먹는다 — 백엔드 stack_z_with 과 같은 수
     expect(stackZ('PICK', 1500, 240, 5, 1, 190, 8)).toBe(1500 + 880 + 190)
     expect(stackZ('DROP', 1500, 240, 5, 1, 190, 8)).toBe(1500 + 1120 + 190)
@@ -283,5 +326,73 @@ describe('plan', () => {
       { no: 3, type: 'PICK' },
     ])
     expect(o.path.length).toBe(3)
+  })
+})
+
+describe('multi-pick (station group)', () => {
+  const st = (
+    id: number,
+    type: 'PICK' | 'DROP' | 'MOVE' = 'PICK',
+    robot: number | null = null,
+  ) => ({
+    id: `s${id}${type}`,
+    type,
+    target: { kind: 'station' as const, id },
+    item_code: 1001,
+    count: 1,
+    note: '',
+    robot,
+  })
+  it('follows the PLC group rule (id / 100) % 10, 0 = none', () => {
+    expect(stationGroup(2101)).toBe(1)
+    expect(sameStationGroup(st(2101), st(2102))).toBe(true)
+    expect(sameStationGroup(st(2101), st(2103, 'DROP'))).toBe(true)
+    expect(sameStationGroup(st(2101), st(2201))).toBe(false)
+    expect(sameStationGroup(st(2001), st(2002))).toBe(false)
+    expect(sameStationGroup(st(2101), st(2102, 'MOVE'))).toBe(false)
+    expect(sameStationGroup(st(2101, 'PICK', 2), st(2102, 'PICK', 1))).toBe(false)
+    expect(sameStationGroup(st(2101), undefined)).toBe(false)
+  })
+  it('marks rows whose next step continues the group and sends multi_pick', () => {
+    const rows = planRows([st(2101), st(2102), st(2201)], { ...ctx, stations: [] })
+    expect(rows.map((r) => r.multiPick)).toEqual([true, false, false])
+    expect(toRequest(rows[0], 2, rows[0].multiPick).multi_pick).toBe(true)
+    expect(toRequest(rows[1], 2, rows[1].multiPick).multi_pick).toBeUndefined()
+  })
+})
+
+describe('stepForClick item matching', () => {
+  const stk = new Map<number, StockEntry>([
+    [101, st(101, 1001, 3)],
+    [102, st(102, 0, 0)],
+    [2101, st(2101, 2011, 2)],
+    [2102, st(2102, 0, 0)],
+  ])
+  const cellT = (id: number) => ({ kind: 'cell' as const, id })
+  const stT = (id: number) => ({ kind: 'station' as const, id })
+
+  it('PICK takes the item that is actually on the target (cell or station)', () => {
+    expect(stepForClick([], cellT(101), stk, 'PICK', 9999).item_code).toBe(1001)
+    expect(stepForClick([], stT(2101), stk, 'PICK', 9999).item_code).toBe(2011)
+  })
+  it('an empty or unknown target never borrows the carried item or the first item', () => {
+    const holding = [stepForClick([], cellT(101), stk, 'PICK')]
+    // 빈 셀 PICK: 들고 있는 1001 이 아니라 고른 품목, 없으면 null
+    expect(stepForClick(holding, cellT(102), stk, 'PICK', 7777).item_code).toBe(7777)
+    expect(stepForClick(holding, cellT(102), stk, 'PICK').item_code).toBeNull()
+    expect(stepForClick([], cellT(999), stk, 'PICK').item_code).toBeNull()
+  })
+  it('DROP keeps the carried item, else the target stock item', () => {
+    const holding = [stepForClick([], stT(2101), stk, 'PICK')]
+    expect(stepForClick(holding, cellT(102), stk, 'DROP', 7777).item_code).toBe(2011)
+    expect(stepForClick([], cellT(101), stk, 'DROP').item_code).toBe(1001)
+  })
+  it('the plan simulation empties a station after it is picked', () => {
+    const s1 = stepForClick([], stT(2101), stk, 'PICK')
+    const s2 = { ...stepForClick([s1], stT(2101), stk, 'PICK'), count: 2 }
+    // 두 번째 클릭은 아직 1 개 남은 스테이션 재고(2011)
+    expect(s2.item_code).toBe(2011)
+    expect(simulateStock([s1, s2], stk).get(2101)?.count).toBe(0)
+    expect(stepForClick([s1, s2], stT(2101), stk, 'PICK').item_code).toBeNull()
   })
 })

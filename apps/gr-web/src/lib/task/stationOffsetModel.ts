@@ -3,7 +3,7 @@
 // 계산은 전부 백엔드(`issue/station_offset.rs`)가 한다. 여기는 숫자를 읽기 좋게 옮기기만 한다 —
 // 같은 기록이 작성 미리보기와 Task 상세(원장에 저장된 제출 시점 값) 두 곳에 같은 모양으로 뜬다.
 import type { FieldItem } from '../ui/fieldListModel'
-import type { StationOffsetAudit } from './types'
+import type { StationOffsetAudit, StationOffsetRow } from './types'
 
 export const OFFSET_MODE_LABEL: Record<StationOffsetAudit['mode'], string> = {
   auto: '자동 — 트래킹 반영',
@@ -153,4 +153,23 @@ export function stationOffsetFields(a: StationOffsetAudit): FieldItem[] {
       tooltip: 'GR2 isValidTaskArea — Info ± 품목 외경/2, 마진 650(TaskType≠0) / 300',
     },
   ]
+}
+
+/** 스테이션 보정 표의 상태 칸 — 한 줄에 **가장 급한 것 하나**(나머지는 행 펼침의 경고 목록). */
+export interface OffsetRowState {
+  status: 'fault' | 'warn' | 'info' | 'neutral' | 'ok'
+  text: string
+}
+
+export function offsetRowState(r: StationOffsetRow): OffsetRowState {
+  if (r.pallet) return { status: 'info', text: '팔렛 — 보정 안 함' }
+  if (r.blocked) return { status: 'fault', text: '트래킹 이상' }
+  if (r.measuring_error) return { status: 'fault', text: 'MeasuringError' }
+  if (r.data_mismatch) return { status: 'warn', text: 'DataMissMatch' }
+  if (!r.source) return { status: 'warn', text: 'GRM 스냅샷 없음' }
+  if (r.rotate_type !== r.registry_rotate_type) return { status: 'warn', text: 'RotateType 불일치' }
+  // 측정 OD 가 없는 것은 컨베이어에 타이어가 없을 때의 **평소 상태**다 — 경고가 아니다. 작업을 보내면
+  // 등록 품목 OuterDiameter 로 대신 보정한다(`odSourceHint`).
+  if (odSource(r) !== 'tracking') return { status: 'neutral', text: '측정 없음' }
+  return { status: 'ok', text: '측정' }
 }

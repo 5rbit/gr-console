@@ -27,6 +27,7 @@ import type {
   PlcId,
   PlcStatus,
   Robot,
+  RobotAction,
   Scenario,
   ScenarioRun,
   ScenarioUpsert,
@@ -331,6 +332,11 @@ export const api = {
     getJson<Gate>(`/api/tasks/gate${qs({ robot: robot ?? undefined })}`),
   /** GRM 뒤 로봇 목록 + 명령 경로·게이트 상태 */
   robots: () => getJson<Robot[]>('/api/robots'),
+  /** 로봇 운전 명령(사이드바 우클릭) — Start/Stop/Reset/BuzzerStop 은 Command 비트 펄스, Complete 는 실행 중 Task, Clear 는 전 Task 삭제 */
+  robotCommand: (robot: number, action: RobotAction) =>
+    postJson<{ robot: string; action: RobotAction; task?: string; deleted?: string[] }>(
+      `/api/robots/${robot}/command/${action}`,
+    ),
   tasksStream: (): EventSource => new EventSource(STREAM_URL.tasks),
 
   // 재고(셀별 화물) — 콘솔 소유, 완료된 PICK/DROP 으로 자동 갱신
@@ -354,7 +360,8 @@ export const api = {
   scenarioImportFile: (file: File) => postForm<Scenario>('/api/scenarios/import', fileForm(file)),
   scenarioExportUrl: (id: string, format: 'json' | 'xlsx' = 'json'): string =>
     `/api/scenarios/${id}/export${qs({ format })}`,
-  scenarioRun: (id: string, opts: { repeat?: number } = {}) =>
+  /** `robot` = 로봇을 안 든 스텝이 갈 로봇(사이드바 선택). 로봇이 둘이면 서버가 없으면 거부한다. */
+  scenarioRun: (id: string, opts: { repeat?: number; robot?: number | null } = {}) =>
     postJson<ScenarioRun>(`/api/scenarios/${id}/run`, opts),
   scenarioPause: () => postJson<ScenarioRun>('/api/scenarios/run/pause'),
   scenarioResume: () => postJson<ScenarioRun>('/api/scenarios/run/resume'),

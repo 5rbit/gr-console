@@ -380,6 +380,21 @@ impl PlcQuery {
     fn plc<'a>(&'a self, st: &'a AppState) -> &'a str {
         self.plc.as_deref().filter(|s| !s.trim().is_empty()).unwrap_or(st.default_plc_name())
     }
+    /// 쓰기(push)·로컬 갱신(import)용 — 로봇이 둘 이상이면 `plc` 를 반드시 받고, `both`(옛 "상태 PLC + GRM")는
+    /// 어느 GR 인지 모호해 거부한다. 빠지면 첫 로봇(GR1) PLC 로 쓰던 경로.
+    fn plc_for_write<'a>(&'a self, st: &'a AppState) -> Result<&'a str, ApiError> {
+        let p = self.plc.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        if st.robots.len() > 1 {
+            match p {
+                None => return Err(ApiError::BadRequest(format!("대상 PLC 를 지정해야 합니다 (plc: GR 이름·GRM·all; 로봇 {})", st.robot_choices()))),
+                Some(v) if v.eq_ignore_ascii_case("both") => {
+                    return Err(ApiError::BadRequest("plc=both 는 로봇이 둘일 때 어느 GR 인지 모호합니다 — GR 이름 또는 all 로 지정하세요".into()));
+                }
+                _ => {}
+            }
+        }
+        Ok(p.unwrap_or(st.default_plc_name()))
+    }
     fn force(&self) -> bool {
         flag(self.force.as_deref())
     }
@@ -399,14 +414,14 @@ fn diff_view<T>(rows: Vec<Diff<T>>, view: impl Fn(&T) -> Json) -> Vec<Json> {
 
 /// PLC → local. `?plc=GR2|GRM|gr2_s7` (default: status PLC).
 async fn cells_import(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
-    let h = plc_io::resolve_plc(&st, q.plc(&st))?;
+    let h = plc_io::resolve_plc(&st, q.plc_for_write(&st)?)?;
     Ok(axum::Json(summary_view(&plc_io::import_cells(&st, h)?)))
 }
 
 /// local → PLC. `?plc=GR1|GR2|GRM|all|both[&force=1]` (`all` = every configured PLC, GR first then GRM).
 async fn cells_push(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
     let mut results = Vec::new();
-    for h in plc_io::plc_targets(&st, q.plc(&st))? {
+    for h in plc_io::plc_targets(&st, q.plc_for_write(&st)?)? {
         results.push(plc_io::push_cells(&st, h, q.force()).await?);
     }
     st.emit("registry", json!({ "kind": "cells_pushed", "results": results }));
@@ -475,6 +490,10 @@ impl StationBody {
 async fn stations(State(st): State<AppState>) -> ApiResult<Vec<Json>> {
     Ok(axum::Json(st.registry.stations()?.iter().map(station_view).collect()))
 }
+/// 스테이션마다 지금 GRM 트래킹으로 계산한 보정(작업 명령 레일의 "스테이션 보정" 표).
+async fn station_offsets(State(st): State<AppState>) -> ApiResult<Vec<crate::issue::StationOffsetRow>> {
+    Ok(axum::Json(crate::issue::station_offset_rows(&st)?))
+}
 async fn station_create(State(st): State<AppState>, axum::Json(b): axum::Json<StationBody>) -> ApiResult<Json> {
     let para = b.para();
     xlsx::validate_station(&para).map_err(ApiError::BadRequest)?;
@@ -491,13 +510,13 @@ async fn station_delete(State(st): State<AppState>, Path(id): Path<u16>) -> ApiR
 }
 
 async fn stations_import(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
-    let h = plc_io::resolve_plc(&st, q.plc(&st))?;
+    let h = plc_io::resolve_plc(&st, q.plc_for_write(&st)?)?;
     Ok(axum::Json(summary_view(&plc_io::import_stations(&st, h)?)))
 }
 
 async fn stations_push(State(st): State<AppState>, Query(q): Query<PlcQuery>) -> ApiResult<Json> {
     let mut results = Vec::new();
-    for h in plc_io::plc_targets(&st, q.plc(&st))? {
+    for h in plc_io::plc_targets(&st, q.plc_for_write(&st)?)? {
         results.push(plc_io::push_stations(&st, h, q.force()).await?);
     }
     st.emit("registry", json!({ "kind": "stations_pushed", "results": results }));
@@ -661,6 +680,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/stations", get(stations).post(station_create))
         .route("/api/stations/import", post(stations_import))
         .route("/api/stations/push", post(stations_push))
+        .route("/api/stations/offsets", get(station_offsets))
         .route("/api/stations/diff", get(stations_diff))
         .route("/api/stations/export.xlsx", get(stations_export))
         .route("/api/stations/import-file", post(stations_import_file))

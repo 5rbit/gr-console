@@ -20,7 +20,7 @@ use rand::{Rng, SeedableRng};
 use s7::testing::{DbStore, FakeS7Server};
 use serde_json::{Value as Json, json};
 
-use crate::cmd::TaskOp;
+use crate::cmd::{CommandBit, TaskOp};
 use crate::util::now_str;
 
 const RING: usize = 10;
@@ -469,6 +469,21 @@ impl DemoWorld {
         g.sides[i].op_echo = if work_id == 0 { None } else { Some((op, work_id, task_id)) };
     }
 
+    /// Start / Stop / Reset / BuzzerStop 운전 명령 — 모드만 흉내 낸다(Start → AUTO, Stop → READY, 나머지는 모드 유지).
+    pub fn command_bit(&self, bit: CommandBit, dst: u16) {
+        let mut g = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
+        let i = side_index(&g.sides, dst);
+        let side = &mut g.sides[i];
+        let auto = match bit {
+            CommandBit::Start => true,
+            CommandBit::Stop => false,
+            CommandBit::Reset | CommandBit::BuzzerStop => return,
+        };
+        set_db(&mut side.models, "WEBMON", "/Mode", json!(if auto { 32 } else { 16 }));
+        set_db(&mut side.models, "OPCUA", "/STAT/Mode/Auto", json!(auto));
+        set_db(&mut side.models, "OPCUA", "/STAT/Mode/AutoReady", json!(!auto));
+    }
+
     #[allow(dead_code)]
     pub fn clear_header(&self, dst: u16) {
         let mut g = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
@@ -679,7 +694,9 @@ impl Side {
             }
         }
         // ---- execution
-        if self.now.is_none() && !self.queue.is_empty() {
+        // 끝난 Task 가 이번 틱 Now 에 비트를 달고 서 있는 동안은 다음 Task 를 올리지 않는다 — 올리면 Canceled/Complete
+        // 비트가 새 Now 에 붙어 원장이 다음 Task 까지 끝난 것으로 읽는다(Delete 연속 시 재현).
+        if self.now.is_none() && self.ended.is_none() && !self.queue.is_empty() {
             let t = self.queue[0].clone();
             self.target = [t.position[0], t.position[1], t.position[2], t.position[3]];
             self.now = Some(Running { task: t, step_idx: 0, step_at: Instant::now() });

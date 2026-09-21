@@ -157,19 +157,45 @@ export interface PalletSpec {
   seed?: boolean
 }
 
-export interface PalletProfile {
-  station_id: number
-  flow: string
+/** 품목 팔렛 설정 — 패턴의 주인(`/api/pallet/items`). 좌표는 GR1·GR2 공통. */
+export interface ItemPallet {
+  code: number
+  /** PICK/MEASURE 에 쓰는 흐름. 없으면 flow_out. */
+  flow_in: string | null
+  /** DROP 에 쓰는 흐름. 없으면 flow_in. */
+  flow_out: string | null
+  /** null = OuterDiameter 로 자동. */
+  pattern: number | null
   gap: number
   rotation: number
   mirror_x: boolean
   mirror_y: boolean
   pallet_size: number
+  note: string
+  updated_at: string
+}
+export type ItemPalletUpsert = Omit<ItemPallet, 'updated_at'>
+
+/** 로봇별 드래그 방향 보정(`/api/pallet/robots`) — 헤드 방향이 달라 방향 코드에만 건다. */
+export interface RobotDir {
+  robot: number
+  rotation: number
+  mirror_x: boolean
+  mirror_y: boolean
+  note: string
+  updated_at: string
+}
+export type RobotDirView = RobotDir & { name: string; plc: string }
+export type RobotDirUpsert = Omit<RobotDir, 'updated_at'>
+
+/** 팔렛 스테이션 여부(`/api/pallet/stations`). */
+export interface PalletStation {
+  station_id: number
   enabled: boolean
   note: string
   updated_at: string
 }
-export type PalletProfileUpsert = Omit<PalletProfile, 'updated_at'>
+export type PalletStationUpsert = Omit<PalletStation, 'updated_at'>
 
 export interface PlanSlot {
   seq: number
@@ -180,6 +206,8 @@ export interface PlanSlot {
   x: number
   y: number
   spec_drag_dir: number
+  /** 품목 배치 변환만 건 방향(로봇 보정 전). */
+  layout_drag_dir?: number
   drag_dir: number
   drag_type: number
   /** 팔렛 밖으로 나간 길이(mm, X·Y) — 0 이하면 안. */
@@ -221,6 +249,8 @@ export interface PalletPlan {
   gap: number
   pitch: number
   transform: Transform
+  /** 로봇 헤드 방향 보정(방향 코드에만). */
+  dir_transform?: Transform
   center: [number, number]
   pallet_size: number
   min_distance: number
@@ -251,7 +281,9 @@ export interface PalletPlan {
     width: number
     length: number
   } | null
-  profile: PalletProfile | null
+  pallet_station: PalletStation | null
+  item_pallet: ItemPallet | null
+  robot_dir: RobotDir
   item: {
     code: number
     name: string
@@ -557,7 +589,7 @@ export interface PlanParams {
   robot?: number
 }
 
-/** 빈 값·NaN 은 싣지 않는다(백엔드가 프로파일·기본값으로 채운다). */
+/** 빈 값·NaN 은 싣지 않는다(백엔드가 품목 팔렛 설정·기본값으로 채운다). */
 export function planQuery(p: PlanParams): string {
   const s = new URLSearchParams()
   for (const [k, v] of Object.entries(p)) {

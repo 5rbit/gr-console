@@ -40,6 +40,9 @@ pub struct Composed {
     /// 켜진 팔렛 프로파일 스테이션 + `pallet` 요청일 때 슬롯·드래그 근거(`pallet::compose`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pallet: Option<crate::pallet::compose::PalletAudit>,
+    /// 얹힌 상황 기본값 층(`Defaults.situations` 키, 적용 순서) — 비면 없음.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub situations: Vec<String>,
     /// MOVE 의 모드·Z 근거(`params.move_mode`).
     #[serde(rename = "move", skip_serializing_if = "Option::is_none")]
     pub move_audit: Option<MoveAudit>,
@@ -98,10 +101,6 @@ pub fn enforce_stack_limit(st: &AppState, req: &TaskRequest, task: &TaskData) ->
     }
 }
 
-/// Gripper opening (G axis) used when nothing better is known.
-const G_MIN: f32 = 200.0;
-/// G = inner diameter minus this clearance.
-const G_CLEARANCE: f32 = 30.0;
 /// MOVE `stack` 모드의 기본 여유 — 스택 윗면(빈 셀이면 바닥) 위 이만큼(옛 "바닥 + 500" 과 같은 값).
 pub const MOVE_CLEARANCE: f32 = 500.0;
 /// GR2 가 "하강 없는 이동" 으로 읽는 Z — `isValidTaskData`(Z 범위 검사 면제) · `isValidTaskArea`(영역 검사
@@ -163,6 +162,45 @@ fn move_options(defaults: &Defaults, kind: &str, req: &Json) -> Result<(MoveMode
     Ok((mode, defaulted, clearance))
 }
 
+/// 이 작업에 얹을 상황 층(`Defaults.situations` 키, 적용 순서). `probe` = 상황 층을 뺀 파라미터(요청 포함).
+pub fn situations_for(tt: TaskType, kind: &str, probe: &gr_proto::TaskParams, req: &TaskRequest) -> Vec<&'static str> {
+    let mut out = Vec::new();
+    if tt == TaskType::Measure {
+        // 플래그가 하나도 없으면 아래에서 MeasureItem 으로 본다 — 상황도 같게.
+        if probe.measure_item || !(probe.measure_floor || probe.measure_sku) {
+            out.push("measure_item");
+        }
+        if probe.measure_sku {
+            out.push("measure_sku");
+        }
+    }
+    let station = kind == "station";
+    if station && req.pallet.is_some() {
+        out.push("pallet_station");
+    }
+    if station && req.multi_pick == Some(true) && matches!(tt, TaskType::Pick | TaskType::Drop) {
+        out.push("multi_pick");
+    }
+    out
+}
+
+/// PLC `isAllowDoublePicking` 의 스테이션 그룹 — `(id / 100) MOD 10`, 0 = 그룹 없음.
+pub fn station_group(id: u16) -> u16 {
+    (id / 100) % 10
+}
+
+/// 두 스텝이 같은 스테이션 그룹의 스테이션 PICK/DROP 인가 — Multi-Picking 자동 판정(계획·시나리오).
+pub fn same_station_group(a: Option<&crate::ledger::Target>, a_type: TaskType, b: Option<&crate::ledger::Target>, b_type: TaskType) -> bool {
+    let pd = |t: TaskType| matches!(t, TaskType::Pick | TaskType::Drop);
+    match (a, b) {
+        (Some(a), Some(b)) if a.kind == "station" && b.kind == "station" && pd(a_type) && pd(b_type) => {
+            let g = station_group(a.id);
+            g != 0 && g == station_group(b.id)
+        }
+        _ => false,
+    }
+}
+
 pub fn parse_task_type(s: &str) -> Result<TaskType, ApiError> {
     Ok(match s.trim().to_ascii_uppercase().as_str() {
         "UP" => TaskType::Up,
@@ -205,21 +243,26 @@ pub fn compose_with(st: &AppState, req: &TaskRequest, stock_hint: Option<u32>) -
     };
     let item = entry.as_ref().map(|e| e.item.clone());
     let spec = entry.map(|e| e.spec);
-    // 팔렛 — 켜진 프로파일이 있는 스테이션에만. 프로파일이 없으면 기존 스테이션 동작 그대로다.
+    // 팔렛 — 켜진 팔렛 스테이션에만. 패턴은 품목, 드래그 방향 보정은 로봇에서 온다(결정 2026-09-21).
+    // 팔렛 스테이션이 아니면 기존 스테이션 동작 그대로다.
     let station_id = req.target.as_ref().filter(|t| t.kind == "station").map(|t| t.id);
-    let pallet_profile = match station_id {
-        Some(id) => crate::pallet::compose::enabled_profile(st, id)?,
-        None => None,
+    let pallet_station = match station_id {
+        Some(id) => crate::pallet::compose::is_pallet_station(st, id)?,
+        None => false,
     };
-    let prepared = match (&req.pallet, station_id, &pallet_profile) {
+    let prepared = match (&req.pallet, station_id, pallet_station) {
         (None, _, _) => None,
         (Some(_), None, _) => return Err(ApiError::BadRequest("pallet 은 스테이션 대상에만 씁니다".into())),
-        (Some(_), Some(id), None) => {
-            return Err(ApiError::BadRequest(format!("스테이션 {id} 에 켜진 팔렛 프로파일이 없습니다 — 팔렛 패턴 화면에서 만들고 Enabled 로 저장하세요")));
+        (Some(_), Some(id), false) => {
+            return Err(ApiError::BadRequest(format!("스테이션 {id} 는 팔렛 스테이션이 아닙니다 — 팔렛 패턴 화면에서 팔렛 스테이션으로 켜세요")));
         }
-        (Some(pref), Some(id), Some(profile)) => {
+        (Some(pref), Some(id), true) => {
             let tt = parse_task_type(&req.task_type)?;
             let it = item.as_ref().ok_or_else(|| ApiError::BadRequest("pallet 작업에는 item_code 가 필요합니다".into()))?;
+            let profiles = crate::pallet::profiles::Profiles::new(st.db.clone());
+            let ip = profiles.item(it.code)?.ok_or_else(|| ApiError::BadRequest(format!("품목 {} 에 팔렛 패턴이 없습니다 — 품목 화면(또는 팔렛 패턴 화면)에서 Flow 를 정하세요", it.code)))?;
+            let robot_id = st.robot(req.robot).map(|r| r.id).unwrap_or(req.robot.unwrap_or(0));
+            let robot_dir = profiles.robot(robot_id)?;
             let center = cell.as_ref().map(|c| [c.position[0], c.position[1]]).unwrap_or_default();
             // auto: 미리보기 체인의 가정 재고가 있으면 그것, 없으면 스테이션 재고(완료된 PICK/DROP 이 접힌 값)
             let station_stock = if pref.auto {
@@ -232,7 +275,7 @@ pub fn compose_with(st: &AppState, req: &TaskRequest, stock_hint: Option<u32>) -
             };
             // 패턴은 편집 저장소에서 — 운전자가 고친 패턴이 바로 작업에 쓰인다(감사 기록에 편집 시각이 남는다).
             let lib = crate::pallet::store::PalletStore::new(st.db.clone()).library()?;
-            let mut p = crate::pallet::compose::prepare_pure(&lib, profile, pref, tt, it, req.count.max(1) as u32, center, station_stock).map_err(ApiError::BadRequest)?;
+            let mut p = crate::pallet::compose::prepare_pure(&lib, &ip, &robot_dir, pref, tt, it, req.count.max(1) as u32, center, station_stock).map_err(ApiError::BadRequest)?;
             p.audit.station_id = id;
             Some(p)
         }
@@ -259,10 +302,10 @@ pub fn compose_with(st: &AppState, req: &TaskRequest, stock_hint: Option<u32>) -
         {
             crate::pallet::compose::attach_area(st, req.robot, id, &s.para, &mut c);
         }
-    } else if let (Some(id), Some(_)) = (station_id, &pallet_profile) {
-        c.warnings.push(format!("스테이션 {id} 는 팔렛 프로파일이 켜져 있습니다 — pallet {{seq, level}} 없이 Info.Position 중심으로 작성했습니다(트래킹 보정 안 함)"));
+    } else if let (Some(id), true) = (station_id, pallet_station) {
+        c.warnings.push(format!("스테이션 {id} 는 팔렛 스테이션입니다 — pallet {{seq, level}} 없이 Info.Position 중심으로 작성했습니다(트래킹 보정 안 함)"));
     }
-    // 켜진 팔렛 프로파일 스테이션은 `station_offset_for` 가 None 을 돌려준다(팔렛은 컨베이어가 아니다).
+    // 켜진 팔렛 스테이션은 `station_offset_for` 가 None 을 돌려준다(팔렛은 컨베이어가 아니다).
     if let Some((audit, pos)) = station_offset_for(st, req, c.task.position, c.task.item.outer_diameter)? {
         c.task.position = pos;
         // 자세한 경고는 감사 기록(`station_offset.warnings`)에 — 여기엔 다른 화면(계획 등)도 알아채도록 요약만.
@@ -300,8 +343,8 @@ fn station_offset_for(st: &AppState, req: &TaskRequest, position: [f32; 4], item
     if !station_offset::applies_to(tt) {
         return Ok(None);
     }
-    // 켜진 팔렛 프로파일 스테이션은 팔렛이지 컨베이어가 아니다 — 트래킹 보정을 쓰지 않는다(작성·제출 모두).
-    if crate::pallet::compose::enabled_profile(st, t.id)?.is_some() {
+    // 켜진 팔렛 스테이션은 팔렛이지 컨베이어가 아니다 — 트래킹 보정을 쓰지 않는다(작성·제출 모두).
+    if crate::pallet::compose::is_pallet_station(st, t.id)? {
         return Ok(None);
     }
     let para = st.registry.station(t.id)?.ok_or_else(|| ApiError::BadRequest(format!("station {} not registered", t.id)))?.para;
@@ -316,6 +359,63 @@ fn station_offset_for(st: &AppState, req: &TaskRequest, position: [f32; 4], item
         station_offset::evaluate(&OffsetInput { station_id: t.id, task_type: tt, switch: req.station_offset, override_position, para: &para, live, live_missing, gr2, item_od, position: base });
     audit.warnings.extend(gr2_note);
     Ok(Some((audit, pos)))
+}
+
+/// 스테이션 보정 목록 한 줄 — 등록된 스테이션마다 지금 GRM 트래킹으로 `evaluate` 한 결과.
+/// 작성 미리보기와 **같은 계산**이다(PICK, 품목 없음 → 측정 OD 가 없으면 보정 0 으로 보인다).
+#[derive(Clone, Debug, Serialize)]
+pub struct StationOffsetRow {
+    #[serde(flatten)]
+    pub audit: StationOffsetAudit,
+    pub conv_no: u16,
+    pub group: u8,
+    /// 레지스트리 RotateType(GRM 값은 `audit.rotate_type`).
+    pub registry_rotate_type: u8,
+    /// 센서·앞 스테이션 연결이 있어 측정 트래킹을 기대하는 스테이션인가.
+    pub expects_tracking: bool,
+    pub staged: Tracking,
+    pub measuring_error: bool,
+    pub data_mismatch: bool,
+    /// 켜진 팔렛 스테이션 — 트래킹 보정을 쓰지 않는다.
+    pub pallet: bool,
+}
+
+pub fn station_offset_rows(st: &AppState) -> Result<Vec<StationOffsetRow>, ApiError> {
+    let mut out = Vec::new();
+    for e in st.registry.stations()? {
+        let para = &e.para;
+        let pallet = crate::pallet::compose::is_pallet_station(st, e.id)?;
+        let (live, live_missing) = match grm_live(st, e.id) {
+            Ok(l) => (Some(l), None),
+            Err(why) => (None, Some(why)),
+        };
+        let (staged, measuring_error, data_mismatch) = live.as_ref().map(|l| (l.staged, l.measuring_error, l.data_mismatch)).unwrap_or_default();
+        let base = [para.info.position[0], para.info.position[1], para.info.position[2], 0.0];
+        let (audit, _) = station_offset::evaluate(&OffsetInput {
+            station_id: e.id,
+            task_type: TaskType::Pick,
+            switch: station_offset::OffsetSwitch::Auto,
+            override_position: false,
+            para,
+            live,
+            live_missing,
+            gr2: None,
+            item_od: 0.0,
+            position: base,
+        });
+        out.push(StationOffsetRow {
+            audit,
+            conv_no: para.conv_no,
+            group: para.group,
+            registry_rotate_type: para.rotate_type,
+            expects_tracking: station_offset::expects_tracking(para),
+            staged,
+            measuring_error,
+            data_mismatch,
+            pallet,
+        });
+    }
+    Ok(out)
 }
 
 fn age_ms(at: &str) -> Option<i64> {
@@ -425,10 +525,20 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
         None => {}
     }
 
-    // tunables: base ← by[type][kind] ← request.params
+    // tunables: base ← by[type][kind] ← situations ← request.params
     let mut params = defaults.base.clone();
     if let Some(by) = defaults.by.get(tt.name()).and_then(|m| m.get(&kind)) {
         params = params.overlay(by)?;
+    }
+    // 상황은 상황 층을 빼고 본 값(요청 포함)으로 판정한다 — 상황 층이 제 판정 플래그를 바꿔도 판정이 돌지 않게.
+    let applied = situations_for(tt, &kind, &params.overlay(&req.params)?, req);
+    for k in &applied {
+        if let Some(p) = defaults.situations.get(*k) {
+            params = params.overlay(p)?;
+        }
+    }
+    if req.multi_pick == Some(true) && !applied.contains(&"multi_pick") {
+        warnings.push("multi_pick 은 스테이션 PICK/DROP 에만 적용됩니다 — 무시".into());
     }
     params = params.overlay(&req.params)?;
     if tt == TaskType::Measure && !(params.measure_floor || params.measure_item || params.measure_sku) {
@@ -507,8 +617,10 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
             }
             TaskType::Up => task.position[2],
         };
+        // G = 품목 내경 그대로(규격, 2026-09-21 운전자 확인) — 여유는 PLC 가 PreGripDelta·GripExtra 로 준다.
+        // 예전에는 여기서 30 mm 를 빼(최소 200) 1501(내경 372)이 G 342 로 나갔다.
         if task.item.inner_diameter > 0.0 {
-            task.position[3] = (task.item.inner_diameter - G_CLEARANCE).max(G_MIN);
+            task.position[3] = task.item.inner_diameter;
         }
     }
     if let Some(p) = req.position_override {
@@ -529,7 +641,19 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
     if let Some((axis, v)) = ["X", "Y", "Z", "G"].iter().zip(task.position).find(|(_, v)| !v.is_finite() || *v < 0.0) {
         warnings.push(format!("position {axis} = {v} is not a valid coordinate"));
     }
-    Ok(Composed { task, params, warnings, robot: String::new(), plc: String::new(), station_offset: None, stack_z, stack_limit: limit, pallet: None, move_audit })
+    Ok(Composed {
+        task,
+        params,
+        warnings,
+        robot: String::new(),
+        plc: String::new(),
+        station_offset: None,
+        stack_z,
+        stack_limit: limit,
+        pallet: None,
+        situations: applied.iter().map(|k| k.to_string()).collect(),
+        move_audit,
+    })
 }
 
 #[cfg(test)]
@@ -574,6 +698,75 @@ mod tests {
     }
     fn req(tt: &str, kind: &str) -> TaskRequest {
         TaskRequest { task_type: tt.into(), target: Some(Target { kind: kind.into(), id: 101 }), item_code: Some(1001), count: 3, params: json!({}), ..Default::default() }
+    }
+
+    fn situated() -> Defaults {
+        let mut d = defaults();
+        d.situations.insert("measure_item".into(), json!({ "lift_up_height": 1111 }));
+        d.situations.insert("measure_sku".into(), json!({ "lift_up_height": 2222, "grip_height": 22 }));
+        d.situations.insert("pallet_station".into(), json!({ "grip_height": 66 }));
+        d
+    }
+
+    /// 상황 층은 종류·대상별 위, 요청 아래 — MEASURE 는 측정 플래그로 고른다(플래그 없으면 Item).
+    #[test]
+    fn measure_situations_layer_between_by_and_request() {
+        let d = situated();
+        let mut r = req("MEASURE", "cell");
+        r.params = json!({ "measure_sku": true });
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap();
+        assert_eq!(c.situations, vec!["measure_sku"]);
+        assert_eq!((c.params.lift_up_height, c.params.grip_height), (2222, 22));
+        // 요청 덮어쓰기가 상황보다 이긴다
+        r.params = json!({ "measure_sku": true, "grip_height": 5 });
+        assert_eq!(compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap().params.grip_height, 5);
+        // 플래그 없음 → MeasureItem 으로 보고 그 층
+        r.params = json!({});
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap();
+        assert_eq!(c.situations, vec!["measure_item"]);
+        assert_eq!(c.params.lift_up_height, 1111);
+        // MEASURE 가 아니면 측정 상황 없음
+        assert!(compose_from(&d, &req("PICK", "cell"), Some(cell()), Some(item()), Some((1001, 3)), None).unwrap().situations.is_empty());
+    }
+
+    /// Multi-Picking 은 스테이션 PICK/DROP 에만 — 기본 층이 부분 리프트를 켠다. 셀이면 경고만.
+    #[test]
+    fn multi_pick_turns_on_partial_lift_for_station_only() {
+        let d = situated();
+        let mut r = req("PICK", "station");
+        r.multi_pick = Some(true);
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap();
+        assert_eq!(c.situations, vec!["multi_pick"]);
+        assert!(c.params.lift_up_partial && c.task.lift_up_partial);
+        let mut r = req("PICK", "cell");
+        r.multi_pick = Some(true);
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap();
+        assert!(c.situations.is_empty() && !c.params.lift_up_partial);
+        assert!(c.warnings.iter().any(|w| w.contains("multi_pick")));
+    }
+
+    #[test]
+    fn pallet_request_on_station_is_the_pallet_situation() {
+        let d = situated();
+        let mut r = req("DROP", "station");
+        r.pallet = Some(crate::pallet::compose::PalletRef { auto: true, ..Default::default() });
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 0)), None).unwrap();
+        assert_eq!(c.situations, vec!["pallet_station"]);
+        assert_eq!(c.params.grip_height, 66);
+    }
+
+    /// PLC `isAllowDoublePicking` 과 같은 그룹 — (id / 100) MOD 10, 0 은 그룹 없음.
+    #[test]
+    fn station_groups_follow_the_plc_rule() {
+        let st = |id| Some(Target { kind: "station".into(), id });
+        let (p, d) = (TaskType::Pick, TaskType::Drop);
+        assert!(same_station_group(st(2101).as_ref(), p, st(2102).as_ref(), p));
+        assert!(same_station_group(st(2101).as_ref(), p, st(2103).as_ref(), d));
+        assert!(!same_station_group(st(2101).as_ref(), p, st(2201).as_ref(), p), "다른 그룹");
+        assert!(!same_station_group(st(2001).as_ref(), p, st(2002).as_ref(), p), "그룹 0");
+        assert!(!same_station_group(st(2101).as_ref(), p, st(2102).as_ref(), TaskType::Move));
+        let cell = Some(Target { kind: "cell".into(), id: 2102 });
+        assert!(!same_station_group(st(2101).as_ref(), p, cell.as_ref(), p));
     }
 
     /// 드래그를 켰는데 거리를 안 정했으면 기본 150 mm 를 넣는다(결정 2026-09-18) — 경고 대신 값.
@@ -630,7 +823,7 @@ mod tests {
         assert_eq!(c.task.position[0], 12000.0);
         // stock unknown: PICK assumes the 3 tires sit on the floor → grip the bottom one (mid-tire)
         assert_eq!(c.task.position[2], 1500.0 + 120.0);
-        assert_eq!(c.task.position[3], 381.0 - 30.0);
+        assert_eq!(c.task.position[3], 381.0, "G = 내경 그대로");
         assert_eq!(c.task.cell.id, 101);
         assert_eq!(c.task.task_type, gr_proto::CMD_TASK_PICK);
         assert!(c.warnings.iter().any(|w| w.contains("stock unknown")), "{:?}", c.warnings);

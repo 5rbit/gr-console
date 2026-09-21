@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  offsetRowState,
   fmtAge,
   mm,
   odSource,
@@ -12,7 +13,7 @@ import {
   stationOffsetFields,
   xy,
 } from './stationOffsetModel'
-import type { StationOffsetAudit } from './types'
+import type { StationOffsetAudit, StationOffsetRow } from './types'
 
 const audit = (patch: Partial<StationOffsetAudit> = {}): StationOffsetAudit => ({
   station_id: 2101,
@@ -138,5 +139,32 @@ describe('stationOffsetModel', () => {
     expect(sb('Applied TX / TY')?.status).toBe('warn')
     expect(sb('Applied TX / TY')?.tooltip).toContain('등록 품목')
     expect(sb('OD')?.value).toBeNull()
+  })
+})
+
+describe('offsetRowState', () => {
+  const row = (patch: Partial<StationOffsetRow> = {}): StationOffsetRow => ({
+    ...audit(),
+    conv_no: 2101,
+    group: 1,
+    registry_rotate_type: 1,
+    expects_tracking: true,
+    staged: { od: 0, tx: 0, ty: 0 },
+    measuring_error: false,
+    data_mismatch: false,
+    pallet: false,
+    ...patch,
+  })
+  it('측정 중이면 정상, 측정 OD 가 없으면 평소 상태(경고 아님)', () => {
+    expect(offsetRowState(row())).toEqual({ status: 'ok', text: '측정' })
+    expect(offsetRowState(row({ od: 0, od_source: 'none', od_used: 0 })).status).toBe('neutral')
+  })
+  it('급한 순서 — 팔렛 > 트래킹 이상 > MeasuringError > DataMissMatch > 스냅샷 > RotateType', () => {
+    expect(offsetRowState(row({ pallet: true, blocked: 'x' })).text).toContain('팔렛')
+    expect(offsetRowState(row({ blocked: 'x', measuring_error: true })).status).toBe('fault')
+    expect(offsetRowState(row({ measuring_error: true })).text).toBe('MeasuringError')
+    expect(offsetRowState(row({ data_mismatch: true })).text).toBe('DataMissMatch')
+    expect(offsetRowState(row({ source: null })).text).toBe('GRM 스냅샷 없음')
+    expect(offsetRowState(row({ registry_rotate_type: 3 })).text).toBe('RotateType 불일치')
   })
 })

@@ -68,6 +68,8 @@ export interface TraceMeta {
 }
 
 export interface TraceOverview {
+  /** 트레이스를 받는 로봇 PLC(TRACE_LNK 가 있는 첫 로봇, 예 GR2) — 채널은 이 PLC 레이아웃이다. 구버전 응답엔 없다. */
+  plc?: string
   link_ready: boolean
   current: TraceMeta | null
   sessions: TraceMeta[]

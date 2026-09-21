@@ -95,6 +95,18 @@ export function StatusBar({ tab }: StatusBarProps) {
           {' '}
           · Active {counts.active} · Running {counts.running} · Queued {counts.queued}
         </span>
+        {/* 로봇이 둘이면 위는 합계다 — 로봇마다 실행/대기를 이름과 같이 붙인다(합만 보면 누가 도는지 모른다). */}
+        {robots.multi
+          ? robots.list.map((r) => {
+              const c = tasks.countsFor(r.plc)
+              return (
+                <span key={r.id} className="text-content-faint tabular-nums">
+                  {' '}
+                  · {r.name} R{c.running} Q{c.queued}
+                </span>
+              )
+            })
+          : null}
       </span>
 
       <span className="flex-1"></span>

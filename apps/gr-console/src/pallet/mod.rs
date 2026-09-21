@@ -347,6 +347,8 @@ pub struct GenInput<'a> {
     /// 팔렛 중심(기계 좌표) — 스테이션 Info.Position 또는 수동 입력.
     pub center: [f32; 2],
     pub pallet_size: f32,
+    /// 로봇 헤드 방향 보정 — `transform` 뒤 드래그 방향 코드에만 건다(좌표는 GR1·GR2 공통).
+    pub dir_transform: Transform,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -361,6 +363,8 @@ pub struct Slot {
     pub y: f32,
     /// 사양서 그대로의 방향(변환 전).
     pub spec_drag_dir: u8,
+    /// 품목 배치 변환만 건 방향(로봇 보정 전) — GR1·GR2 공통.
+    pub layout_drag_dir: u8,
     pub drag_dir: u8,
     pub drag_type: u8,
     /// 팔렛 밖으로 나간 길이(mm, X·Y) — 0 이하면 안.
@@ -380,6 +384,7 @@ pub struct Generated {
     pub gap: f32,
     pub pitch: f32,
     pub transform: Transform,
+    pub dir_transform: Transform,
     pub center: [f32; 2],
     pub pallet_size: f32,
     pub min_distance: f32,
@@ -423,6 +428,7 @@ pub fn generate(lib: &Library, inp: &GenInput) -> Result<Generated, String> {
         return Err(format!("PalletSize {} must be > 0", inp.pallet_size));
     }
     inp.transform.validate()?;
+    inp.dir_transform.validate()?;
     let auto = inp.pattern.is_none();
     let no = match inp.pattern {
         Some(p) => p,
@@ -457,7 +463,8 @@ pub fn generate(lib: &Library, inp: &GenInput) -> Result<Generated, String> {
             let u = inp.transform.apply(s.u);
             let off = [u[0] * k, u[1] * k];
             raw.push(off);
-            let dir = inp.transform.apply_dir(s.drag_dir);
+            let layout_dir = inp.transform.apply_dir(s.drag_dir);
+            let dir = inp.dir_transform.apply_dir(layout_dir);
             Slot {
                 seq: s.seq,
                 slot: s.slot.clone(),
@@ -467,6 +474,7 @@ pub fn generate(lib: &Library, inp: &GenInput) -> Result<Generated, String> {
                 x: r1(inp.center[0] + off[0]),
                 y: r1(inp.center[1] + off[1]),
                 spec_drag_dir: s.drag_dir,
+                layout_drag_dir: layout_dir,
                 drag_dir: dir,
                 drag_type: drag_type_byte(dir),
                 overhang: [r1(off[0].abs() + inp.od / 2.0 - half), r1(off[1].abs() + inp.od / 2.0 - half)],
@@ -507,6 +515,7 @@ pub fn generate(lib: &Library, inp: &GenInput) -> Result<Generated, String> {
         gap: inp.gap,
         pitch,
         transform: inp.transform,
+        dir_transform: inp.dir_transform,
         center: inp.center,
         pallet_size: inp.pallet_size,
         min_distance: r1(min_distance),
@@ -753,7 +762,8 @@ mod tests {
     }
 
     fn mk(flow: &str, od: f32, tr: Transform) -> Generated {
-        generate(&lib(), &GenInput { flow, pattern: None, od, gap: DEFAULT_GAP, transform: tr, center: [10_000.0, 3_000.0], pallet_size: DEFAULT_PALLET_SIZE }).unwrap()
+        generate(&lib(), &GenInput { flow, pattern: None, od, gap: DEFAULT_GAP, transform: tr, center: [10_000.0, 3_000.0], pallet_size: DEFAULT_PALLET_SIZE, dir_transform: Transform::default() })
+            .unwrap()
     }
 
     #[test]
@@ -775,9 +785,27 @@ mod tests {
         assert_eq!(mk("OP_OUT", 500.0, Transform::default()).pattern, 9);
         // 없는 외경·패턴·흐름
         let l = lib();
-        assert!(generate(&l, &GenInput { flow: "HP_IN", pattern: None, od: 950.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0 }).is_err());
-        assert!(generate(&l, &GenInput { flow: "IN1_ALT_HP", pattern: Some(3), od: 780.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0 }).is_err());
-        assert!(generate(&l, &GenInput { flow: "NOPE", pattern: None, od: 780.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0 }).is_err());
+        assert!(
+            generate(
+                &l,
+                &GenInput { flow: "HP_IN", pattern: None, od: 950.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0, dir_transform: Transform::default() }
+            )
+            .is_err()
+        );
+        assert!(
+            generate(
+                &l,
+                &GenInput { flow: "IN1_ALT_HP", pattern: Some(3), od: 780.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0, dir_transform: Transform::default() }
+            )
+            .is_err()
+        );
+        assert!(
+            generate(
+                &l,
+                &GenInput { flow: "NOPE", pattern: None, od: 780.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0, dir_transform: Transform::default() }
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -791,7 +819,11 @@ mod tests {
         }
         p.slots[1].drag_dir = 5;
         p.updated_at = "2026-09-15T10:00:00+09:00".into();
-        let g = generate(&l, &GenInput { flow: "HP_IN", pattern: Some(2), od: 850.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0 }).unwrap();
+        let g = generate(
+            &l,
+            &GenInput { flow: "HP_IN", pattern: Some(2), od: 850.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0, dir_transform: Transform::default() },
+        )
+        .unwrap();
         assert!((g.min_distance_norm - 0.5).abs() < 1e-3, "{}", g.min_distance_norm);
         assert!((g.scale - 2.0).abs() < 1e-2);
         assert!((g.min_distance - 900.0).abs() < 0.3, "{}", g.min_distance);
@@ -803,7 +835,11 @@ mod tests {
         let p = l.flows.iter_mut().find(|f| f.id == "HP_IN").unwrap().patterns.iter_mut().find(|p| p.pattern == 2).unwrap();
         p.slots.truncate(1);
         p.slots[0].u = [0.25, 0.0];
-        let g = generate(&l, &GenInput { flow: "HP_IN", pattern: Some(2), od: 850.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0 }).unwrap();
+        let g = generate(
+            &l,
+            &GenInput { flow: "HP_IN", pattern: Some(2), od: 850.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0, dir_transform: Transform::default() },
+        )
+        .unwrap();
         assert_eq!((g.scale, g.min_distance_norm, g.slots[0].offset_x), (1.0, 0.0, 225.0));
     }
 
@@ -834,10 +870,18 @@ mod tests {
         assert!(g.warnings.iter().any(|w| w.contains("팔렛 밖")), "{:?}", g.warnings);
         // negative gap overlaps
         let l = lib();
-        let g = generate(&l, &GenInput { flow: "HP_IN", pattern: None, od: 700.0, gap: -20.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0 }).unwrap();
+        let g = generate(
+            &l,
+            &GenInput { flow: "HP_IN", pattern: None, od: 700.0, gap: -20.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0, dir_transform: Transform::default() },
+        )
+        .unwrap();
         assert!(g.errors.iter().any(|e| e.contains("겹칩니다")));
         // pattern override outside its range warns
-        let g = generate(&l, &GenInput { flow: "HP_IN", pattern: Some(4), od: 780.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0 }).unwrap();
+        let g = generate(
+            &l,
+            &GenInput { flow: "HP_IN", pattern: Some(4), od: 780.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0, dir_transform: Transform::default() },
+        )
+        .unwrap();
         assert!(g.warnings.iter().any(|w| w.contains("범위")));
         // reference flow warns
         assert!(mk("OP_IN_S5", 700.0, Transform::default()).warnings.iter().any(|w| w.contains("참고")));

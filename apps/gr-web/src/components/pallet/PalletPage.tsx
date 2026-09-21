@@ -1,16 +1,19 @@
 // 팔렛 패턴 화면 — 사양서 R4 팔렛타이징 패턴(Flow × Pattern)을 외경·Gap·Rotation·Mirror 로 펼쳐 보고,
-// 스테이션 프로파일을 저장하고, 작업 명령 계획·시나리오로 보낸다.
+// **품목의** 팔렛 패턴을 저장하고, 작업 명령 계획·시나리오로 보낸다.
+//
+// 귀속(결정 2026-09-21): 패턴 = 품목(좌표는 GR1·GR2 공통) · 드래그 방향 보정 = 로봇(헤드 방향) ·
+// 팔렛 여부 = 스테이션.
 //
 // 왼쪽 입력 · 가운데 1600×1600 팔렛 그림(보기 방향 = 사양서 슬라이드 또는 기계 축) · 오른쪽 슬롯 표와 내보내기.
 // 계산은 백엔드 `/api/pallet/plan` 한 곳 — 작업 명령 compose 와 같은 생성기라 미리보기와 제출이 갈리지 않는다.
-// 현장 팔렛 스테이션은 아직 정해지지 않았다: 스테이션 없이 수동 중심으로도 미리보고, 프로파일은 운전자가 만든다.
+// 현장 팔렛 스테이션은 아직 정해지지 않았다: 스테이션 없이 수동 중심으로도 미리보고, 팔렛 스테이션은 운전자가 켠다.
 // 필드 이름은 데이터 이름 그대로(영문), 버튼·안내만 한국어.
 //
-// 왼쪽 띠에는 **매번 만지는 입력만** 선다(Station · Item · OuterDiameter · Flow · Gap · Levels).
+// 왼쪽 띠에는 **매번 만지는 입력만** 선다(Station · Item · OuterDiameter · FlowIn/Out · Gap · Levels).
 // 한 번 정해 두고 거의 안 바꾸는 것(Pattern · PalletSize · Rotation · Mirror · Note)은 `배치 옵션`
 // 대화상자로 내려보내고, 띠에는 그 결과를 라벨+값 한 줄로 남긴다.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Grid3x3, ListPlus, Pencil, Save, SlidersHorizontal } from 'lucide-react'
+import { Compass, Grid3x3, ListPlus, Pencil, Save, SlidersHorizontal } from 'lucide-react'
 import { api } from '../../lib/api'
 import { copyText } from '../../lib/clipboard'
 import { nav } from '../../lib/nav'
@@ -28,9 +31,11 @@ import {
   hexByte,
   planCsv,
   viewAxes,
+  type ItemPallet,
   type PalletPlan,
-  type PalletProfile,
   type PalletSpec,
+  type PalletStation,
+  type RobotDirView,
   type PlanParams,
   type PlanSlot,
   type ViewMode,
@@ -64,7 +69,7 @@ import { Switch } from '../../lib/ui/Switch'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
-import { DRAG_DIR_HELP, ENABLED_HELP, PROFILE_HELP } from './help'
+import { DRAG_DIR_HELP, ITEM_PALLET_HELP, PALLET_STATION_HELP, ROBOT_DIR_HELP } from './help'
 import { PalletView } from './PalletView'
 import { PatternEditor } from './PatternEditor'
 
@@ -81,6 +86,14 @@ const num = (s: string): number | undefined => {
 /** f32 왕복이 남기는 꼬리(457.20001…)를 자른다 — 요약과 표가 같은 자릿수로 선다. */
 const n7 = (v: number): number => (Number.isFinite(v) ? Number(v.toPrecision(7)) : v)
 
+/** 작업 종류에 맞는 품목 흐름 — 백엔드 `ItemPallet::flow_for` 와 같다. */
+function flowFor(p: Pick<ItemPallet, 'flow_in' | 'flow_out'>, type: string): string | null {
+  return type === 'DROP' ? (p.flow_out ?? p.flow_in) : (p.flow_in ?? p.flow_out)
+}
+
+const transformText = (t: { rotation: number; mirror_x: boolean; mirror_y: boolean }) =>
+  `${t.rotation}°${t.mirror_x ? ' MX' : ''}${t.mirror_y ? ' MY' : ''}`
+
 function readView(): ViewMode {
   try {
     return localStorage.getItem(VIEW_KEY) === 'machine' ? 'machine' : 'spec'
@@ -94,7 +107,9 @@ const h3 = 'text-2xs font-semibold text-content-muted'
 export default function PalletPage() {
   const stations = useRegistry<Station>(api.stations)
   const items = useRegistry<Item>(api.items)
-  const profiles = useRegistry<PalletProfile>(palletApi.profiles)
+  const itemPallets = useRegistry<ItemPallet>(palletApi.items)
+  const palletStations = useRegistry<PalletStation>(palletApi.stations)
+  const robotDirs = useRegistry<RobotDirView>(palletApi.robots)
   useStore(robots)
   useEffect(() => robots.start(), [])
 
@@ -138,14 +153,16 @@ export default function PalletPage() {
   const [floorZ, setFloorZ] = useState('')
   const [itemCode, setItemCode] = useState<number | null>(null)
   const [odText, setOdText] = useState('')
-  const [flow, setFlow] = useState(DEFAULT_FLOW)
+  const [flowIn, setFlowIn] = useState<string>(DEFAULT_FLOW)
+  const [flowOut, setFlowOut] = useState<string>('')
+  /** 미리보기에 펼칠 쪽 — 입고(FlowIn, PICK) / 출하(FlowOut, DROP). */
+  const [side, setSide] = useState<'in' | 'out'>('in')
   const [pattern, setPattern] = useState<'auto' | number>('auto')
   const [gapText, setGapText] = useState(String(DEFAULT_GAP))
   const [rotation, setRotation] = useState(0)
   const [mirrorX, setMirrorX] = useState(false)
   const [mirrorY, setMirrorY] = useState(false)
   const [sizeText, setSizeText] = useState(String(DEFAULT_PALLET_SIZE))
-  const [enabled, setEnabled] = useState(false)
   const [note, setNote] = useState('')
   const [levelsText, setLevelsText] = useState('1')
   const [view, setView] = useState<ViewMode>(readView)
@@ -153,24 +170,33 @@ export default function PalletPage() {
   const [busy, setBusy] = useState(false)
   const [optOpen, setOptOpen] = useState(false)
   const [askDelete, setAskDelete] = useState(false)
+  const [robotOpen, setRobotOpen] = useState(false)
 
-  const profile = useMemo(
-    () => (stationId === null ? null : (profiles.items.find((p) => p.station_id === stationId) ?? null)),
-    [profiles.items, stationId],
+  const itemPallet = useMemo(
+    () => (itemCode === null ? null : (itemPallets.items.find((p) => p.code === itemCode) ?? null)),
+    [itemPallets.items, itemCode],
   )
+  const stationPallet = stationId === null ? null : (palletStations.items.find((p) => p.station_id === stationId) ?? null)
+  const stationOn = !!stationPallet?.enabled
   const item = itemCode === null ? null : (items.items.find((i) => i.code === itemCode) ?? null)
+  const robotDir = robotDirs.items.find((r) => r.robot === robots.selected) ?? null
 
-  // 스테이션을 고르면 입력을 그 프로파일(없으면 기본값)로 채운다 — 저장은 버튼으로만.
+  // 품목을 고르면 입력을 그 품목의 팔렛 패턴(없으면 기본값)으로 채운다 — 저장은 버튼으로만.
   useEffect(() => {
-    setFlow(profile?.flow ?? DEFAULT_FLOW)
-    setGapText(String(profile?.gap ?? DEFAULT_GAP))
-    setRotation(profile?.rotation ?? 0)
-    setMirrorX(profile?.mirror_x ?? false)
-    setMirrorY(profile?.mirror_y ?? false)
-    setSizeText(String(profile?.pallet_size ?? DEFAULT_PALLET_SIZE))
-    setEnabled(profile?.enabled ?? false)
-    setNote(profile?.note ?? '')
-  }, [profile])
+    setFlowIn(itemPallet ? (itemPallet.flow_in ?? '') : DEFAULT_FLOW)
+    setFlowOut(itemPallet?.flow_out ?? '')
+    setPattern(itemPallet?.pattern ?? 'auto')
+    setGapText(String(itemPallet?.gap ?? DEFAULT_GAP))
+    setRotation(itemPallet?.rotation ?? 0)
+    setMirrorX(itemPallet?.mirror_x ?? false)
+    setMirrorY(itemPallet?.mirror_y ?? false)
+    setSizeText(String(itemPallet?.pallet_size ?? DEFAULT_PALLET_SIZE))
+    setNote(itemPallet?.note ?? '')
+    setSide(itemPallet && !itemPallet.flow_in && itemPallet.flow_out ? 'out' : 'in')
+  }, [itemPallet])
+
+  /** 미리보기에 펼치는 흐름 — 고른 쪽이 비었으면 다른 쪽(작업 compose 와 같은 규칙). */
+  const flow = (side === 'in' ? flowIn || flowOut : flowOut || flowIn) || DEFAULT_FLOW
 
   const changeView = useCallback((v: ViewMode) => {
     setView(v)
@@ -231,12 +257,14 @@ export default function PalletPage() {
       alive = false
       clearTimeout(timer)
     }
-  }, [paramsKey, hasOd, profiles.items, storeRev])
+  }, [paramsKey, hasOd, itemPallets.items, palletStations.items, robotDirs.items, storeRev])
 
   // 편집으로 흐름이 지워지거나 이름이 바뀌면 생성 입력을 남은 흐름으로 옮긴다.
   useEffect(() => {
-    if (spec && spec.flows.length > 0 && !flowOf(spec, flow)) setFlow(spec.flows[0].id)
-  }, [spec, flow])
+    if (!spec || spec.flows.length === 0) return
+    if (flowIn && !flowOf(spec, flowIn)) setFlowIn(spec.flows[0].id)
+    if (flowOut && !flowOf(spec, flowOut)) setFlowOut('')
+  }, [spec, flowIn, flowOut])
 
   const flowDef = flowOf(spec, plan?.flow ?? flow)
   const axes = viewAxes(view, flowDef)
@@ -244,83 +272,113 @@ export default function PalletPage() {
   const dist = plan?.drag_kind === 'out' ? base?.drag_out_dist : base?.drag_in_dist
   const arrowDist = dist && dist > 0 ? dist : ARROW_FALLBACK
 
-  // ── 프로파일 ──
-  const draftProfile = {
-    station_id: stationId ?? 0,
-    flow,
+  // ── 품목 팔렛 패턴 ──
+  const draftItem = {
+    code: itemCode ?? 0,
+    flow_in: flowIn || null,
+    flow_out: flowOut || null,
+    pattern: pattern === 'auto' ? null : pattern,
     gap: num(gapText) ?? DEFAULT_GAP,
     rotation,
     mirror_x: mirrorX,
     mirror_y: mirrorY,
     pallet_size: num(sizeText) ?? DEFAULT_PALLET_SIZE,
-    enabled,
     note,
   }
-  const profileDirty =
-    !profile ||
-    profile.flow !== draftProfile.flow ||
-    profile.gap !== draftProfile.gap ||
-    profile.rotation !== draftProfile.rotation ||
-    profile.mirror_x !== draftProfile.mirror_x ||
-    profile.mirror_y !== draftProfile.mirror_y ||
-    profile.pallet_size !== draftProfile.pallet_size ||
-    profile.enabled !== draftProfile.enabled ||
-    profile.note !== draftProfile.note
+  const itemDirty =
+    !itemPallet ||
+    itemPallet.flow_in !== draftItem.flow_in ||
+    itemPallet.flow_out !== draftItem.flow_out ||
+    itemPallet.pattern !== draftItem.pattern ||
+    itemPallet.gap !== draftItem.gap ||
+    itemPallet.rotation !== draftItem.rotation ||
+    itemPallet.mirror_x !== draftItem.mirror_x ||
+    itemPallet.mirror_y !== draftItem.mirror_y ||
+    itemPallet.pallet_size !== draftItem.pallet_size ||
+    itemPallet.note !== draftItem.note
 
-  async function saveProfile() {
-    if (stationId === null) return
+  async function saveItemPallet() {
+    if (itemCode === null) return
     setBusy(true)
     try {
-      const saved = await palletApi.saveProfile(draftProfile)
-      await profiles.reload()
-      toast.ok(
-        saved.enabled
-          ? `스테이션 ${saved.station_id} 프로파일 저장 — 작업 명령이 이 스테이션에 팔렛 슬롯을 씁니다`
-          : `스테이션 ${saved.station_id} 프로파일 저장(꺼짐 — 작업 명령은 기존 스테이션 동작)`,
-      )
+      const saved = await palletApi.saveItem(draftItem)
+      await itemPallets.reload()
+      toast.ok(`품목 ${saved.code} 팔렛 패턴 저장 — FlowIn ${saved.flow_in ?? '—'} · FlowOut ${saved.flow_out ?? '—'}`)
     } catch (e) {
-      toast.error(`프로파일 저장 실패 — ${errMsg(e)}`)
+      toast.error(`품목 팔렛 패턴 저장 실패 — ${errMsg(e)}`)
     } finally {
       setBusy(false)
     }
   }
 
-  async function deleteProfile() {
-    if (stationId === null || !profile) return
+  async function deleteItemPallet() {
+    if (itemCode === null || !itemPallet) return
     setBusy(true)
     try {
-      await palletApi.deleteProfile(stationId)
-      await profiles.reload()
-      toast.ok(`스테이션 ${stationId} 프로파일을 지웠습니다`)
+      await palletApi.deleteItem(itemCode)
+      await itemPallets.reload()
+      toast.ok(`품목 ${itemCode} 팔렛 패턴을 지웠습니다`)
     } catch (e) {
-      toast.error(`프로파일 삭제 실패 — ${errMsg(e)}`)
+      toast.error(`품목 팔렛 패턴 삭제 실패 — ${errMsg(e)}`)
     } finally {
       setBusy(false)
+    }
+  }
+
+  // ── 팔렛 스테이션 — 스위치 하나라 누르면 바로 저장한다 ──
+  async function setStationOn(on: boolean) {
+    if (stationId === null) return
+    setBusy(true)
+    try {
+      await palletApi.saveStation({ station_id: stationId, enabled: on, note: stationPallet?.note ?? '' })
+      await palletStations.reload()
+      toast.ok(
+        on
+          ? `스테이션 ${stationId} 팔렛 스테이션 켬 — 작업 명령이 품목 패턴의 슬롯을 씁니다`
+          : `스테이션 ${stationId} 팔렛 스테이션 끔 — 작업 명령은 기존 스테이션 동작`,
+      )
+    } catch (e) {
+      toast.error(`팔렛 스테이션 저장 실패 — ${errMsg(e)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ── 로봇 드래그 방향 ──
+  async function saveRobotDir(r: RobotDirView, patch: Partial<RobotDirView>) {
+    const next = { ...r, ...patch }
+    try {
+      await palletApi.saveRobot({ robot: next.robot, rotation: next.rotation, mirror_x: next.mirror_x, mirror_y: next.mirror_y, note: next.note })
+      await robotDirs.reload()
+    } catch (e) {
+      toast.error(`${r.name} 드래그 방향 저장 실패 — ${errMsg(e)}`)
     }
   }
 
   // ── 내보내기 ──
-  // 작업 명령 compose 는 저장된 프로파일 + 품목 외경으로 슬롯을 다시 고른다 — 화면 값이 그와 다르면 막는다.
+  // 작업 명령 compose 는 저장된 품목 팔렛 패턴 + 품목 외경 + 로봇 방향으로 슬롯을 다시 고른다 — 화면 값이 그와 다르면 막는다.
   const itemOd = item?.outer_diameter ?? 0
   const manualOd = num(odText)
   const sendReason =
     stationId === null
       ? '스테이션을 고르세요 (수동 중심은 미리보기만)'
       : itemCode === null
-        ? '품목을 고르세요 (작업에는 item_code 가 필요합니다)'
-        : !profile?.enabled
-          ? '이 스테이션 프로파일을 Enabled 로 저장해야 작업 명령이 슬롯 위치를 씁니다'
-          : profileDirty
-            ? '프로파일 입력이 저장값과 다릅니다 — 먼저 저장하세요'
-            : pattern !== 'auto'
-              ? 'Pattern 을 auto 로 두세요 (작업 명령은 외경으로 고릅니다)'
+        ? '품목을 고르세요 (패턴은 품목에 속합니다)'
+        : !stationOn
+          ? '이 스테이션을 팔렛 스테이션으로 켜야 작업 명령이 슬롯 위치를 씁니다'
+          : !itemPallet
+            ? '이 품목의 팔렛 패턴을 먼저 저장하세요'
+            : itemDirty
+              ? '품목 팔렛 패턴 입력이 저장값과 다릅니다 — 먼저 저장하세요'
               : manualOd !== undefined && manualOd !== itemOd
                 ? 'OuterDiameter 수동 값이 품목 값과 다릅니다 — 비우세요'
                 : !plan
                   ? '계획이 없습니다'
-                  : plan.errors.length > 0
-                    ? '배치 오류(겹침)가 있습니다'
-                    : null
+                  : flowFor(itemPallet, plan.type) !== plan.flow
+                    ? `${plan.type} 작업은 ${flowFor(itemPallet, plan.type)} 흐름을 씁니다 — 미리보기 쪽(입고/출하)을 바꾸세요`
+                    : plan.errors.length > 0
+                      ? '배치 오류(겹침)가 있습니다'
+                      : null
 
   function steps() {
     if (!plan || stationId === null) return []
@@ -343,7 +401,7 @@ export default function PalletPage() {
     try {
       const doc = toScenario(
         s,
-        `Pallet ${plan.flow} P${plan.pattern} Station ${stationId}`,
+        `Pallet ${plan.flow} P${plan.pattern} Item ${itemCode} Station ${stationId}`,
         `OuterDiameter ${plan.od} · Gap ${plan.gap} · Rotation ${plan.transform.rotation} · Levels ${levels}`,
       )
       const file = new File([toJson(doc)], 'pallet-scenario.json', { type: 'application/json' })
@@ -375,8 +433,14 @@ export default function PalletPage() {
       key: 'drag_dir',
       label: 'DragDir',
       get: (s) => s.drag_dir,
-      cell: (s) =>
-        s.drag_dir === s.spec_drag_dir ? s.drag_dir : `${s.drag_dir} (spec ${s.spec_drag_dir})`,
+      cell: (s) => {
+        const layout = s.layout_drag_dir ?? s.drag_dir
+        const notes = [
+          ...(layout !== s.spec_drag_dir ? [`spec ${s.spec_drag_dir}`] : []),
+          ...(layout !== s.drag_dir ? [`item ${layout}`] : []),
+        ]
+        return notes.length === 0 ? s.drag_dir : `${s.drag_dir} (${notes.join(' · ')})`
+      },
       numeric: true,
       priority: 1,
     },
@@ -410,26 +474,24 @@ export default function PalletPage() {
         { label: 'Pitch (mm)', value: n7(plan.pitch) },
         { label: 'MinDistance (mm)', value: n7(plan.min_distance) },
         { label: 'Center (mm)', value: `${n7(plan.center[0])}, ${n7(plan.center[1])}`, hint: plan.center_source },
-        {
-          label: 'Rotation',
-          value: `${plan.transform.rotation}°${plan.transform.mirror_x ? ' MX' : ''}${plan.transform.mirror_y ? ' MY' : ''}`,
-        },
+        { label: 'Rotation', value: transformText(plan.transform) },
+        { label: 'Robot DragDir', value: transformText(plan.robot_dir), hint: robotDir?.name },
         { label: 'DragDist (mm)', value: dist && dist > 0 ? n7(dist) : '—', hint: dist && dist > 0 ? undefined : `그림 ${ARROW_FALLBACK}` },
         { label: 'Drawn D / Gap (mm)', value: `${n7(plan.drawn.d_mm)} / ${n7(plan.drawn.gap_mm)}` },
         { label: 'GR2 margin (mm)', value: plan.area ? n7(plan.area.margin) : '—', hint: plan.area ? `TaskType ${plan.area.task_type}` : undefined },
       ]
     : []
 
-  const profileMenu = (): MenuItem[] => [
+  const itemMenu = (): MenuItem[] => [
     {
       label: 'Note · 배치 옵션…',
-      disabled: stationId === null ? '스테이션을 고르세요' : undefined,
+      disabled: itemCode === null ? '품목을 고르세요' : undefined,
       run: () => setOptOpen(true),
     },
     {
-      label: '프로파일 삭제',
+      label: '품목 팔렛 패턴 삭제',
       danger: true,
-      disabled: !profile ? '저장된 프로파일이 없습니다' : busy ? '처리 중입니다' : undefined,
+      disabled: !itemPallet ? '저장된 팔렛 패턴이 없습니다' : busy ? '처리 중입니다' : undefined,
       run: () => setAskDelete(true),
     },
   ]
@@ -517,14 +579,27 @@ export default function PalletPage() {
             >
               <option value="">수동 중심 (스테이션 없음)</option>
               {stations.items.map((s) => {
-                const p = profiles.items.find((x) => x.station_id === s.id)
+                const on = palletStations.items.some((x) => x.station_id === s.id && x.enabled)
                 return (
                   <option key={s.id} value={s.id}>
-                    {`${s.id} · TaskType ${s.task_type} · (${s.info.position[0]}, ${s.info.position[1]})${p ? (p.enabled ? ' · profile on' : ' · profile off') : ''}`}
+                    {`${s.id} · TaskType ${s.task_type} · (${s.info.position[0]}, ${s.info.position[1]})${on ? ' · pallet' : ''}`}
                   </option>
                 )
               })}
             </Select>
+            {stationId !== null && (
+              <div className="flex items-center gap-1">
+                <Switch
+                  inline
+                  label="팔렛 스테이션"
+                  checked={stationOn}
+                  disabled={busy}
+                  onCheckedChange={(v) => void setStationOn(v)}
+                  data-testid="pallet-station-on"
+                />
+                <HelpTip title="팔렛 스테이션" text={PALLET_STATION_HELP} />
+              </div>
+            )}
             {stationId === null && (
               <div className="grid grid-cols-3 gap-2">
                 <Input label="Center X" value={centerX} onValueChange={setCenterX} mono />
@@ -545,7 +620,7 @@ export default function PalletPage() {
               <option value="">품목 없음 (OuterDiameter 직접)</option>
               {items.items.map((i) => (
                 <option key={i.code} value={i.code}>
-                  {`${i.code} ${i.name} · OuterDiameter ${i.outer_diameter}`}
+                  {`${i.code} ${i.name} · OuterDiameter ${i.outer_diameter}${itemPallets.items.some((p) => p.code === i.code) ? ' · pallet' : ''}`}
                 </option>
               ))}
             </Select>
@@ -560,15 +635,43 @@ export default function PalletPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <h3 className={h3}>패턴</h3>
-            <Select label="Flow" value={flow} onValueChange={setFlow} data-testid="pallet-flow">
-              {(spec?.flows ?? []).map((f) => (
-                <option key={f.id} value={f.id}>
-                  {`${f.id} — ${f.name}${f.reference ? ' (참고)' : ''}`}
-                </option>
-              ))}
-            </Select>
+          <div className="flex flex-col gap-2 border-t border-line-default pt-3">
+            <div className="flex items-center gap-1">
+              <h3 className={h3}>품목 팔렛 패턴</h3>
+              <HelpTip title="품목 팔렛 패턴" text={ITEM_PALLET_HELP} />
+              <span className="flex-1" />
+              <OverflowMenu items={itemMenu()} testid="pallet-item-menu" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Select label="FlowIn" value={flowIn} onValueChange={setFlowIn} data-testid="pallet-flow-in">
+                <option value="">—</option>
+                {(spec?.flows ?? []).map((f) => (
+                  <option key={f.id} value={f.id} title={`${f.name}${f.reference ? ' (참고)' : ''}`}>
+                    {f.id}
+                  </option>
+                ))}
+              </Select>
+              <Select label="FlowOut" value={flowOut} onValueChange={setFlowOut} data-testid="pallet-flow-out">
+                <option value="">—</option>
+                {(spec?.flows ?? []).map((f) => (
+                  <option key={f.id} value={f.id} title={`${f.name}${f.reference ? ' (참고)' : ''}`}>
+                    {f.id}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <Field label="미리보기">
+              <Segmented
+                value={side}
+                onChange={(v) => setSide(v)}
+                ariaLabel="미리보기 흐름"
+                compact
+                options={[
+                  { id: 'in', label: 'In · PICK', title: flowIn || flowOut || DEFAULT_FLOW },
+                  { id: 'out', label: 'Out · DROP', title: flowOut || flowIn || DEFAULT_FLOW },
+                ]}
+              />
+            </Field>
             <div className="grid grid-cols-2 gap-2">
               <Input label="Gap" value={gapText} onValueChange={setGapText} mono hint="mm" data-testid="pallet-gap" />
               <Input label="Levels" value={levelsText} onValueChange={setLevelsText} mono hint="단" />
@@ -592,40 +695,49 @@ export default function PalletPage() {
                 옵션
               </Button>
             </div>
-          </div>
-
-          <div className="flex flex-col gap-2 border-t border-line-default pt-3">
-            <div className="flex items-center gap-1">
-              <h3 className={h3}>스테이션 프로파일</h3>
-              <HelpTip title="스테이션 프로파일" text={`${PROFILE_HELP} ${ENABLED_HELP}`} />
-              <span className="flex-1" />
-              <OverflowMenu items={profileMenu()} testid="pallet-profile-menu" />
-            </div>
-            {stationId !== null && (
+            {itemCode !== null && (
               <>
-                <div className="flex items-center gap-1">
-                  <Switch inline label="Enabled" checked={enabled} onCheckedChange={setEnabled} />
-                  <HelpTip title="Enabled" text={ENABLED_HELP} />
-                </div>
                 <p className="text-3xs text-content-faint">
-                  {profile
-                    ? `저장됨 ${profile.updated_at.slice(0, 19).replace('T', ' ')}${profileDirty ? ' · 입력이 바뀜' : ''}`
-                    : '프로파일 없음'}
+                  {itemPallet
+                    ? `저장됨 ${itemPallet.updated_at.slice(0, 19).replace('T', ' ')}${itemDirty ? ' · 입력이 바뀜' : ''}`
+                    : '이 품목에 팔렛 패턴 없음'}
                 </p>
                 <Button
                   intent="primary"
                   size="sm"
                   icon={<Save size={14} />}
-                  disabled={busy || !profileDirty}
-                  title={profileDirty ? '프로파일 저장' : '저장값과 같습니다'}
-                  onClick={() => void saveProfile()}
-                  data-testid="pallet-profile-save"
+                  disabled={busy || !itemDirty || (!flowIn && !flowOut)}
+                  title={!flowIn && !flowOut ? 'FlowIn 또는 FlowOut 을 고르세요' : itemDirty ? `품목 ${itemCode} 팔렛 패턴 저장` : '저장값과 같습니다'}
+                  onClick={() => void saveItemPallet()}
+                  data-testid="pallet-item-save"
                   className="self-start"
                 >
-                  프로파일 저장
+                  품목 패턴 저장
                 </Button>
               </>
             )}
+          </div>
+
+          <div className="flex items-end gap-2 border-t border-line-default pt-3">
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className="flex items-center gap-1">
+                <span className="text-2xs font-medium text-content-muted">로봇 DragDir</span>
+                <HelpTip title="로봇 DragDir" text={ROBOT_DIR_HELP} />
+              </span>
+              <span className="truncate font-mono text-2xs tabular-nums text-content-secondary" data-testid="pallet-robot-dir">
+                {robotDir ? `${robotDir.name} · ${transformText(robotDir)}` : '—'}
+              </span>
+            </div>
+            <Button
+              size="sm"
+              intent="ghost"
+              icon={<Compass size={14} />}
+              title="로봇별 드래그 방향 보정"
+              onClick={() => setRobotOpen(true)}
+              data-testid="pallet-robot-dir-open"
+            >
+              설정
+            </Button>
           </div>
         </section>
 
@@ -780,9 +892,41 @@ export default function PalletPage() {
             <Switch inline label="MirrorX" checked={mirrorX} onCheckedChange={setMirrorX} />
             <Switch inline label="MirrorY" checked={mirrorY} onCheckedChange={setMirrorY} />
           </div>
-          {stationId !== null && (
-            <Input label="Note" value={note} onValueChange={setNote} hint="스테이션 프로파일에 함께 저장됩니다" />
+          {itemCode !== null && (
+            <Input label="Note" value={note} onValueChange={setNote} hint="품목 팔렛 패턴에 함께 저장됩니다" />
           )}
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={robotOpen}
+        onOpenChange={setRobotOpen}
+        title="로봇 DragDir"
+        size="sm"
+        testid="pallet-robot-dir"
+        // 바꾸는 즉시 저장된다 — 닫기 하나.
+        closeLabel="닫기"
+      >
+        <div className="flex flex-col gap-4">
+          {robotDirs.items.length === 0 && <span className="text-2xs text-content-muted">설정된 로봇이 없습니다</span>}
+          {robotDirs.items.map((r) => (
+            <div key={r.robot} className="flex flex-col gap-2">
+              <span className="text-2xs font-semibold text-content-secondary">{`${r.name} (${r.plc})`}</span>
+              <Field label="Rotation">
+                <Segmented
+                  value={String(r.rotation)}
+                  onChange={(v) => void saveRobotDir(r, { rotation: Number(v) })}
+                  ariaLabel={`${r.name} Rotation`}
+                  compact
+                  options={ROTATIONS.map((x) => ({ id: String(x), label: `${x}°` }))}
+                />
+              </Field>
+              <div className="flex gap-4">
+                <Switch inline label="MirrorX" checked={r.mirror_x} onCheckedChange={(v) => void saveRobotDir(r, { mirror_x: v })} />
+                <Switch inline label="MirrorY" checked={r.mirror_y} onCheckedChange={(v) => void saveRobotDir(r, { mirror_y: v })} />
+              </div>
+            </div>
+          ))}
         </div>
       </Dialog>
 
@@ -790,17 +934,18 @@ export default function PalletPage() {
         open={askDelete}
         onOpenChange={setAskDelete}
         scope="single"
-        title="프로파일 삭제"
+        title="품목 팔렛 패턴 삭제"
         danger
         confirmLabel="삭제"
-        onConfirm={() => void deleteProfile()}
+        onConfirm={() => void deleteItemPallet()}
       >
-        <p className="mb-2">저장된 스테이션 프로파일을 지울까요?</p>
+        <p className="mb-2">저장된 품목 팔렛 패턴을 지울까요?</p>
         <Pairs
           layout="stacked"
           items={[
-            { label: 'Station', value: stationId },
-            { label: 'Flow', value: profile?.flow ?? '—' },
+            { label: 'Item', value: itemCode },
+            { label: 'FlowIn', value: itemPallet?.flow_in ?? '—' },
+            { label: 'FlowOut', value: itemPallet?.flow_out ?? '—' },
           ]}
         />
       </ConfirmDialog>

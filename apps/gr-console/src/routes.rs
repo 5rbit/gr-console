@@ -20,6 +20,7 @@ pub fn router(st: AppState) -> Router {
         .merge(crate::record::router())
         .merge(crate::trace::routes::router())
         .merge(crate::registry::routes::router())
+        .merge(crate::registry::dims::router())
         .merge(crate::ledger::routes::router())
         .merge(crate::scenario::routes::router())
         .merge(crate::stock::routes::router())

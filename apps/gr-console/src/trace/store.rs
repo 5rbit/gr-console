@@ -149,6 +149,8 @@ struct Active {
 
 /// Owns the current session and the link channel.
 pub struct TraceStore {
+    /// 트레이스를 받는 로봇 PLC(설정 이름, 예 `GR2`) — 채널 경로·청크는 이 PLC 의 레이아웃이다. 다른 PLC 요청은 거부.
+    plc: String,
     contract: Arc<Contract>,
     layout: TraceLayout,
     root: PathBuf,
@@ -160,10 +162,15 @@ pub struct TraceStore {
 
 impl TraceStore {
     /// Fails when the contract has no usable `LNK_Trace`, which means the console cannot decode chunks at all.
-    pub fn new(contract: Arc<Contract>, root: PathBuf) -> Result<Arc<TraceStore>, String> {
+    pub fn new(plc: &str, contract: Arc<Contract>, root: PathBuf) -> Result<Arc<TraceStore>, String> {
         let layout = TraceLayout::new(&contract).map_err(|e| e.to_string())?;
         let (events, _) = broadcast::channel(256);
-        Ok(Arc::new(TraceStore { contract, layout, root, active: Mutex::new(None), link: Mutex::new(None), events, next_cfg_id: std::sync::atomic::AtomicU16::new(1) }))
+        Ok(Arc::new(TraceStore { plc: plc.to_string(), contract, layout, root, active: Mutex::new(None), link: Mutex::new(None), events, next_cfg_id: std::sync::atomic::AtomicU16::new(1) }))
+    }
+
+    /// 트레이스를 받는 PLC 이름.
+    pub fn plc(&self) -> &str {
+        &self.plc
     }
 
     pub fn contract(&self) -> &Contract {
@@ -209,6 +216,10 @@ impl TraceStore {
     pub async fn start(&self, req: StartReq) -> Result<Meta, String> {
         if self.active.lock().await.is_some() {
             return Err("a trace session is already running".to_string());
+        }
+        // 채널은 이 PLC 계약으로 풀린다 — 다른 로봇 PLC 로 보내면 PEEK 주소가 그 PLC 에서 엉뚱한 값을 읽는다.
+        if !req.plc.eq_ignore_ascii_case(&self.plc) {
+            return Err(format!("트레이스는 {} 에서만 됩니다 (TRACE_LNK + PLC 링크) — 요청 PLC {}", self.plc, req.plc));
         }
         if req.channels.is_empty() || req.channels.len() > CHAN_MAX {
             return Err(format!("select 1 to {CHAN_MAX} channels, not {}", req.channels.len()));

@@ -117,7 +117,8 @@ export function LayoutTab({
       const key = `${isStation(id) ? 'station' : 'cell'}-${id}`
       const running = t.state === 'running'
       if (m.get(key)?.running && !running) continue
-      const rb = robots.list.find((r) => r.plc === t.plc_name) ?? robots.current
+      // 못 찾으면 "선택한 로봇"이 아니라 Task 가 적어 둔 이름 그대로(다른 로봇 작업을 선택 로봇으로 칠하지 않는다).
+      const rb = robots.list.find((r) => r.plc === t.plc_name || r.name === t.plc_name)
       const name = rb?.name ?? t.plc_name ?? '로봇'
       m.set(key, {
         color: robotColor(rb?.id),
@@ -254,6 +255,8 @@ export function LayoutTab({
         stations={stationList}
         selected={mode === 'monitor' && info ? { kind: info.kind, id: info.id } : selected}
         stock={stockStore.map}
+        items={items}
+        showDirty={mode === 'edit'}
         highlight={highlight}
         plan={mode === 'plan' ? plan : undefined}
         preview={mode === 'edit' ? preview : undefined}

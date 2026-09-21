@@ -198,6 +198,40 @@ n=8`)으로 크기를 고르면 그 크기의 `Level 1..n` 이 `AbsLowerBead` ·
 아래 **Measured** 구역이 표본 이력(Time · Robot · TotalCount · EachHeight · Status · Applied/Rejected 사유 +
 Apply 버튼)이다. 옆모습 그림은 고른 스택 크기를 그린다 — 잰 크기면 저장된 절대값 그대로다.
 
+## 측정 반영 — 치수 제안 · 검토 적용 · 이력 (2026-09-21)
+
+SKU 가 비드 프로파일을 채우는 것(위 절, 자동)과 별개로, **품목 치수 셋**(`StockItem` — PLC 로 가는 값)을
+MeasureItem 기록으로 **제안하고 사람이 골라 적용**한다. 자동 적용은 없다 — G(= 내경 − 30)와 적층 Z 를 바로
+바꾸는 값이라서다(사용자 결정). 코드 `registry/dims.rs`, 화면 품목 상세 **Measured** 탭 · 목록 **측정 반영**
+(일괄 검토).
+
+| 필드 | 출처(MEASLOG Kind 1 · Status DONE) | 조건 |
+|---|---|---|
+| InnerDiameter | Data[1] 레이저·토크 조정 내경 | — |
+| UpperBeadHeight | Data[2] 상부 비드(셀 바닥 기준) | 1 단(`Cmd.Item.Count = 1`) |
+| Height | Data[3] 타이어 높이(셀 바닥 기준) | 1 단 |
+
+- **쓰지 않는 것**: PICK(Kind 4) 내경은 내려가며 호 일부만 맞춘 값이라 실측 50 mm 넘게 어긋났다. SKU
+  `EachHeight` 는 품목 높이와 뜻이 다르다. Manual(Kind 5)은 품목 코드가 없다.
+- **제안** = 필드마다 최근 N(기본 5 — 3/5/10/20)개 중앙값(0.1 mm). 표에 현재 · 제안 · Δ · n · 편차.
+- **흔들림**(`unstable`): 편차 > 한도(ID 3 mm, 높이 5 mm). **차이 큼**(`outlier`): 등록값(0 이 아닌)과
+  |Δ| > 한도(ID 15 mm, 높이 30 mm) — 재고 품목이 틀려 **다른 타이어를 잰** 경우다(실측: 20" 품목 2001 에
+  ID 559.9). 둘 다 적용은 막지 않지만 기본 선택에서 빠지고 이유가 뜬다. 등록값 0(미입력)은 채우는
+  것이라 차이 큼으로 보지 않는다.
+- **적용**은 서버가 그 순간의 제안값을 쓴다(화면이 값을 보내지 않는다). 상세에 저장 안 한 편집이 있으면 막는다.
+- **이력** `item_dim_changes`(마이그레이션 0008): 필드 · 이전 · 이후 · 근거 기록 `[{plc, seq}]` · 시각.
+  **되돌리기**는 지금 값이 그 변경의 이후 값 그대로일 때만(그 뒤 누가 고쳤으면 409, `?force=1`).
+- **StackMax** 는 SKU 에서 실제로 잰 최대 단수를 참고로만 보인다(적용 대상 아님 — Spec 탭에서 고친다).
+
+| API | 뜻 |
+|---|---|
+| `GET /api/items/{code}/dims?window=` | 한 품목의 제안 · 표본 · StackMax 참고 |
+| `POST /api/items/{code}/dims/apply` `{fields, window}` | 고른 필드 적용 |
+| `GET /api/items/dims/suggest?window=&only_changes=` | 일괄 검토 목록 |
+| `POST /api/items/dims/apply-bulk` `{items:[{code, fields}], window}` | 품목별로 따로 적용(실패는 품목별 보고) |
+| `GET /api/items/{code}/dims/changes` · `GET /api/items/dims/changes` | 이력 |
+| `POST /api/items/{code}/dims/changes/{id}/revert?force=` | 되돌리기 |
+
 ## Excel (2026-09-21 — 품목 추가의 두 번째 길)
 
 화면: **화물 규격 › `추가 ▾`** — 왼쪽 `추가` 는 폼 하나(직접 입력), `▾` 는 `직접 입력… · Excel 가져오기… ·

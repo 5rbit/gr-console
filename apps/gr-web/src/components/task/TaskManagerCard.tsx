@@ -2,8 +2,12 @@
 // 고른 로봇 것만 두 보기로 본다(콘솔·시나리오 제출 + PLC 에서 처음 본 외부 Task 모두):
 //   진행     = 스토어(SSE) — 실행 → PLC 대기열 순서.
 //   히스토리 = 서버 페이징(종결, 최신 순) — 필터(State·TaskType·Origin·Since)는 대화상자로 접는다.
-// 칸이 좁아 열은 다섯뿐이다. 나머지(Ack·사유·시각·요청·PLC)는 행을 누르면 뜨는 Task 상세 팝업에 있다.
-import { useCallback, useEffect, useMemo, useState } from 'react'
+// 진행 행 끝에는 삭제·완료 버튼 둘이 선다(로봇이 AUTO 면 비활성). 칸이 좁아 열은 다섯뿐이다. 나머지(Ack·사유·시각·요청·PLC)는 행을 누르면 뜨는 Task 상세 팝업에 있다.
+//
+// 크기는 **고정**이다: 표 칸은 늘 20 행 높이(머리글 + 행 높이를 재서 맞춘다), 쪽 넘김 줄은 두 보기
+// 모두 늘 있다 — 행 수·보기가 바뀌어도 카드가 커졌다 줄었다 하지 않고, 칸 안 스크롤도 없다. 넘치는 행은
+// 쪽으로 넘긴다(진행 = 목록을 잘라서, 히스토리 = 서버 페이징). 카드는 오른쪽 칸 **아래에 붙는다**(`mt-auto`).
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Filter, History, ListChecks, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { panels } from '../../lib/panels'
@@ -42,9 +46,17 @@ import { Select } from '../../lib/ui/Select'
 import type { Column } from '../../lib/ui/table'
 import { RobotChip } from '../shared/RobotChip'
 import TaskDetail, { TASK_DETAIL_PANEL } from '../taskmgr/TaskDetail'
+import { TaskActions } from '../taskmgr/TaskActions'
 import { StateCell } from '../taskmgr/TaskTable'
 
 const LIMIT = 20
+/** 진행 행에 서는 조작 — PLC 로 가는 둘(삭제 = Delete, 완료 = Complete). 나머지는 행을 눌러 여는 상세에. */
+const ROW_ACTIONS = ['cancel', 'complete'] as const
+/**
+ * 표 칸 높이의 재료(px) — 머리글, compact 행(StateCell 캡슐 포함). 기본값은 기본 밀도에서 잰 값이고,
+ * 행이 그려지면 다시 재서 모듈에 남긴다: 빈 목록(행을 잴 수 없다)으로 보기를 바꿔도 카드 높이가 같아야 한다.
+ */
+let measured = { head: 20.5, row: 23.66 }
 const VIEW_KEY = 'gr-issue-tm-view'
 const TYPES: TaskType[] = ['PICK', 'DROP', 'MOVE', 'MEASURE', 'UP']
 const ORIGINS = Object.keys(ORIGIN_LABEL) as Task['origin'][]
@@ -112,6 +124,10 @@ export function TaskManagerCard() {
   }, [])
 
   const live = useMemo(() => liveQueue(tasks.list, plc), [tasks.list, plc])
+  // 진행 목록도 LIMIT 행씩 쪽으로 — 길어지면 카드가 자라지 않고 쪽이 는다.
+  const [liveOffset, setLiveOffset] = useState(0)
+  const liveMax = Math.max(0, Math.floor(Math.max(0, live.length - 1) / LIMIT) * LIMIT)
+  const liveAt = Math.min(liveOffset, liveMax)
   const ended = useMemo(() => terminalCount(tasks.list, plc), [tasks.list, plc])
 
   // ── 히스토리(서버 페이징) ──
@@ -150,7 +166,21 @@ export function TaskManagerCard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 종결 건수 변화에만 반응한다
   }, [ended])
 
-  const rows = view === 'live' ? live : (page?.items ?? [])
+  const rows = view === 'live' ? live.slice(liveAt, liveAt + LIMIT) : (page?.items ?? [])
+
+  // 표 칸 높이 = 머리글 + LIMIT × 행 높이. 행 높이는 그려진 첫 행을 재서 맞춘다(글꼴·밀도 설정을 따른다).
+  const box = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState(measured)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    const head = el.querySelector('thead')?.getBoundingClientRect().height
+    const row = el.querySelector('tbody tr')?.getBoundingClientRect().height
+    if (head && row && (Math.abs(head - size.head) > 0.5 || Math.abs(row - size.row) > 0.5)) {
+      measured = { head, row }
+      setSize(measured)
+    }
+  })
   const ids = useMemo(() => rows.map((t) => t.id), [rows])
   const cols = useMemo(() => columns(view, now), [view, now])
   const nFilter = filterCount(filter)
@@ -170,7 +200,7 @@ export function TaskManagerCard() {
   const setState = (s: string) => setFilter((f) => ({ ...f, states: s ? [s as TaskState] : [] }))
 
   return (
-    <Card padded={false} className="flex flex-none flex-col" data-testid="tm-card">
+    <Card padded={false} className="mt-auto flex flex-none flex-col" data-testid="tm-card">
       <div className="flex min-h-screen-header flex-none items-center gap-2 border-b border-line-default px-3 py-1">
         <ListChecks className="h-4 w-4 text-content-muted" />
         <Segmented
@@ -213,45 +243,66 @@ export function TaskManagerCard() {
         />
       </div>
 
-      <DataTable
-        rows={rows}
-        columns={cols}
-        rowKey={(t) => t.id}
-        onPick={(t) => open(t.id, ids)}
-        density="compact"
-        stickyHeader
-        className="max-h-72 overflow-y-auto"
-        loading={view === 'history' && loading && !page}
-        emptyDense
-        empty={view === 'live' ? '진행 중인 Task 없음' : '종결된 Task 없음'}
-        testid={view === 'live' ? 'tm-live-table' : 'tm-history-table'}
-      />
+      <div
+        ref={box}
+        className="flex-none overflow-hidden"
+        style={{ height: Math.ceil(size.head + LIMIT * size.row) }}
+        data-testid="tm-body"
+      >
+        <DataTable
+          rows={rows}
+          columns={cols}
+          rowKey={(t) => t.id}
+          onPick={(t) => open(t.id, ids)}
+          density="compact"
+          loading={view === 'history' && loading && !page}
+          emptyDense
+          empty={view === 'live' ? '진행 중인 Task 없음' : '종결된 Task 없음'}
+          // 진행 행 끝에 삭제·완료 — Task 관리 표와 같은 고정 슬롯 둘(AUTO 면 사유를 달고 비활성).
+          actions={
+            view === 'live'
+              ? (t) => <TaskActions task={t} only={ROW_ACTIONS} row testid="tm-row-action" />
+              : undefined
+          }
+          testid={view === 'live' ? 'tm-live-table' : 'tm-history-table'}
+        />
+      </div>
 
-      {view === 'history' ? (
-        <div className="flex flex-none items-center gap-2 border-t border-line-default px-2 py-1">
-          {error ? <span className="truncate text-2xs text-fault-fg">{error}</span> : null}
-          {page && page.total > 0 ? (
+      <div className="flex flex-none items-center gap-2 border-t border-line-default px-2 py-1">
+        {view === 'history' && error ? (
+          <span className="truncate text-2xs text-fault-fg">{error}</span>
+        ) : null}
+        <span className="min-w-0 flex-1">
+          {view === 'live' ? (
             <Pagination
-              total={page.total}
+              total={live.length}
+              limit={LIMIT}
+              offset={liveAt}
+              onMove={setLiveOffset}
+              testid="tm-live-pager"
+            />
+          ) : (
+            <Pagination
+              total={page?.total ?? 0}
               limit={LIMIT}
               offset={offset}
               onMove={setOffset}
               testid="tm-pager"
             />
-          ) : null}
-          <Button
-            size="icon-sm"
-            intent="ghost"
-            className="ml-auto"
-            aria-label="다시 읽기"
-            title="다시 읽기"
-            loading={loading}
-            onClick={() => void load(offset)}
-          >
-            <RefreshCw size={13} />
-          </Button>
-        </div>
-      ) : null}
+          )}
+        </span>
+        <Button
+          size="icon-sm"
+          intent="ghost"
+          aria-label="다시 읽기"
+          title={view === 'history' ? '다시 읽기' : '진행 목록은 실시간(SSE)입니다'}
+          loading={view === 'history' && loading}
+          disabled={view !== 'history'}
+          onClick={() => void load(offset)}
+        >
+          <RefreshCw size={13} />
+        </Button>
+      </div>
 
       <Dialog
         open={filterOpen}

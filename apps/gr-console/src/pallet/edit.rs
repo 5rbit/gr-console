@@ -338,12 +338,12 @@ pub fn diff_against(cur: &Flow, base: Option<&Flow>) -> FlowDiff {
 #[derive(Clone, Debug, Default)]
 pub struct Snapshot {
     pub lib: Library,
-    /// 흐름 id(대문자) → 그 흐름을 쓰는 프로파일 스테이션.
-    pub usage: BTreeMap<String, Vec<u16>>,
+    /// 흐름 id(대문자) → 그 흐름을 쓰는 품목 코드.
+    pub usage: BTreeMap<String, Vec<u32>>,
 }
 
 impl Snapshot {
-    pub fn used_by(&self, id: &str) -> Vec<u16> {
+    pub fn used_by(&self, id: &str) -> Vec<u32> {
         self.usage.get(&id.trim().to_ascii_uppercase()).cloned().unwrap_or_default()
     }
     fn find(&self, id: &str) -> Result<&Flow, ApiError> {
@@ -488,7 +488,7 @@ pub fn delete_flow(snap: &Snapshot, id: &str) -> Result<Change, ApiError> {
     let used = snap.used_by(&cur.id);
     if !used.is_empty() {
         return Err(ApiError::Conflict(format!(
-            "Flow {} 는 스테이션 {} 프로파일이 씁니다 — 먼저 그 프로파일의 Flow 를 바꾸거나 지우세요",
+            "Flow {} 는 품목 {} 의 팔렛 패턴이 씁니다 — 먼저 그 품목의 Flow 를 바꾸거나 지우세요",
             cur.id,
             used.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(", ")
         )));
@@ -750,8 +750,8 @@ pub fn merge_import(lib: &Library, doc: &Spec, now: &str) -> (Vec<Flow>, ImportR
 
 // ── 화면용 보기 ─────────────────────────────────────────────────────────────
 
-/// `GET /api/pallet/flows` 한 줄 — 흐름 + 패턴별 MinDistance·비교 상태 + 사용 스테이션 + 경고.
-pub fn flow_view(f: &Flow, used_by: &[u16]) -> Json {
+/// `GET /api/pallet/flows` 한 줄 — 흐름 + 패턴별 MinDistance·비교 상태 + 사용 품목 + 경고.
+pub fn flow_view(f: &Flow, used_by: &[u32]) -> Json {
     let d = diff_flow(f);
     let warnings = validate_flow(f).unwrap_or_else(|e| e);
     let mut v = clean_json(f);

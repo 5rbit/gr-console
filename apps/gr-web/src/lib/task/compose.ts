@@ -1,10 +1,11 @@
 // 작성 카드의 순수 로직 — 초안 → `TaskRequest`, 파라미터 우선순위, 검증, 기본값 표의 행/편집.
 //
-// 백엔드 `issue::compose_from`과 같은 우선순위다: `base` ← `by[type][kind]` ← 요청 `params`.
+// 백엔드 `issue::compose_from`과 같은 우선순위다: `base` ← `by[type][kind]` ← 상황(`situations`) ← 요청 `params`.
+// 기본값 표에서 빈 칸 = 그 아래 층 값을 쓴다(상속). 표는 그 상속값을 흐리게 보여 준다(`inheritedOf`).
 // 화면은 이 결과를 "지금 이 값이 갈 것이다"로 보여 주고, 최종 확정은 백엔드 미리보기가 한다.
 import { PARAM_LABELS } from '../gr/const'
 import { robots } from '../robots'
-import type { Defaults, TargetKind, TaskParams, TaskRequest, TaskType } from '../types'
+import type { Defaults, TargetKind, TaskParams, TaskRequest, TaskType, Situation } from '../types'
 import { moveErrors, moveOf, moveParams, sentItem } from './moveMode'
 import type { ComposePreview, Draft } from './types'
 
@@ -67,6 +68,9 @@ export function buildRequest(d: Draft): TaskRequest {
     // 기본(켜짐)은 싣지 않는다 — 요청 JSON 이 예전과 같게.
     ...(d.station_offset === false ? { station_offset: 'off' as const } : {}),
     ...(d.ignore_stack_max ? { ignore_stack_max: true } : {}),
+    ...(d.multi_pick && d.target?.kind === 'station' && (d.type === 'PICK' || d.type === 'DROP')
+      ? { multi_pick: true }
+      : {}),
   }
 }
 
@@ -96,13 +100,16 @@ export function effectiveParams(
   type: TaskType,
   kind: TargetKind,
   overrides: Partial<TaskParams>,
+  situations: readonly Situation[] = [],
 ): TaskParams | null {
   if (!defaults) return null
   const out: Record<string, number | boolean> = { ...defaults.base }
   const by = (
     defaults.by as Partial<Record<string, Partial<Record<TargetKind, Partial<TaskParams>>>>>
   )[type]?.[kind]
-  for (const layer of [by ?? {}, overrides]) {
+  // 공통 ← 종류·대상별 ← 상황별(서버가 고른 것, 적용 순서) ← 덮어쓰기 — 백엔드 `compose_from` 과 같은 순서.
+  const sit = situations.map((k) => defaults.situations?.[k] ?? {})
+  for (const layer of [by ?? {}, ...sit, overrides]) {
     for (const [k, v] of Object.entries(layer)) {
       if (v !== undefined && v !== null) out[k] = v as number | boolean
     }
@@ -143,14 +150,35 @@ export function previewFields(p: ComposePreview | null): { label: string; value:
 
 // ── 기본값 표(DefaultsDialog) ─────────────────────────────────────────────────
 
-export type DefaultsCol = 'base' | 'PICK.cell' | 'PICK.station' | 'DROP.cell' | 'DROP.station'
+/** 상황 키 — 적용 순서(뒤가 이긴다). 백엔드 `registry::SITUATIONS`. */
+export const SITUATIONS: readonly Situation[] = [
+  'measure_item',
+  'measure_sku',
+  'pallet_station',
+  'multi_pick',
+]
+export const SITUATION_LABEL: Record<Situation, string> = {
+  measure_item: 'Measure Item',
+  measure_sku: 'Measure SKU',
+  pallet_station: 'Pallet Station',
+  multi_pick: 'Multi-Pick',
+}
+
+export type DefaultsCol =
+  'base' | 'PICK.cell' | 'PICK.station' | 'DROP.cell' | 'DROP.station' | `sit.${Situation}`
 export const DEFAULTS_COLS: readonly { id: DefaultsCol; header: string }[] = [
   { id: 'base', header: 'Base' },
   { id: 'PICK.cell', header: 'PICK · Cell' },
   { id: 'PICK.station', header: 'PICK · Station' },
   { id: 'DROP.cell', header: 'DROP · Cell' },
   { id: 'DROP.station', header: 'DROP · Station' },
+  ...SITUATIONS.map((k) => ({ id: `sit.${k}` as DefaultsCol, header: SITUATION_LABEL[k] })),
 ]
+
+/** 상황 열인가 — 이 열의 빈 칸은 "아래 층 상속"(공통·종류별). */
+export function isSituationCol(col: DefaultsCol): col is `sit.${Situation}` {
+  return col.startsWith('sit.')
+}
 
 export interface DefaultsRow {
   key: ParamKey
@@ -161,6 +189,7 @@ export interface DefaultsRow {
 
 function layer(d: Defaults, col: DefaultsCol): Partial<TaskParams> {
   if (col === 'base') return d.base
+  if (isSituationCol(col)) return d.situations?.[col.slice(4) as Situation] ?? {}
   const [t, k] = col.split('.') as ['PICK' | 'DROP', TargetKind]
   return d.by[t]?.[k] ?? {}
 }
@@ -208,9 +237,20 @@ export function applyDefaultsEdit(
       PICK: { cell: { ...d.by.PICK?.cell }, station: { ...d.by.PICK?.station } },
       DROP: { cell: { ...d.by.DROP?.cell }, station: { ...d.by.DROP?.station } },
     },
+    situations: Object.fromEntries(SITUATIONS.map((k) => [k, { ...d.situations?.[k] }])) as Record<
+      Situation,
+      Partial<TaskParams>
+    >,
   }
   if (col === 'base') {
     ;(next.base as unknown as Record<string, number | boolean>)[key] = v as number | boolean
+  } else if (isSituationCol(col)) {
+    const part = next.situations![col.slice(4) as Situation] as Record<
+      string,
+      number | boolean | undefined
+    >
+    if (v === undefined) delete part[key]
+    else part[key] = v
   } else {
     const [t, k] = col.split('.') as ['PICK' | 'DROP', TargetKind]
     const part = next.by[t][k] as Record<string, number | boolean | undefined>
@@ -220,7 +260,123 @@ export function applyDefaultsEdit(
   return next
 }
 
+/** 열이 어디에 걸리는가 — 헤더 부제. 백엔드 `issue::situations_for` 와 같은 판정. */
+export const DEFAULTS_COL_SCOPE: Record<DefaultsCol, string> = {
+  base: '모든 작업',
+  'PICK.cell': '',
+  'PICK.station': '',
+  'DROP.cell': '',
+  'DROP.station': '',
+  'sit.measure_item': 'MEASURE',
+  'sit.measure_sku': 'MEASURE · SKU',
+  'sit.pallet_station': '팔렛 슬롯 작업',
+  'sit.multi_pick': 'Station PICK/DROP',
+}
+
+/** 상황 열 아래에 깔리는 층 — 그 상황이 걸리는 작업들의 종류·대상 열(없으면 Base). */
+const SITUATION_BELOW: Record<Situation, readonly DefaultsCol[]> = {
+  measure_item: ['base'],
+  measure_sku: ['base'],
+  // 팔렛 슬롯은 스테이션 PICK/DROP(MEASURE 스테이션은 종류별 층이 없어 Base)
+  pallet_station: ['PICK.station', 'DROP.station', 'base'],
+  multi_pick: ['PICK.station', 'DROP.station'],
+}
+
+/** 한 작업에 함께 걸릴 수 있는, 적용 순서상 **아래** 상황들(MEASURE 스테이션 팔렛 · 팔렛 + Multi-Pick 등). */
+const SITUATION_STACK_BELOW: Record<Situation, readonly Situation[]> = {
+  measure_item: [],
+  measure_sku: ['measure_item'],
+  pallet_station: ['measure_item', 'measure_sku'],
+  multi_pick: ['pallet_station'],
+}
+
+/** 빈 칸이 실제로 쓰는 값 하나 — `from` 은 그 값을 준 열. */
+export interface InheritedValue {
+  from: DefaultsCol
+  value: number | boolean
+}
+
+/** 종류·대상 열까지 적용한 값(상황 제외) — `col` 이 `base` 면 Base 값. */
+function resolvedBelowSituations(d: Defaults, key: ParamKey, col: DefaultsCol): InheritedValue {
+  const own = col === 'base' ? undefined : layer(d, col)[key]
+  if (own !== undefined) return { from: col, value: own }
+  return { from: 'base', value: d.base[key] }
+}
+
+/**
+ * 이 칸을 비워 두면 쓰일 값들. 종류·대상 열은 Base 하나, 상황 열은 그 상황이 걸리는 작업마다 하나
+ * (값이 같으면 하나로 합친다). Base 열은 상속이 없어 빈 배열.
+ */
+export function inheritedOf(d: Defaults, key: ParamKey, col: DefaultsCol): InheritedValue[] {
+  if (col === 'base') return []
+  if (!isSituationCol(col)) return [{ from: 'base', value: d.base[key] }]
+  const out: InheritedValue[] = []
+  for (const below of SITUATION_BELOW[col.slice(4) as Situation]) {
+    const v = resolvedBelowSituations(d, key, below)
+    if (!out.some((o) => o.from === v.from)) out.push(v)
+  }
+  return out
+}
+
+/** 상속값 한 칸 표시 — 모두 같으면 값 하나, 다르면 `55 / 40`(어느 열에서 왔는지는 툴팁). */
+export function inheritedText(vals: readonly InheritedValue[]): string {
+  if (vals.length === 0) return ''
+  return [...new Set(vals.map((v) => String(v.value)))].join(' / ')
+}
+
+export function colHeader(col: DefaultsCol): string {
+  return DEFAULTS_COLS.find((c) => c.id === col)?.header ?? col
+}
+
+/** 적어 둔 값이 비웠을 때 쓰일 값과 **모두** 같은가 — 지워도 결과가 같은 칸. */
+export function isRedundant(d: Defaults, key: ParamKey, col: DefaultsCol): boolean {
+  if (col === 'base') return false
+  const own = layer(d, col)[key]
+  if (own === undefined) return false
+  // 같이 걸릴 수 있는 아래 상황이 같은 키를 쥐고 있으면, 지웠을 때 그 값이 올라온다 — 지우지 않는다.
+  if (isSituationCol(col)) {
+    const under = SITUATION_STACK_BELOW[col.slice(4) as Situation]
+    if (under.some((s) => d.situations?.[s]?.[key] !== undefined)) return false
+  }
+  const inh = inheritedOf(d, key, col)
+  return inh.length > 0 && inh.every((v) => v.value === own)
+}
+
+/** 지워도 결과가 같은 칸 목록(표 순서). 종류·대상 열을 먼저 지우면 상황 열의 판정이 바뀔 수 있어 한 번에 본다. */
+export function redundantCells(d: Defaults): { key: ParamKey; col: DefaultsCol }[] {
+  const out: { key: ParamKey; col: DefaultsCol }[] = []
+  for (const key of PARAM_KEYS) {
+    for (const c of DEFAULTS_COLS) {
+      if (isRedundant(d, key, c.id)) out.push({ key, col: c.id })
+    }
+  }
+  return out
+}
+
+/**
+ * 지워도 결과가 같은 칸을 비운다. 한 칸을 지우면 다른 칸의 상속값이 바뀔 수 있으므로(예: PICK·Station 을
+ * 지우면 Multi-Pick 이 Base 를 보게 된다) 더 지울 것이 없을 때까지 반복한다 — 어떤 작업의 최종 값도 바뀌지 않는다.
+ */
+export function pruneRedundant(d: Defaults): { next: Defaults; removed: number } {
+  let cur = d
+  let removed = 0
+  for (;;) {
+    const hit = redundantCells(cur)[0]
+    if (!hit) return { next: cur, removed }
+    const next = applyDefaultsEdit(cur, hit.key, hit.col, '')
+    if (!next) return { next: cur, removed }
+    cur = next
+    removed++
+  }
+}
+
 /** 초안이 기본값과 다른가(저장 버튼 활성). */
 export function defaultsChanged(a: Defaults, b: Defaults): boolean {
-  return JSON.stringify({ base: a.base, by: a.by }) !== JSON.stringify({ base: b.base, by: b.by })
+  const pick = (d: Defaults) =>
+    JSON.stringify({
+      base: d.base,
+      by: d.by,
+      sit: SITUATIONS.map((k) => d.situations?.[k] ?? {}),
+    })
+  return pick(a) !== pick(b)
 }

@@ -10,6 +10,7 @@ mod issue;
 mod laser;
 mod ledger;
 mod link;
+mod logsink;
 mod measure;
 mod pallet;
 mod para;
@@ -84,12 +85,17 @@ async fn main() -> anyhow::Result<()> {
     if cli.stop {
         std::process::exit(stop_running_instance(cli.force));
     }
-    tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,opcua=warn,async_opcua=warn".into())).init();
+    // 로그는 전용 스레드가 쓴다 — 콘솔 창이 막혀도(빠른 편집 선택) 런타임이 서지 않게(`logsink`, 2026-09-21 교착).
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,opcua=warn,async_opcua=warn".into()))
+        .with_writer(logsink::make_writer())
+        .init();
     // 기준 디렉터리 — 설정 파일이 있는 곳. CWD에 없으면 실행 파일 옆을 본다(배포: 더블클릭·바로 가기·
     // 서비스는 CWD가 제멋대로다). 둘 다 없으면 CWD(개발 체크아웃의 기본값들이 거기 기준이다).
     let (config_path, base) = locate_config(&cli.config);
     let mut cfg = Config::load(&config_path)?;
     cfg.anchor(&base);
+    logsink::open_file_dir(&cfg.paths.data_dir.join("logs"));
     tracing::info!(base = %base.display(), config = %config_path.display(), bundle = bundle::summary(), "paths");
     if cli.demo || cli.demo_opcua {
         cfg.demo = true;
@@ -276,15 +282,27 @@ async fn main() -> anyhow::Result<()> {
     let recorder = record::Recorder::new(cfg.paths.data_dir.join("records"));
     // Trace needs LNK_Trace in the contract; without it the endpoints answer "trace is not configured" instead of
     // failing the whole start-up.
-    // The trace contract comes from the default robot PLC: chunks and channel paths are that PLC's layout.
-    let trace_contract = cfg.plcs.iter().find(|p| p.name == first.plc).and_then(|p| contracts.get(&p.contract).cloned());
-    let trace = match trace_contract.ok_or_else(|| "no contract for the default robot PLC".to_string()).and_then(|c| trace::TraceStore::new(c, cfg.paths.data_dir.join("traces"))) {
-        Ok(t) => Some(t),
-        Err(e) => {
-            tracing::warn!("trace disabled: {e}");
-            None
+    // 트레이스 계약 = LNK_Trace 가 있는 **첫 로봇 PLC**(설정 순서). 예전에는 무조건 첫 로봇이라, GR1 이 앞이면
+    // (GR1 에는 TRACE_LNK 가 없다) GR2 트레이스까지 통째로 꺼졌고, 켜져도 다른 로봇 요청을 첫 로봇 레이아웃으로 풀었다.
+    let mut trace = None;
+    let mut trace_why = Vec::new();
+    for r in robots.iter() {
+        let Some(c) = cfg.plcs.iter().find(|p| p.name == r.plc).and_then(|p| contracts.get(&p.contract).cloned()) else {
+            trace_why.push(format!("{}: no contract", r.plc));
+            continue;
+        };
+        match trace::TraceStore::new(&r.plc, c, cfg.paths.data_dir.join("traces")) {
+            Ok(t) => {
+                tracing::info!(plc = %r.plc, "trace enabled");
+                trace = Some(t);
+                break;
+            }
+            Err(e) => trace_why.push(format!("{}: {e}", r.plc)),
         }
-    };
+    }
+    if trace.is_none() {
+        tracing::warn!("trace disabled: {}", trace_why.join("; "));
+    }
     let st = AppState { cfg: cfg.clone(), plcs, cmd, robots, task_events, db, ledger, registry, scenario, stock, recorder, trace, events, shutdown: sd.clone() };
 
     // demo: seed registries from the fake PLC tables once they are readable
@@ -364,8 +382,8 @@ async fn main() -> anyhow::Result<()> {
     };
     tracing::info!(%addr, web = %web_source, demo = cfg.demo, "gr-console listening");
     let url = browse_url(addr);
-    println!("gr-console  {url}  (web: {web_source}, demo: {})", cfg.demo);
-    println!("끄기: 이 창에서 Ctrl+C, 또는 다른 창에서 gr-console --stop (창을 그냥 닫는 것은 최후 수단)");
+    logsink::print(&format!("gr-console  {url}  (web: {web_source}, demo: {})", cfg.demo));
+    logsink::print("끄기: 이 창에서 Ctrl+C, 또는 다른 창에서 gr-console --stop (창을 그냥 닫는 것은 최후 수단)");
     if cfg.server.open_browser {
         open_browser(&url);
     }
@@ -396,7 +414,8 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn say_done() {
-    println!("종료 완료.");
+    logsink::print("종료 완료.");
+    logsink::flush(std::time::Duration::from_secs(2));
     tracing::info!("shutdown complete");
     use std::io::Write;
     let _ = std::io::stdout().flush();

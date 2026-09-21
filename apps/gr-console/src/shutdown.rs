@@ -245,7 +245,7 @@ pub struct Report {
 }
 
 fn say(line: &str) {
-    println!("{line}");
+    crate::logsink::print(line);
     tracing::info!("{line}");
 }
 

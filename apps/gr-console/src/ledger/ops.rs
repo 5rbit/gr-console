@@ -94,7 +94,9 @@ pub async fn submit(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<L
     }
     // 초안은 작성 때 위치를 들고 있다 — 스테이션 트래킹은 그 사이에 바뀌므로 보낼 때 다시 계산한다.
     let mut entry = entry;
-    if let Some(req) = entry.request.clone() {
+    if let Some(mut req) = entry.request.clone() {
+        // 보정·단수 검사는 **이 원장의 로봇** 기준 — 옛 초안(robot 없음)이 기본 로봇 STATION 표로 계산되지 않게.
+        req.robot = Some(r.id);
         // 재고는 초안 작성 뒤에도 바뀐다 — 단수 Max 는 보낼 때의 재고로 본다.
         crate::issue::enforce_stack_limit(st, &req, &entry.plc_task)?;
         let mut task = entry.plc_task.clone();
@@ -138,6 +140,11 @@ pub async fn create_and_submit(
     // 스테이션 보정은 호출자(작성 라우트·시나리오 게이트 대기·재제출)가 들고 온 위치가 아니라 지금 스냅샷으로.
     // 바로 제출이면 거부 사유가 있을 때 원장에 초안을 남기지 않고 여기서 멈춘다.
     let mut task = task;
+    // 요청이 든 로봇을 원장 로봇으로 고정한다 — 재제출·옛 원장(robot 없음)이 기본 로봇 기준으로 계산되지 않게.
+    let request = request.map(|mut q| {
+        q.robot = Some(r.id);
+        q
+    });
     if submit_now && let Some(req) = &request {
         crate::issue::enforce_stack_limit(st, req, &task)?;
     }
@@ -158,16 +165,22 @@ pub async fn create_and_submit(
 }
 
 /// Latest decoded `OPCUA.STAT` of the status PLC (None when there is no snapshot yet).
-fn status_view(st: &AppState, r: &RobotCtx) -> Option<gr_proto::StatusView> {
+pub(crate) fn status_view(st: &AppState, r: &RobotCtx) -> Option<gr_proto::StatusView> {
     let h = st.robot_plc(r).ok()?;
     let stat = h.decode_path("OPCUA", "STAT")?;
     gr_proto::StatusView::from_json(&stat).ok()
 }
 
-async fn task_op(cmd: &Arc<CommandPort>, op: TaskOp, key: TaskKey) -> Result<(), ApiError> {
+pub(crate) async fn task_op(cmd: &Arc<CommandPort>, op: TaskOp, key: TaskKey) -> Result<(), ApiError> {
     cmd.write_task_op(op, key.work_id, key.task_id).await?;
     tokio::time::sleep(std::time::Duration::from_millis(600)).await;
     cmd.write_task_op(op, 0, 0).await // re-arm
+}
+
+/// Complete / Delete 는 AUTO 에서 받지 않는다 — 로봇이 Task 를 돌리는 중에 원장과 PLC 버퍼를 바꾸지 않게.
+/// 화면(`lib/task/state.ts` `autoBlock`)도 같은 규칙으로 버튼을 막는다.
+pub(crate) fn auto_refusal(robot: &str, what: &str) -> ApiError {
+    ApiError::Conflict(with_robot(robot, &format!("AUTO 모드에서는 {what} 할 수 없습니다 — Stop 으로 AUTO 에서 내린 뒤 다시 시도하세요")))
 }
 
 /// How long the PLC gets to answer a Delete/Complete (status bit or ring) before the request is
@@ -214,15 +227,13 @@ pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
         s => return Err(ApiError::Conflict(format!("cannot cancel a {} task", s.as_str()))),
     }
     // `STAT.RES.Data[6]` says whether the PLC accepts a Delete right now (the mirror of Data[5] for
-    // Complete); on top of that GR2 only processes `Command.Task.Delete` for the running task outside
-    // AUTO mode. Both are checked here so the operator gets the reason instead of a silent no-op.
+    // Complete); on top of that the console refuses every Delete while the robot is in AUTO (operator
+    // rule 2026-09-21: Complete/Delete only outside AUTO). Checked here so the operator gets the reason.
     if !st.cfg.demo {
         match status_view(st, r) {
+            Some(v) if v.mode.auto => return Err(auto_refusal(&r.name, "삭제(Delete)")),
             Some(v) if !v.reject_info().delete_allowed => {
                 return Err(ApiError::Conflict(with_robot(&r.name, "PLC가 취소(Delete)를 허용하지 않습니다 (STAT.RES.Data[6] = 0)")));
-            }
-            Some(v) if e.state == TaskState::Running && v.mode.auto => {
-                return Err(ApiError::Conflict(with_robot(&r.name, "AUTO 모드에서는 실행 중인 태스크를 취소(Delete)할 수 없습니다 — 로봇을 AUTO에서 내린 뒤 다시 시도하세요")));
             }
             Some(_) => {}
             None => return Err(ApiError::PlcUnavailable(with_robot(&r.name, "상태 PLC 스냅샷 없음 — 취소 허용 여부를 확인할 수 없습니다"))),
@@ -253,9 +264,10 @@ pub async fn force_complete(st: &AppState, id: &str) -> Result<LedgerEntry, ApiE
     if !matches!(e.state, TaskState::Queued | TaskState::Running | TaskState::Accepted | TaskState::Lost) {
         return Err(ApiError::Conflict(format!("cannot complete a {} task", e.state.as_str())));
     }
-    // `STAT.RES.Data[5]` says whether the PLC accepts a forced Complete right now.
+    // `STAT.RES.Data[5]` says whether the PLC accepts a forced Complete right now; never in AUTO.
     if !st.cfg.demo {
         match status_view(st, r) {
+            Some(v) if v.mode.auto => return Err(auto_refusal(&r.name, "완료(Complete)")),
             Some(v) if !v.reject_info().complete_allowed => {
                 return Err(ApiError::Conflict(with_robot(&r.name, "PLC가 강제 완료를 허용하지 않습니다 (STAT.RES.Data[5] = 0)")));
             }
@@ -333,6 +345,20 @@ mod tests {
         assert!(submit_refusal("GR2", &[]).starts_with("GR2: "));
         // 라벨 없이 들어온 사유도 이름을 얻는다.
         assert!(submit_refusal("GR2", &["태스크 버퍼 가득 참".to_string()]).starts_with("GR2: "));
+    }
+
+    #[test]
+    fn ledger_get_stays_on_its_own_robot() {
+        // 로봇 둘이 한 sqlite 를 쓴다. 캐시에 없는(오래된) GR2 Task 를 GR1 원장이 DB 에서 집어 가면 안 된다.
+        let db = Db::open_memory().unwrap();
+        let gr1 = Ledger::new(db.clone(), "GR1", None).unwrap();
+        let gr2 = Ledger::new(db.clone(), "GR2", None).unwrap();
+        let e = entry(&gr2, 9, 1, TaskState::Queued);
+        let gr1_fresh = Ledger::new(db.clone(), "GR1", None).unwrap(); // 캐시 없이 DB 로만 찾는 경로
+        assert!(gr1.get(&e.id).is_none());
+        assert!(gr1_fresh.get(&e.id).is_none());
+        let gr2_fresh = Ledger::new(db, "GR2", None).unwrap();
+        assert_eq!(gr2_fresh.get(&e.id).map(|x| x.plc_name), Some("GR2".to_string()));
     }
 
     #[test]

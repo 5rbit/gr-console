@@ -3,6 +3,7 @@
 //! (`sync.rs`), operations (`ops.rs`) and routes (`routes.rs`) are the M3-B slice.
 
 pub mod ops;
+pub mod robot_cmd;
 pub mod routes;
 pub mod sync;
 
@@ -159,6 +160,10 @@ pub struct TaskRequest {
     /// 팔렛 슬롯(`{seq, level}` 또는 `{auto: true}`) — 켜진 팔렛 프로파일이 있는 스테이션 대상에만.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pallet: Option<crate::pallet::compose::PalletRef>,
+    /// Multi-Picking 상황(기본값 `situations.multi_pick`) — 스테이션 PICK/DROP 에만. `None` = 적용 안 함
+    /// (시나리오 실행기는 다음 스텝이 같은 스테이션 그룹이면 스스로 `Some(true)` 로 채운다).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub multi_pick: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -269,7 +274,9 @@ impl Ledger {
         if let Some(e) = self.cache.lock().unwrap_or_else(PoisonError::into_inner).iter().find(|e| e.id == id) {
             return Some(e.clone());
         }
-        self.db.with(|c| c.query_row("SELECT doc_json FROM tasks WHERE id = ?1", [id], |r| r.get::<_, String>(0))).ok().and_then(|s| serde_json::from_str(&s).ok())
+        // 테이블은 로봇들이 같이 쓴다 — `plc` 조건이 없으면 첫 로봇(GR1) 원장이 GR2 Task 를 제 것으로 돌려주고,
+        // `find_task` 가 그 로봇으로 취소·완료를 보냈다(2026-09-21, GR2 취소가 GR1 RES.Data[6] 로 거부).
+        self.db.with(|c| c.query_row("SELECT doc_json FROM tasks WHERE id = ?1 AND plc = ?2", (id, &self.plc), |r| r.get::<_, String>(0))).ok().and_then(|s| serde_json::from_str(&s).ok())
     }
 
     pub fn find_by_key(&self, key: TaskKey) -> Option<LedgerEntry> {

@@ -175,6 +175,7 @@ export default function TaskManager() {
   const current = robots.current
   // 통계는 고른 로봇 것 — 로봇이 둘 이상이면 라벨에 이름을 붙여 목록(전체)과 섞어 읽지 않게 한다.
   const tag = robots.multi && current ? ` · ${current.name}` : ''
+  const mine = tag && current ? tasks.countsFor(current.plc) : counts
   const completedToday =
     stats?.completed_today ??
     list.filter(
@@ -184,8 +185,9 @@ export default function TaskManager() {
         (!tag || !t.plc_name || t.plc_name === current?.plc),
     ).length
   const items: MetaItem[] = [
-    { label: '실행', value: String(counts.running) },
-    { label: '대기', value: String(counts.queued) },
+    // 실행·대기도 통계처럼 **고른 로봇** 것 — 예전에는 두 로봇 합이 "오늘 완료 · GR2" 옆에 섞여 섰다.
+    { label: `실행${tag}`, value: String(mine.running) },
+    { label: `대기${tag}`, value: String(mine.queued) },
     { label: `오늘 완료${tag}`, value: String(completedToday) },
   ]
   if (stats?.rejected_today)
@@ -208,7 +210,8 @@ export default function TaskManager() {
             size="sm"
             label="SSE"
             title={
-              tasksFeed.error ?? (tasksFeed.connected ? 'Task 스트림 연결됨' : 'Task 스트림 연결 중')
+              tasksFeed.error ??
+              (tasksFeed.connected ? 'Task 스트림 연결됨' : 'Task 스트림 연결 중')
             }
           />
         }

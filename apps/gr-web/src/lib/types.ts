@@ -446,7 +446,12 @@ export interface Defaults {
   base: TaskParams
   by: Record<'PICK' | 'DROP', Record<TargetKind, Partial<TaskParams>>>
   grip_ref: GripRef
+  /** 상황별 덮어쓰기 — 종류·대상별 위, 작성 카드 덮어쓰기 아래(백엔드 `Defaults.situations`). 구버전 응답엔 없다. */
+  situations?: Partial<Record<Situation, Partial<TaskParams>>>
 }
+
+/** 상황 키 — 적용 순서(뒤가 이긴다). 백엔드 `registry::SITUATIONS` 와 같다. */
+export type Situation = 'measure_item' | 'measure_sku' | 'pallet_station' | 'multi_pick'
 
 /** GRM 뒤의 로봇 한 대 (GET /api/robots). */
 export interface Robot {
@@ -463,6 +468,9 @@ export interface Robot {
   gate: Gate
   active_tasks: number
 }
+
+/** 로봇 운전 명령 (POST /api/robots/{id}/command/{action}). */
+export type RobotAction = 'start' | 'stop' | 'reset' | 'buzzerstop' | 'complete' | 'clear'
 
 export type TaskState =
   | 'draft'
@@ -511,6 +519,8 @@ export interface TaskRequest {
   ignore_stack_max?: boolean
   /** 팔렛 슬롯 — 켜진 팔렛 프로파일이 있는 스테이션 대상에만(백엔드 `pallet::compose::PalletRef`). */
   pallet?: PalletRef | null
+  /** Multi-Picking 상황(스테이션 PICK/DROP) — 기본값 `situations.multi_pick` 층을 얹는다. */
+  multi_pick?: boolean | null
 }
 
 /** `{seq, level}`(1-based) 또는 `{auto: true}`(스테이션 재고로 다음 슬롯). */

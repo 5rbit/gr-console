@@ -78,16 +78,39 @@ import type { Item, ItemLevels, ItemSpec, ItemUpsert, StockEntry } from '../../l
 import { toItemUpsert } from '../task/ItemRegistry'
 import { ChipPopover, InfoChip } from '../../lib/ui/InfoChip'
 import { InfoRows } from '../../lib/ui/Pair'
+import { DimsTab } from './DimsTab'
 import { StackSvg } from './StackSvg'
 
-type Tab = 'spec' | 'beads' | 'usage'
+type Tab = 'spec' | 'beads' | 'measured' | 'usage'
 type Draft = ItemUpsert & { spec: ItemSpec }
 
 const TAB_KEY = 'gr-items-detail-tab'
 const TABS: { id: Tab; label: string; title: string; testid: string }[] = [
-  { id: 'spec', label: 'Spec', title: '품목 필드 · StackMax · PalletMax · WeightKg · PickBeadOffset · Compression', testid: 'item-tab-spec' },
-  { id: 'beads', label: 'Beads', title: '잰 스택 크기별 절대 AbsLowerBead · AbsUpperBead · StackHeight · PickZ 표', testid: 'item-tab-beads' },
-  { id: 'usage', label: 'Usage', title: '이 코드를 쓰는 재고 칸 · 시나리오 스텝', testid: 'item-tab-usage' },
+  {
+    id: 'spec',
+    label: 'Spec',
+    title: '품목 필드 · StackMax · PalletMax · WeightKg · PickBeadOffset · Compression',
+    testid: 'item-tab-spec',
+  },
+  {
+    id: 'beads',
+    label: 'Beads',
+    title: '잰 스택 크기별 절대 AbsLowerBead · AbsUpperBead · StackHeight · PickZ 표',
+    testid: 'item-tab-beads',
+  },
+  {
+    id: 'measured',
+    label: 'Measured',
+    title:
+      '측정 기록(MeasureItem)으로 InnerDiameter · UpperBeadHeight · Height 제안 · 검토 적용 · 변경 이력',
+    testid: 'item-tab-measured',
+  },
+  {
+    id: 'usage',
+    label: 'Usage',
+    title: '이 코드를 쓰는 재고 칸 · 시나리오 스텝',
+    testid: 'item-tab-usage',
+  },
 ]
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -97,7 +120,7 @@ const withoutSpec = (d: Draft) => JSON.stringify({ ...d, spec: null })
 function readTab(): Tab {
   try {
     const v = localStorage.getItem(TAB_KEY)
-    return v === 'beads' || v === 'usage' ? v : 'spec'
+    return v === 'beads' || v === 'measured' || v === 'usage' ? v : 'spec'
   } catch {
     return 'spec'
   }
@@ -129,9 +152,15 @@ export function ItemDetail({ item, stock, onSaved, onClose, onDirtyChange }: Ite
 
   const spec = draft.spec
   const dirty = withoutSpec(draft) !== withoutSpec(original) || !specEquals(spec, original.spec)
-  const errors = useMemo(() => [...itemErrors(draft), ...specErrors(spec, draft.height)], [draft, spec])
+  const errors = useMemo(
+    () => [...itemErrors(draft), ...specErrors(spec, draft.height)],
+    [draft, spec],
+  )
   const measured = useMemo(() => measuredByLevel(levels?.rows), [levels])
-  const grid = useMemo(() => buildGrid(draft, spec, preview, measured), [draft, spec, preview, measured])
+  const grid = useMemo(
+    () => buildGrid(draft, spec, preview, measured),
+    [draft, spec, preview, measured],
+  )
 
   const set = (patch: Partial<ItemUpsert>) => setDraft((d) => ({ ...d, ...patch }))
   const patchSpec = (patch: Partial<ItemSpec>) =>
@@ -195,7 +224,10 @@ export function ItemDetail({ item, stock, onSaved, onClose, onDirtyChange }: Ite
         <span className="font-mono text-sm font-semibold">{item.code}</span>
         <span className="min-w-0 truncate text-xs text-content-muted">{item.name}</span>
         {dirty ? (
-          <span className="rounded-sm bg-warn-soft px-1 text-2xs text-warn-fg" data-testid="item-detail-dirty">
+          <span
+            className="rounded-sm bg-warn-soft px-1 text-2xs text-warn-fg"
+            data-testid="item-detail-dirty"
+          >
             저장 안 됨
           </span>
         ) : null}
@@ -236,7 +268,12 @@ export function ItemDetail({ item, stock, onSaved, onClose, onDirtyChange }: Ite
           ariaLabel="품목 상세"
           value={tab}
           onChange={setTab}
-          options={TABS.map((t) => ({ id: t.id, label: t.label, title: t.title, testid: t.testid }))}
+          options={TABS.map((t) => ({
+            id: t.id,
+            label: t.label,
+            title: t.title,
+            testid: t.testid,
+          }))}
         />
       </div>
       {errors.length ? (
@@ -267,6 +304,8 @@ export function ItemDetail({ item, stock, onSaved, onClose, onDirtyChange }: Ite
             patchSpec={patchSpec}
             updateSpec={updateSpec}
           />
+        ) : tab === 'measured' ? (
+          <DimsTab code={item.code} dirty={dirty} onApplied={() => onSaved(item.code)} />
         ) : (
           <UsageTab code={item.code} spec={spec} stock={stock} />
         )}
@@ -387,7 +426,13 @@ function SpecTab({
           onValueChange={(name) => set({ name })}
           placeholder="예: 225/45R17"
         />
-        <NumField label="Count" value={draft.count} onChange={(count) => set({ count })} step="1" min={1} />
+        <NumField
+          label="Count"
+          value={draft.count}
+          onChange={(count) => set({ count })}
+          step="1"
+          min={1}
+        />
         <NumField
           label="InnerDiameter (mm)"
           value={draft.inner_diameter}
@@ -543,7 +588,11 @@ function MeasuredLine({ m, d }: { m: number | null; d: number | null }) {
     <div
       className={cn(
         'pt-0.5 text-right font-mono text-2xs tabular-nums',
-        tone === 'fault' ? 'text-fault-fg' : tone === 'warn' ? 'text-warn-fg' : 'text-content-muted',
+        tone === 'fault'
+          ? 'text-fault-fg'
+          : tone === 'warn'
+            ? 'text-warn-fg'
+            : 'text-content-muted',
       )}
       title="측정값 (측정 − 유효값)"
     >
@@ -636,7 +685,9 @@ function BeadsTab({
     },
     {
       label: '측정값에서 Compression 계산',
-      disabled: noSuggestion ? '되짚을 측정값이 없습니다 — 단별 비드나 EachHeight 가 필요합니다' : undefined,
+      disabled: noSuggestion
+        ? '되짚을 측정값이 없습니다 — 단별 비드나 EachHeight 가 필요합니다'
+        : undefined,
       run: applySuggestedCompression,
     },
     {
@@ -645,7 +696,11 @@ function BeadsTab({
       disabled: stored ? undefined : '이 크기는 잰 적이 없습니다',
       run: () => updateSpec((s) => removeProfile(s, n)),
     },
-    { label: '측정값 다시 받기', disabled: levelsLoading ? '받는 중입니다' : undefined, run: reload },
+    {
+      label: '측정값 다시 받기',
+      disabled: levelsLoading ? '받는 중입니다' : undefined,
+      run: reload,
+    },
   ]
 
   return (
@@ -663,7 +718,9 @@ function BeadsTab({
             data-testid="beads-preview"
             onChange={(e) => {
               const v = parseCell(e.currentTarget.value)
-              setPreview(v === undefined || v === null || v <= 0 ? null : Math.min(Math.round(v), LEVEL_MAX))
+              setPreview(
+                v === undefined || v === null || v <= 0 ? null : Math.min(Math.round(v), LEVEL_MAX),
+              )
             }}
           />
         </label>
@@ -690,7 +747,11 @@ function BeadsTab({
           )}
         </span>
         {mChip ? (
-          <ChipPopover chip={mChip} title={`최신 SKU 측정 · ${measuredBy?.name ?? robotName}`} testid="beads-measured-chip">
+          <ChipPopover
+            chip={mChip}
+            title={`최신 SKU 측정 · ${measuredBy?.name ?? robotName}`}
+            testid="beads-measured-chip"
+          >
             <InfoRows rows={measuredRows(src)} />
             {bChip ? (
               <>
@@ -703,7 +764,11 @@ function BeadsTab({
           </ChipPopover>
         ) : null}
         {state ? (
-          <span className="text-2xs text-content-faint" title={state.title} data-testid="beads-state">
+          <span
+            className="text-2xs text-content-faint"
+            title={state.title}
+            data-testid="beads-state"
+          >
             {state.text}
           </span>
         ) : null}
@@ -729,15 +794,25 @@ function BeadsTab({
           <table className="text-xs" data-testid="beads-grid">
             <thead>
               <tr className="text-content-muted">
-                <th className="px-1 py-1 text-right font-mono font-medium" title={`스택 ${n} 에서의 단 번호(맨 아래가 1)`}>
+                <th
+                  className="px-1 py-1 text-right font-mono font-medium"
+                  title={`스택 ${n} 에서의 단 번호(맨 아래가 1)`}
+                >
                   Level
                 </th>
                 {PROFILE_KEYS.map((k) => (
-                  <th key={k} className="px-1 py-1 text-right font-mono font-medium" title="셀 바닥 기준 절대값">
+                  <th
+                    key={k}
+                    className="px-1 py-1 text-right font-mono font-medium"
+                    title="셀 바닥 기준 절대값"
+                  >
                     {PROFILE_LABEL[k]} (mm)
                   </th>
                 ))}
-                <th className="px-1 py-1 text-right font-mono font-medium" title="이 타이어 위에 얹힌 개수(파생 곡선의 키)">
+                <th
+                  className="px-1 py-1 text-right font-mono font-medium"
+                  title="이 타이어 위에 얹힌 개수(파생 곡선의 키)"
+                >
                   Above
                 </th>
                 <th
@@ -746,10 +821,16 @@ function BeadsTab({
                 >
                   Compression@Level (mm)
                 </th>
-                <th className="px-1 py-1 text-left font-mono font-medium" title="measured = 측정 그대로 · manual = 손으로 고침 · interpolated = 이웃 점 보간 · computed = Compression 모형">
+                <th
+                  className="px-1 py-1 text-left font-mono font-medium"
+                  title="measured = 측정 그대로 · manual = 손으로 고침 · interpolated = 이웃 점 보간 · computed = Compression 모형"
+                >
                   Source
                 </th>
-                <th className="px-1 py-1 text-left font-mono font-medium" title="이 프로파일을 채운 SKU 표본">
+                <th
+                  className="px-1 py-1 text-left font-mono font-medium"
+                  title="이 프로파일을 채운 SKU 표본"
+                >
                   SampleSeq
                 </th>
                 <th
@@ -763,25 +844,47 @@ function BeadsTab({
             </thead>
             <tbody>
               {grid.map((g) => (
-                <tr key={g.level} className="border-t border-line-default align-top" data-testid="beads-row">
+                <tr
+                  key={g.level}
+                  className="border-t border-line-default align-top"
+                  data-testid="beads-row"
+                >
                   <td className="px-1 py-1.5 font-mono tabular-nums">{g.level}</td>
                   {PROFILE_KEYS.map((k) => (
                     <td key={k} className="px-1 py-1">
                       <LevelCell
                         value={g.stored?.[k] ?? null}
-                        placeholder={fmt(k === 'lower_bead' ? g.absLowerBead : k === 'upper_bead' ? g.absUpperBead : g.absStackHeight)}
+                        placeholder={fmt(
+                          k === 'lower_bead'
+                            ? g.absLowerBead
+                            : k === 'upper_bead'
+                              ? g.absUpperBead
+                              : g.absStackHeight,
+                        )}
                         label={`스택 ${n} ${g.level}단 ${PROFILE_LABEL[k]}`}
                         testid={`beads-${g.level}-${k}`}
                         onCommit={(v) => setCell(g.level, k, v)}
                       />
                       {k === 'upper_bead' && g.fromProfile ? (
-                        <MeasuredLine m={g.measured?.upper_bead ?? null} d={g.deviation?.upper_bead ?? null} />
+                        <MeasuredLine
+                          m={g.measured?.upper_bead ?? null}
+                          d={g.deviation?.upper_bead ?? null}
+                        />
                       ) : null}
                     </td>
                   ))}
-                  <td className="px-1 py-1.5 text-right font-mono tabular-nums text-content-muted">{g.above}</td>
-                  <td className="px-1 py-1.5 text-right font-mono tabular-nums" data-testid={`beads-${g.level}-compression-at`}>
-                    {g.compressionAt === null ? <span className="text-content-faint">—</span> : g.compressionAt}
+                  <td className="px-1 py-1.5 text-right font-mono tabular-nums text-content-muted">
+                    {g.above}
+                  </td>
+                  <td
+                    className="px-1 py-1.5 text-right font-mono tabular-nums"
+                    data-testid={`beads-${g.level}-compression-at`}
+                  >
+                    {g.compressionAt === null ? (
+                      <span className="text-content-faint">—</span>
+                    ) : (
+                      g.compressionAt
+                    )}
                   </td>
                   <td className="px-1 py-1.5" data-testid={`beads-${g.level}-source`}>
                     <SourceTag source={g.source} />
@@ -806,7 +909,9 @@ function BeadsTab({
                         {round1(g.pickZ)} mid
                       </span>
                     ) : (
-                      <span className={g.fromProfile ? '' : 'text-content-muted'}>{round1(g.pickZ)}</span>
+                      <span className={g.fromProfile ? '' : 'text-content-muted'}>
+                        {round1(g.pickZ)}
+                      </span>
                     )}
                   </td>
                   <td className="px-1 py-1">
@@ -852,7 +957,11 @@ const SOURCE_TONE: Record<string, string> = {
 }
 
 function SourceTag({ source }: { source: string }) {
-  return <span className={cn('rounded-sm px-1 font-mono text-2xs', SOURCE_TONE[source] ?? '')}>{source}</span>
+  return (
+    <span className={cn('rounded-sm px-1 font-mono text-2xs', SOURCE_TONE[source] ?? '')}>
+      {source}
+    </span>
+  )
 }
 
 /** 라벨+값 한 짝 — 값은 고정폭. 설명 문장 대신 이 짝을 쓴다(`docs/DESIGN.md` 5절 ②). */
@@ -904,10 +1013,16 @@ function MeasuredSamples({
                 <th className="px-1 py-1 text-right font-mono font-medium">EachHeight</th>
                 <th className="px-1 py-1 text-right font-mono font-medium">TotalHeight</th>
                 <th className="px-1 py-1 text-right font-mono font-medium">Status</th>
-                <th className="px-1 py-1 text-left font-mono font-medium" title="이 표본이 채우는 하중">
+                <th
+                  className="px-1 py-1 text-left font-mono font-medium"
+                  title="이 표본이 채우는 하중"
+                >
                   Above
                 </th>
-                <th className="px-1 py-1 text-left font-mono font-medium" title="반영 내용 또는 거부 사유">
+                <th
+                  className="px-1 py-1 text-left font-mono font-medium"
+                  title="반영 내용 또는 거부 사유"
+                >
                   Result
                 </th>
                 <th className="sr-only">반영</th>
@@ -915,13 +1030,23 @@ function MeasuredSamples({
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-t border-line-default" data-testid="beads-sample-row">
-                  <td className="px-1 py-1 font-mono text-2xs tabular-nums whitespace-nowrap">{r.time}</td>
+                <tr
+                  key={r.id}
+                  className="border-t border-line-default"
+                  data-testid="beads-sample-row"
+                >
+                  <td className="px-1 py-1 font-mono text-2xs tabular-nums whitespace-nowrap">
+                    {r.time}
+                  </td>
                   <td className="px-1 py-1 font-mono text-2xs">{r.plc}</td>
                   <td className="px-1 py-1 text-right font-mono tabular-nums">{r.seq}</td>
                   <td className="px-1 py-1 text-right font-mono tabular-nums">{r.totalCount}</td>
-                  <td className="px-1 py-1 text-right font-mono tabular-nums">{mm(r.eachHeight)}</td>
-                  <td className="px-1 py-1 text-right font-mono tabular-nums">{mm(r.totalHeight)}</td>
+                  <td className="px-1 py-1 text-right font-mono tabular-nums">
+                    {mm(r.eachHeight)}
+                  </td>
+                  <td className="px-1 py-1 text-right font-mono tabular-nums">
+                    {mm(r.totalHeight)}
+                  </td>
                   <td className="px-1 py-1 text-right font-mono tabular-nums">{r.status}</td>
                   <td className="px-1 py-1 font-mono text-2xs tabular-nums">
                     {r.aboves.length ? `${r.aboves[0]}..${r.aboves[r.aboves.length - 1]}` : '—'}
@@ -929,7 +1054,11 @@ function MeasuredSamples({
                   <td
                     className={cn(
                       'max-w-72 px-1 py-1 text-2xs',
-                      r.state === 'applied' ? 'text-ok-fg' : r.state === 'rejected' ? 'text-fault-fg' : 'text-content-muted',
+                      r.state === 'applied'
+                        ? 'text-ok-fg'
+                        : r.state === 'rejected'
+                          ? 'text-fault-fg'
+                          : 'text-content-muted',
                     )}
                     title={r.label}
                     data-testid={`beads-sample-${r.seq}-state`}
@@ -943,7 +1072,11 @@ function MeasuredSamples({
                       disabled={!r.canApply}
                       loading={applying === r.seq}
                       onClick={() => onApply(r.seq)}
-                      title={r.canApply ? '이 표본을 규격에 넣습니다(자동 반영 스위치와 상관없이)' : r.reason}
+                      title={
+                        r.canApply
+                          ? '이 표본을 규격에 넣습니다(자동 반영 스위치와 상관없이)'
+                          : r.reason
+                      }
                       data-testid={`beads-sample-${r.seq}-apply`}
                     >
                       Apply
@@ -1007,34 +1140,39 @@ function UsageTab({
           <p className="text-xs text-content-faint">재고 칸 없음</p>
         ) : (
           <div className="w-full overflow-x-auto">
-          <table className="text-xs">
-            <thead>
-              <tr className="text-content-muted">
-                <th className={th}>Cell</th>
-                <th className={th}>Count</th>
-                <th className={th} title="0 = 제한 없음">
-                  StackMax
-                </th>
-                <th className={th}>
-                  <span className="sr-only">상태</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {cells.map((c) => (
-                <tr
-                  key={c.cell_id}
-                  className={cn('border-t border-line-default', c.over && 'bg-warn-soft text-warn-fg')}
-                  data-testid="usage-cell"
-                >
-                  <td className="px-1.5 py-1 font-mono tabular-nums">{c.cell_id}</td>
-                  <td className="px-1.5 py-1 font-mono tabular-nums">{c.count}</td>
-                  <td className="px-1.5 py-1 font-mono tabular-nums">{limitLabel(spec.stack_max)}</td>
-                  <td className="px-1.5 py-1">{c.over ? 'StackMax 초과' : ''}</td>
+            <table className="text-xs">
+              <thead>
+                <tr className="text-content-muted">
+                  <th className={th}>Cell</th>
+                  <th className={th}>Count</th>
+                  <th className={th} title="0 = 제한 없음">
+                    StackMax
+                  </th>
+                  <th className={th}>
+                    <span className="sr-only">상태</span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {cells.map((c) => (
+                  <tr
+                    key={c.cell_id}
+                    className={cn(
+                      'border-t border-line-default',
+                      c.over && 'bg-warn-soft text-warn-fg',
+                    )}
+                    data-testid="usage-cell"
+                  >
+                    <td className="px-1.5 py-1 font-mono tabular-nums">{c.cell_id}</td>
+                    <td className="px-1.5 py-1 font-mono tabular-nums">{c.count}</td>
+                    <td className="px-1.5 py-1 font-mono tabular-nums">
+                      {limitLabel(spec.stack_max)}
+                    </td>
+                    <td className="px-1.5 py-1">{c.over ? 'StackMax 초과' : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
@@ -1056,28 +1194,28 @@ function UsageTab({
           <p className="text-xs text-content-faint">스텝 없음</p>
         ) : (
           <div className="w-full overflow-x-auto">
-          <table className="text-xs">
-            <thead>
-              <tr className="text-content-muted">
-                <th className={th}>Scenario</th>
-                <th className={th}>Step</th>
-                <th className={th}>Type</th>
-                <th className={th}>Target</th>
-                <th className={th}>Label</th>
-              </tr>
-            </thead>
-            <tbody>
-              {refs.map((r) => (
-                <tr key={`${r.scenario_id}:${r.step}`} className="border-t border-line-default">
-                  <td className="px-1.5 py-1">{r.scenario}</td>
-                  <td className="px-1.5 py-1 font-mono tabular-nums">{r.step}</td>
-                  <td className="px-1.5 py-1 font-mono">{r.type}</td>
-                  <td className="px-1.5 py-1">{r.target}</td>
-                  <td className="px-1.5 py-1 text-content-muted">{r.label}</td>
+            <table className="text-xs">
+              <thead>
+                <tr className="text-content-muted">
+                  <th className={th}>Scenario</th>
+                  <th className={th}>Step</th>
+                  <th className={th}>Type</th>
+                  <th className={th}>Target</th>
+                  <th className={th}>Label</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {refs.map((r) => (
+                  <tr key={`${r.scenario_id}:${r.step}`} className="border-t border-line-default">
+                    <td className="px-1.5 py-1">{r.scenario}</td>
+                    <td className="px-1.5 py-1 font-mono tabular-nums">{r.step}</td>
+                    <td className="px-1.5 py-1 font-mono">{r.type}</td>
+                    <td className="px-1.5 py-1">{r.target}</td>
+                    <td className="px-1.5 py-1 text-content-muted">{r.label}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>

@@ -20,14 +20,17 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Registry } from '../../lib/registry'
 import {
   DEFAULT_SPLIT,
-  SPLIT_TABLES,
+  TABLES_BY_MODE,
   parseRailTab,
   parseSplit,
   pxToRatio,
   ratioToPx,
   serializeSplit,
   splitBounds,
+  tableFor,
   tableForPick,
+  withTable,
+  type RailMode,
   type RailTab,
   type SplitState,
   type SplitTable,
@@ -42,6 +45,7 @@ import type { Cell, Item, Station, Target } from '../../lib/types'
 import { Splitter } from '../workspace/Splitter'
 import { CellRegistry } from './CellRegistry'
 import { ItemRegistry } from './ItemRegistry'
+import { StationOffsetTable } from './StationOffsetTable'
 import { StationRegistry } from './StationRegistry'
 import { StockRegistry } from './StockRegistry'
 
@@ -51,6 +55,7 @@ const TABLE_LABEL: Record<SplitTable, string> = {
   cell: '셀',
   station: '스테이션',
   stock: '재고',
+  offset: '스테이션 보정',
   item: '품목',
 }
 /** 레일 탭의 저장 키 — 화면 루트(`TaskIssue`)도 이 값으로 복원한다(두 벌을 두면 한쪽만 고쳐진다). */
@@ -101,6 +106,11 @@ export interface RegistryRailProps {
   /** 셀/스테이션 표의 선택 — 바깥이 쥐면 맵 강조와 한 상태가 된다. */
   selected?: Target | null
   onSelect?: (t: Target | null) => void
+  /**
+   * 맵 모드가 정하는 표 묶음 — `edit`(레이아웃 편집) = 셀·스테이션 배치 파라미터, `ops`(모니터링·
+   * 명령 생성) = 재고(적재 수)·스테이션 보정·품목. 묶음마다 마지막에 본 표를 따로 기억한다.
+   */
+  mode?: RailMode
   /** 품목 표의 선택 — 맵이 그 품목이 든 셀들을 강조한다. */
   itemSel?: number | null
   onItemSelect?: (code: number | null) => void
@@ -117,6 +127,7 @@ export function RegistryRail({
   onTabChange,
   selected,
   onSelect,
+  mode = 'ops',
   itemSel,
   onItemSelect,
   reveal,
@@ -142,7 +153,9 @@ export function RegistryRail({
   const side = sp.orient === 'side'
   const showMap = split || mapOnly
   // 표만 보기일 때는 탭 자체가 표 이름이다 — 머리줄 토글은 늘 "지금 보는 표"를 가리킨다.
-  const table: SplitTable = showMap ? sp.table : (tab as SplitTable)
+  const modeTables = TABLES_BY_MODE[mode]
+  const table: SplitTable =
+    !showMap && modeTables.includes(tab as SplitTable) ? (tab as SplitTable) : tableFor(sp, mode)
 
   const go = (t: RailTab) => {
     setTab(t)
@@ -167,7 +180,7 @@ export function RegistryRail({
    * 그대로 남아야 "내가 보던 표"가 유지된다.
    */
   const pickTable = (t: SplitTable) => {
-    saveSplit({ ...sp, table: t })
+    saveSplit(withTable(sp, mode, t))
     if (mapOnly) go('split')
     else if (!split) go(t)
   }
@@ -177,8 +190,9 @@ export function RegistryRail({
   useEffect(() => {
     if (!reveal) return
     setSp((s) => {
-      const t = tableForPick(s.table, reveal.target.kind)
-      return t === s.table ? s : { ...s, table: t }
+      const cur = tableFor(s, mode)
+      const t = tableForPick(cur, reveal.target.kind, mode)
+      return t === cur ? s : withTable(s, mode, t)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nonce 가 요청 한 번을 대표한다
   }, [reveal?.nonce])
@@ -242,6 +256,16 @@ export function RegistryRail({
           {...rail}
         />
       )
+    if (t === 'offset')
+      return (
+        <StationOffsetTable
+          q={needle}
+          selectedId={stationSel}
+          onSelect={pick('station')}
+          compact={compact}
+          {...rail}
+        />
+      )
     if (t === 'station')
       return (
         <StationRegistry
@@ -301,7 +325,7 @@ export function RegistryRail({
         ariaLabel="표 종류"
         value={table}
         onChange={pickTable}
-        options={SPLIT_TABLES.map((t) => ({
+        options={modeTables.map((t) => ({
           id: t,
           label: TABLE_LABEL[t],
           testid: `rail-${t}`,
@@ -357,15 +381,15 @@ export function RegistryRail({
                 aria-label="표"
                 data-testid="rail-table-pane"
               >
-                <ErrorBoundary label="표" resetKey={sp.table}>
-                  {body(sp.table, side)}
+                <ErrorBoundary label="표" resetKey={table}>
+                  {body(table, side)}
                 </ErrorBoundary>
               </section>
             ) : null}
           </div>
         ) : (
-          <ErrorBoundary label="표" resetKey={tab}>
-            {body(tab as SplitTable, false)}
+          <ErrorBoundary label="표" resetKey={table}>
+            {body(table, false)}
           </ErrorBoundary>
         )}
       </div>

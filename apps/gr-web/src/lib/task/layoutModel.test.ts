@@ -5,6 +5,7 @@ import {
   fitView,
   gridStep,
   panBy,
+  resolveView,
   shapesFrom,
   toScreen,
   toWorld,
@@ -156,5 +157,58 @@ describe('layoutModel rotation', () => {
     // 4000 mm now spans the 400 px height
     expect(fitView(b, 800, 400, 0, true, false, 90).k).toBeCloseTo(0.1)
     expect(fitView(b, 800, 400, 0, true, false, 0).k).toBeCloseTo(0.2)
+  })
+
+  describe('resolveView (2026-09-21 레이아웃이 화면에서 안 보임)', () => {
+    const b = { minX: 1000, minY: 1000, maxX: 12000, maxY: 9500 }
+    const allInside = (v: ReturnType<typeof fitView>, w: number, h: number) =>
+      [
+        [b.minX, b.minY],
+        [b.maxX, b.minY],
+        [b.minX, b.maxY],
+        [b.maxX, b.maxY],
+      ].every(([x, y]) => {
+        const [sx, sy] = toScreen(v, x, y)
+        return sx >= 0 && sx <= w && sy >= 0 && sy <= h
+      })
+
+    it('fit mode follows the current container size (no stale first fit)', () => {
+      // first render measured the default 800x500, then the pane became 982x488 / 1920x1080
+      for (const [w, h] of [
+        [800, 500],
+        [982, 488],
+        [1678, 900],
+        [444, 317],
+      ]) {
+        const v = resolveView(null, b, w, h, 48, true, false, 0)
+        expect(allInside(v, w, h)).toBe(true)
+        expect(v).toEqual(fitView(b, w, h, 48, true, false, 0))
+      }
+    })
+
+    it('a fit frozen at another size clips the pane — the bug this guards', () => {
+      // taller pane at first fit (e.g. before the split/table took its share) → later 982x488
+      const frozen = fitView(b, 982, 900, 48, true, false, 0)
+      expect(allInside(frozen, 982, 488)).toBe(false)
+      expect(allInside(resolveView(null, b, 982, 488, 48, true, false, 0), 982, 488)).toBe(true)
+    })
+
+    it('keeps a manual (panned/zoomed) view while rotation/flip match', () => {
+      const manual = panBy(fitView(b, 800, 500, 48, true, false, 0), 100, 50)
+      expect(resolveView(manual, b, 1920, 1080, 48, true, false, 0)).toBe(manual)
+    })
+
+    it('drops a manual view made under another rotation/flip', () => {
+      const manual = fitView(b, 800, 500, 48, true, false, 0)
+      expect(resolveView(manual, b, 800, 500, 48, true, false, 90)).toEqual(
+        fitView(b, 800, 500, 48, true, false, 90),
+      )
+      expect(resolveView(manual, b, 800, 500, 48, false, false, 0).flipY).toBe(false)
+    })
+
+    it('without shapes centres a placeholder view', () => {
+      const v = resolveView(null, null, 600, 400, 48, true, true, 180)
+      expect(v).toEqual({ k: 0.05, ox: 300, oy: 200, flipY: true, flipX: true, rot: 180 })
+    })
   })
 })

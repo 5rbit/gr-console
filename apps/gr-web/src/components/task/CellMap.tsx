@@ -4,23 +4,26 @@
 // (맞춤·확대·축소·로봇 위치)만 세우고 회전·보기 설정·범례는 그 아래 ⋯ 하나로 접었다 — 회전은 이미
 // 보기 설정 안에 있었고, 범례는 한 번 읽고 마는 것이라 늘 자리를 차지할 이유가 없다.
 // 좌표·호버 정보는 왼쪽 아래 한 줄, 축 방향은 오른쪽 아래.
-// 셀 안에는 재고 개수만 크게 그린다(재고 0 = 회색). 로봇이 작업 중인 셀은 그 로봇 색 테두리(대기 = 점선).
+// 셀 안에는 재고 개수만 크게 그린다.
 // 화면은 시계 방향 0·90·180·270° 로 돌릴 수 있고, 돌린 뒤 좌우·상하 반전도 된다(설정은 브라우저에 저장).
 //
-// **테두리 언어**(한 번에 한 겹만 주장한다): 선택 = 실선 액센트 링 + 후광 + 옅은 채움(맨 위에 하나),
-// 호버 = 옅은 실선 링, 로컬 수정 = 오른쪽 위 점 하나, 문제(겹침·바닥 Z ≤ 0) = 경고색 **점선** 링.
-// 점선은 문제에만 쓴다 — 고친 칸이 40개여도 화면이 점선 밭이 되지 않는다.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+// **표현 규칙**(`lib/task/mapStyleModel`, 2026-09-21 사용자와 조율) — 채널마다 뜻 하나:
+//   채움 = 칸 상태 — 빈 칸(흰) · 재고 있음(연한 파랑) · Max(단수 Max 도달, 진한 파랑) · 비활성(Use=false,
+//          회색 + 빗금). 스테이션 = 진한 슬레이트 사각.
+//   윤곽 = **한 줄**, 겹치면 우선순위 하나만: 선택(흐르는 점선) > 로봇 작업(로봇 색) > 계획(파랑) >
+//          품목 강조 > 못 쓰는 칸(주황) > 로컬 수정(편집 모드, 점선) > 호버.
+//   구역 = 칸 색이 아니라 바탕의 옅은 영역 + "S2" 이름.
+// 셀 바닥 Z ≤ 0 은 정상이다 — PLC 는 스테이션(Id > 2000)에만 INVALID_CELL_POSZ 를 낸다.
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Crosshair, Maximize2, Minus, MoreHorizontal, Plus } from 'lucide-react'
 import {
   ROTATIONS,
   SIZE_PRESETS,
   boundsOf,
-  fitView,
   gridStep,
   panBy,
+  resolveView,
   sameTarget,
-  shapeInfo,
   shapesFrom,
   toScreen,
   toWorld,
@@ -30,6 +33,13 @@ import {
   type View,
 } from '../../lib/task/layoutModel'
 import type { PreviewCell } from '../../lib/task/layoutGen'
+import {
+  fillState,
+  outlineOf,
+  unusable,
+  type FillState,
+  type OutlineKind,
+} from '../../lib/task/mapStyleModel'
 import type { PlanStep } from '../../lib/task/plan'
 import { overlay as planOverlay } from '../../lib/task/plan'
 import { f1 } from '../../lib/meas/format'
@@ -39,7 +49,7 @@ import { Input } from '../../lib/ui/Input'
 import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
-import type { Cell, Station, StockEntry, Target, TaskType } from '../../lib/types'
+import type { Cell, Item, Station, StockEntry, Target, TaskType } from '../../lib/types'
 import { cn } from '../../lib/utils'
 
 const SIZE_KEY = 'gr-cellmap-size'
@@ -81,16 +91,30 @@ function save(key: string, v: string) {
   }
 }
 
-/** 재고가 있는 셀의 채움색 — 구역(Section)별. */
-const SECTION_FILL = [
-  'fill-content-muted',
-  'fill-sky-500',
-  'fill-emerald-500',
-  'fill-violet-500',
-  'fill-rose-500',
-  'fill-teal-500',
-]
-const sectionFill = (s: number) => SECTION_FILL[s % SECTION_FILL.length]
+/** 셀 채움 — 칸 상태(`mapStyleModel.fillState`). 같은 파랑 계열의 농도로 빈 칸 → 재고 → Max. */
+const FILL_CLS: Record<FillState, string> = {
+  empty: 'fill-surface-panel stroke-line-strong',
+  stocked: 'fill-info-soft stroke-info/50',
+  full: 'fill-info stroke-info-fg',
+  disabled: 'fill-surface-active stroke-line-default',
+}
+const TEXT_CLS: Record<FillState, string> = {
+  empty: 'fill-content-faint',
+  stocked: 'fill-content-primary',
+  full: 'fill-content-on-accent',
+  disabled: 'fill-content-faint',
+}
+/** 윤곽 한 줄의 모양(로봇 작업은 로봇 색을 따로 싣는다). */
+type ShapeProps = React.SVGAttributes<SVGElement>
+const OUTLINE_PROPS: Record<OutlineKind, ShapeProps> = {
+  selected: { className: 'stroke-accent', strokeWidth: 2.5, strokeDasharray: '6 4' },
+  work: { strokeWidth: 2 },
+  planned: { className: 'stroke-pending-fg', strokeWidth: 2 },
+  highlight: { className: 'stroke-accent', strokeWidth: 1.5 },
+  unusable: { className: 'stroke-warn', strokeWidth: 1.5 },
+  dirty: { className: 'stroke-content-muted', strokeWidth: 1.5, strokeDasharray: '4 3' },
+  hover: { className: 'stroke-content-faint', strokeWidth: 1.5 },
+}
 const TYPE_SHORT: Record<TaskType, string> = {
   UP: 'U',
   PICK: 'P',
@@ -128,6 +152,10 @@ export interface CellMapProps {
   onContext?: (t: Target, shape: Shape, e: React.MouseEvent) => void
   /** 셀 재고 — 원 안의 개수. */
   stock?: ReadonlyMap<number, StockEntry>
+  /** 호버 카드의 재고 줄에 화물 규격을 붙일 품목 목록(선택). */
+  items?: readonly Item[]
+  /** 로컬 수정(PLC 미반영) 윤곽 점선을 그린다 — 레이아웃 편집 모드에서만 켠다. */
+  showDirty?: boolean
   /** 함께 강조할 셀들(품목 선택 → 그 품목이 든 셀). 선택 링보다 한 단계 약한 실선 링. */
   highlight?: { label: string; cells: ReadonlySet<number> }
   /** 순차 계획 — 순번 배지 + 경로(명령 생성 모드에서만 넘긴다). */
@@ -155,6 +183,8 @@ export function CellMap({
   onPick,
   onContext,
   stock,
+  items,
+  showDirty = false,
   highlight,
   plan,
   preview,
@@ -223,26 +253,12 @@ export function CellMap({
     return () => ro.disconnect()
   }, [])
 
-  const fit = () => {
-    if (bounds) setView(fitView(bounds, dim.w, dim.h, 48, flipY, flipX, rot))
-  }
-  // 처음 도형이 생기거나 회전·반전이 바뀌면 맞춤.
-  const boundsKey = bounds ? `${bounds.minX},${bounds.minY},${bounds.maxX},${bounds.maxY}` : ''
-  useEffect(() => {
-    if (!bounds) return
-    setView((cur) =>
-      cur && cur.flipY === flipY && cur.flipX === flipX && (cur.rot ?? 0) === rot
-        ? cur
-        : fitView(bounds, dim.w, dim.h, 48, flipY, flipX, rot),
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 경계 문자열·회전·반전이 바뀔 때만
-  }, [boundsKey, flipY, flipX, rot, dim.w, dim.h])
+  // `view` = 사용자가 끌기·확대·지목으로 만든 변환. `null` 이면 맞춤 모드 — 매 렌더 지금 컨테이너
+  // 크기와 경계로 맞춘다(`resolveView`). 맞춤 버튼·회전·반전은 맞춤 모드로 돌아간다.
+  const fit = () => setView(null)
+  useEffect(() => setView(null), [flipY, flipX, rot])
 
-  const v: View =
-    view ??
-    (bounds
-      ? fitView(bounds, dim.w, dim.h, 48, flipY, flipX, rot)
-      : { k: 0.05, ox: dim.w / 2, oy: dim.h / 2, flipY, flipX, rot })
+  const v: View = resolveView(view, bounds, dim.w, dim.h, 48, flipY, flipX, rot)
   const r = (size / 2) * v.k
   const rr = Math.max(r, 3)
   const step = gridStep(v.k)
@@ -302,24 +318,68 @@ export function CellMap({
     return [e.clientX - rect.left, e.clientY - rect.top]
   }
   const centre = (s: Shape) => toScreen(v, s.x, s.y)
+  // 구역 영역 — 같은 Section 셀들의 화면 외곽(+여백). 회전해도 화면 좌표로 모으니 늘 축 정렬 사각이다.
+  // 스테이션은 넣지 않는다(셀과 멀리 떨어져 있어 영역이 레이아웃 전체로 번진다).
+  const zones = (() => {
+    const by = new Map<number, [number, number, number, number]>()
+    for (const c of shapes) {
+      if (c.kind !== 'cell') continue
+      const [x, y] = centre(c)
+      const b = by.get(c.section)
+      by.set(
+        c.section,
+        b
+          ? [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)]
+          : [x, y, x, y],
+      )
+    }
+    const pad = rr + 8
+    return [...by].map(([section, [x0, y0, x1, y1]]) => ({
+      section,
+      x: x0 - pad,
+      y: y0 - pad - 14,
+      w: x1 - x0 + pad * 2,
+      h: y1 - y0 + pad * 2 + 14,
+    }))
+  })()
   const zoomCenter = (f: number) => setView(zoomAt(v, dim.w / 2, dim.h / 2, f))
 
-  const zBad = cells.filter((c) => c.position[2] <= 0).length
-  const hoverText = (() => {
-    if (!hover) return null
-    const st = hover.kind === 'cell' ? stock?.get(hover.id) : undefined
-    const w = work?.get(`${hover.kind}-${hover.id}`)
-    const stockText =
-      hover.kind === 'cell'
-        ? ` · Count ${st?.count ?? 0}${st?.item_code ? ` (ItemCode ${st.item_code})` : ''}`
-        : ''
-    return `${shapeInfo(hover)}${stockText}${w ? ` · ${w.label}` : ''}`
+  // 호버 카드 — 도형 옆에 뜨는 정보(자리·좌표·크기 + 셀 재고·화물 규격 / 스테이션 파라미터 + 상태).
+  // 예전엔 왼쪽 아래 상태 줄 한 줄에 몰아 적어 길면 잘렸다.
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [cardH, setCardH] = useState(200)
+  useLayoutEffect(() => {
+    const h = cardRef.current?.offsetHeight
+    if (h && Math.abs(h - cardH) > 1) setCardH(h)
+  })
+  const hoverCard = (() => {
+    if (!hover || drag.current?.moved) return null
+    const [hx, hy] = centre(hover)
+    const W = 248
+    const left = hx + rr + 10 + W > dim.w ? Math.max(4, hx - rr - 10 - W) : hx + rr + 10
+    // 높이는 내용마다 다르다 — 그린 뒤 잰 값(`cardH`)으로 아래가 넘치면 위로 올린다.
+    const top = Math.max(4, Math.min(hy - rr, dim.h - cardH - 4))
+    return (
+      <div
+        ref={cardRef}
+        className="pointer-events-none absolute z-20 flex flex-col overflow-hidden rounded-md border border-line-default bg-surface-panel text-2xs text-content-secondary shadow-lg"
+        style={{ left, top, width: W }}
+        data-testid="map-hover-card"
+      >
+        <HoverBody
+          s={hover}
+          cell={hover.kind === 'cell' ? cells.find((c) => c.id === hover.id) : undefined}
+          station={hover.kind === 'station' ? stations.find((c) => c.id === hover.id) : undefined}
+          st={hover.kind === 'cell' ? (stock?.get(hover.id) ?? null) : null}
+          items={items}
+          work={work?.get(`${hover.kind}-${hover.id}`)}
+        />
+      </div>
+    )
   })()
-  const statusText =
-    hoverText ??
-    (cursor
-      ? `X ${f1(cursor[0])} · Y ${f1(cursor[1])} · 눈금 ${step} mm`
-      : `${highlight ? `${highlight.label} ${highlight.cells.size}칸 · ` : ''}셀 ${cells.length} · 스테이션 ${stations.length}${previewShapes.length ? ` · 생성 예정 ${previewShapes.length}` : ''}${zBad ? ` · 바닥 Z ≤ 0 ${zBad}칸` : ''} · 눈금 ${step} mm${rot ? ` · 회전 ${rot}°` : ''}`)
+  const statusText = cursor
+    ? `X ${f1(cursor[0])} · Y ${f1(cursor[1])} · 눈금 ${step} mm`
+    : `${highlight ? `${highlight.label} ${highlight.cells.size}칸 · ` : ''}셀 ${cells.length} · 스테이션 ${stations.length}${previewShapes.length ? ` · 생성 예정 ${previewShapes.length}` : ''} · 눈금 ${step} mm${rot ? ` · 회전 ${rot}°` : ''}`
 
   return (
     <div
@@ -385,8 +445,18 @@ export function CellMap({
             markerHeight="7"
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" className="fill-accent" />
+            <path d="M 0 0 L 10 5 L 0 10 z" className="fill-pending-fg" />
           </marker>
+          {/* 비활성(Use=false) 빗금 — 화면 px 간격이라 확대해도 선 굵기·간격이 같다. */}
+          <pattern
+            id="off-hatch"
+            patternUnits="userSpaceOnUse"
+            width={6}
+            height={6}
+            patternTransform="rotate(45)"
+          >
+            <line x1={0} y1={0} x2={0} y2={6} className="stroke-content-faint" strokeWidth={1.5} />
+          </pattern>
         </defs>
 
         {/* 눈금 — 세로선 값은 아래, 가로선 값은 왼쪽. 회전해도 어느 축인지 보이게 X/Y 를 붙인다. */}
@@ -439,15 +509,17 @@ export function CellMap({
           const [sx, sy] = centre(s)
           const info = previewInfo.get(s.id)
           const out = info?.outcome ?? 'added'
-          // 건너뛸 칸은 **경고 톤 + 점선**(문제에만 쓰는 그 표시), 갱신은 정보 톤, 그대로면 조용하게.
+          // 표현 규칙(`mapStyleModel`)에 맞춘다: 예정 = 보라(pending) 점선 — 새 칸은 옅은 보라 채움, 갱신은
+          // 채움 없이 윤곽만(아래 기존 칸이 비친다), 그대로면 조용한 회색, 건너뜀 = 못 쓰는 칸과 같은 주황.
+          // 파랑(info)은 재고 채움이 쓰므로 여기서 쓰지 않는다.
           const tone =
             out === 'skipped'
               ? 'fill-warn-soft stroke-warn'
               : out === 'updated'
-                ? 'fill-info-soft stroke-info'
+                ? 'fill-none stroke-pending-fg'
                 : out === 'unchanged'
                   ? 'fill-surface-inset stroke-line-strong'
-                  : 'fill-degraded-soft stroke-degraded'
+                  : 'fill-pending-soft stroke-pending-fg'
           const tip =
             (out === 'skipped'
               ? `건너뜀 — ${info?.reason ?? '충돌'}`
@@ -511,7 +583,7 @@ export function CellMap({
                   y1={y1 + uy * pad}
                   x2={x2 - ux * pad}
                   y2={y2 - uy * pad}
-                  className="pointer-events-none stroke-accent"
+                  className="pointer-events-none stroke-pending-fg"
                   strokeWidth={2}
                   strokeDasharray="6 4"
                   markerEnd="url(#plan-arrow)"
@@ -520,33 +592,68 @@ export function CellMap({
             })
           : null}
 
+        {/* 구역 — 칸 색이 아니라 바탕의 옅은 영역 + 이름. 도형보다 먼저 그려 뒤에 깔린다. */}
+        {zones.map((z) => (
+          <g
+            key={`zone-${z.section}`}
+            className="pointer-events-none"
+            data-testid={`map-zone-${z.section}`}
+          >
+            <rect
+              x={z.x}
+              y={z.y}
+              width={z.w}
+              height={z.h}
+              rx={10}
+              className="fill-content-muted stroke-line-default"
+              fillOpacity={0.07}
+              strokeWidth={1}
+            />
+            <text
+              x={z.x + 8}
+              y={z.y + 13}
+              fontSize={11}
+              fontWeight={600}
+              className="fill-content-muted"
+            >
+              S{z.section}
+            </text>
+          </g>
+        ))}
+
         {/* 도형 */}
         {shapes.map((s) => {
           const [sx, sy] = centre(s)
           const key = `${s.kind}-${s.id}`
-          const sel = sameTarget(selected, s)
-          const hl = !sel && s.kind === 'cell' && !!highlight?.cells.has(s.id)
-          const hov = hover === s
-          const n = s.kind === 'cell' ? (stock?.get(s.id)?.count ?? 0) : 0
-          const empty = s.kind === 'cell' && n === 0
-          const w = work?.get(key)
-          const fill =
+          const st = s.kind === 'cell' ? stock?.get(s.id) : undefined
+          const n = st?.count ?? 0
+          const stackMax =
+            (st?.item_code ? items?.find((i) => i.code === st.item_code)?.spec?.stack_max : 0) ?? 0
+          const fs: FillState =
             s.kind === 'station'
-              ? 'fill-amber-300'
-              : empty
-                ? 'fill-surface-active'
-                : sectionFill(s.section)
-          // 테두리(링)는 **고른 것**에만 쓴다: 선택(굵은 액센트 + 후광, 맨 위 오버레이) · 품목 강조
-          // (얇은 액센트) · 로봇 작업(로봇 색, 대기 = 점선) · 호버(옅은 회색). 도형 자체는 조용한
-          // 윤곽만 둔다. 상태는 링이 아니라 표식이다 — 로컬 수정 = 오른쪽 위 점, 바닥 Z ≤ 0 = 왼쪽 위 ▲.
-          const stroke = empty ? 'stroke-line-strong' : 'stroke-surface-panel/70'
-          const shapeCls = cn('cursor-pointer', fill, stroke, !s.use && 'opacity-40')
-          const sw = 1
-          const problem =
-            s.kind === 'cell' && s.z <= 0
-              ? `바닥 Z ${f1(s.z)} ≤ 0 — 이 셀로 나간 작업을 PLC 가 거부합니다`
-              : null
-          const ringR = rr + 4
+              ? s.use
+                ? 'stocked'
+                : 'disabled'
+              : fillState({ use: s.use, count: n, stackMax })
+          const w = work?.get(key)
+          // 윤곽은 **한 줄** — 켜진 것 중 우선순위가 가장 높은 하나(`mapStyleModel.OUTLINE_ORDER`).
+          const outline = outlineOf({
+            selected: sameTarget(selected, s),
+            work: !!w,
+            planned: !!ov?.badges.get(key)?.length,
+            highlight: s.kind === 'cell' && !!highlight?.cells.has(s.id),
+            unusable: !!unusable(s),
+            dirty: s.dirty && showDirty,
+            hover: hover === s,
+          })
+          const shapeCls = cn(
+            'cursor-pointer',
+            s.kind === 'station'
+              ? fs === 'disabled'
+                ? 'fill-surface-active stroke-line-default'
+                : 'fill-content-secondary stroke-content-primary'
+              : FILL_CLS[fs],
+          )
           const handlers = {
             onMouseEnter: () => setHover(s),
             onMouseLeave: () => setHover(null),
@@ -561,111 +668,66 @@ export function CellMap({
               onContext?.({ kind: s.kind, id: s.id }, s, e)
             },
           }
-          const badges = ov?.badges.get(key) ?? []
+          // 셀 = 원, 스테이션 = 사각 — 채움·빗금·윤곽이 같은 모양을 쓴다.
+          const shapeEl = (props: ShapeProps, r: number, children?: ReactNode) =>
+            s.kind === 'cell' ? (
+              <circle cx={sx} cy={sy} r={r} {...props}>
+                {children}
+              </circle>
+            ) : (
+              <rect x={sx - r} y={sy - r} width={r * 2} height={r * 2} rx={3} {...props}>
+                {children}
+              </rect>
+            )
           return (
-            <g key={key} data-testid={`map-${key}`}>
-              {w ? (
-                s.kind === 'cell' ? (
-                  <circle
-                    cx={sx}
-                    cy={sy}
-                    r={ringR}
-                    fill="none"
-                    stroke={w.color}
-                    strokeWidth={w.running ? 3.5 : 2}
-                    strokeDasharray={w.running ? undefined : '5 3'}
-                    className="pointer-events-none"
-                    data-testid={`map-work-${key}`}
-                  />
-                ) : (
-                  <rect
-                    x={sx - ringR}
-                    y={sy - ringR}
-                    width={ringR * 2}
-                    height={ringR * 2}
-                    fill="none"
-                    stroke={w.color}
-                    strokeWidth={w.running ? 3.5 : 2}
-                    strokeDasharray={w.running ? undefined : '5 3'}
-                    className="pointer-events-none"
-                    data-testid={`map-work-${key}`}
-                  />
-                )
-              ) : null}
-              {hov && !sel ? (
-                // 호버 — 선택과 헷갈리지 않게 **옅은** 링 하나(색도 굵기도 선택보다 약하다).
-                <circle
-                  cx={sx}
-                  cy={sy}
-                  r={rr + 3}
-                  fill="none"
-                  className="pointer-events-none stroke-content-faint"
-                  strokeWidth={1.5}
-                  data-testid={`map-hover-${key}`}
-                />
-              ) : null}
-              {hl ? (
-                // 품목 강조 — 선택 링(굵은 액센트 + 후광)보다 한 단계 약한 실선 액센트 링.
-                <circle
-                  cx={sx}
-                  cy={sy}
-                  r={rr + 3}
-                  fill="none"
-                  className="pointer-events-none stroke-accent"
-                  strokeWidth={2}
-                  data-testid={`map-hl-${key}`}
-                />
-              ) : null}
-              {s.kind === 'cell' ? (
-                <circle
-                  cx={sx}
-                  cy={sy}
-                  r={rr}
-                  className={shapeCls}
-                  strokeWidth={sw}
-                  {...handlers}
-                />
-              ) : (
-                <rect
-                  x={sx - rr}
-                  y={sy - rr}
-                  width={rr * 2}
-                  height={rr * 2}
-                  rx={2}
-                  className={shapeCls}
-                  strokeWidth={sw}
-                  {...handlers}
-                />
-              )}
-              {problem ? (
-                // 문제(바닥 Z ≤ 0) — 링이 아니라 왼쪽 위 작은 경고 삼각형. 링은 선택·강조·작업이
-                // 쓰는 말이라, 같은 칸 34개가 모두 링을 두르면 무엇을 고른 것인지 안 보인다.
-                <path
-                  d={(() => {
-                    const m = Math.min(Math.max(rr * 0.22, 3), 5)
-                    const cx = sx - rr * 0.72
-                    const cy = sy - rr * 0.72
-                    return `M${cx} ${cy - m}L${cx + m} ${cy + m * 0.8}L${cx - m} ${cy + m * 0.8}Z`
-                  })()}
-                  className="fill-warn stroke-surface-panel"
-                  strokeWidth={1}
-                  data-testid={`map-problem-${key}`}
+            <g key={key} data-testid={`map-${key}`} data-fill={fs}>
+              {shapeEl({ className: shapeCls, strokeWidth: 1, ...handlers }, rr)}
+              {fs === 'disabled'
+                ? shapeEl(
+                    {
+                      fill: 'url(#off-hatch)',
+                      className: 'pointer-events-none',
+                      opacity: 0.6,
+                    },
+                    rr,
+                  )
+                : null}
+              {outline ? (
+                <g
+                  className="pointer-events-none"
+                  data-testid={`map-outline-${key}`}
+                  data-outline={outline}
                 >
-                  <title>{problem}</title>
-                </path>
-              ) : null}
-              {s.dirty ? (
-                // 로컬 수정 — 도형을 둘러싸지 않고 오른쪽 위 점 하나로만 알린다(40칸을 고쳐도 조용하다).
-                <circle
-                  cx={sx + rr * 0.72}
-                  cy={sy - rr * 0.72}
-                  r={Math.min(Math.max(rr * 0.18, 2), 4)}
-                  className="pointer-events-none fill-accent stroke-surface-panel"
-                  strokeWidth={1}
-                  data-testid={`map-dirty-${key}`}
-                >
-                  <title>로컬 수정 — PLC 미반영</title>
-                </circle>
+                  {outline === 'selected'
+                    ? shapeEl(
+                        { fill: 'none', className: 'stroke-surface-panel', strokeWidth: 5 },
+                        rr + 3,
+                      )
+                    : null}
+                  {shapeEl(
+                    {
+                      fill: 'none',
+                      ...OUTLINE_PROPS[outline],
+                      ...(outline === 'work' && w
+                        ? {
+                            stroke: w.color,
+                            strokeWidth: w.running ? 3 : 2,
+                            strokeDasharray: w.running ? undefined : '5 3',
+                          }
+                        : {}),
+                    },
+                    rr + 3,
+                    outline === 'selected' ? (
+                      // 흐르는 점선 — 점선 한 주기(6+4)씩 밀어 끊김 없이 돈다.
+                      <animate
+                        attributeName="stroke-dashoffset"
+                        values="0;-10"
+                        dur="0.6s"
+                        repeatCount="indefinite"
+                      />
+                    ) : null,
+                  )}
+                </g>
               ) : null}
               {s.kind === 'cell' && rr >= 6 ? (
                 <text
@@ -675,10 +737,7 @@ export function CellMap({
                   dominantBaseline="central"
                   fontSize={Math.min(Math.max(rr * 0.95, 9), 30)}
                   fontWeight={600}
-                  className={cn(
-                    'pointer-events-none tabular-nums',
-                    empty ? 'fill-content-faint' : 'fill-surface-panel',
-                  )}
+                  className={cn('pointer-events-none tabular-nums', TEXT_CLS[fs])}
                   data-testid={`map-stock-${s.id}`}
                 >
                   {n}
@@ -691,48 +750,57 @@ export function CellMap({
                   textAnchor="middle"
                   dominantBaseline="central"
                   fontSize={Math.min(rr * 0.42, 12)}
-                  className="pointer-events-none fill-amber-900 font-semibold"
+                  className={cn(
+                    'pointer-events-none font-semibold',
+                    fs === 'disabled' ? 'fill-content-faint' : 'fill-surface-panel',
+                  )}
                 >
                   {s.id}
                 </text>
               ) : null}
-              {badges.slice(0, 3).map((b, i) => (
-                <g
-                  key={b.no}
-                  className="pointer-events-none"
-                  data-testid={`map-badge-${key}-${b.no}`}
-                >
-                  <rect
-                    x={sx + rr * 0.5 - 10 + i * 20}
-                    y={sy - rr - 10}
-                    width={20}
-                    height={13}
-                    rx={3}
-                    className={
-                      b.type === 'PICK'
-                        ? 'fill-accent'
-                        : b.type === 'DROP'
-                          ? 'fill-emerald-600'
-                          : 'fill-content-tertiary'
-                    }
-                  />
-                  <text
-                    x={sx + rr * 0.5 + i * 20}
-                    y={sy - rr - 3.5}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fontSize={9}
-                    fontWeight={600}
-                    className="fill-surface-panel"
-                  >
-                    {b.no}
-                    {TYPE_SHORT[b.type]}
-                  </text>
-                </g>
-              ))}
             </g>
           )
         })}
+
+        {/* 계획 순번 태그 — 모든 도형·윤곽 **위** 한 층(이웃 칸 윤곽이 가리지 않게). 색은 "계획" 윤곽과 같은
+            보라 하나 — 태그와 윤곽이 한 표시로 읽힌다. 글자로 종류(P/D/M…)를 가른다. */}
+        {ov
+          ? shapes.map((s) => {
+              const key = `${s.kind}-${s.id}`
+              const badges = ov.badges.get(key) ?? []
+              if (!badges.length) return null
+              const [sx, sy] = centre(s)
+              return (
+                <g key={`badge-${key}`} className="pointer-events-none">
+                  {badges.slice(0, 3).map((b, i) => (
+                    <g key={b.no} data-testid={`map-badge-${key}-${b.no}`}>
+                      <rect
+                        x={sx + rr * 0.5 - 10 + i * 20}
+                        y={sy - rr - 10}
+                        width={20}
+                        height={13}
+                        rx={3}
+                        className="fill-pending-fg stroke-surface-panel"
+                        strokeWidth={1}
+                      />
+                      <text
+                        x={sx + rr * 0.5 + i * 20}
+                        y={sy - rr - 3.5}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={9}
+                        fontWeight={600}
+                        className="fill-content-on-accent"
+                      >
+                        {b.no}
+                        {TYPE_SHORT[b.type]}
+                      </text>
+                    </g>
+                  ))}
+                </g>
+              )
+            })
+          : null}
 
         {/* 로봇 현재 위치 — 셀 바깥에만 눈금(가운데 개수를 가리지 않음) */}
         {(robots ?? [])
@@ -767,73 +835,6 @@ export function CellMap({
               </g>
             )
           })}
-
-        {/* 선택 링 — 맨 위에 **하나만** 선다. 실선 액센트 + 바깥 후광이라 어두운 칸 위에서도 보이고,
-            점선은 문제 표시에만 남겨 둔다(고친 칸이 40개라도 화면이 조용하다). */}
-        {(() => {
-          const s = shapes.find((x) => sameTarget(selected, x))
-          if (!s) return null
-          const [sx, sy] = centre(s)
-          const key = `${s.kind}-${s.id}`
-          const selR = rr + (work?.get(key) ? 10 : 6)
-          return (
-            <g className="pointer-events-none" data-testid={`map-sel-${key}`}>
-              {s.kind === 'cell' ? (
-                <>
-                  <circle cx={sx} cy={sy} r={rr} className="fill-accent" fillOpacity={0.16} />
-                  <circle
-                    cx={sx}
-                    cy={sy}
-                    r={selR}
-                    fill="none"
-                    className="stroke-surface-panel"
-                    strokeWidth={5}
-                  />
-                  <circle
-                    cx={sx}
-                    cy={sy}
-                    r={selR}
-                    fill="none"
-                    className="stroke-accent"
-                    strokeWidth={2.5}
-                  />
-                </>
-              ) : (
-                <>
-                  <rect
-                    x={sx - rr}
-                    y={sy - rr}
-                    width={rr * 2}
-                    height={rr * 2}
-                    rx={2}
-                    className="fill-accent"
-                    fillOpacity={0.16}
-                  />
-                  <rect
-                    x={sx - selR}
-                    y={sy - selR}
-                    width={selR * 2}
-                    height={selR * 2}
-                    rx={4}
-                    fill="none"
-                    className="stroke-surface-panel"
-                    strokeWidth={5}
-                  />
-                  <rect
-                    x={sx - selR}
-                    y={sy - selR}
-                    width={selR * 2}
-                    height={selR * 2}
-                    rx={4}
-                    fill="none"
-                    className="stroke-accent"
-                    strokeWidth={2.5}
-                  />
-                </>
-              )}
-            </g>
-          )
-        })()}
 
         {/* 축 방향 — 회전·반전 후 +X / +Y 가 화면 어느 쪽인지 */}
         <g
@@ -1009,54 +1010,88 @@ export function CellMap({
               범례
             </div>
             <ul className="flex flex-col gap-1.5 text-2xs text-content-tertiary">
+              <li className="text-3xs font-semibold text-content-muted">채움 — 칸 상태</li>
               <LegendRow
                 swatch={
-                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-info text-3xs font-semibold text-content-on-accent">
-                    3
-                  </span>
+                  <span className="h-4 w-4 rounded-full border border-line-strong bg-surface-panel" />
                 }
-                text="셀 · 재고 있음 (숫자 = 개수, 색 = 구역)"
+                text="빈 칸"
               />
               <LegendRow
                 swatch={
-                  <span className="h-4 w-4 rounded-full border border-line-strong bg-surface-active" />
+                  <span className="h-4 w-4 rounded-full border border-info/50 bg-info-soft" />
                 }
-                text="셀 · 재고 없음"
+                text="재고 있음 (숫자 = 개수)"
               />
-              <LegendRow swatch={<span className="h-4 w-4 rounded-sm bg-warn" />} text="스테이션" />
+              <LegendRow
+                swatch={<span className="h-4 w-4 rounded-full bg-info" />}
+                text="Max — 품목 단수 Max 도달"
+              />
               <LegendRow
                 swatch={
-                  <span className="h-4 w-4 rounded-full border-2 border-dashed border-degraded bg-degraded-soft" />
+                  <span className="h-4 w-4 rounded-full border border-line-default bg-surface-active" />
                 }
-                text="생성 예정 셀 (파랑 = 갱신)"
+                text="비활성 — Use = false (빗금)"
+              />
+              <LegendRow
+                swatch={<span className="h-4 w-4 rounded-sm bg-content-secondary" />}
+                text="스테이션"
+              />
+              <LegendRow
+                swatch={
+                  <span className="h-4 w-6 rounded border border-line-default bg-content-muted/10" />
+                }
+                text="구역(Section) — 바탕 영역 + 이름"
+              />
+              <li className="mt-1 text-3xs font-semibold text-content-muted">
+                윤곽 — 한 줄, 위가 우선
+              </li>
+              <LegendRow
+                swatch={
+                  <span className="h-4 w-4 rounded-full border-[2.5px] border-dashed border-accent" />
+                }
+                text="1 선택 (흐르는 점선)"
+              />
+              <LegendRow
+                swatch={<span className="h-4 w-4 rounded-full border-2 border-content-tertiary" />}
+                text="2 로봇 작업 — 로봇 색 (점선 = 대기)"
+              />
+              <LegendRow
+                swatch={<span className="h-4 w-4 rounded-full border-2 border-pending-fg" />}
+                text="3 계획에 든 칸"
+              />
+              <LegendRow
+                swatch={<span className="h-4 w-4 rounded-full border-[1.5px] border-accent" />}
+                text="4 고른 품목이 든 셀"
+              />
+              <LegendRow
+                swatch={<span className="h-4 w-4 rounded-full border-[1.5px] border-warn" />}
+                text="5 못 쓰는 칸 — Use=false · 스테이션 Z ≤ 0"
+              />
+              <LegendRow
+                swatch={
+                  <span className="h-4 w-4 rounded-full border-[1.5px] border-dashed border-content-muted" />
+                }
+                text="6 로컬 수정 (PLC 미반영, 편집 모드)"
+              />
+              <LegendRow
+                swatch={
+                  <span className="h-4 w-4 rounded-full border-[1.5px] border-content-faint" />
+                }
+                text="7 호버"
+              />
+              <li className="mt-1 text-3xs font-semibold text-content-muted">레이아웃 편집</li>
+              <LegendRow
+                swatch={
+                  <span className="h-4 w-4 rounded-full border-2 border-dashed border-pending-fg bg-pending-soft" />
+                }
+                text="생성 예정 셀 (보라 점선 · 채움 없음 = 갱신)"
               />
               <LegendRow
                 swatch={
                   <span className="h-4 w-4 rounded-full border-2 border-dashed border-warn bg-warn-soft" />
                 }
                 text="생성 예정 충돌 — 건너뜀 · 겹침"
-              />
-              <LegendRow
-                swatch={
-                  <svg viewBox="0 0 10 10" className="h-3 w-3" aria-hidden="true">
-                    <path d="M5 1L9.5 9H0.5Z" className="fill-warn" />
-                  </svg>
-                }
-                text="바닥 Z ≤ 0 (PLC 거부) — 칸 왼쪽 위 ▲"
-              />
-              <LegendRow
-                swatch={<span className="h-2 w-2 rounded-full bg-accent" />}
-                text="로컬 수정 (PLC 미반영) — 칸 오른쪽 위 점"
-              />
-              <LegendRow
-                swatch={
-                  <span className="h-4 w-4 rounded-full border-[3px] border-accent bg-accent-soft" />
-                }
-                text="선택 / 대상"
-              />
-              <LegendRow
-                swatch={<span className="h-4 w-4 rounded-full border-2 border-accent" />}
-                text="고른 품목이 든 셀"
               />
               {robotLegend.map((rb) => (
                 <LegendRow
@@ -1072,7 +1107,7 @@ export function CellMap({
               ))}
               <LegendRow
                 swatch={
-                  <span className="rounded bg-accent px-1 text-3xs font-semibold text-content-on-accent">
+                  <span className="rounded bg-pending-fg px-1 text-3xs font-semibold text-content-on-accent">
                     1P
                   </span>
                 }
@@ -1093,6 +1128,7 @@ export function CellMap({
       </div>
 
       {children}
+      {hoverCard}
 
       <div
         className="pointer-events-none absolute bottom-2 left-2 z-10 max-w-[calc(100%-6rem)] truncate rounded-md border border-line-default bg-surface-panel/90 px-2 py-1 font-mono text-2xs text-content-tertiary tabular-nums"
@@ -1101,6 +1137,131 @@ export function CellMap({
         {statusText}
       </div>
     </div>
+  )
+}
+
+/** 두 칸 격자(이름 · 값). */
+function KvGrid({ rows }: { rows: [string, ReactNode][] }) {
+  return (
+    <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 tabular-nums">
+      {rows.map(([k, v]) => (
+        <div key={k} className="contents">
+          <dt className="text-content-muted">{k}</dt>
+          <dd className="m-0 min-w-0 truncate">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+/**
+ * 호버 카드 본문 — **위 = 제품·재고**(셀) / 운용 파라미터(스테이션), **아래 = 자리·치수**.
+ * 명령을 만들 때 먼저 보는 것은 "무엇이 몇 개"라 위에 크게, 좌표는 확인용이라 아래에 옅은 면으로 가른다.
+ */
+function HoverBody({
+  s,
+  cell,
+  station,
+  st,
+  items,
+  work,
+}: {
+  s: Shape
+  cell?: Cell
+  station?: Station
+  st: StockEntry | null
+  items?: readonly Item[]
+  work?: WorkMark
+}) {
+  const it = st?.item_code ? items?.find((i) => i.code === st.item_code) : undefined
+  const n = st?.count ?? 0
+
+  const place: [string, ReactNode][] = [
+    ['S / R / C', `${s.section} / ${s.row} / ${s.col}`],
+    ['X / Y / Z', `${f1(s.x)} / ${f1(s.y)} / ${f1(s.z)}`],
+  ]
+  if (s.length || s.width) place.push(['L × W', `${f1(s.length)} × ${f1(s.width)}`])
+  if (cell && !cell.blend_use) place.push(['BlendUse', 'N'])
+
+  const notes: string[] = []
+  const off = unusable(s)
+  if (off) notes.push(off)
+  if (s.dirty) notes.push('로컬 수정 — PLC 미반영')
+
+  let top: ReactNode
+  if (s.kind === 'cell') {
+    top =
+      n > 0 ? (
+        <>
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-content-primary tabular-nums">{n}개</span>
+            <span className="min-w-0 truncate font-medium text-content-primary">
+              {st?.item_code ?? '-'}
+              {it?.name ? ` · ${it.name}` : ''}
+            </span>
+          </div>
+          {it ? (
+            <KvGrid
+              rows={[
+                [
+                  'ID / OD / H',
+                  `${f1(it.inner_diameter)} / ${f1(it.outer_diameter)} / ${f1(it.height)}`,
+                ],
+                ['StackHeight', `${f1(it.height * n)} mm`],
+                ...(it.note.trim() ? ([['Note', it.note]] as [string, ReactNode][]) : []),
+              ]}
+            />
+          ) : (
+            <span className="text-content-faint">등록되지 않은 품목</span>
+          )}
+        </>
+      ) : (
+        <span className="text-content-faint">재고 없음</span>
+      )
+  } else {
+    top = station ? (
+      <KvGrid
+        rows={[
+          ['ConvNo', String(station.conv_no)],
+          ['Group', `${station.group}-${station.group_index}`],
+          ['RotateType', String(station.rotate_type)],
+          ['TaskType', String(station.task_type)],
+        ]}
+      />
+    ) : null
+  }
+
+  return (
+    <>
+      <div className="flex items-baseline gap-2 px-2.5 pt-2">
+        <span className="text-xs font-semibold text-content-primary">
+          {s.kind === 'cell' ? 'Cell' : 'Station'} #{s.id}
+        </span>
+        {work ? <span className="ml-auto truncate text-content-muted">{work.label}</span> : null}
+      </div>
+      <section className="flex flex-col gap-1 px-2.5 pt-1 pb-2" data-testid="hover-stock">
+        <span className="text-3xs font-semibold tracking-wide text-content-muted">
+          {s.kind === 'cell' ? '재고 · 제품' : '스테이션'}
+        </span>
+        {top}
+      </section>
+      <section
+        className="flex flex-col gap-1 border-t border-line-default bg-surface-inset px-2.5 py-2"
+        data-testid="hover-place"
+      >
+        <span className="text-3xs font-semibold tracking-wide text-content-muted">
+          {s.kind === 'cell' ? '셀' : '위치'}
+        </span>
+        <KvGrid rows={place} />
+      </section>
+      {notes.length ? (
+        <ul className="m-0 flex list-none flex-col gap-0.5 border-t border-line-default bg-warn-soft px-2.5 py-1.5 text-warn-fg">
+          {notes.map((m) => (
+            <li key={m}>{m}</li>
+          ))}
+        </ul>
+      ) : null}
+    </>
   )
 }
 

@@ -1,5 +1,5 @@
-//! 작업 작성(compose) 통합 — 켜진 팔렛 프로파일이 있는 스테이션 대상 요청에 `pallet` 이 있으면
-//! 슬롯 XY · 단 Z(기존 스택 규칙) · 드래그 방향을 넣는다.
+//! 작업 작성(compose) 통합 — 켜진 팔렛 스테이션 대상 요청에 `pallet` 이 있으면 **품목의 패턴**으로
+//! 슬롯 XY · 단 Z(기존 스택 규칙) · 드래그 방향(로봇 헤드 방향 보정 후)을 넣는다.
 //!
 //! - 입고 흐름(`in`) + PICK → UseDragIn, DragInDir = 슬롯 방향 바이트
 //! - 출하 흐름(`out`) + DROP → UseDragOut, DragOutDir = 슬롯 방향 바이트
@@ -9,7 +9,7 @@
 use gr_proto::{StationPara, StockItem, TaskType};
 use serde::{Deserialize, Serialize};
 
-use super::profiles::{Profile, Profiles};
+use super::profiles::{ItemPallet, Profiles, RobotDir};
 use super::{AreaCheck, DragKind, GenInput, Library, area_check_xy, generate};
 use crate::error::ApiError;
 use crate::issue::Composed;
@@ -34,6 +34,18 @@ pub struct PalletRef {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PalletAudit {
     pub station_id: u16,
+    /// 패턴을 가진 품목(2026-09-21 이전 기록은 0).
+    #[serde(default)]
+    pub item_code: u32,
+    /// 드래그 방향 보정을 가져온 로봇과 그 변환(없으면 0 · 변환 없음).
+    #[serde(default)]
+    pub robot: u8,
+    #[serde(default)]
+    pub dir_rotation: u16,
+    #[serde(default)]
+    pub dir_mirror_x: bool,
+    #[serde(default)]
+    pub dir_mirror_y: bool,
     pub flow: String,
     pub drag_kind: DragKind,
     pub pattern: u8,
@@ -53,6 +65,9 @@ pub struct PalletAudit {
     pub offset: [f32; 2],
     pub xy: [f32; 2],
     pub spec_drag_dir: u8,
+    /// 품목 배치 변환만 건 방향(로봇 보정 전).
+    #[serde(default)]
+    pub layout_drag_dir: u8,
     pub drag_dir: u8,
     pub drag_type: u8,
     /// `in`(UseDragIn) · `out`(UseDragOut) · `none`
@@ -106,13 +121,14 @@ pub fn level_stock(tt: TaskType, level: u32, count: u32) -> u32 {
     }
 }
 
-pub fn enabled_profile(st: &AppState, station_id: u16) -> Result<Option<Profile>, ApiError> {
-    Ok(Profiles::new(st.db.clone()).get(station_id)?.filter(|p| p.enabled))
+/// 팔렛 스테이션으로 켜져 있나.
+pub fn is_pallet_station(st: &AppState, station_id: u16) -> Result<bool, ApiError> {
+    Ok(Profiles::new(st.db.clone()).station(station_id)?.is_some_and(|s| s.enabled))
 }
 
-/// 순수 부분 — 패턴 저장소(`lib`)·프로파일·요청·품목으로 슬롯을 정한다. `station_id` 는 호출자가 채운다.
+/// 순수 부분 — 패턴 저장소(`lib`)·품목 팔렛 설정·로봇 방향·요청·품목으로 슬롯을 정한다. `station_id` 는 호출자가 채운다.
 #[allow(clippy::too_many_arguments)]
-pub fn prepare_pure(lib: &Library, profile: &Profile, pref: &PalletRef, tt: TaskType, item: &StockItem, count: u32, center: [f32; 2], stock: Option<u32>) -> Result<Prepared, String> {
+pub fn prepare_pure(lib: &Library, ip: &ItemPallet, robot: &RobotDir, pref: &PalletRef, tt: TaskType, item: &StockItem, count: u32, center: [f32; 2], stock: Option<u32>) -> Result<Prepared, String> {
     if !matches!(tt, TaskType::Pick | TaskType::Drop | TaskType::Measure) {
         return Err(format!("pallet 은 PICK/DROP/MEASURE 에만 씁니다 ({})", tt.name()));
     }
@@ -120,7 +136,8 @@ pub fn prepare_pure(lib: &Library, profile: &Profile, pref: &PalletRef, tt: Task
     if od.is_nan() || od <= 0.0 {
         return Err(format!("품목 {} 의 OuterDiameter 가 없어 팔렛 패턴을 고를 수 없습니다", item.code));
     }
-    let g = generate(lib, &GenInput { flow: &profile.flow, pattern: None, od, gap: profile.gap, transform: profile.transform(), center, pallet_size: profile.pallet_size })?;
+    let flow = ip.flow_for(tt).ok_or_else(|| format!("품목 {} 팔렛 설정에 Flow 가 없습니다", item.code))?;
+    let g = generate(lib, &GenInput { flow, pattern: ip.pattern, od, gap: ip.gap, transform: ip.transform(), center, pallet_size: ip.pallet_size, dir_transform: robot.transform() })?;
     let k = g.slots.len();
     let (level, seq, stock_used) = if pref.auto {
         let n = stock.unwrap_or(0);
@@ -150,6 +167,11 @@ pub fn prepare_pure(lib: &Library, profile: &Profile, pref: &PalletRef, tt: Task
     };
     let audit = PalletAudit {
         station_id: 0,
+        item_code: item.code,
+        robot: robot.robot,
+        dir_rotation: robot.rotation,
+        dir_mirror_x: robot.mirror_x,
+        dir_mirror_y: robot.mirror_y,
         flow: g.flow.clone(),
         drag_kind: g.drag_kind,
         pattern: g.pattern,
@@ -168,6 +190,7 @@ pub fn prepare_pure(lib: &Library, profile: &Profile, pref: &PalletRef, tt: Task
         offset: [slot.offset_x, slot.offset_y],
         xy: [slot.x, slot.y],
         spec_drag_dir: slot.spec_drag_dir,
+        layout_drag_dir: slot.layout_drag_dir,
         drag_dir: slot.drag_dir,
         drag_type: slot.drag_type,
         drag_applied: drag_applied.into(),
@@ -243,8 +266,8 @@ mod tests {
     fn item() -> StockItem {
         StockItem { code: 1001, count: 1, inner_diameter: 381.0, outer_diameter: 780.0, height: 240.0, ..Default::default() }
     }
-    fn profile(flow: &str) -> Profile {
-        Profile { station_id: 2021, flow: flow.into(), enabled: true, ..Default::default() }
+    fn profile(flow: &str) -> ItemPallet {
+        ItemPallet { code: 1001, flow_in: Some(flow.into()), flow_out: Some(flow.into()), ..Default::default() }
     }
     fn station_cell() -> CellInfo {
         CellInfo { use_: true, id: 2021, section: 3, position: [11_200.0, 3_800.0, 100.0], ..Default::default() }
@@ -274,7 +297,7 @@ mod tests {
             ..Default::default()
         };
         let t = parse_task_type(tt).unwrap();
-        let mut pr = prepare_pure(lib, &profile(flow), &pref, t, &item(), 1, [11_200.0, 3_800.0], None).unwrap();
+        let mut pr = prepare_pure(lib, &profile(flow), &RobotDir::default(), &pref, t, &item(), 1, [11_200.0, 3_800.0], None).unwrap();
         pr.audit.station_id = 2021;
         let mut c = compose_from(&d, &req, Some(station_cell()), Some(item()), Some((0, pr.n_for_z)), None).unwrap();
         apply_to(&mut c, pr.audit, false);
@@ -329,6 +352,30 @@ mod tests {
         assert_eq!(c.task.drag_in_dir, 0);
     }
 
+    /// 같은 품목 패턴 — 좌표는 로봇과 무관, 드래그 방향만 로봇 헤드 방향만큼 돈다.
+    #[test]
+    fn robot_head_turns_only_the_drag_direction() {
+        let pref = PalletRef { seq: Some(2), level: Some(1), auto: false };
+        let run = |r: &RobotDir| prepare_pure(&lib(), &profile("HP_IN"), r, &pref, TaskType::Pick, &item(), 1, [11_200.0, 3_800.0], None).unwrap().audit;
+        let gr1 = run(&RobotDir { robot: 1, ..Default::default() });
+        let gr2 = run(&RobotDir { robot: 2, rotation: 180, ..Default::default() });
+        assert_eq!(gr1.xy, gr2.xy, "좌표는 GR1·GR2 공통");
+        assert_eq!((gr1.layout_drag_dir, gr1.drag_dir, gr1.drag_type), (3, 3, 4));
+        // 3 (X+Y+) → 180° → 6 (X−Y−)
+        assert_eq!((gr2.layout_drag_dir, gr2.drag_dir, gr2.drag_type), (3, 6, 32));
+        assert_eq!((gr2.robot, gr2.dir_rotation, gr2.item_code), (2, 180, 1001));
+    }
+
+    /// 품목에 Pattern 을 고정하면 OD 자동 선택 대신 그 번호.
+    #[test]
+    fn item_pattern_overrides_od() {
+        let ip = ItemPallet { pattern: Some(4), ..profile("HP_IN") };
+        let a = prepare_pure(&lib(), &ip, &RobotDir::default(), &PalletRef { seq: Some(1), ..Default::default() }, TaskType::Pick, &item(), 1, [0.0, 0.0], None).unwrap().audit;
+        assert_eq!(a.pattern, 4);
+        let a = prepare_pure(&lib(), &profile("HP_IN"), &RobotDir::default(), &PalletRef { seq: Some(1), ..Default::default() }, TaskType::Pick, &item(), 1, [0.0, 0.0], None).unwrap().audit;
+        assert_eq!(a.pattern, 3, "OD 780 → P3");
+    }
+
     #[test]
     fn drop_on_outbound_sets_drag_out() {
         let c = composed("DROP", "OP_OUT", PalletRef { seq: Some(1), level: Some(1), auto: false });
@@ -350,17 +397,17 @@ mod tests {
         let l = lib();
         let p = profile("HP_IN");
         let one = PalletRef { seq: Some(1), ..Default::default() };
-        assert!(prepare_pure(&l, &p, &PalletRef { seq: Some(4), ..Default::default() }, TaskType::Pick, &item(), 1, [0.0, 0.0], None).is_err(), "P3 has 3 slots");
-        assert!(prepare_pure(&l, &p, &PalletRef::default(), TaskType::Pick, &item(), 1, [0.0, 0.0], None).is_err(), "seq or auto required");
-        assert!(prepare_pure(&l, &p, &one, TaskType::Move, &item(), 1, [0.0, 0.0], None).is_err());
+        assert!(prepare_pure(&l, &p, &RobotDir::default(), &PalletRef { seq: Some(4), ..Default::default() }, TaskType::Pick, &item(), 1, [0.0, 0.0], None).is_err(), "P3 has 3 slots");
+        assert!(prepare_pure(&l, &p, &RobotDir::default(), &PalletRef::default(), TaskType::Pick, &item(), 1, [0.0, 0.0], None).is_err(), "seq or auto required");
+        assert!(prepare_pure(&l, &p, &RobotDir::default(), &one, TaskType::Move, &item(), 1, [0.0, 0.0], None).is_err());
         let no_od = StockItem { outer_diameter: 0.0, ..item() };
-        assert!(prepare_pure(&l, &p, &one, TaskType::Pick, &no_od, 1, [0.0, 0.0], None).is_err());
-        let a = prepare_pure(&l, &p, &PalletRef { auto: true, ..Default::default() }, TaskType::Drop, &item(), 1, [0.0, 0.0], Some(4)).unwrap();
+        assert!(prepare_pure(&l, &p, &RobotDir::default(), &one, TaskType::Pick, &no_od, 1, [0.0, 0.0], None).is_err());
+        let a = prepare_pure(&l, &p, &RobotDir::default(), &PalletRef { auto: true, ..Default::default() }, TaskType::Drop, &item(), 1, [0.0, 0.0], Some(4)).unwrap();
         assert_eq!((a.audit.level, a.audit.seq, a.audit.stock_used, a.n_for_z), (2, 2, Some(4), 1));
         // a flow deleted from the store is refused even if the profile still names it
         let mut gone = l.clone();
         gone.flows.retain(|f| f.id != "HP_IN");
-        assert!(matches!(prepare_pure(&gone, &p, &one, TaskType::Pick, &item(), 1, [0.0, 0.0], None), Err(e) if e.contains("unknown Flow")));
+        assert!(matches!(prepare_pure(&gone, &p, &RobotDir::default(), &one, TaskType::Pick, &item(), 1, [0.0, 0.0], None), Err(e) if e.contains("unknown Flow")));
     }
 
     #[test]

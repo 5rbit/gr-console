@@ -38,11 +38,10 @@
     "src/components/pallet/PalletPage.tsx": 1,
     "src/components/pallet/PatternEditor.tsx": 1
   },
-  "no-raw-palette": {
-    "src/components/task/CellMap.tsx": 7,
-    "src/lib/ui/datagrid/DataGrid.tsx": 1
-  },
   "no-unit-in-cell": {
     "src/components/task/LayoutEditor.tsx": 1
+  },
+  "no-raw-palette": {
+    "src/lib/ui/datagrid/DataGrid.tsx": 1
   }
 }

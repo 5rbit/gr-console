@@ -41,6 +41,7 @@ async fn catalog(State(s): State<AppState>, Query(q): Query<CatalogQuery>) -> Ap
     let limit = q.limit.unwrap_or(500).clamp(1, 5000);
     let (hits, total) = channels::search(store.contract(), &q.q, limit);
     Ok(axum::Json(json!({
+        "plc": store.plc(),
         "databases": channels::databases(store.contract()),
         "channels": hits,
         "total": total,
@@ -54,6 +55,7 @@ async fn catalog(State(s): State<AppState>, Query(q): Query<CatalogQuery>) -> Ap
 async fn overview(State(s): State<AppState>) -> ApiResult<Json> {
     let store = s.trace.as_ref().ok_or_else(|| ApiError::Internal("trace is not configured".into()))?;
     Ok(axum::Json(json!({
+        "plc": store.plc(),
         "link_ready": store.link_ready().await,
         "current": store.current().await,
         "sessions": store.list(),

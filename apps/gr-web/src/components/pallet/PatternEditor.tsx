@@ -471,7 +471,7 @@ export function PatternEditor({ view, gap: gapDefault, palletSize, dragDist, ini
       disabled: !flow
         ? '흐름이 없습니다'
         : flow.used_by.length > 0
-          ? `스테이션 ${flow.used_by.join(', ')} 프로파일이 씁니다 — 먼저 프로파일을 바꾸세요`
+          ? `품목 ${flow.used_by.join(', ')} 의 팔렛 패턴이 씁니다 — 먼저 그 품목의 Flow 를 바꾸세요`
           : busy
             ? '처리 중입니다'
             : undefined,
@@ -641,7 +641,7 @@ export function PatternEditor({ view, gap: gapDefault, palletSize, dragDist, ini
                   </span>
                   <span className="truncate text-3xs text-content-muted">
                     {f.name}
-                    {f.used_by.length > 0 && ` · Station ${f.used_by.join(', ')}`}
+                    {f.used_by.length > 0 && ` · Item ${f.used_by.join(', ')}`}
                   </span>
                 </button>
               </li>
@@ -1043,7 +1043,7 @@ export function PatternEditor({ view, gap: gapDefault, palletSize, dragDist, ini
             value={flowForm.id}
             onValueChange={(v) => setFlowForm({ ...flowForm, id: v })}
             mono
-            hint={normalizeFlowId(flowForm.id).error ?? `저장 id: ${normalizeFlowId(flowForm.id).id}${flowForm.mode === 'edit' && flow?.used_by.length ? ` · 바꾸면 스테이션 ${flow.used_by.join(', ')} 프로파일도 따라갑니다` : ''}`}
+            hint={normalizeFlowId(flowForm.id).error ?? `저장 id: ${normalizeFlowId(flowForm.id).id}${flowForm.mode === 'edit' && flow?.used_by.length ? ` · 바꾸면 품목 ${flow.used_by.join(', ')} 의 Flow 도 따라갑니다` : ''}`}
             data-testid="pallet-flow-id"
           />
           <Input label="Name" value={flowForm.name} onValueChange={(v) => setFlowForm({ ...flowForm, name: v })} placeholder={flowForm.mode === 'copy' ? '비우면 "(copy of …)"' : ''} />

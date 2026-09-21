@@ -1,4 +1,5 @@
-// Task 조작 버튼 — 상태가 허용하는 것만 선다(`allowedActions`). 전부 ConfirmDialog를 거친다:
+// Task 조작 버튼 — 상태가 허용하는 것만 선다(`allowedActions`). 로봇이 AUTO 면 완료·삭제는 사유를 달고
+// 비활성이다(`autoBlock`, 서버도 같은 규칙으로 거부). 전부 ConfirmDialog를 거친다:
 // 취소·완료 처리는 로봇에 물리적 결과가 있어 `single-robot`, 나머지는 `single`.
 import { useState } from 'react'
 import { Ban, CheckCircle2, RotateCw, Send, Trash2, XOctagon } from 'lucide-react'
@@ -12,12 +13,14 @@ import { runAction } from '../../lib/task/actions'
 import { tasks } from '../../lib/tasks'
 import { robots } from '../../lib/robots'
 import type { RobotChipModel } from '../../lib/robotContext'
+import { useRobotModeOfPlc } from '../../lib/robotMode'
 import { useStore } from '../../lib/store'
 import { robotField } from '../shared/RobotChip'
 import {
   ACTION_LABEL,
   STATE_LABEL,
   allowedActions,
+  autoBlock,
   cascadeAfter,
   isTerminal,
   dimsLabel,
@@ -76,7 +79,7 @@ const ALL_ACTIONS: readonly TaskAction[] = [
   'delete',
 ]
 /** 행 버튼의 짧은 글자 — 폭이 고정이라 `완료 처리`는 들어가지 않는다. 대화상자 제목은 긴 이름을 쓴다. */
-const ROW_LABEL: Partial<Record<TaskAction, string>> = { cancel: '취소', complete: '완료' }
+const ROW_LABEL: Partial<Record<TaskAction, string>> = { cancel: '삭제', complete: '완료' }
 /** 행 모드에서 비활성인 이유 — 회색으로 침묵하는 버튼은 고장으로 읽힌다(DESIGN.md 4절 ⑥). */
 function whyNot(a: TaskAction, state: Task['state']): string {
   if (isTerminal(state)) return `${STATE_LABEL[state]} — 끝난 Task`
@@ -96,7 +99,7 @@ function describe(action: TaskAction, task: Task, robot: string): string {
     case 'cancel':
       return task.state === 'draft'
         ? `${who} 초안을 폐기하시겠습니까?`
-        : `${who}을(를) 정말로 취소하시겠습니까?`
+        : `${who}을(를) PLC 에서 삭제(Delete)하시겠습니까?`
     case 'complete':
       return `${who}을(를) 강제로 완료 처리하시겠습니까?`
     case 'resubmit':
@@ -119,7 +122,10 @@ function identity(task: Task, robot: RobotChipModel): FieldItem[] {
   return [
     // 첫 줄이 로봇이다 — 이 Task 의 주인(원장 PLC)이지 사이드바 선택이 아니다.
     robotField(robot, 'Robot'),
-    { label: 'TaskType', value: typeName(task.plc_task?.TaskType) || req?.type?.toUpperCase() || null },
+    {
+      label: 'TaskType',
+      value: typeName(task.plc_task?.TaskType) || req?.type?.toUpperCase() || null,
+    },
     { label: 'Target', value: t ? `${t.kind === 'station' ? 'Station' : 'Cell'} ${t.id}` : null },
     {
       label: 'Item',
@@ -158,6 +164,10 @@ export function TaskActions({
   // 이 Task 의 주인 로봇 — 원장의 상태 PLC 로 찾는다(사이드바 선택과 다를 수 있다).
   const owner = robots.chipOfPlc(task.plc_name)
   const allowed = allowedActions(task.state)
+  // AUTO 잠금 — 이 Task 로봇이 AUTO 면 완료·삭제는 서되 사유를 달고 비활성(`autoBlock`).
+  const mode = useRobotModeOfPlc(task.plc_name)
+  const blocked = (a: TaskAction): string | undefined =>
+    allowed.includes(a) ? autoBlock(a, task.state, mode) : whyNot(a, task.state)
   // 행 모드는 슬롯이 고정이다(`only` 순서대로, 허용 안 되면 비활성). 그 외는 허용된 것만.
   const actions = row
     ? [...(only ?? ROW_DEFAULT)]
@@ -165,16 +175,24 @@ export function TaskActions({
   // 넘침 메뉴 — 버튼으로 서지 않은 조작. 상태가 허용하지 않는 것도 **사유를 달아 남긴다**
   // (회색으로 침묵하는 대신 왜 안 되는지 말한다 — DESIGN.md 4절 ⑥).
   // 행 모드에서는 `overflow` 를 무시한다 — 자리 규칙(위 `overflow` 주석)이 코드에서도 한 번 더 막는다.
-  const rest: MenuItem[] = overflow && !row
-    ? ALL_ACTIONS.filter((a) => !actions.includes(a)).map((a) => ({
-        label: ACTION_LABEL[a],
-        danger: DANGER.has(a),
-        disabled: allowed.includes(a) ? undefined : whyNot(a, task.state),
-        run: () => setPending(a),
-      }))
-    : []
+  const rest: MenuItem[] =
+    overflow && !row
+      ? ALL_ACTIONS.filter((a) => !actions.includes(a)).map((a) => ({
+          label: ACTION_LABEL[a],
+          danger: DANGER.has(a),
+          disabled: blocked(a),
+          run: () => setPending(a),
+        }))
+      : []
   if (actions.length === 0 && rest.length === 0) return null
-  const tail = pending === 'cancel' && task.state !== 'draft' ? cascadeAfter(tasks.list, task) : []
+  // 연쇄 취소는 **이 로봇의** 같은 WorkId 만(서버 `cascade_after` 도 로봇 원장 안에서만 본다).
+  const tail =
+    pending === 'cancel' && task.state !== 'draft'
+      ? cascadeAfter(
+          tasks.list.filter((x) => x.plc_name === task.plc_name),
+          task,
+        )
+      : []
 
   const run = async (a: TaskAction) => {
     setBusy(a)
@@ -205,8 +223,8 @@ export function TaskActions({
             }
             icon={icons ? ICON[a] : undefined}
             loading={busy === a}
-            disabled={busy !== null || (row && !allowed.includes(a))}
-            title={row && !allowed.includes(a) ? whyNot(a, task.state) : undefined}
+            disabled={busy !== null || !!blocked(a)}
+            title={blocked(a)}
             className={row ? 'w-18 justify-center' : undefined}
             data-testid={`${testid}-${a}`}
             onClick={() => setPending(a)}

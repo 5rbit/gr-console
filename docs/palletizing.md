@@ -12,7 +12,7 @@
   pptx에서 뽑은 도형 좌표)와 스크립트 안의 순서표 전사본으로 만든다. `node tools/pallet/gen_spec.mjs --check`는
   JSON이 스크립트 결과와 같은지 본다.
 - 백엔드: `apps/gr-console/src/pallet/` (`mod.rs` 생성기 · `edit.rs` 편집 검증·비교·가져오기 · `store.rs` 저장소 ·
-  `profiles.rs` 스테이션 프로파일 · `compose.rs` 작업 작성 통합 · `routes.rs` API)
+  `profiles.rs` 품목·로봇·스테이션 팔렛 설정 · `compose.rs` 작업 작성 통합 · `routes.rs` API)
 - 화면: 탭 **팔렛 패턴** (`apps/gr-web/src/components/pallet/`, 순수 로직 `lib/pallet/model.ts` · `lib/pallet/editorModel.ts`)
 
 ## 1. 패턴
@@ -122,40 +122,56 @@ OuterDiameter + Gap이 되게 맞춘다. 그래서 편집으로 모양(비율)�
   - 판정은 GR2가 한다.
 - 단별 Z는 기존 스택 규칙(`stack_z_with`, 품목 비드 프로파일 포함)을 그대로 쓴다. 단 L의 스택 개수는 DROP이면 `L − 1`, PICK/MEASURE면 `L − 1 + count`다.
 
-## 6. 스테이션 프로파일 · API
+## 6. 팔렛 설정 귀속 · API
 
-현장에 팔렛 스테이션은 **아직 없다**. 콘솔은 프로파일을 미리 만들지 않는다. 운전자가 팔렛 패턴 화면에서
-스테이션을 골라 저장하고 Enabled를 켜야 그 스테이션에 슬롯이 쓰인다. 그 전에는 모든 스테이션이 기존 동작
-그대로다.
+**팔렛 패턴은 품목에 속한다**(결정 2026-09-21). 설정은 셋으로 나뉜다(마이그레이션 `0007_pallet_by_item`).
 
-`pallet_profile`(마이그레이션 `0006_console_v2`) 필드:
+| 어디 | 표 | 무엇 | 이유 |
+|---|---|---|---|
+| 품목 | `pallet_item` | 입고/출하 Flow · Pattern · Gap · 배치 Rotation/Mirror · PalletSize · Note | 패턴은 제품이 정한다. 위치 좌표는 GR1·GR2 공통 |
+| 로봇 | `pallet_robot` | 드래그 방향 Rotation/Mirror | 헤드 방향이 로봇마다 달라 드래그 인/아웃 방향만 다르다 |
+| 스테이션 | `pallet_station` | 팔렛 스테이션 여부(`enabled`) · Note | 어느 스테이션이 팔렛인가 |
+
+옛 스테이션별 `pallet_profile`은 지웠다(운용 DB에 행이 없었다). 켜짐 여부만 `pallet_station`으로 옮긴다.
+
+현장에 팔렛 스테이션은 **아직 없다**. 운전자가 팔렛 패턴 화면에서 스테이션을 팔렛 스테이션으로 켜야 그 스테이션에
+슬롯이 쓰인다. 그 전에는 모든 스테이션이 기존 동작 그대로다.
+
+`pallet_item` 필드:
 
 | 필드 | 기본값 | 범위 |
 |---|---|---|
-| `station_id` | — | 등록된 스테이션 |
-| `flow` | HP_IN | 편집 저장소에 있는 흐름 id |
+| `code` | — | 등록된 품목 |
+| `flow_in` | 없음 | PICK/MEASURE 에 쓰는 흐름. 없으면 `flow_out` |
+| `flow_out` | 없음 | DROP 에 쓰는 흐름. 없으면 `flow_in` (둘 중 하나는 있어야 한다) |
+| `pattern` | 없음 = OuterDiameter 자동 | 두 흐름 모두에 있는 번호 |
 | `gap` | 50 | 0..500 mm |
 | `rotation` | 0 | 0/90/180/270 |
 | `mirror_x` · `mirror_y` | false | |
 | `pallet_size` | 1600 | 500..4000 mm |
-| `enabled` | false | |
 | `note` | 빈 문자열 | |
+
+`pallet_robot` 필드: `robot`(설정된 로봇 id), `rotation`(0/90/180/270), `mirror_x`, `mirror_y`, `note`.
+저장 안 한 로봇은 변환 없음이다. 슬롯의 최종 DragDir = 로봇 변환(품목 배치 변환(사양 DragDir))이고, 좌표에는
+로봇 변환을 걸지 않는다.
 
 | API | 설명 |
 |---|---|
 | `GET /api/pallet/spec` | 편집 저장소를 사양 JSON 모양으로(`seed: false`). `?seed=1`이면 내장 사양서 R4(`seed: true`) |
-| `GET /api/pallet/profiles` | 프로파일 목록 |
-| `PUT /api/pallet/profiles` | 저장. 본문 = 프로파일. 스테이션 미등록이면 404, 검증 실패면 400 |
-| `DELETE /api/pallet/profiles/{station}` | 삭제 |
+| `GET /api/pallet/items` · `PUT /api/pallet/items` · `DELETE /api/pallet/items/{code}` | 품목 팔렛 패턴. 품목 미등록이면 404, 검증 실패면 400 |
+| `GET /api/pallet/robots` · `PUT /api/pallet/robots` | 로봇 드래그 방향. GET 은 설정된 로봇마다 한 줄(`name`, `plc` 포함) |
+| `GET /api/pallet/stations` · `PUT /api/pallet/stations` · `DELETE /api/pallet/stations/{station}` | 팔렛 스테이션 여부. 스테이션 미등록이면 404 |
 | `GET /api/pallet/plan` | 미리보기: 슬롯 + 단별 Z + 경고 + 선검사 |
 | 패턴 편집 API | 10절 |
 
-프로파일 저장은 Flow가 편집 저장소에 있어야 한다(없으면 400).
+품목 저장은 Flow가 편집 저장소에 있어야 한다(없으면 400).
 
 `/api/pallet/plan`의 쿼리는 `station`, `center_x`, `center_y`, `floor_z`, `item_code`, `od`, `gap`, `flow`,
 `pattern`(숫자/auto), `rotation`, `mirror_x`, `mirror_y`, `pallet_size`, `levels`, `type`, `grip`, `robot`이다.
 
-- 값의 우선순위는 **쿼리 → 스테이션 프로파일 → 기본값**이고, 각 값의 출처가 응답 `sources`에 실린다.
+- 값의 우선순위는 **쿼리 → 품목 팔렛 설정 → 기본값**이고, 각 값의 출처가 응답 `sources`에 실린다.
+  흐름은 `type`이 있으면 그 작업의 흐름(`flow_for`), 없으면 `flow_in` → `flow_out` 순이다.
+- 드래그 방향 보정은 `robot`(없으면 첫 로봇)의 `pallet_robot` 설정이다. 응답 `robot_dir`, 슬롯 `layout_drag_dir`(로봇 보정 전).
 - 중심은 `station`이 있으면 그 Info.Position XY이고 Floor는 Info.Position Z다. 없으면 `center_x/center_y`(기본 0, 0)이고 Floor는 `floor_z`(없으면 Z 계산 안 함)다.
 - `od`가 없으면 품목의 OuterDiameter를 쓴다.
 - `grip`(그립 기준)은 `mid`(기본, Height/2)와 `pick_bead`(= bead+offset, 잰 상부 비드 − PickBeadOffset)뿐이다.
@@ -166,8 +182,8 @@ OuterDiameter + Gap이 되게 맞춘다. 그래서 편집으로 모양(비율)�
 
 `TaskRequest.pallet = {seq, level}`(1-based, level 기본 1) 또는 `{auto: true}`.
 
-1. 대상이 **스테이션**이고 그 스테이션에 **Enabled 프로파일**이 있어야 한다. 셀 대상이거나 프로파일이 없거나 꺼져 있으면 400이고, 품목(OuterDiameter)이 없어도 400이다.
-2. 패턴은 프로파일 Flow와 품목 OuterDiameter로 자동 선택하고, 프로파일의 Gap·Rotation·Mirror·PalletSize를 쓴다.
+1. 대상이 **팔렛 스테이션**(켜짐)이어야 한다. 셀 대상이거나 팔렛 스테이션이 아니면 400이다. 품목(OuterDiameter)이 없거나 품목 팔렛 설정이 없어도 400이다.
+2. 흐름은 품목의 `flow_for(작업)`(DROP = FlowOut 먼저, 그 밖 = FlowIn 먼저)이고, 패턴은 품목 Pattern(없으면 OuterDiameter 자동)이다. 품목의 Gap·Rotation·Mirror·PalletSize를 쓰고, DragDir에는 대상 로봇(`req.robot`)의 방향 보정을 더 건다.
 3. `auto`는 스테이션 재고 개수 n으로 고른다. 미리보기의 `?stock=`이 있으면 그 값이다. 한 단은 패턴 슬롯 수 k다.
    - DROP: 아래 단부터 채운다. level = ⌊n/k⌋+1, seq = n mod k + 1.
    - PICK/MEASURE: 맨 윗단을 Seq 순으로 비운다. n = 0이면 400이다.
@@ -178,18 +194,19 @@ OuterDiameter + Gap이 되게 맞춘다. 그래서 편집으로 모양(비율)�
    - DragDir 0인 슬롯은 해당 드래그를 **끈다**(기본값에 켜져 있어도).
    - Dist·Height는 기본값(`작업 명령 › 기본값`)과 `params`를 그대로 쓴다. 0이면 경고한다.
    - 흐름과 작업이 어긋나면(예: 출하 흐름에 PICK) 자리만 쓰고 드래그는 넣지 않으며, 경고한다.
-6. **스테이션 보정(컨베이어 트래킹)은 Enabled 팔렛 프로파일 스테이션에 쓰지 않는다.** 작성과 제출 재계산 모두 건너뛰고, 감사 기록에 `station_offset_skipped: true`를 남긴다. 트래킹 보정이 하던 GR2 영역 선검사는 팔렛 쪽이 대신한다(`area`).
-7. 결과 `Composed.pallet`과 원장 `LedgerEntry.pallet`에 같은 감사 블록을 남긴다. 필드는 `flow`, `pattern`, `od`, `gap`, `pitch`, `rotation`, `mirror_x/y`, `pallet_size`, `seq`, `level`, `slot`, `auto`, `stock_used`, `offset`, `xy`, `spec_drag_dir`, `drag_dir`, `drag_type`, `drag_applied`(in/out/none), `station_offset_skipped`, `area`, `warnings`, `flow_updated_at`, `pattern_updated_at`다. auto로 고른 seq/level은 이 기록으로 고정되고, 재제출은 기록을 그대로 쓴다.
+6. **스테이션 보정(컨베이어 트래킹)은 팔렛 스테이션에 쓰지 않는다.** 작성과 제출 재계산 모두 건너뛰고, 감사 기록에 `station_offset_skipped: true`를 남긴다. 트래킹 보정이 하던 GR2 영역 선검사는 팔렛 쪽이 대신한다(`area`).
+7. 결과 `Composed.pallet`과 원장 `LedgerEntry.pallet`에 같은 감사 블록을 남긴다. 필드는 `item_code`, `robot`, `dir_rotation`, `dir_mirror_x/y`, `flow`, `pattern`, `od`, `gap`, `pitch`, `rotation`, `mirror_x/y`, `pallet_size`, `seq`, `level`, `slot`, `auto`, `stock_used`, `offset`, `xy`, `spec_drag_dir`, `layout_drag_dir`, `drag_dir`, `drag_type`, `drag_applied`(in/out/none), `station_offset_skipped`, `area`, `warnings`, `flow_updated_at`, `pattern_updated_at`다. auto로 고른 seq/level은 이 기록으로 고정되고, 재제출은 기록을 그대로 쓴다.
    - `flow_updated_at` · `pattern_updated_at`은 슬롯을 만든 흐름·패턴의 편집 시각이다. 나중에 패턴을 고쳐도 이 작업이 어느 판으로 만들어졌는지 원장에서 알 수 있다. 이 필드가 없는 예전 기록은 빈 문자열로 읽는다.
    - `spec_drag_dir`은 이름과 달리 **저장소 패턴**의 변환 전 방향이다(편집했으면 편집값). 사양서 원래 값은 비교(10절)로 본다.
-8. 프로파일은 Enabled인데 요청에 `pallet`가 없으면, Info.Position 중심으로 작성하고(트래킹 보정 없이) 경고한다.
+8. 팔렛 스테이션인데 요청에 `pallet`가 없으면, Info.Position 중심으로 작성하고(트래킹 보정 없이) 경고한다.
 9. 시나리오 스텝도 `pallet`를 싣는다. JSON에만 실리고 CSV 열은 없다. 러너가 그대로 `TaskRequest.pallet`로 넘긴다.
 
 ## 8. 화면 (팔렛 패턴 탭)
 
 - **왼쪽 입력**
-  - Station(또는 수동 Center X/Y/Floor Z), Item(또는 OuterDiameter), Flow, Pattern(auto/직접), Gap(기본 50), PalletSize, Levels, Rotation, MirrorX/Y.
-  - 스테이션을 고르면 입력이 그 프로파일 값으로 채워지고, Enabled·Note와 함께 "프로파일 저장"으로 저장한다.
+  - Station(또는 수동 Center X/Y/Floor Z) + "팔렛 스테이션" 스위치(누르면 바로 저장).
+  - Item(또는 OuterDiameter). 품목을 고르면 품목 팔렛 패턴(FlowIn · FlowOut · Pattern · Gap · PalletSize · Rotation · MirrorX/Y · Note)이 채워지고 "품목 패턴 저장"으로 저장한다. 미리보기 In/Out 으로 어느 흐름을 펼칠지 고른다.
+  - 로봇 DragDir: 선택된 로봇의 방향 보정 한 줄 + "설정" 대화상자(로봇마다 Rotation · MirrorX/Y, 바꾸면 바로 저장).
 - **가운데 그림**
   - 팔렛과 타이어를 실제 크기로 그리고, 각 원에 Slot · Seq · DragDir을 표시한다.
   - 드래그 화살표 길이는 기본값 DragInDist/DragOutDist(기본 150 mm)이고, 0이면 그림에도 150을 쓴다.
@@ -201,9 +218,9 @@ OuterDiameter + Gap이 되게 맞춘다. 그래서 편집으로 모양(비율)�
   - "계획에 추가"는 단 순서(출하 = 아래부터, 입고 = 위부터) × Seq 순서로 `pallet: {seq, level}`을 실은 스테이션 스텝을 작업 명령 계획 끝에 붙인다(`lib/task/planInbox.ts`, 되돌리기 한 칸).
   - "시나리오로 내보내기"는 같은 스텝으로 시나리오를 가져오기 형식(JSON)으로 만든다.
   - "CSV 복사"도 있다.
-  - 두 내보내기는 스테이션·품목·Enabled 프로파일이 있고, 입력이 저장값과 같고, Pattern이 auto이고, OuterDiameter를 직접 넣지 않았을 때만 켜진다. 작업 명령은 저장된 프로파일로 다시 계산하므로, 화면과 제출이 갈리지 않게 막는다.
+  - 두 내보내기는 팔렛 스테이션·품목 팔렛 패턴이 있고, 입력이 저장값과 같고, 미리보기 흐름이 그 작업의 흐름과 같고, OuterDiameter를 직접 넣지 않았을 때만 켜진다. 작업 명령은 저장된 품목 패턴으로 다시 계산하므로, 화면과 제출이 갈리지 않게 막는다.
 - **패턴 편집**(헤더의 "패턴 편집" 단추) — 켜면 생성 보기 대신 편집 화면이 나오고, 끄면 생성 보기가 그대로 돌아온다. 저장하면 생성 보기의 사양·계획을 다시 읽는다.
-  - **흐름 목록**: 새 흐름 · 복사 · 이름·설정(id 바꾸기 포함) · 사양서로 되돌리기 · 삭제. 배지 `spec`(사양서와 같음) · `modified`(고침) · `custom`(사양서 기준 없음). 프로파일이 쓰는 흐름은 삭제 단추가 꺼지고 스테이션을 보여 준다.
+  - **흐름 목록**: 새 흐름 · 복사 · 이름·설정(id 바꾸기 포함) · 사양서로 되돌리기 · 삭제. 배지 `spec`(사양서와 같음) · `modified`(고침) · `custom`(사양서 기준 없음). 품목이 쓰는 흐름은 삭제 단추가 꺼지고 품목 코드를 보여 준다.
   - **패턴 목록**: Pattern · OdMin · OdMax · Slots · MinDistance. 추가 · 복제(새 번호, OD 범위는 기존 최대 위로 두니 고쳐 넣는다) · 이 패턴만 되돌리기 · 삭제.
   - **그림**: 원을 끌어 옮긴다(Snap off / 10 mm / 0.05). 두 번 누르거나 D 키로 DragDir 순환, 방향키로 스냅 단위 이동. "Seq 재정렬"을 켜고 작업 순서대로 누르면 Seq가 바뀐다. MirrorX · MirrorY · 90° · 180°는 오프셋과 DragDir를 같은 변환으로 바꾼다(생성기와 같은 변환 코드). 그림은 편집 좌표 `u × (Preview OD + Gap)`이고, MinDistance ≠ 1이면 생성 결과를 점선 원으로 겹친다.
   - **슬롯 표**: 행 끌기로 Seq 바꾸기, Slot 이름, OffsetX/OffsetY(Units `norm` 또는 `mm` — mm 입력은 미리보기 pitch로 u를 다시 계산), DragDir, DragType(hex), 슬롯 삭제. 저장값과 다른 행은 경고색.
@@ -245,7 +262,7 @@ OuterDiameter + Gap이 되게 맞춘다. 그래서 편집으로 모양(비율)�
 고친 뒤에도 비교 창에서 사양서 원래 값이 보이고, 흐름·패턴 단위로 언제든 되돌릴 수 있다.
 
 - **OP 입고 현행본**(위 5·9번) — 슬라이드 2/4(`OP_IN`)인가, 슬라이드 5 흐린 칸(`OP_IN_S5` = 슬라이드 3 대안)인가.
-  현장 판단에 따라 스테이션 프로파일 Flow를 `OP_IN_S5`로 두거나, `OP_IN`의 P4..P9 순서·DragDir를 고친다.
+  현장 판단에 따라 품목 FlowIn을 `OP_IN_S5`로 두거나, `OP_IN`의 P4..P9 순서·DragDir를 고친다.
   `OP_IN_S5`를 현행으로 쓰면 이름·설정에서 reference 표시를 끄는 대신 복사본(예: `OP_IN_SITE`)을 만들어 쓰는 것을 권한다.
 - **외부입고 P3 순서**(위 3번) — 출하 수정본에 맞춰 "1 → 2(p6) → 3(p7)"로 뒤집어야 하면 `OP_EXT_IN` Pattern 3에서
   Seq만 바꾼다("Seq 재정렬" 또는 표에서 행 끌기).
@@ -265,7 +282,7 @@ OuterDiameter + Gap이 되게 맞춘다. 그래서 편집으로 모양(비율)�
 | `pallet_pattern` | `flow_id` + `pattern`(PK) · `od_min` · `od_max` · `slots_json` · `note` · `updated_at` · `meta_json`(order_text · drawn · notes) |
 
 - `slots_json` = `[{"slot": "C#n", "seq": 1, "u": [x, y], "drag_dir": 0..8}]`. `u`는 기계 축 정규화 오프셋이다(2절).
-- 생성기·계획·compose·프로파일 검증은 이 표를 메모리 `Library`로 읽어 쓴다. 테스트는 `Library::from_seed`로 sqlite 없이 돈다.
+- 생성기·계획·compose·품목 팔렛 설정 검증은 이 표를 메모리 `Library`로 읽어 쓴다. 테스트는 `Library::from_seed`로 sqlite 없이 돈다.
 
 ### 채우기 · 초기화 · 비교
 
@@ -288,10 +305,10 @@ OuterDiameter + Gap이 되게 맞춘다. 그래서 편집으로 모양(비율)�
 
 | API | 설명 |
 |---|---|
-| `GET /api/pallet/flows` | 흐름 목록 + 패턴(`min_distance`, 비교 `status`) · `status` · `modified` · `used_by`(프로파일 스테이션) · `warnings` · `removed_spec_patterns` |
+| `GET /api/pallet/flows` | 흐름 목록 + 패턴(`min_distance`, 비교 `status`) · `status` · `modified` · `used_by`(그 흐름을 쓰는 품목 코드) · `warnings` · `removed_spec_patterns` |
 | `POST /api/pallet/flows` | 만들기. `{id, name?, drag_kind, note?}` 또는 `{id, copy_from, name?, note?}` |
-| `PUT /api/pallet/flows/{id}` | `{id?, name?, drag_kind?, note?, screen_axes?, reference?}`. id가 다르면 이름 바꾸기이고, 그 흐름을 쓰는 프로파일의 Flow도 같이 바뀐다 |
-| `DELETE /api/pallet/flows/{id}` | 프로파일이 쓰면 **409**(스테이션 목록) |
+| `PUT /api/pallet/flows/{id}` | `{id?, name?, drag_kind?, note?, screen_axes?, reference?}`. id가 다르면 이름 바꾸기이고, 그 흐름을 쓰는 품목의 FlowIn/FlowOut도 같이 바뀐다 |
+| `DELETE /api/pallet/flows/{id}` | 품목이 쓰면 **409**(품목 코드 목록) |
 | `PUT /api/pallet/flows/{id}/patterns/{pattern}` | 패턴 저장(없으면 만든다). `{od_min, od_max, slots, note?, pattern?}`. 본문 `pattern`이 경로와 다르면 번호를 바꾼다(있는 번호면 409) |
 | `DELETE /api/pallet/flows/{id}/patterns/{pattern}` | 패턴 삭제 |
 | `POST /api/pallet/flows/{id}/reset[?pattern=]` | 사양서로 되돌리기 → `{flow, diff}` |

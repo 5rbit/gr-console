@@ -10,12 +10,13 @@
 pub mod beads;
 pub mod bulk;
 pub mod diff;
+pub mod dims;
 pub mod plc_io;
 pub mod routes;
 pub mod spec;
 pub mod xlsx;
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use gr_proto::{CellInfo, StationPara, StockItem, TaskParams};
@@ -71,6 +72,27 @@ pub struct Defaults {
     /// 한 번도 재 본 적 없는 품목은 mid 로 내려간다. 비드 값은 그 타이어 **위에 얹힌 개수**만큼 눌림이 반영된다.
     /// 옛 값 `bead` 는 읽을 때 `pick_bead` 로 옮긴다(`spec::normalize_grip_ref`).
     pub grip_ref: String,
+    /// 상황별 덮어쓰기(부분 파라미터) — 종류·대상별(`by`) **위**, 작성 카드 덮어쓰기 **아래**에 얹힌다.
+    /// 키는 [`SITUATIONS`] 순서로 적용되고(뒤가 이긴다), 판정은 `issue::situations_for`.
+    pub situations: BTreeMap<String, Json>,
+}
+
+/// 상황 키 — 적용 순서(뒤가 이긴다). 화면(`lib/task/compose.ts` `SITUATIONS`)과 같은 목록이다.
+/// - `measure_item` : MEASURE + MeasureItem(측정 플래그가 없으면 Item 으로 본다)
+/// - `measure_sku`  : MEASURE + MeasureSku
+/// - `pallet_station` : 켜진 팔렛 스테이션에 `pallet` 슬롯을 단 작업(팔렛타이징)
+/// - `multi_pick`   : 스테이션 PICK/DROP 인데 다음 작업이 **같은 스테이션 그룹**(PLC DoublePicking — LiftUpPartial 로
+///   셀 Z + LiftUpHeight 까지만 올라가 다음으로 이동). 계획·시나리오는 자동, 단일 명령은 요청의 `multi_pick`.
+pub const SITUATIONS: [&str; 4] = ["measure_item", "measure_sku", "pallet_station", "multi_pick"];
+
+fn default_situations() -> BTreeMap<String, Json> {
+    let mut m = BTreeMap::new();
+    for k in SITUATIONS {
+        m.insert(k.to_string(), serde_json::json!({}));
+    }
+    // Multi-Picking 은 부분 리프트가 핵심이다 — 비워 두면 PLC 가 끝까지 올라가 DoublePicking 이 되지 않는다.
+    m.insert("multi_pick".to_string(), serde_json::json!({ "lift_up_partial": true }));
+    m
 }
 
 impl Default for Defaults {
@@ -82,7 +104,7 @@ impl Default for Defaults {
             m.insert("station".to_string(), serde_json::json!({ "find_station_item": t == "PICK" }));
             by.insert(t.into(), m);
         }
-        Self { version: 1, updated_at: now_str(), base: TaskParams::default(), by, grip_ref: "mid".into() }
+        Self { version: 1, updated_at: now_str(), base: TaskParams::default(), by, grip_ref: "mid".into(), situations: default_situations() }
     }
 }
 
@@ -251,6 +273,19 @@ impl Registry {
         Ok(d)
     }
     pub fn save_defaults(&self, mut d: Defaults) -> Result<Defaults, ApiError> {
+        // 상황 층: 모르는 키·잘못된 값은 저장 전에 막는다(작성 때 400 으로 터지지 않게). 없는 키는 빈 층으로 채운다.
+        for (k, v) in &d.situations {
+            if !SITUATIONS.contains(&k.as_str()) {
+                return Err(ApiError::BadRequest(format!("알 수 없는 상황 '{k}' — {}", SITUATIONS.join(", "))));
+            }
+            if !v.is_object() {
+                return Err(ApiError::BadRequest(format!("상황 '{k}' 는 파라미터 객체여야 합니다")));
+            }
+            TaskParams::default().overlay(v).map_err(|e| ApiError::BadRequest(format!("상황 '{k}': {e}")))?;
+        }
+        for k in SITUATIONS {
+            d.situations.entry(k.to_string()).or_insert_with(|| serde_json::json!({}));
+        }
         d.updated_at = now_str();
         d.version += 1;
         d.grip_ref = spec::normalize_grip_ref(&d.grip_ref).into();
@@ -264,6 +299,26 @@ mod tests {
     use super::*;
 
     /// 기본 그립 기준은 `mid`(Height/2)다. 옛 `bead` 는 읽을 때도 쓸 때도 `pick_bead` 로 옮긴다.
+    /// 상황 층: 옛 저장값(키 없음)은 기본 층(Multi-Picking = 부분 리프트)을 받고, 모르는 키·잘못된 값은 저장이 막힌다.
+    #[test]
+    fn situations_default_and_validate() {
+        let db = crate::db::Db::open_memory().unwrap();
+        let reg = Registry::new(db.clone());
+        db.set_setting("defaults", r#"{"version":3,"grip_ref":"mid"}"#).unwrap();
+        let d = reg.defaults().unwrap();
+        assert_eq!(d.situations.len(), SITUATIONS.len());
+        assert_eq!(d.situations["multi_pick"], serde_json::json!({ "lift_up_partial": true }));
+        let mut bad = d.clone();
+        bad.situations.insert("moon".into(), serde_json::json!({}));
+        assert!(reg.save_defaults(bad).is_err());
+        let mut bad = d.clone();
+        bad.situations.insert("measure_sku".into(), serde_json::json!({ "grip_height": "tall" }));
+        assert!(reg.save_defaults(bad).is_err());
+        let mut gap = d;
+        gap.situations.remove("pallet_station");
+        assert!(reg.save_defaults(gap).unwrap().situations.contains_key("pallet_station"));
+    }
+
     #[test]
     fn defaults_grip_ref_is_mid_and_legacy_bead_moves() {
         let db = crate::db::Db::open_memory().unwrap();

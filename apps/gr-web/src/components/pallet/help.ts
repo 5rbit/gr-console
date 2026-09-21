@@ -7,13 +7,17 @@
 export const DRAG_DIR_HELP =
   '칸 = 드래그 변위가 가리키는 쪽(지금 보기 방향). PLC DragDelta 와 같은 코드이고, 아래 글자는 DragType 바이트 = 1 << (DragDir − 1).'
 
-/** 스테이션 프로파일이 무엇을 담는가. */
-export const PROFILE_HELP =
-  '스테이션을 고르면 Flow · Gap · Rotation · Mirror · PalletSize 를 그 스테이션 프로파일로 저장합니다.'
+/** 품목 팔렛 설정이 무엇을 담는가. */
+export const ITEM_PALLET_HELP =
+  '팔렛 패턴은 품목에 속합니다. FlowIn(PICK) · FlowOut(DROP) · Pattern · Gap · Rotation · Mirror · PalletSize 를 품목별로 저장하고, 좌표는 GR1·GR2 가 같이 씁니다.'
 
-/** Enabled 스위치가 작업 명령에 무엇을 바꾸는가. */
-export const ENABLED_HELP =
-  'Enabled 인 스테이션만 작업 명령이 팔렛 슬롯·드래그를 쓰고 트래킹 보정을 건너뜁니다.'
+/** 팔렛 스테이션 스위치가 작업 명령에 무엇을 바꾸는가. */
+export const PALLET_STATION_HELP =
+  '팔렛 스테이션으로 켠 스테이션만 작업 명령이 품목의 팔렛 슬롯·드래그를 쓰고 트래킹 보정을 건너뜁니다.'
+
+/** 로봇별 드래그 방향 보정. */
+export const ROBOT_DIR_HELP =
+  '헤드 방향이 로봇마다 달라 같은 슬롯이라도 드래그 인/아웃 방향 코드가 다릅니다. 품목 배치 변환 뒤 방향 코드에만 이 회전·반전을 겁니다(좌표는 그대로).'
 
 /** 패턴 편집 그림의 마우스·키보드 조작. */
 export const EDIT_CANVAS_HELP =

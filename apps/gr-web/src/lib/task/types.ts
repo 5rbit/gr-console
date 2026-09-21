@@ -1,6 +1,6 @@
 // 작업 명령 슬라이스 로컬 타입 — 공유 `types.ts`에 없는 응답 모양만 여기 둔다.
 import type { MoveOpts } from './moveMode'
-import type { PlcTask, TaskParams, TaskType, Target } from '../types'
+import type { PlcTask, TaskParams, TaskType, Target, Situation } from '../types'
 
 /** `POST /api/cells/push` / `/api/stations/push` 응답 — 쓰기 후 재읽기 검증 결과. */
 export interface PushResult {
@@ -22,6 +22,8 @@ export interface ComposePreview {
   task: PlcTask
   params: TaskParams
   warnings: string[]
+  /** 얹힌 상황 기본값 층(적용 순서) — 백엔드 `Composed.situations`. 없으면 없음. */
+  situations?: Situation[]
   /** 이 작성이 겨냥한 로봇과 그 상태 PLC — 백엔드 `issue::Composed`. 확인 창이 대상을 짐작하지 않는다. */
   robot?: string
   plc?: string
@@ -96,6 +98,21 @@ export interface StationOffsetAudit {
   gr2_margin: number | null
 }
 
+/** `GET /api/stations/offsets` 한 줄 — 백엔드 `issue::StationOffsetRow`(감사 기록 + 스테이션 상태). */
+export interface StationOffsetRow extends StationOffsetAudit {
+  conv_no: number
+  group: number
+  /** 레지스트리 RotateType(GRM 값은 `rotate_type`) */
+  registry_rotate_type: number
+  /** 센서·앞 스테이션 연결이 있어 측정 트래킹을 기대하는가 */
+  expects_tracking: boolean
+  staged: { od: number; tx: number; ty: number }
+  measuring_error: boolean
+  data_mismatch: boolean
+  /** 켜진 팔렛 프로파일 — 트래킹 보정을 쓰지 않는다 */
+  pallet: boolean
+}
+
 /** 파일 가져오기 응답(`ImportResult` + 미리보기용 부가 필드).
  *
  *  파일 가져오기는 줄마다 `added|updated|unchanged|skipped` 하나가 붙는다(셀 일괄 API와 같은 말).
@@ -134,6 +151,8 @@ export interface Draft {
   station_offset?: boolean
   /** 단수 Max 무시 — `true` 면 요청에 `ignore_stack_max: true`. */
   ignore_stack_max?: boolean
+  /** Multi-Picking — `true` 면 요청에 `multi_pick: true`(스테이션 PICK/DROP). */
+  multi_pick?: boolean
   /** MOVE 방식(없으면 `top`) — 요청 `params.move_mode`. */
   move?: MoveOpts | null
 }

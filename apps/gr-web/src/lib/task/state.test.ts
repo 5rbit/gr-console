@@ -5,6 +5,7 @@ import {
   EMPTY_FILTER,
   TERMINAL,
   allowedActions,
+  autoBlock,
   deriveState,
   elapsed,
   endedToday,
@@ -245,5 +246,20 @@ describe('cascadeAfter', () => {
   })
   it('WorkId가 없는(제출 전) Task는 꼬리가 없다', () => {
     expect(cascadeAfter([t('x', 7, 3, 'queued')], t('me', 0, 0, 'draft'))).toEqual([])
+  })
+})
+
+describe('autoBlock', () => {
+  it('blocks PLC complete / delete only in AUTO', () => {
+    expect(autoBlock('complete', 'running', 'AUTO')).toContain('AUTO')
+    expect(autoBlock('cancel', 'queued', 'AUTO')).toContain('AUTO')
+    expect(autoBlock('complete', 'running', 'READY')).toBeUndefined()
+    expect(autoBlock('cancel', 'queued', 'MANUAL')).toBeUndefined()
+    expect(autoBlock('cancel', 'running', null)).toBeUndefined()
+  })
+  it('never blocks console-only actions', () => {
+    expect(autoBlock('cancel', 'draft', 'AUTO')).toBeUndefined()
+    expect(autoBlock('delete', 'completed', 'AUTO')).toBeUndefined()
+    expect(autoBlock('fail', 'running', 'AUTO')).toBeUndefined()
   })
 })

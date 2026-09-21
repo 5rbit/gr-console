@@ -1,13 +1,16 @@
 //! 팔렛 API.
 //!
 //! - `GET /api/pallet/spec[?seed=1]` — 편집 저장소를 사양 문서 모양으로(`seed: false`), `seed=1` 이면 내장 사양서 R4(`seed: true`)
-//! - `GET /api/pallet/profiles` · `PUT /api/pallet/profiles` · `DELETE /api/pallet/profiles/{station}`
+//! - 품목 패턴: `GET|PUT /api/pallet/items` · `DELETE /api/pallet/items/{code}`
+//! - 로봇 드래그 방향: `GET|PUT /api/pallet/robots` (설정된 로봇마다 한 줄, 저장 안 했으면 변환 없음)
+//! - 팔렛 스테이션: `GET|PUT /api/pallet/stations` · `DELETE /api/pallet/stations/{station}`
 //! - `GET /api/pallet/plan?station=&center_x=&center_y=&floor_z=&item_code=&od=&gap=&flow=&pattern=&rotation=&mirror_x=&mirror_y=&pallet_size=&levels=&type=&grip=&robot=`
 //! - 패턴 편집: `GET|POST /api/pallet/flows` · `PUT|DELETE /api/pallet/flows/{id}` · `PUT|DELETE /api/pallet/flows/{id}/patterns/{pattern}`
 //!   · `POST /api/pallet/flows/{id}/reset[?pattern=]` · `GET /api/pallet/flows/{id}/diff`
 //! - `GET /api/pallet/export.json` · `POST /api/pallet/import?dry_run=` (본문 = 사양 문서, 흐름 id + 패턴 번호로 병합)
 //!
-//! plan 값의 우선순위: 쿼리 → 스테이션 프로파일 → 기본값(Flow HP_IN · Gap 50 · Rotation 0 · PalletSize 1600).
+//! plan 값의 우선순위: 쿼리 → 품목 팔렛 설정 → 기본값(Flow HP_IN · Gap 50 · Rotation 0 · PalletSize 1600).
+//! 드래그 방향 보정은 `robot`(없으면 첫 로봇)의 설정.
 //! 중심은 스테이션을 고르면 그 Info.Position, 아니면 `center_x/center_y`(기본 0,0).
 
 use axum::Router;
@@ -20,7 +23,7 @@ use serde_json::{Value as Json, json};
 
 use super::compose::level_stock;
 use super::edit::{self, CreateFlow, FlowDiff, FlowPatch, ImportReport, PatternBody};
-use super::profiles::{Profile, Profiles};
+use super::profiles::{ItemPallet, PalletStation, Profiles, RobotDir};
 use super::store::PalletStore;
 use super::{AreaCheck, DEFAULT_FLOW, DEFAULT_GAP, DEFAULT_PALLET_SIZE, GenInput, Generated, Spec, Transform, area_check, generate, r1, seed};
 use crate::error::{ApiError, ApiResult};
@@ -126,23 +129,62 @@ async fn import_json(State(st): State<AppState>, Query(q): Query<ImportQuery>, b
     Ok(axum::Json(patterns(&st).import(&doc, dry)?))
 }
 
-// ── 프로파일 ────────────────────────────────────────────────────────────────
+// ── 품목 · 로봇 · 스테이션 ─────────────────────────────────────────────────
 
-async fn list(State(st): State<AppState>) -> ApiResult<Vec<Profile>> {
-    Ok(axum::Json(store(&st).list()?))
+async fn list_items(State(st): State<AppState>) -> ApiResult<Vec<ItemPallet>> {
+    Ok(axum::Json(store(&st).items()?))
 }
 
-async fn put_profile(State(st): State<AppState>, axum::Json(p): axum::Json<Profile>) -> ApiResult<Profile> {
-    if st.registry.station(p.station_id)?.is_none() {
-        return Err(ApiError::NotFound(format!("station {} not registered", p.station_id)));
+async fn put_item(State(st): State<AppState>, axum::Json(p): axum::Json<ItemPallet>) -> ApiResult<ItemPallet> {
+    if st.registry.item(p.code)?.is_none() {
+        return Err(ApiError::NotFound(format!("item {} not registered", p.code)));
     }
     let lib = patterns(&st).library()?;
     p.validate(&lib).map_err(ApiError::BadRequest)?;
-    Ok(axum::Json(store(&st).upsert(p, &lib)?))
+    Ok(axum::Json(store(&st).upsert_item(p, &lib)?))
 }
 
-async fn delete_profile(State(st): State<AppState>, Path(station): Path<u16>) -> ApiResult<Json> {
-    Ok(axum::Json(json!({ "removed": store(&st).remove(station)? })))
+async fn delete_item(State(st): State<AppState>, Path(code): Path<u32>) -> ApiResult<Json> {
+    Ok(axum::Json(json!({ "removed": store(&st).remove_item(code)? })))
+}
+
+#[derive(Serialize)]
+struct RobotDirView {
+    #[serde(flatten)]
+    dir: RobotDir,
+    name: String,
+    plc: String,
+}
+
+async fn list_robots(State(st): State<AppState>) -> ApiResult<Vec<RobotDirView>> {
+    let s = store(&st);
+    let mut out = Vec::new();
+    for r in st.robots.iter() {
+        out.push(RobotDirView { dir: s.robot(r.id)?, name: r.name.clone(), plc: r.plc.clone() });
+    }
+    Ok(axum::Json(out))
+}
+
+async fn put_robot(State(st): State<AppState>, axum::Json(r): axum::Json<RobotDir>) -> ApiResult<RobotDir> {
+    st.robot(Some(r.robot))?;
+    r.validate().map_err(ApiError::BadRequest)?;
+    Ok(axum::Json(store(&st).upsert_robot(r)?))
+}
+
+async fn list_stations(State(st): State<AppState>) -> ApiResult<Vec<PalletStation>> {
+    Ok(axum::Json(store(&st).stations()?))
+}
+
+async fn put_station(State(st): State<AppState>, axum::Json(p): axum::Json<PalletStation>) -> ApiResult<PalletStation> {
+    if st.registry.station(p.station_id)?.is_none() {
+        return Err(ApiError::NotFound(format!("station {} not registered", p.station_id)));
+    }
+    p.validate().map_err(ApiError::BadRequest)?;
+    Ok(axum::Json(store(&st).upsert_station(p)?))
+}
+
+async fn delete_station(State(st): State<AppState>, Path(station): Path<u16>) -> ApiResult<Json> {
+    Ok(axum::Json(json!({ "removed": store(&st).remove_station(station)? })))
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -205,10 +247,15 @@ struct PlanView {
     /// `station` | `manual`
     center_source: &'static str,
     station: Option<Json>,
-    profile: Option<Profile>,
+    /// 팔렛 스테이션 설정(없으면 팔렛 스테이션 아님).
+    pallet_station: Option<PalletStation>,
+    /// 품목 팔렛 설정 — 패턴의 주인.
+    item_pallet: Option<ItemPallet>,
+    /// 드래그 방향 보정을 가져온 로봇.
+    robot_dir: RobotDir,
     item: Option<Json>,
     area: Option<AreaCheck>,
-    /// 각 값이 어디서 왔나(`query` | `profile` | `default`).
+    /// 각 값이 어디서 왔나(`query` | `item` | `default`).
     sources: Json,
 }
 
@@ -216,7 +263,7 @@ fn src<T>(q: &Option<T>, p: bool) -> &'static str {
     if q.is_some() {
         "query"
     } else if p {
-        "profile"
+        "item"
     } else {
         "default"
     }
@@ -227,22 +274,37 @@ async fn plan(State(st): State<AppState>, Query(q): Query<PlanQuery>) -> ApiResu
         Some(id) => Some(st.registry.station(id)?.ok_or_else(|| ApiError::NotFound(format!("station {id} not registered")))?),
         None => None,
     };
-    let profile = match q.station {
-        Some(id) => store(&st).get(id)?,
+    let profiles = store(&st);
+    let pallet_station = match q.station {
+        Some(id) => profiles.station(id)?,
         None => None,
     };
     let entry = match q.item_code.filter(|c| *c != 0) {
         Some(c) => Some(st.registry.item(c)?.ok_or_else(|| ApiError::BadRequest(format!("item {c} not registered")))?),
         None => None,
     };
+    let item_pallet = match &entry {
+        Some(e) => profiles.item(e.code)?,
+        None => None,
+    };
+    let robot_id = st.robot(q.robot)?.id;
+    let robot_dir = profiles.robot(robot_id)?;
     let od =
         q.od.filter(|v| *v > 0.0)
             .or_else(|| entry.as_ref().map(|e| e.item.outer_diameter).filter(|v| *v > 0.0))
             .ok_or_else(|| ApiError::BadRequest("OuterDiameter(od) 또는 OuterDiameter 가 있는 item_code 가 필요합니다".into()))?;
-    let p = profile.as_ref();
+    let p = item_pallet.as_ref();
     let has_p = p.is_some();
+    let tt_q = match nonempty(&q.task_type) {
+        Some(s) => Some(parse_task_type(&s)?),
+        None => None,
+    };
     let flow_q = nonempty(&q.flow);
-    let flow = flow_q.clone().or_else(|| p.map(|p| p.flow.clone())).unwrap_or_else(|| DEFAULT_FLOW.into());
+    let item_flow = p.and_then(|p| match tt_q {
+        Some(tt) => p.flow_for(tt),
+        None => p.flow_in.as_deref().or(p.flow_out.as_deref()),
+    });
+    let flow = flow_q.clone().or_else(|| item_flow.map(str::to_string)).unwrap_or_else(|| DEFAULT_FLOW.into());
     let gap = q.gap.or(p.map(|p| p.gap)).unwrap_or(DEFAULT_GAP);
     let mirror_x_q = flag("mirror_x", q.mirror_x.as_deref())?;
     let mirror_y_q = flag("mirror_y", q.mirror_y.as_deref())?;
@@ -252,8 +314,10 @@ async fn plan(State(st): State<AppState>, Query(q): Query<PlanQuery>) -> ApiResu
         mirror_y: mirror_y_q.or(p.map(|p| p.mirror_y)).unwrap_or(false),
     };
     let pallet_size = q.pallet_size.or(p.map(|p| p.pallet_size)).unwrap_or(DEFAULT_PALLET_SIZE);
-    let pattern = match nonempty(&q.pattern).as_deref() {
-        None | Some("auto") | Some("AUTO") => None,
+    let pattern_q = nonempty(&q.pattern);
+    let pattern = match pattern_q.as_deref() {
+        None => p.and_then(|p| p.pattern),
+        Some("auto") | Some("AUTO") => None,
         Some(s) => Some(s.parse::<u8>().map_err(|_| ApiError::BadRequest(format!("pattern={s} must be a number or auto")))?),
     };
     let (center, floor_z, center_source) = match &station {
@@ -262,11 +326,8 @@ async fn plan(State(st): State<AppState>, Query(q): Query<PlanQuery>) -> ApiResu
     };
 
     let lib = patterns(&st).library()?;
-    let mut g = generate(&lib, &GenInput { flow: &flow, pattern, od, gap, transform, center, pallet_size }).map_err(ApiError::BadRequest)?;
-    let tt = match nonempty(&q.task_type) {
-        Some(s) => parse_task_type(&s)?,
-        None => g.drag_kind.task_type(),
-    };
+    let mut g = generate(&lib, &GenInput { flow: &flow, pattern, od, gap, transform, center, pallet_size, dir_transform: robot_dir.transform() }).map_err(ApiError::BadRequest)?;
+    let tt = tt_q.unwrap_or_else(|| g.drag_kind.task_type());
     let levels = q.levels.unwrap_or(1).clamp(1, 20);
     let defaults = st.registry.defaults()?;
     let grip_ref = nonempty(&q.grip).unwrap_or_else(|| defaults.grip_ref.clone());
@@ -289,10 +350,15 @@ async fn plan(State(st): State<AppState>, Query(q): Query<PlanQuery>) -> ApiResu
     } else if item.is_none() {
         g.warnings.push("Z: Height 가 있는 품목(item_code)이 없어 단별 Z 를 계산하지 않았습니다".into());
     }
-    if let Some(p) = p
-        && !p.enabled
+    if let Some(s) = &station
+        && !pallet_station.as_ref().is_some_and(|p| p.enabled)
     {
-        g.warnings.push(format!("스테이션 {} 프로파일이 꺼져 있습니다 — compose 는 이 스테이션에 팔렛 슬롯을 쓰지 않습니다", p.station_id));
+        g.warnings.push(format!("스테이션 {} 는 팔렛 스테이션이 아닙니다(꺼짐) — compose 는 이 스테이션에 팔렛 슬롯을 쓰지 않습니다", s.id));
+    }
+    if let Some(e) = &entry
+        && !has_p
+    {
+        g.warnings.push(format!("품목 {} 에 팔렛 설정이 없습니다 — 기본값으로 보였습니다(작업 작성은 거부됩니다)", e.code));
     }
 
     let area = station.as_ref().and_then(|s| {
@@ -316,22 +382,42 @@ async fn plan(State(st): State<AppState>, Query(q): Query<PlanQuery>) -> ApiResu
         "mirror_x": src(&mirror_x_q, has_p),
         "mirror_y": src(&mirror_y_q, has_p),
         "pallet_size": src(&q.pallet_size, has_p),
+        "pattern": src(&pattern_q, p.is_some_and(|p| p.pattern.is_some())),
         "od": if q.od.filter(|v| *v > 0.0).is_some() { "query" } else { "item" },
-        "profile_enabled": p.map(|p| p.enabled),
+        "station_enabled": pallet_station.as_ref().map(|p| p.enabled),
+        "robot": robot_id,
     });
     let station_view = station
         .as_ref()
         .map(|s| json!({ "id": s.id, "task_type": s.para.task_type, "rotate_type": s.para.rotate_type, "position": s.para.info.position, "width": s.para.info.width, "length": s.para.info.length }));
     let item_view = entry.as_ref().map(|e| json!({ "code": e.code, "name": e.name, "outer_diameter": e.item.outer_diameter, "inner_diameter": e.item.inner_diameter, "height": e.item.height }));
-    Ok(axum::Json(PlanView { plan: g, task_type: tt.name(), levels, z_levels, floor_z, grip_ref, center_source, station: station_view, profile, item: item_view, area, sources }))
+    Ok(axum::Json(PlanView {
+        plan: g,
+        task_type: tt.name(),
+        levels,
+        z_levels,
+        floor_z,
+        grip_ref,
+        center_source,
+        station: station_view,
+        pallet_station,
+        item_pallet,
+        robot_dir,
+        item: item_view,
+        area,
+        sources,
+    }))
 }
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/pallet/spec", get(get_spec))
         .route("/api/pallet/plan", get(plan))
-        .route("/api/pallet/profiles", get(list).put(put_profile))
-        .route("/api/pallet/profiles/{station}", delete(delete_profile))
+        .route("/api/pallet/items", get(list_items).put(put_item))
+        .route("/api/pallet/items/{code}", delete(delete_item))
+        .route("/api/pallet/robots", get(list_robots).put(put_robot))
+        .route("/api/pallet/stations", get(list_stations).put(put_station))
+        .route("/api/pallet/stations/{station}", delete(delete_station))
         .route("/api/pallet/flows", get(list_flows).post(create_flow))
         .route("/api/pallet/flows/{id}", put(update_flow).delete(delete_flow))
         .route("/api/pallet/flows/{id}/patterns/{pattern}", put(put_pattern).delete(delete_pattern))

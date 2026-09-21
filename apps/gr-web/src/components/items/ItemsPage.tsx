@@ -10,7 +10,7 @@
 // 재고 사용: 셀 재고 스트림(`lib/stock`)에서 코드별로 몇 칸이 그 코드를 들고 있는지 센다 — 지우기 전에
 // "지금 쓰는 코드인가"가 보여야 한다. StackMax 를 넘은 칸이 있으면 그 칸 수를 경고색으로.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Copy, FileSpreadsheet, Plus, Ruler } from 'lucide-react'
+import { Copy, FileSpreadsheet, Gauge, Plus, Ruler } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
   DEFAULT_PICK_BEAD_OFFSET,
@@ -44,6 +44,7 @@ import { RegistryToolbar, type RegistryActions, type RegistryIo } from '../task/
 import { Splitter } from '../workspace/Splitter'
 
 import { ItemDetail } from './ItemDetail'
+import { DimsReviewDialog } from './DimsReviewDialog'
 
 // 양식이 있으면 툴바의 `추가`가 두 쪽 버튼(폼 · Excel 메뉴)이 된다 — 규격은 폼보다 Excel 로 수십 개씩 들어온다.
 const IO: RegistryIo<Item> = {
@@ -106,6 +107,7 @@ export default function ItemsPage() {
   const [detailDirty, setDetailDirty] = useState(false)
   /** 저장 안 한 상세를 두고 다른 행을 고르려 할 때 — `undefined` = 묻는 중 아님. */
   const [pendingPick, setPendingPick] = useState<number | null | undefined>(undefined)
+  const [dimsOpen, setDimsOpen] = useState(false)
   const [bulkStack, setBulkStack] = useState('')
   const [bulkPallet, setBulkPallet] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -119,7 +121,10 @@ export default function ItemsPage() {
     () => reg.items.filter((i) => checked.has(i.code)).map((i) => i.code),
     [reg.items, checked],
   )
-  const pickedItems = useMemo(() => reg.items.filter((i) => checked.has(i.code)), [reg.items, checked])
+  const pickedItems = useMemo(
+    () => reg.items.filter((i) => checked.has(i.code)),
+    [reg.items, checked],
+  )
   const allShownPicked = rows.length > 0 && rows.every((i) => checked.has(i.code))
   const inUse = reg.items.filter((i) => usage.has(i.code)).length
 
@@ -179,7 +184,14 @@ export default function ItemsPage() {
         />
       ),
     },
-    { key: 'code', label: 'Code', get: (i) => i.code, numeric: true, class: 'font-mono', priority: 1 },
+    {
+      key: 'code',
+      label: 'Code',
+      get: (i) => i.code,
+      numeric: true,
+      class: 'font-mono',
+      priority: 1,
+    },
     { key: 'name', label: 'Name', get: (i) => i.name, priority: 1 },
     { key: 'count', label: 'Count', get: (i) => i.count, numeric: true, priority: 2 },
     {
@@ -222,7 +234,13 @@ export default function ItemsPage() {
       cell: (i) => f1(i.upper_bead_height),
       priority: 3,
     },
-    { key: 'df', label: 'DeflectionFactor', get: (i) => i.deflection_factor, numeric: true, priority: 3 },
+    {
+      key: 'df',
+      label: 'DeflectionFactor',
+      get: (i) => i.deflection_factor,
+      numeric: true,
+      priority: 3,
+    },
     {
       key: 'stack_max',
       label: 'StackMax',
@@ -286,7 +304,9 @@ export default function ItemsPage() {
             0
           </span>
         ) : (
-          <span title={`위에 타이어 1개당 ${round1(s.compression)} mm 씩 낮아짐`}>{f1(s.compression)}</span>
+          <span title={`위에 타이어 1개당 ${round1(s.compression)} mm 씩 낮아짐`}>
+            {f1(s.compression)}
+          </span>
         )
       },
     },
@@ -341,7 +361,8 @@ export default function ItemsPage() {
     },
   ]
 
-  const openAdd = () => setForm({ open: true, editing: false, initial: EMPTY_ITEM, key: Date.now() })
+  const openAdd = () =>
+    setForm({ open: true, editing: false, initial: EMPTY_ITEM, key: Date.now() })
   const openEdit = () =>
     sel && setForm({ open: true, editing: true, initial: toItemUpsert(sel), key: Date.now() })
   const openDuplicate = () =>
@@ -452,17 +473,29 @@ export default function ItemsPage() {
         onEdit={openEdit}
         onDelete={openDelete}
         extra={
-          <Button
-            size="sm"
-            intent="ghost"
-            icon={<Copy className="h-3.5 w-3.5" />}
-            disabled={!sel}
-            onClick={openDuplicate}
-            title={sel ? `품목 ${sel.code}를 새 코드로 복제` : '복제 — 행을 하나 누르세요'}
-            data-testid="items-duplicate"
-          >
-            복제
-          </Button>
+          <>
+            <Button
+              size="sm"
+              intent="ghost"
+              icon={<Copy className="h-3.5 w-3.5" />}
+              disabled={!sel}
+              onClick={openDuplicate}
+              title={sel ? `품목 ${sel.code}를 새 코드로 복제` : '복제 — 행을 하나 누르세요'}
+              data-testid="items-duplicate"
+            >
+              복제
+            </Button>
+            <Button
+              size="sm"
+              intent="ghost"
+              icon={<Gauge className="h-3.5 w-3.5" />}
+              onClick={() => setDimsOpen(true)}
+              title="측정 기록(MeasureItem)으로 InnerDiameter · UpperBeadHeight · Height 제안을 모아 검토 · 적용"
+              data-testid="items-dims-review"
+            >
+              측정 반영
+            </Button>
+          </>
         }
       />
       <div className="flex flex-none flex-wrap items-center gap-3 border-b border-line-default px-2 py-1.5">
@@ -493,7 +526,9 @@ export default function ItemsPage() {
           className="flex flex-none flex-wrap items-end gap-2 border-b border-line-default bg-surface-inset px-2 py-1.5"
           data-testid="items-bulk"
         >
-          <span className="pb-1.5 text-xs text-content-secondary">체크 {picked.length}건 일괄 편집</span>
+          <span className="pb-1.5 text-xs text-content-secondary">
+            체크 {picked.length}건 일괄 편집
+          </span>
           <Input
             className="w-28"
             label="StackMax"
@@ -636,6 +671,7 @@ export default function ItemsPage() {
           onSave={save}
         />
       ) : null}
+      <DimsReviewDialog open={dimsOpen} onOpenChange={setDimsOpen} onApplied={reg.reload} />
       <ConfirmDialog
         open={pendingPick !== undefined}
         onOpenChange={(o) => {
@@ -651,7 +687,8 @@ export default function ItemsPage() {
         }}
       >
         <p className="text-sm">
-          품목 {selected} 상세에 저장하지 않은 변경이 있습니다. 버리고 {pendingPick === null ? '닫을까요' : `품목 ${pendingPick}(으)로 옮길까요`}?
+          품목 {selected} 상세에 저장하지 않은 변경이 있습니다. 버리고{' '}
+          {pendingPick === null ? '닫을까요' : `품목 ${pendingPick}(으)로 옮길까요`}?
         </p>
       </ConfirmDialog>
       <ConfirmDialog
@@ -683,7 +720,9 @@ export default function ItemsPage() {
               지우면 그 칸의 품목 치수를 찾지 못합니다.
             </p>
           ) : null}
-          <p className="text-xs">이 코드를 쓰는 시나리오 스텝은 제출 때 실패합니다. 되돌릴 수 없습니다.</p>
+          <p className="text-xs">
+            이 코드를 쓰는 시나리오 스텝은 제출 때 실패합니다. 되돌릴 수 없습니다.
+          </p>
         </div>
       </ConfirmDialog>
     </div>

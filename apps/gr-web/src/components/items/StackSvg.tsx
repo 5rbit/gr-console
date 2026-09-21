@@ -30,7 +30,8 @@ export interface StackSvgProps {
   stackMax: number
 }
 
-const SOURCE_LABEL = (b: TireBox) => (b.measured ? 'measured' : b.fromTable ? 'interpolated' : 'computed')
+const SOURCE_LABEL = (b: TireBox) =>
+  b.measured ? 'measured' : b.fromTable ? 'interpolated' : 'computed'
 
 export function StackSvg({ boxes, outer, inner, stackMax }: StackSvgProps) {
   /** 값을 보여 줄 단(null = 맨 윗단). 호버·포커스로 따라가고, 눌러서 고정한다. */
@@ -62,7 +63,14 @@ export function StackSvg({ boxes, outer, inner, stackMax }: StackSvgProps) {
         className="flex-none"
         data-testid="beads-svg"
       >
-        <line x1={LEFT - 12} x2={x1 + 6} y1={y(0)} y2={y(0)} className="stroke-content-muted" strokeWidth={1.5} />
+        <line
+          x1={LEFT - 12}
+          x2={x1 + 6}
+          y1={y(0)}
+          y2={y(0)}
+          className="stroke-content-muted"
+          strokeWidth={1.5}
+        />
         <text x={LEFT - 12} y={y(0) + 12} className="fill-content-faint text-3xs">
           0
         </text>
@@ -92,10 +100,32 @@ export function StackSvg({ boxes, outer, inner, stackMax }: StackSvgProps) {
               onClick={() => setLevel(b.level)}
             >
               <title>{`L${b.level} · Above ${b.above} · ${SOURCE_LABEL(b)}`}</title>
-              <rect x={x0} y={yt} width={wall} height={h} rx={3} className={cls} strokeWidth={on ? 2 : 1} />
-              <rect x={x1 - wall} y={yt} width={wall} height={h} rx={3} className={cls} strokeWidth={on ? 2 : 1} />
+              <rect
+                x={x0}
+                y={yt}
+                width={wall}
+                height={h}
+                rx={3}
+                className={cls}
+                strokeWidth={on ? 2 : 1}
+              />
+              <rect
+                x={x1 - wall}
+                y={yt}
+                width={wall}
+                height={h}
+                rx={3}
+                className={cls}
+                strokeWidth={on ? 2 : 1}
+              />
               {/* 가운데는 비었다 — 여기에 투명 판을 깔아야 타이어 안쪽에서도 단이 고른 것으로 남는다. */}
-              <rect x={x0 + wall} y={yt} width={Math.max(1, x1 - x0 - wall * 2)} height={h} className="fill-transparent" />
+              <rect
+                x={x0 + wall}
+                y={yt}
+                width={Math.max(1, x1 - x0 - wall * 2)}
+                height={h}
+                className="fill-transparent"
+              />
               <line
                 x1={x0 + wall - 5}
                 x2={x1 - wall + 5}
@@ -163,7 +193,10 @@ export function StackSvg({ boxes, outer, inner, stackMax }: StackSvgProps) {
       </svg>
       <figcaption className="flex flex-col gap-1">
         {cur ? (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs" data-testid="beads-svg-readout">
+          <div
+            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs"
+            data-testid="beads-svg-readout"
+          >
             <span className="font-mono text-content-secondary">L{cur.level}</span>
             <span className="font-mono text-content-faint">Above {cur.above}</span>
             <Val label="StackHeight" v={cur.top} />
@@ -192,7 +225,11 @@ function Val({ label, v, tone }: { label: string; v: number | null; tone?: 'acce
       <span
         className={cn(
           'font-mono tabular-nums',
-          tone === 'accent' ? 'text-accent-text' : tone === 'warn' ? 'text-warn-fg' : 'text-content-secondary',
+          tone === 'accent'
+            ? 'text-accent-text'
+            : tone === 'warn'
+              ? 'text-warn-fg'
+              : 'text-content-secondary',
         )}
       >
         {v === null ? '—' : round1(v)}
@@ -207,14 +244,28 @@ function Key({ kind, label }: { kind: 'upper' | 'lower' | 'pick' | 'measured'; l
     <span className="inline-flex items-center gap-1">
       <svg width={14} height={8} aria-hidden="true" className="flex-none">
         {kind === 'measured' ? (
-          <rect x={1} y={1} width={12} height={6} rx={1} className="fill-surface-inset stroke-accent" strokeWidth={1.5} />
+          <rect
+            x={1}
+            y={1}
+            width={12}
+            height={6}
+            rx={1}
+            className="fill-surface-inset stroke-accent"
+            strokeWidth={1.5}
+          />
         ) : (
           <line
             x1={0}
             x2={14}
             y1={4}
             y2={4}
-            className={kind === 'upper' ? 'stroke-accent' : kind === 'pick' ? 'stroke-warn-fg' : 'stroke-content-muted'}
+            className={
+              kind === 'upper'
+                ? 'stroke-accent'
+                : kind === 'pick'
+                  ? 'stroke-warn-fg'
+                  : 'stroke-content-muted'
+            }
             strokeWidth={1.5}
             strokeDasharray={kind === 'upper' ? undefined : kind === 'pick' ? '4 2' : '3 2'}
           />

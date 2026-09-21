@@ -8,7 +8,6 @@ import { RotateCcw, Send, Settings2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { TASK_TYPES } from '../../lib/gr/const'
 import {
-  robotChip,
   robotFailure,
   robotLabel,
   withRobotChip,
@@ -17,6 +16,7 @@ import {
 import { RobotChip, robotField } from '../shared/RobotChip'
 import {
   EMPTY_DRAFT,
+  SITUATION_LABEL,
   buildRequest,
   effectiveParams,
   itemRequired,
@@ -42,6 +42,7 @@ import { FieldList } from '../../lib/ui/FieldList'
 import { HelpTip } from '../../lib/ui/HelpTip'
 import { Input } from '../../lib/ui/Input'
 import { Select } from '../../lib/ui/Select'
+import { Switch } from '../../lib/ui/Switch'
 import { toast } from '../../lib/ui/toast'
 import type {
   Cell,
@@ -125,21 +126,21 @@ export function ComposeCard({
   const problems = useMemo(() => validateDraft(draft), [draft])
   const request: TaskRequest | null = problems.length === 0 ? buildRequest(draft) : null
   const base = useMemo(
-    () => effectiveParams(defaults, draft.type, kind, {}),
-    [defaults, draft.type, kind],
+    // 흐린 기본값에도 서버가 고른 상황 층(측정·팔렛·Multi-Pick)을 얹는다 — 보낼 값과 같은 순서.
+    () => effectiveParams(defaults, draft.type, kind, {}, preview?.situations ?? []),
+    [defaults, draft.type, kind, preview?.situations],
   )
   const overrideCount = Object.keys(draft.params).length
   const isMove = draft.type === 'MOVE'
   const mv = moveOf(draft)
-  // 미리보기가 백엔드에서 온 대상 이름을 들고 있으면 그것이 진실이다 — 작성 뒤에 사이드바 선택이
-  // 바뀌었어도 확인 창은 **이 요청이 실제로 갈 곳**을 말한다.
-  const targetRobot =
-    preview?.robot && preview.robot !== robot.name
-      ? robotChip(null, { name: preview.robot, plc: preview.plc ?? null })
-      : robot
+  // 요청은 **지금 선택된 로봇**으로 간다(`buildRequest` 의 robot). 미리보기가 다른 로봇 이름을 들고 있으면 로봇을
+  // 바꾼 직후 옛 미리보기(디바운스 + 조회 중)다 — 확인 창이 옛 로봇을 말하는데 새 로봇으로 가던 경합이라,
+  // 확인 창은 요청의 로봇을 말하고 제출은 미리보기가 새로 올 때까지 막는다(스테이션 보정·영역 값도 옛 로봇 것).
+  const targetRobot = robot
+  const previewStale = !!preview?.robot && preview.robot !== robot.name
   // 미리보기가 StackMax 초과 DROP 을 알리면 서버가 409 로 거부한다 — 무시 플래그 없이는 누르지 못하게.
   const stackBlocked = !!request && !!preview?.stack_limit?.blocked
-  const canSubmit = !!request && !!gate?.can_submit && !submitting && !stackBlocked
+  const canSubmit = !!request && !!gate?.can_submit && !submitting && !stackBlocked && !previewStale
 
   // 종류가 바뀌면 그 종류에 맞지 않는 대상은 비운다(MEASURE → 스테이션).
   useEffect(() => {
@@ -362,6 +363,25 @@ export function ComposeCard({
               onIgnore={(on) => set({ ignore_stack_max: on })}
             />
           ) : null}
+          {preview?.situations?.length ? (
+            <div className="m-0 mt-1 text-2xs text-content-faint" data-testid="compose-situations">
+              상황 기본값: {preview.situations.map((k) => SITUATION_LABEL[k]).join(' · ')}
+            </div>
+          ) : null}
+          {draft.target?.kind === 'station' && (draft.type === 'PICK' || draft.type === 'DROP') ? (
+            <div className="mt-2 flex items-center gap-2 border-t border-line-default pt-2">
+              <span className="text-2xs font-semibold text-content-muted">Multi-Pick</span>
+              <span className="flex-1" />
+              <Switch
+                inline
+                checked={!!draft.multi_pick}
+                label="같은 그룹 다음 작업"
+                testid="multi-pick-toggle"
+                title="다음 작업이 같은 스테이션 그룹이면 켭니다 — 기본값 Multi-Pick 층(부분 리프트 등)을 얹습니다. 순차 계획은 자동으로 판정합니다."
+                onCheckedChange={(on) => set({ multi_pick: on })}
+              />
+            </div>
+          ) : null}
           {draft.target?.kind === 'station' ? (
             <div className="mt-2 border-t border-line-default pt-2">
               <StationOffsetBlock
@@ -408,11 +428,13 @@ export function ComposeCard({
               !gate?.can_submit
                 ? // 막힌 사유는 백엔드가 `GR1: …` 으로 낸다 — 여기서 다시 꾸미지 않고 그대로 보인다.
                   (gate?.reasons.join(' · ') ?? withRobotChip(robot, '게이트 확인 중'))
-                : stackBlocked
-                  ? `StackMax 초과 — ${preview?.stack_limit?.blocked ?? ''}`
-                  : request
-                    ? ''
-                    : '초안이 완성되지 않았습니다'
+                : previewStale
+                  ? '로봇을 바꿔 미리보기를 다시 읽는 중'
+                  : stackBlocked
+                    ? `StackMax 초과 — ${preview?.stack_limit?.blocked ?? ''}`
+                    : request
+                      ? ''
+                      : '초안이 완성되지 않았습니다'
             }
           >
             제출

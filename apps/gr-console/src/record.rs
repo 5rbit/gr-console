@@ -533,7 +533,7 @@ async fn start(State(st): State<AppState>, axum::Json(req): axum::Json<StartReq>
     if req.label.trim().is_empty() {
         return Err(ApiError::BadRequest("label is required".into()));
     }
-    let (r, h) = st.robot_and_plc(req.robot)?;
+    let (r, h) = st.robot_and_plc_required(req.robot, "측정 기록 시작")?;
     let (robot, h) = (r.id, h.clone());
     if !h.has_db(DB) {
         return Err(ApiError::BadRequest(format!("{} ({}) PLC 설정에 {DB} 가 없어 기록할 수 없습니다", r.name, h.name())));

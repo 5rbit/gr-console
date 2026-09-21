@@ -18,6 +18,33 @@ pub enum TaskOp {
     Delete,
 }
 
+/// 운전 명령 비트 — `GR[n].CMD.Command.*` 의 Bool 하나. GRM 은 헤더와 무관하게 Command 가 바뀌면 GR 로
+/// 중계하고 GR 의 에코(`STAT.RES.Command`)를 보면 스스로 지운다. 콘솔은 펄스(1 → 대기 → 0)로 쓴다:
+/// GR 이 끊겨 에코가 없을 때 비트가 걸린 채 남아, 연결이 돌아온 순간 예전 Start 가 실행되지 않게.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CommandBit {
+    /// Ready → Auto (GR `PL_Ready` #RemoteStart)
+    Start,
+    /// `MACHINE.Command.AllStop`
+    Stop,
+    /// `MACHINE.Command.Reset` (알람 리셋)
+    Reset,
+    /// 부저 정지 — GR `CL_Buzzor` 가 `"GRM".Command.Common.BuzzerStop` 을 읽어야 효과가 있다.
+    BuzzerStop,
+}
+
+impl CommandBit {
+    pub fn path(self) -> &'static str {
+        match self {
+            CommandBit::Start => "Command.Common.Start",
+            CommandBit::Stop => "Command.Stop.Normal",
+            CommandBit::Reset => "Command.Common.Reset",
+            CommandBit::BuzzerStop => "Command.Common.BuzzerStop",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct CmdStatus {
     pub kind: String,
@@ -187,6 +214,19 @@ impl CommandPort {
             }
             CommandPort::Demo { world, cfg, .. } => {
                 world.task_op(op, cfg.dst, work_id, task_id);
+                Ok(())
+            }
+        }
+    }
+
+    /// `Command.*` Bool 하나를 쓴다(`on = false` 로 재무장).
+    pub async fn write_command_bit(&self, bit: CommandBit, on: bool) -> Result<(), ApiError> {
+        match self {
+            CommandPort::Opc { writer, .. } => writer.write_members(&[opcua_cmd::MemberValue::new(bit.path(), opcua_cmd::PlcValue::Bool(on))]).await.map_err(|e| ApiError::OpcNotReady(e.to_string())),
+            CommandPort::Demo { world, cfg, .. } => {
+                if on {
+                    world.command_bit(bit, cfg.dst);
+                }
                 Ok(())
             }
         }

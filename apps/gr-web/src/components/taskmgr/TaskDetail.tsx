@@ -56,13 +56,7 @@ export interface TaskDetailProps {
   onNavigate?: (id: string) => void
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string
-  children: React.ReactNode
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-1.5">
       <h4 className="m-0 flex items-center text-2xs font-semibold tracking-wide text-content-muted uppercase">
@@ -206,7 +200,10 @@ export default function TaskDetail({ id, ids = [], onNavigate }: TaskDetailProps
   }
 
   const target = targetOf(t)
-  const robotId = robots.list.find((r) => r.plc === t.plc_name)?.id ?? null
+  // 이 Task 의 로봇 — 상태 PLC 이름 또는 로봇 이름으로(`chipOfPlc` 와 같은 규칙). 못 찾으면 null 이고, 로봇이
+  // 둘 이상이면 그때는 PLC 배열을 그리지 않는다(`robot` 없는 조회는 기본 로봇 배열을 돌려준다).
+  const robotId = robots.list.find((r) => r.plc === t.plc_name || r.name === t.plc_name)?.id ?? null
+  const plcViewOk = robotId !== null || robots.list.length <= 1
   const overview: FieldItem[] = [
     { label: 'Seq', value: t.seq, mono: true },
     { label: 'Origin', value: ORIGIN_LABEL[t.origin] },
@@ -502,21 +499,32 @@ export default function TaskDetail({ id, ids = [], onNavigate }: TaskDetailProps
               <FieldList items={plc} columns={2} dense labelWidth={72} />
             </Section>
             {/* PLC 배열은 **이 Task 의 로봇** 것을 본다 — 예전 화면은 사이드바에서 고른 로봇을 봤다. */}
-            <PlcView
-              bare
-              robot={robotId}
-              robotName={t.plc_name ?? undefined}
-              onPickKey={(w, k) => {
-                const hit = tasks.list.find((x) => x.work_id === w && x.task_id === k)
-                if (hit && onNavigate) onNavigate(hit.id)
-              }}
-              highlight={{ work_id: t.work_id, task_id: t.task_id }}
-            />
+            {plcViewOk ? (
+              <PlcView
+                bare
+                robot={robotId}
+                robotName={t.plc_name ?? undefined}
+                onPickKey={(w, k) => {
+                  // 같은 WorkId/TaskId 가 다른 로봇에도 있을 수 있다(외부 Task) — 이 Task 의 로봇 것만.
+                  const hit = tasks.list.find(
+                    (x) => x.plc_name === t.plc_name && x.work_id === w && x.task_id === k,
+                  )
+                  if (hit && onNavigate) onNavigate(hit.id)
+                }}
+                highlight={{ work_id: t.work_id, task_id: t.task_id }}
+              />
+            ) : null}
           </>
         ) : null}
 
         {tab === 'json' ? (
-          <JsonView value={t} rootLabel="task" defaultDepth={1} height={520} highlightChanges={false} />
+          <JsonView
+            value={t}
+            rootLabel="task"
+            defaultDepth={1}
+            height={520}
+            highlightChanges={false}
+          />
         ) : null}
       </div>
     </div>

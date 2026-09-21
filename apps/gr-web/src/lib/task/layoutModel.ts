@@ -156,6 +156,28 @@ export function fitView(b: Bounds, w: number, h: number, margin = 24, flipY = tr
   return { k, ox, oy, flipY, flipX, rot }
 }
 
+/**
+ * 지금 그릴 변환. `manual` = 사용자가 끌기·확대·지목으로 만든 변환 — 회전·반전이 지금과 같을 때만 쓴다.
+ * 없으면 **지금 크기(`w × h`)와 지금 경계로 매번 맞춘다**.
+ *
+ * 맞춤을 한 번 계산해 상태로 굳히면 안 된다: 첫 맞춤은 컨테이너를 재기 전(기본 800×500)이나 창·분할
+ * 크기가 바뀌기 전의 크기로 계산되고, 그 뒤 크기가 바뀌어도 굳은 변환이 남아 레이아웃이 한쪽 귀퉁이에
+ * 작게 몰리거나 화면 밖으로 잘린다(2026-09-21 "레이아웃이 화면에서 안 보임").
+ */
+export function resolveView(
+  manual: View | null,
+  b: Bounds | null,
+  w: number,
+  h: number,
+  margin: number,
+  flipY: boolean,
+  flipX: boolean,
+  rot: Rotation,
+): View {
+  if (manual && manual.flipY === flipY && manual.flipX === flipX && (manual.rot ?? 0) === rot) return manual
+  return b ? fitView(b, w, h, margin, flipY, flipX, rot) : { k: 0.05, ox: w / 2, oy: h / 2, flipY, flipX, rot }
+}
+
 export function toScreen(v: View, x: number, y: number): [number, number] {
   const [u, w] = rotate(v.rot, x, y)
   return [v.flipX ? v.ox - u * v.k : v.ox + u * v.k, v.flipY ? v.oy - w * v.k : v.oy + w * v.k]

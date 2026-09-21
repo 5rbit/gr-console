@@ -89,9 +89,11 @@ interface DirRow {
 /** 그 방향에 켜진 알람 코드 — 편차 4201+ · 무응답 4205+ · 불안정 4209+. */
 function alarmsOf(data: LaserSnapshot, k: number): number[] {
   const s = data.sensor?.[k]
-  return [s?.BiasAlarm ? 4201 + k : 0, s?.NoRespAlarm ? 4205 + k : 0, s?.UnstableAlarm ? 4209 + k : 0].filter(
-    (c) => c,
-  )
+  return [
+    s?.BiasAlarm ? 4201 + k : 0,
+    s?.NoRespAlarm ? 4205 + k : 0,
+    s?.UnstableAlarm ? 4209 + k : 0,
+  ].filter((c) => c)
 }
 
 export function LaserSensor() {
@@ -106,6 +108,8 @@ export function LaserSensor() {
   const load = useCallback(async () => {
     try {
       const d = await api.laser(robot)
+      // 로봇을 바꾼 직후 늦게 온 옛 로봇 응답은 버린다 — 칩(확인 창)이 옛 로봇을 말하는데 쓰기는 새 로봇으로 가던 경합.
+      if (robot !== null && d.robot != null && d.robot !== robot) return
       setData(d)
       setError(null)
     } catch (e) {
@@ -123,7 +127,10 @@ export function LaserSensor() {
   }, [load])
 
   // 교정·초기화는 **이 로봇의** 센서를 바꾼다 — 응답이 말한 로봇·PLC 가 있으면 그것, 없으면 선택.
-  const chip = robotChip(robots.byId(data?.robot ?? robot), { name: data?.robot ? robots.nameOf(data.robot) : null, plc: data?.plc ?? null })
+  const chip = robotChip(robots.byId(data?.robot ?? robot), {
+    name: data?.robot ? robots.nameOf(data.robot) : null,
+    plc: data?.plc ?? null,
+  })
 
   async function run(label: string, fn: () => Promise<unknown>) {
     setBusy(true)
@@ -276,15 +283,13 @@ export function LaserSensor() {
       get: (e) => (e.Valid ? 'OK' : `실패 ${e.FitError}`),
       priority: 1,
     },
-    ...dirs.map(
-      (d, k): Column<LaserEntry> => ({
-        key: `dev${k}`,
-        label: `BeadDev[${d}] (mm)`,
-        get: (e) => mm(e.BeadDev?.[k]),
-        numeric: true,
-        priority: 2,
-      }),
-    ),
+    ...dirs.map((d, k): Column<LaserEntry> => ({
+      key: `dev${k}`,
+      label: `BeadDev[${d}] (mm)`,
+      get: (e) => mm(e.BeadDev?.[k]),
+      numeric: true,
+      priority: 2,
+    })),
     { key: 'spread', label: 'Spread (mm)', get: (e) => mm(e.Spread), numeric: true, priority: 3 },
     ...(nDir === 4
       ? [
@@ -409,7 +414,6 @@ export function LaserSensor() {
           emptyHint="타이어를 측정하면 회차마다 한 줄씩 쌓입니다."
         />
       </Card>
-
 
       {/* 기준값 — 교정 전에 한 번 보는 값이라 대화상자로 옮겼다(카드 하나가 상시로 서 있을 이유가 없다). */}
       <Dialog

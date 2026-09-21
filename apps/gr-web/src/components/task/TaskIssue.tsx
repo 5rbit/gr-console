@@ -6,6 +6,8 @@
 //
 // 목록·계획(되돌리기 스택)·맵 모드·선택·화면 이동은 여기서 들어 레일·맵·사이드바가 한 상태를 본다.
 // 계획·맵 모드·레일 탭은 브라우저에 저장돼 새로고침에도 남는다.
+// 레일 표 묶음은 맵 모드를 따른다 — 레이아웃 편집 = 셀·스테이션 배치 파라미터, 모니터링·명령 생성 =
+// 재고(적재 수)·스테이션 보정·품목(`railSplitModel.TABLES_BY_MODE`).
 // 레일의 레이아웃+표(나눠 보기)에서 표 행을 고르면 맵이 그 대상으로 이동·강조하고, 맵에서 고르면
 // 표가 그 행으로 따라간다(`tableSel` + `reveal`).
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -274,7 +276,8 @@ export default function TaskIssue() {
           target,
           stockStore.map,
           type,
-          items.items[0]?.code ?? null,
+          // 재고가 빈 대상의 품목은 레일에서 **고른 품목** — 목록의 첫 품목으로 짐작하지 않는다.
+          itemSel,
           robots.selected,
         )
         // 스텝은 지금 고른 로봇을 싣는다(`stepForClick`) — 토스트도 그 이름을 말한다.
@@ -289,7 +292,7 @@ export default function TaskIssue() {
       setSide('plan')
       pickTarget(target)
     },
-    [items.items, pickTarget],
+    [itemSel, pickTarget],
   )
 
   const compose = useCallback(
@@ -403,6 +406,7 @@ export default function TaskIssue() {
               } else setTableSel(t)
               if (t) setFocus({ target: t, nonce: Date.now() })
             }}
+            mode={mapMode === 'edit' ? 'edit' : 'ops'}
             itemSel={itemSel}
             onItemSelect={setItemSel}
             reveal={reveal}

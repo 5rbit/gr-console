@@ -106,6 +106,26 @@ impl AppState {
     }
 
     /// Status PLC of a robot by id (`None` = default robot) together with the robot.
+    /// PLC 에 **쓰는** 요청용 — 로봇이 둘 이상이면 `None` 을 받지 않는다. `robot` 이 빠진 요청이 조용히
+    /// 첫 로봇(GR1)으로 가던 사고(2026-09-21: 작업 제출·Task 취소)를 경로마다 막는다. 로봇이 하나면 그 로봇.
+    pub fn robot_required(&self, id: Option<u8>, what: &str) -> Result<&RobotCtx, ApiError> {
+        if id.is_none() && self.robots.len() > 1 {
+            return Err(ApiError::BadRequest(format!("{what}: 대상 로봇을 지정해야 합니다 (robot: {})", self.robot_choices())));
+        }
+        self.robot(id)
+    }
+
+    /// `robot_required` + 그 로봇의 상태 PLC.
+    pub fn robot_and_plc_required(&self, id: Option<u8>, what: &str) -> Result<(&RobotCtx, &PlcHandle), ApiError> {
+        let r = self.robot_required(id, what)?;
+        Ok((r, self.robot_plc(r)?))
+    }
+
+    /// 거부 문구용 로봇 목록 — `1=GR1, 2=GR2`.
+    pub fn robot_choices(&self) -> String {
+        self.robots.iter().map(|r| format!("{}={}", r.id, r.name)).collect::<Vec<_>>().join(", ")
+    }
+
     pub fn robot_and_plc(&self, id: Option<u8>) -> Result<(&RobotCtx, &PlcHandle), ApiError> {
         let r = self.robot(id)?;
         Ok((r, self.robot_plc(r)?))

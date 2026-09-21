@@ -4,7 +4,13 @@
 // 여기서는 백엔드 이름(GR2/GRM/both)과 강제 쓰기를 그대로 싣는 버전을 둔다.
 import { getJson, postForm, postJson } from '../api'
 import type { Cell, DiffRow, Station, TaskRequest } from '../types'
-import type { ComposePreview, FileImportResult, PlcTarget, PushResult } from './types'
+import type {
+  ComposePreview,
+  FileImportResult,
+  PlcTarget,
+  PushResult,
+  StationOffsetRow,
+} from './types'
 
 function q(params: Record<string, string | number | boolean | undefined>): string {
   const s = new URLSearchParams()
@@ -23,6 +29,8 @@ function fileForm(file: File): FormData {
 }
 
 export const taskApi = {
+  /** 스테이션마다 지금 GRM 트래킹으로 계산한 보정. */
+  stationOffsets: () => getJson<StationOffsetRow[]>('/api/stations/offsets'),
   // 셀
   cellsImport: (plc: PlcTarget) => postJson<FileImportResult>(`/api/cells/import${q({ plc })}`),
   cellsPush: (plc: PlcTarget, force = false) =>

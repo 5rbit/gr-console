@@ -392,7 +392,8 @@ impl Runner {
         }
         let plan = runner::Plan::new(&scenario, &opts)?;
         // 없는 로봇으로 달리면 첫 스텝에서야 실패한다 — 시작 전에 막는다.
-        let run_robot = st.robot(plan.robot)?;
+        // 로봇을 안 든 스텝이 가는 곳 — 둘 이상이면 반드시 받는다(빠지면 첫 로봇으로 가던 계획 카드 "저장 후 실행").
+        let run_robot = st.robot_required(plan.robot, "시나리오 실행")?;
         for (i, s) in scenario.steps.iter().enumerate() {
             if let Some(id) = s.robot
                 && st.robot(Some(id)).is_err()

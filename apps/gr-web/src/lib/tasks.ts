@@ -49,13 +49,21 @@ class Tasks extends Store {
   }
 
   get counts(): TaskCounts {
+    return this.countsFor(null)
+  }
+
+  /** 한 로봇(상태 PLC 이름)의 건수 — `null` 이면 전체. 로봇이 둘이면 "실행·대기"는 로봇마다 따로 읽어야 한다. */
+  countsFor(plc: string | null): TaskCounts {
     const c = Object.fromEntries(ALL_STATES.map((s) => [s, 0])) as Record<TaskState, number>
     let active = 0
+    let total = 0
     for (const t of this.#map.values()) {
+      if (plc !== null && t.plc_name !== plc) continue
       c[t.state] = (c[t.state] ?? 0) + 1
       if (ACTIVE_STATES.includes(t.state)) active++
+      total++
     }
-    return { ...c, active, total: this.#map.size }
+    return { ...c, active, total }
   }
 
   /** 이벤트 1건 적용. */
@@ -103,7 +111,12 @@ class Tasks extends Store {
    * 아직 끝나지 않았으면 "취소" 대신 "취소 요청 보냄"이라고 말한다: PLC가 무시한 Delete는 그 뒤로도
    * 아무 일이 없고, 그때 "취소 완료" 토스트는 거짓이다(이력에 System 줄이 뜨는 것이 그 다음 신호다).
    */
-  async #act(id: string, label: string, run: () => Promise<Task>, robot = false): Promise<Task | null> {
+  async #act(
+    id: string,
+    label: string,
+    run: () => Promise<Task>,
+    robot = false,
+  ): Promise<Task | null> {
     // 메시지는 **그 Task 의 로봇**을 말한다 — 사이드바 선택과 다른 호기의 행을 다룰 수 있다.
     const who = this.ownerOf(id)
     const tid = toast.pending(withRobot(who, `${label} 중…`))

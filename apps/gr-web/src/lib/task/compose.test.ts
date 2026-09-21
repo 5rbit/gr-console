@@ -7,6 +7,11 @@ import {
   defaultsChanged,
   defaultsRows,
   effectiveParams,
+  inheritedOf,
+  inheritedText,
+  isRedundant,
+  pruneRedundant,
+  redundantCells,
   previewFields,
   targetKindsFor,
   validateDraft,
@@ -214,5 +219,111 @@ describe('reject codes', () => {
     expect(ackText({ accepted: false, code: 419, reason: 'x', reject_bits: 4, at: '' })).toContain(
       '스테이션이 PLC에 등록되지 않음',
     )
+  })
+})
+
+describe('situation layers', () => {
+  const sit: Defaults = {
+    ...defaults,
+    situations: {
+      measure_sku: { grip_height: 22 },
+      multi_pick: { lift_up_partial: true, grip_height: 33 },
+    },
+  }
+  it('stack between by[type][kind] and overrides, in server order', () => {
+    expect(effectiveParams(sit, 'PICK', 'cell', {}, ['measure_sku'])?.grip_height).toBe(22)
+    // 뒤 층이 이긴다(measure_sku → multi_pick), 덮어쓰기가 마지막
+    expect(
+      effectiveParams(sit, 'PICK', 'cell', {}, ['measure_sku', 'multi_pick'])?.grip_height,
+    ).toBe(33)
+    expect(
+      effectiveParams(sit, 'PICK', 'cell', { grip_height: 5 }, ['multi_pick'])?.grip_height,
+    ).toBe(5)
+    expect(effectiveParams(sit, 'PICK', 'cell', {}, ['multi_pick'])?.lift_up_partial).toBe(true)
+  })
+  it('edits a situation column without touching base or by', () => {
+    const next = applyDefaultsEdit(sit, 'lift_up_height', 'sit.measure_item', '1234')!
+    expect(next.situations?.measure_item?.lift_up_height).toBe(1234)
+    expect(next.base).toEqual(sit.base)
+    expect(defaultsChanged(next, sit)).toBe(true)
+    // 빈 값 = 상속(키 제거)
+    const back = applyDefaultsEdit(next, 'lift_up_height', 'sit.measure_item', '')!
+    expect(back.situations?.measure_item?.lift_up_height).toBeUndefined()
+    const row = defaultsRows(next).find((r) => r.key === 'lift_up_height')!
+    expect(row.values['sit.measure_item']).toBe(1234)
+    expect(row.values['sit.multi_pick']).toBeUndefined()
+  })
+  it('only station PICK/DROP drafts carry multi_pick', () => {
+    const d = { ...EMPTY_DRAFT, item_code: 1001, multi_pick: true }
+    expect(
+      buildRequest({ ...d, type: 'PICK', target: { kind: 'station', id: 2101 } }).multi_pick,
+    ).toBe(true)
+    expect(
+      buildRequest({ ...d, type: 'PICK', target: { kind: 'cell', id: 101 } }).multi_pick,
+    ).toBeUndefined()
+  })
+})
+
+describe('defaults inheritance display and cleanup', () => {
+  const d: Defaults = {
+    ...defaults,
+    by: {
+      PICK: { cell: { grip_height: 50 }, station: { grip_height: 55 } },
+      DROP: { cell: { grip_height: 40 }, station: {} },
+    },
+    situations: { multi_pick: { lift_up_partial: true, grip_height: 40 }, pallet_station: {} },
+  }
+  it('an empty cell shows what it inherits', () => {
+    expect(inheritedOf(d, 'grip_height', 'base')).toEqual([])
+    expect(inheritedOf(d, 'grip_height', 'DROP.station')).toEqual([{ from: 'base', value: 40 }])
+    // Multi-Pick 은 스테이션 PICK/DROP 에 걸린다 — 두 값이 다르면 둘 다 보인다
+    const mp = inheritedOf(d, 'grip_height', 'sit.multi_pick')
+    expect(mp).toEqual([
+      { from: 'PICK.station', value: 55 },
+      { from: 'base', value: 40 },
+    ])
+    expect(inheritedText(mp)).toBe('55 / 40')
+    expect(inheritedText(inheritedOf(d, 'grip_height', 'sit.measure_sku'))).toBe('40')
+  })
+  it('flags only overrides equal to every inherited value', () => {
+    expect(isRedundant(d, 'grip_height', 'DROP.cell')).toBe(true)
+    expect(isRedundant(d, 'grip_height', 'PICK.cell')).toBe(false)
+    // PICK·Station 55 가 걸려 있어 Multi-Pick 40 은 의미가 있다
+    expect(isRedundant(d, 'grip_height', 'sit.multi_pick')).toBe(false)
+    const same: Defaults = { ...d, by: { ...d.by, PICK: { ...d.by.PICK, station: {} } } }
+    expect(isRedundant(same, 'grip_height', 'sit.multi_pick')).toBe(true)
+    // 같이 걸리는 아래 상황(팔렛)이 같은 키를 쥐면 지우면 결과가 바뀐다
+    const pal: Defaults = {
+      ...same,
+      situations: { ...same.situations, pallet_station: { grip_height: 66 } },
+    }
+    expect(isRedundant(pal, 'grip_height', 'sit.multi_pick')).toBe(false)
+    expect(redundantCells(d)).toEqual([{ key: 'grip_height', col: 'DROP.cell' }])
+  })
+  it('pruning never changes any final value', () => {
+    const d2: Defaults = {
+      ...d,
+      by: { ...d.by, PICK: { ...d.by.PICK, station: { grip_height: 40 } } },
+    }
+    const { next, removed } = pruneRedundant(d2)
+    // DROP·Cell 40, PICK·Station 40 → 그 뒤 Multi-Pick 40 도 같은 값이 된다
+    expect(removed).toBe(3)
+    expect(redundantCells(next)).toEqual([])
+    const combos = [
+      ['PICK', 'cell'],
+      ['PICK', 'station'],
+      ['DROP', 'cell'],
+      ['DROP', 'station'],
+    ] as const
+    for (const [t, k] of combos) {
+      // 상황은 스테이션에만 걸린다(서버 `situations_for`)
+      const sitSets =
+        k === 'station' ? [[], ['multi_pick'], ['pallet_station', 'multi_pick']] : [[]]
+      for (const sits of sitSets as (readonly ('multi_pick' | 'pallet_station')[])[]) {
+        expect(effectiveParams(next, t, k, {}, [...sits])).toEqual(
+          effectiveParams(d2, t, k, {}, [...sits]),
+        )
+      }
+    }
   })
 })

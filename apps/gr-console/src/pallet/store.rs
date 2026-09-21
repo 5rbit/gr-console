@@ -3,7 +3,7 @@
 //! - 첫 기동 때 내장 사양서 R4 로 채운다(`ensure_seeded`, settings `pallet.seed`). 그 뒤 운전자가 흐름을 다 지워도
 //!   다시 채우지 않는다 — 되돌리기는 흐름별 초기화(`reset`)나 가져오기로 한다.
 //! - 모든 변경은 한 트랜잭션: 읽기(`Snapshot`) → 순수 변경·검증(`edit.rs`) → 쓰기. 검증 실패면 아무것도 안 쓴다.
-//! - 흐름 이름 바꾸기는 그 흐름을 쓰는 스테이션 프로파일(`pallet_profile.flow`)도 같이 바꾼다.
+//! - 흐름 이름 바꾸기는 그 흐름을 쓰는 품목 팔렛 설정(`pallet_item.flow_in/flow_out`)도 같이 바꾼다.
 
 use std::collections::BTreeMap;
 
@@ -88,11 +88,15 @@ fn load(c: &Connection) -> rusqlite::Result<Snapshot> {
             updated_at,
         });
     }
-    let mut usage: BTreeMap<String, Vec<u16>> = BTreeMap::new();
-    let mut st = c.prepare("SELECT station_id, flow FROM pallet_profile ORDER BY station_id")?;
-    let rows: Vec<(i64, String)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?;
-    for (sid, flow) in rows {
-        usage.entry(flow.to_ascii_uppercase()).or_default().push(sid as u16);
+    let mut usage: BTreeMap<String, Vec<u32>> = BTreeMap::new();
+    let mut st = c.prepare("SELECT code, flow_in, flow_out FROM pallet_item ORDER BY code")?;
+    let rows: Vec<(i64, Option<String>, Option<String>)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<_, _>>()?;
+    for (code, fin, fout) in rows {
+        let mut flows: Vec<String> = [fin, fout].into_iter().flatten().map(|f| f.to_ascii_uppercase()).collect();
+        flows.dedup();
+        for f in flows {
+            usage.entry(f).or_default().push(code as u32);
+        }
     }
     Ok(Snapshot { lib: Library { flows }, usage })
 }
@@ -129,7 +133,8 @@ fn apply(c: &Connection, ch: &Change) -> rusqlite::Result<()> {
     if let Some((old, new)) = &ch.rename {
         c.execute("UPDATE pallet_flow SET id = ?2 WHERE id = ?1", params![old, new])?;
         c.execute("UPDATE pallet_pattern SET flow_id = ?2 WHERE flow_id = ?1", params![old, new])?;
-        c.execute("UPDATE pallet_profile SET flow = ?2 WHERE upper(flow) = upper(?1)", params![old, new])?;
+        c.execute("UPDATE pallet_item SET flow_in = ?2 WHERE upper(flow_in) = upper(?1)", params![old, new])?;
+        c.execute("UPDATE pallet_item SET flow_out = ?2 WHERE upper(flow_out) = upper(?1)", params![old, new])?;
     }
     for id in &ch.delete {
         c.execute("DELETE FROM pallet_pattern WHERE flow_id = ?1", [id])?;
@@ -265,7 +270,7 @@ impl PalletStore {
 mod tests {
     use super::*;
     use crate::pallet::edit::diff_flow;
-    use crate::pallet::profiles::{Profile, Profiles};
+    use crate::pallet::profiles::{ItemPallet, Profiles};
     use crate::pallet::{GenInput, Transform, generate};
 
     fn seeded() -> (Db, PalletStore) {
@@ -339,7 +344,11 @@ mod tests {
         b.slots.iter_mut().find(|x| x.slot == "C#2").unwrap().drag_dir = 5;
         s.upsert_pattern("HP_IN", 3, &b).unwrap();
         let lib = s.library().unwrap();
-        let g = generate(&lib, &GenInput { flow: "HP_IN", pattern: None, od: 780.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0 }).unwrap();
+        let g = generate(
+            &lib,
+            &GenInput { flow: "HP_IN", pattern: None, od: 780.0, gap: 50.0, transform: Transform::default(), center: [0.0, 0.0], pallet_size: 1600.0, dir_transform: Transform::default() },
+        )
+        .unwrap();
         let c2 = g.slots.iter().find(|x| x.slot == "C#2").unwrap();
         assert_eq!((g.pattern, c2.drag_dir, c2.drag_type), (3, 5, 0x10));
         assert!(!g.pattern_updated_at.is_empty());
@@ -391,18 +400,20 @@ mod tests {
     }
 
     #[test]
-    fn delete_refused_while_profile_uses_flow_and_rename_follows() {
+    fn delete_refused_while_an_item_uses_flow_and_rename_follows() {
         let (db, s) = seeded();
         s.create(&CreateFlow { id: "HP_IN_SITE".into(), copy_from: Some("HP_IN".into()), ..Default::default() }).unwrap();
         let profiles = Profiles::new(db.clone());
         let lib = s.library().unwrap();
-        profiles.upsert(Profile { station_id: 2021, flow: "hp_in_site".into(), enabled: true, ..Default::default() }, &lib).unwrap();
+        profiles.upsert_item(ItemPallet { code: 1001, flow_in: Some("hp_in_site".into()), flow_out: Some("OP_OUT".into()), ..Default::default() }, &lib).unwrap();
         let e = s.delete_flow("HP_IN_SITE").unwrap_err();
-        assert!(matches!(&e, ApiError::Conflict(m) if m.contains("2021")), "{e}");
+        assert!(matches!(&e, ApiError::Conflict(m) if m.contains("1001")), "{e}");
         s.update_flow("HP_IN_SITE", &FlowPatch { id: Some("SITE_A".into()), ..Default::default() }).unwrap();
-        assert_eq!(profiles.get(2021).unwrap().unwrap().flow, "SITE_A");
-        assert_eq!(s.snapshot().unwrap().used_by("site_a"), vec![2021]);
-        profiles.remove(2021).unwrap();
+        let got = profiles.item(1001).unwrap().unwrap();
+        assert_eq!((got.flow_in.as_deref(), got.flow_out.as_deref()), (Some("SITE_A"), Some("OP_OUT")));
+        assert_eq!(s.snapshot().unwrap().used_by("site_a"), vec![1001]);
+        assert_eq!(s.snapshot().unwrap().used_by("op_out"), vec![1001]);
+        profiles.remove_item(1001).unwrap();
         assert_eq!(s.delete_flow("SITE_A").unwrap(), "SITE_A");
         assert!(s.library().unwrap().flow("SITE_A").is_none());
     }

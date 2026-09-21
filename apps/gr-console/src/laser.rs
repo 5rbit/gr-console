@@ -99,13 +99,13 @@ struct ZCalBody {
 }
 
 async fn zcal(State(st): State<AppState>, Query(q): Query<RobotQuery>, axum::Json(b): axum::Json<ZCalBody>) -> ApiResult<Json> {
-    let (_, h) = st.robot_and_plc(q.robot)?;
+    let (_, h) = st.robot_and_plc_required(q.robot, "레이저 Z 교정")?;
     write_bool(&st, h, "ZCal.Enable", b.enable).await?;
     Ok(axum::Json(json!({ "ok": true, "plc": h.name(), "enable": b.enable })))
 }
 
 async fn reset(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> ApiResult<Json> {
-    let (_, h) = st.robot_and_plc(q.robot)?;
+    let (_, h) = st.robot_and_plc_required(q.robot, "레이저 Reset")?;
     write_bool(&st, h, "Reset", true).await?;
     Ok(axum::Json(json!({ "ok": true, "plc": h.name() })))
 }

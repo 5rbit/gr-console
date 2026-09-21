@@ -59,6 +59,27 @@ export interface PlanRow extends PlanStep {
   floor: number | null
   height: number | null
   warnings: string[]
+  /** Multi-Picking — 다음 스텝이 같은 로봇·같은 스테이션 그룹의 스테이션 PICK/DROP(`sameStationGroup`). */
+  multiPick: boolean
+}
+
+/** PLC `isAllowDoublePicking` 의 스테이션 그룹 — `(id / 100) MOD 10`, 0 = 그룹 없음. */
+export function stationGroup(id: number): number {
+  return Math.floor(id / 100) % 10
+}
+
+/**
+ * 두 스텝이 Multi-Picking 으로 이어지는가 — 둘 다 스테이션 PICK/DROP, 같은 그룹(≠0), 다음 스텝이 다른 로봇을
+ * 지정하지 않음. 백엔드 `issue::same_station_group`(시나리오 실행기)과 같은 규칙이다.
+ */
+export function sameStationGroup(a: PlanStep, b: PlanStep | undefined): boolean {
+  if (!b) return false
+  const pd = (t: TaskType) => t === 'PICK' || t === 'DROP'
+  if (a.target.kind !== 'station' || b.target.kind !== 'station' || !pd(a.type) || !pd(b.type))
+    return false
+  if (b.robot != null && b.robot !== a.robot) return false
+  const g = stationGroup(a.target.id)
+  return g !== 0 && g === stationGroup(b.target.id)
 }
 
 export interface Carry {
@@ -212,8 +233,14 @@ export function stackZ(
 }
 
 /**
- * 클릭 한 번을 스텝으로 만든다. PICK 은 셀 재고의 품목을, DROP 은 들고 있는 품목을 잇는다.
- * `type` 을 주면 자동 교대 대신 그 종류로.
+ * 클릭 한 번을 스텝으로 만든다. `type` 을 주면 자동 교대 대신 그 종류로.
+ *
+ * 품목(2026-09-21 수정 — 셀과 맞지 않는 품목이 붙던 문제):
+ *  - PICK·MEASURE = 누른 대상(셀·스테이션)의 **계획 반영 재고** 품목. 비었으면 `fallbackItem`(레일에서 고른 품목),
+ *    그것도 없으면 `null`(서버가 재고로 채우거나 "품목 없음"을 경고한다). 들고 있는 화물 품목은 쓰지 않는다 —
+ *    PICK 은 그 대상에 있는 것을 집는다.
+ *  - DROP = 들고 있는 품목 → 대상 재고 품목 → `fallbackItem`.
+ * 예전에는 재고가 비면 품목 목록의 **첫 품목**을, 스테이션은 재고를 아예 보지 않고 들고 있던 품목을 붙였다.
  */
 export function stepForClick(
   steps: readonly PlanStep[],
@@ -225,15 +252,17 @@ export function stepForClick(
 ): PlanStep {
   const t = type ?? nextType(steps)
   const sim = simulateStock(steps, stockNow)
-  const st = target.kind === 'cell' ? sim.get(target.id) : undefined
+  // 재고는 셀·스테이션이 같은 id 공간을 쓴다(백엔드 `stock`) — 스테이션도 본다.
+  const st = sim.get(target.id)
+  const stockItem = st && st.count > 0 && st.item_code ? st.item_code : null
   const carry = carried(steps)
   let item_code: number | null = null
   let count = 1
   if (t === 'DROP') {
-    item_code = carry?.item_code ?? st?.item_code ?? fallbackItem
+    item_code = carry?.item_code || stockItem || fallbackItem
     count = carry?.count ?? 1
   } else if (t === 'PICK' || t === 'MEASURE') {
-    item_code = st?.item_code || carry?.item_code || fallbackItem
+    item_code = stockItem || fallbackItem
   }
   if (item_code === 0) item_code = null
   return { id: stepId(), type: t, target, item_code, count, note: '', robot }
@@ -247,7 +276,7 @@ export function simulateStock(
   const m = new Map<number, { item_code: number; count: number }>()
   for (const [k, v] of stockNow) m.set(k, { item_code: v.item_code, count: v.count })
   for (const s of steps) {
-    if (s.target.kind !== 'cell') continue
+    // 셀·스테이션 모두 — 재고는 대상 id 하나로 쌓인다.
     const cur = m.get(s.target.id) ?? { item_code: 0, count: 0 }
     if (s.type === 'PICK') {
       const left = Math.max(cur.count - s.count, 0)
@@ -334,6 +363,7 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
     else if (s.type === 'DROP') carry = null
     rows.push({
       ...s,
+      multiPick: sameStationGroup(s, steps[i + 1]),
       no: i + 1,
       stockBefore: before,
       stockAfter: cell ? (sim.get(cell.id)?.count ?? null) : null,
@@ -433,7 +463,11 @@ export function redo(h: History): History {
  * 계획 스텝 → 작업 요청. **로봇을 반드시 싣는다** — 스텝에 고정한 로봇이 있으면 그것, 없으면 `fallback`(카드의 선택 로봇).
  * 전에는 로봇을 빼먹어 서버가 첫 로봇(GR1)으로 보냈다(2026-09-21 GR2 선택 중 GR1 로 제출된 사고).
  */
-export function toRequest(s: PlanStep, fallback: number | null = null): TaskRequest {
+export function toRequest(
+  s: PlanStep,
+  fallback: number | null = null,
+  multiPick = false,
+): TaskRequest {
   return {
     type: s.type,
     target: s.target,
@@ -445,6 +479,7 @@ export function toRequest(s: PlanStep, fallback: number | null = null): TaskRequ
     source: null,
     robot: s.robot ?? fallback ?? null,
     ...(s.pallet ? { pallet: s.pallet } : {}),
+    ...(multiPick ? { multi_pick: true } : {}),
   }
 }
 

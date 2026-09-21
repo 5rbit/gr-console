@@ -3,6 +3,7 @@
 //! `GET /api/tasks?state=active|terminal|a,b&type=PICK&origin=console|scenario|external&since=<RFC3339>&q=&limit=&offset=`
 //! `GET /api/tasks/stats` · `GET /api/tasks/gate` · `GET /api/tasks/plc-view` · `GET /api/tasks/stream` (SSE snapshot|upsert|remove)
 //! `POST /api/tasks[?submit=false]` · `GET|DELETE /api/tasks/{id}` · `POST /api/tasks/{id}/submit|cancel|complete|resubmit|mark-failed`
+//! `POST /api/robots/{id}/command/start|stop|reset|buzzerstop|complete|clear` (`robot_cmd`)
 
 use axum::Router;
 use axum::extract::{Path, Query, State};
@@ -118,10 +119,7 @@ struct CreateQuery {
 /// `POST /api/tasks` — composes via the issue slice, then submits (default) or leaves a Draft.
 async fn create(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::Json(req): axum::Json<TaskRequest>) -> ApiResult<LedgerEntry> {
     // 로봇이 둘 이상이면 대상을 반드시 받는다 — 빠지면 첫 로봇으로 몰래 가던 사고(2026-09-21, GR2 선택 중 GR1 로 제출).
-    if req.robot.is_none() && st.robots.len() > 1 {
-        return Err(ApiError::BadRequest(format!("대상 로봇을 지정해야 합니다 (robot: {})", st.robots.iter().map(|r| format!("{}={}", r.id, r.name)).collect::<Vec<_>>().join(", "))));
-    }
-    let r = st.robot(req.robot)?;
+    let r = st.robot_required(req.robot, "작업 제출")?;
     let composed = crate::issue::compose(&st, &req)?;
     let origin = if req.source.is_some() { Origin::Scenario } else { Origin::Console };
     let e = super::ops::create_and_submit(&st, r, origin, Some(req), Some(composed.params), composed.task, composed.pallet, q.submit.unwrap_or(true)).await?;
@@ -139,6 +137,13 @@ async fn cancel(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult
 
 async fn complete(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<LedgerEntry> {
     Ok(axum::Json(super::ops::force_complete(&st, &id).await?))
+}
+
+/// `POST /api/robots/{id}/command/{action}` — start | stop | reset | buzzerstop | complete | clear (사이드바 로봇 우클릭).
+async fn robot_command(State(st): State<AppState>, Path((robot, action)): Path<(u8, String)>) -> ApiResult<Json> {
+    let a = super::robot_cmd::RobotAction::parse(&action).ok_or_else(|| ApiError::BadRequest(format!("unknown robot command '{action}' (start|stop|reset|buzzerstop|complete|clear)")))?;
+    let r = st.robot(Some(robot))?;
+    Ok(axum::Json(super::robot_cmd::run(&st, r, a).await?))
 }
 
 async fn resubmit(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<LedgerEntry> {
@@ -187,4 +192,5 @@ pub fn router() -> Router<AppState> {
         .route("/api/tasks/{id}/complete", post(complete))
         .route("/api/tasks/{id}/resubmit", post(resubmit))
         .route("/api/tasks/{id}/mark-failed", post(mark_failed))
+        .route("/api/robots/{id}/command/{action}", post(robot_command))
 }

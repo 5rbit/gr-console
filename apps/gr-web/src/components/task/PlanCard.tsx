@@ -7,7 +7,17 @@
 // 껍데기가 둘이면 머리띠도 둘이다. 모드를 카드 머리줄로 들여 한 줄을 없앴다.
 // 그립 기준·되돌리기·다시실행·비우기는 ⋯ 로, 시나리오 이름은 저장 팝업으로 내렸다.
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ListOrdered, Pencil, Play, Save, Send, X } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ListOrdered,
+  Pencil,
+  Play,
+  Save,
+  Send,
+  X,
+} from 'lucide-react'
 import { api } from '../../lib/api'
 import { taskDataRows } from '../../lib/gr/plcShape'
 import { nav } from '../../lib/nav'
@@ -72,7 +82,7 @@ const TYPE_BAR: Record<string, string> = {
 function StepPreview({ row }: { row: PlanRow }) {
   const [p, setP] = useState<ComposePreview | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const req = toRequest(row, robots.selected)
+  const req = toRequest(row, robots.selected, row.multiPick)
   const before = row.stockBefore
   useEffect(() => {
     let alive = true
@@ -109,6 +119,51 @@ function moveLabel(s: PlanStep): string {
 }
 
 /** 이 카드의 두 모드. 전에는 카드 밖 토글 + 카드 둘이었다 — 한 작업면의 두 모드로 합쳤다. */
+/**
+ * 계획 표의 ItemCode 칸 — **펼친 목록은 사양까지**(`itemLabel`), **닫힌 칸은 코드만**.
+ * 네이티브 Select 는 고른 항목의 글자를 그대로 칸에 그리고 폭도 가장 긴 항목에 맞추므로, 긴 사양 문구가
+ * 표 폭을 밀어낸다. 그래서 코드만 쓴 얇은 칸 위에 투명한 Select 를 겹친다 — 누르면 네이티브 목록이
+ * 그대로 열리고(키보드·스크린 리더도 Select 그대로), 칸 폭은 코드 폭이다. 전체 사양은 title(호버)에.
+ */
+function ItemCodeSelect({
+  value,
+  items,
+  onChange,
+}: {
+  value: number | null
+  items: readonly Item[]
+  onChange: (code: number | null) => void
+}) {
+  const it = value === null ? undefined : items.find((i) => i.code === value)
+  const full = it ? itemLabel(it) : value === null ? '' : `${value} (목록에 없음)`
+  return (
+    <span
+      className="relative inline-flex h-control-sm min-w-16 items-center gap-1 rounded-md border border-line-strong px-2 text-xs focus-within:border-focus focus-within:ring-2 focus-within:ring-focus"
+      title={full || undefined}
+      data-testid="plan-item-code"
+    >
+      <span className={cn('tabular-nums', value === null && 'text-content-faint')}>
+        {value ?? '(없음)'}
+      </span>
+      <ChevronDown className="ml-auto h-3 w-3 text-content-muted" aria-hidden="true" />
+      <select
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        value={value === null ? '' : String(value)}
+        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+        aria-label="ItemCode"
+      >
+        <option value="">(없음)</option>
+        {value !== null && !it ? <option value={String(value)}>{full}</option> : null}
+        {items.map((i) => (
+          <option key={i.code} value={String(i.code)}>
+            {itemLabel(i)}
+          </option>
+        ))}
+      </select>
+    </span>
+  )
+}
+
 export type PlanMode = 'plan' | 'single'
 
 export interface PlanCardProps {
@@ -238,6 +293,15 @@ export function PlanCard({
         <span className="whitespace-nowrap">
           {r.target.kind === 'cell' ? 'Cell' : 'Station'}{' '}
           <b className="font-mono">#{r.target.id}</b>
+          {r.multiPick ? (
+            <span
+              className="ml-1 text-3xs text-accent-text"
+              title="Multi-Picking — 다음 스텝이 같은 스테이션 그룹: 기본값 Multi-Pick 층(부분 리프트)을 얹어 보냅니다"
+              data-testid={`plan-mp-${r.no}`}
+            >
+              MP
+            </span>
+          ) : null}
         </span>
       ),
     },
@@ -277,21 +341,11 @@ export function PlanCard({
         r.type === 'MOVE' && !moveUsesItem(moveOf(r)) ? (
           <span className="text-content-faint">-</span>
         ) : (
-          <Select
-            dense
-            value={r.item_code === null ? '' : String(r.item_code)}
-            onValueChange={(v) =>
-              onChange(patch(steps, r.id, { item_code: v === '' ? null : Number(v) }))
-            }
-            aria-label="ItemCode"
-          >
-            <option value="">(없음)</option>
-            {items.map((it) => (
-              <option key={it.code} value={String(it.code)}>
-                {itemLabel(it)}
-              </option>
-            ))}
-          </Select>
+          <ItemCodeSelect
+            value={r.item_code}
+            items={items}
+            onChange={(item_code) => onChange(patch(steps, r.id, { item_code }))}
+          />
         ),
     },
     {
@@ -376,7 +430,8 @@ export function PlanCard({
       )
       toast.ok(`시나리오 "${sc.name}" 저장 (${sc.steps.length}스텝)`)
       if (run) {
-        await api.scenarioRun(sc.id, { repeat: 1 })
+        // 로봇을 안 든("기본") 스텝은 카드 대상 로봇으로 — "다음 1건 제출"과 같은 곳으로 간다.
+        await api.scenarioRun(sc.id, { repeat: 1, robot: robots.selected })
         // 실행은 로봇이 움직이는 일이다 — 어느 호기인지 토스트가 말한다.
         toast.info(withRobotChip(robot, '시나리오 실행 시작 — 진행은 시나리오 탭에서'))
       }
@@ -392,7 +447,7 @@ export function PlanCard({
     if (!first) return
     setBusy(true)
     try {
-      const t = await api.taskCreate(toRequest(first, robots.selected), true)
+      const t = await api.taskCreate(toRequest(first, robots.selected, first.multiPick), true)
       // 스텝이 제 로봇을 들고 있으면(계획 표의 Robot 열) 그쪽, 아니면 카드 대상.
       const who =
         first.robot === null || first.robot === undefined ? robot : robots.chipOf(first.robot)

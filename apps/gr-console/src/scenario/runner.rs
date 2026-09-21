@@ -254,6 +254,16 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
 }
 
 #[allow(clippy::too_many_arguments)]
+/// 다음 스텝(같은 회차)이 같은 로봇·같은 스테이션 그룹의 스테이션 PICK/DROP 이면 Multi-Picking(`Some(true)`).
+/// 로봇이 스텝마다 다르면 묶지 않는다 — 다음 작업을 이어받는 쪽이 같은 로봇이어야 부분 리프트가 뜻이 있다.
+fn multi_pick_auto(scenario: &Scenario, idx: usize, robot_id: Option<u8>) -> Option<bool> {
+    let (a, b) = (scenario.steps.get(idx)?, scenario.steps.get(idx + 1)?);
+    if b.robot.is_some() && b.robot != robot_id {
+        return None;
+    }
+    crate::issue::same_station_group(a.target.as_ref(), a.task_type, b.target.as_ref(), b.task_type).then_some(true)
+}
+
 async fn execute_step(
     st: &AppState,
     runner: &Arc<Runner>,
@@ -291,6 +301,7 @@ async fn execute_step(
         station_offset: Default::default(),
         ignore_stack_max: false,
         pallet: step.pallet.clone(),
+        multi_pick: multi_pick_auto(scenario, cur.step_index as usize, robot_id),
     };
     let robot = match st.robot(robot_id) {
         Ok(r) => r,

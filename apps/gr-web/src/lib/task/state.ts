@@ -67,7 +67,7 @@ export type TaskAction = 'submit' | 'cancel' | 'complete' | 'resubmit' | 'fail' 
 
 export const ACTION_LABEL: Record<TaskAction, string> = {
   submit: '제출',
-  cancel: '취소',
+  cancel: '삭제',
   complete: '완료 처리',
   resubmit: '재제출',
   fail: '실패로 표시',
@@ -121,6 +121,23 @@ export function cascadeAfter(
         !TERMINAL.includes(t.state),
     )
     .sort((a, b) => a.task_id - b.task_id)
+}
+
+/**
+ * AUTO 잠금 — 로봇이 AUTO 이면 PLC 로 가는 완료·삭제(`complete`·`cancel`)를 막는다(2026-09-21 운용 규칙,
+ * 백엔드 `ops::auto_refusal` 과 같다). 초안 폐기는 PLC 에 가지 않아 막지 않는다. 막히면 사유, 아니면 undefined.
+ * `mode` 는 `WebMon.Mode` 이름(`modeName`) — 모르면(null) 막지 않고 서버 판단에 맡긴다.
+ */
+export function autoBlock(
+  a: TaskAction,
+  state: TaskState,
+  mode: string | null,
+): string | undefined {
+  if (mode !== 'AUTO') return undefined
+  if (a === 'complete' || (a === 'cancel' && state !== 'draft')) {
+    return 'AUTO 모드에서는 완료·삭제할 수 없음 — Stop 으로 AUTO 에서 내린 뒤'
+  }
+  return undefined
 }
 
 /** 실장비에 물리적 결과가 있는 조작 — ConfirmDialog scope `single-robot`. */
