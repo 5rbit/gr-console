@@ -15,6 +15,46 @@ use crate::registry::spec::stack_z_with;
 use crate::sse::broadcast_sse;
 use crate::state::AppState;
 
+/// 로봇별 Hand(표 값 + 예상 값). 설정된 로봇은 기록이 없어도 빈 손으로 나온다.
+async fn hands(State(st): State<AppState>) -> ApiResult<Json> {
+    let mut out = Vec::new();
+    for r in st.robots.iter() {
+        let p = crate::issue::projected_hand(&st, Some(r.id))?;
+        out.push(json!({ "robot": r.id, "robot_name": r.name, "plc": r.plc, "item_code": p.base.item_code, "count": p.base.count, "updated_at": p.base.updated_at,
+            "projected": { "item_code": p.projected.item_code, "count": p.projected.count }, "pending": p.pending.len(), "lost": p.lost }));
+    }
+    Ok(axum::Json(Json::Array(out)))
+}
+
+#[derive(Deserialize)]
+struct HandBody {
+    item_code: u32,
+    count: u32,
+}
+
+/// Hand 손 정정(현장에서 그리퍼를 비웠거나 확인한 값) — 이 로봇에 진행 중 PICK/DROP 이 있으면 거부.
+async fn set_hand(State(st): State<AppState>, Path(robot): Path<u8>, axum::Json(b): axum::Json<HandBody>) -> ApiResult<Json> {
+    let r = st.robot(Some(robot))?;
+    let p = crate::issue::projected_hand(&st, Some(robot))?;
+    if !p.pending.is_empty() {
+        return Err(ApiError::Conflict(format!("{}: 진행 중 PICK/DROP {} 건 — 끝난 뒤에 Hand 를 고치세요", r.name, p.pending.len())));
+    }
+    Ok(axum::Json(serde_json::to_value(st.stock.set_hand(&r.plc, b.item_code, b.count, "manual")?).unwrap_or_default()))
+}
+
+/// 예상 재고 — 셀 표 + 모든 로봇의 진행 중 PICK/DROP(Hand 포함). 계획 표의 출발점.
+async fn projected(State(st): State<AppState>) -> ApiResult<Json> {
+    let (cells, hands) = st.stock.projected_all(|| st.robots.iter().flat_map(|r| r.ledger.list()).collect())?;
+    let hands: Vec<Json> = hands
+        .into_iter()
+        .map(|h| {
+            let robot = st.robots.iter().find(|r| r.plc == h.plc).map(|r| r.id);
+            json!({ "plc": h.plc, "robot": robot, "item_code": h.item_code, "count": h.count })
+        })
+        .collect();
+    Ok(axum::Json(json!({ "cells": cells, "hands": hands })))
+}
+
 async fn list(State(st): State<AppState>) -> ApiResult<Json> {
     Ok(axum::Json(serde_json::to_value(st.stock.list()?).unwrap_or_default()))
 }
@@ -102,5 +142,8 @@ pub fn router() -> Router<AppState> {
         .route("/api/stock/clear", post(clear))
         .route("/api/stock/stream", get(stream))
         .route("/api/stock/z", get(z_preview))
+        .route("/api/stock/hands", get(hands))
+        .route("/api/stock/hand/{robot}", put(set_hand))
+        .route("/api/stock/projected", get(projected))
         .route("/api/stock/{cell}", put(set).delete(remove))
 }

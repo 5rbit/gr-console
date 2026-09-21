@@ -122,6 +122,11 @@ async fn create(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::
         return Err(ApiError::BadRequest(format!("대상 로봇을 지정해야 합니다 (robot: {})", st.robots.iter().map(|r| format!("{}={}", r.id, r.name)).collect::<Vec<_>>().join(", "))));
     }
     let r = st.robot(req.robot)?;
+    // PICK 은 늘 DROP 과 짝이다 — 단독 PICK 은 받지 않는다(짝은 순차 계획/시나리오 실행기가 보낸다). DROP 단독은
+    // Hand 에 든 것을 내려놓는 복구용으로 받고, 짝 검사(`enforce_hand`)가 품목·수량을 본다.
+    if crate::issue::parse_task_type(&req.task_type)? == gr_proto::TaskType::Pick && req.source.is_none() {
+        return Err(ApiError::Conflict(crate::ledger::ops::with_robot(&r.name, "PICK 단독 제출 불가 — PICK/DROP 은 짝으로 보냅니다(순차 계획 → 저장 후 실행)")));
+    }
     let composed = crate::issue::compose(&st, &req)?;
     let origin = if req.source.is_some() { Origin::Scenario } else { Origin::Console };
     let e = super::ops::create_and_submit(&st, r, origin, Some(req), Some(composed.params), composed.task, composed.pallet, q.submit.unwrap_or(true)).await?;

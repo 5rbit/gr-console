@@ -8,6 +8,12 @@
 //! 미리 넣기(`wait_for = accepted`): 다음 스텝은 앞 Task 가 끝나기 전에 작성된다. 작성은 진행 중 작업을
 //! 반영한 예상 재고(`issue::projected_stock`)로 하고, 게이트를 통과한 뒤 **다시** 작성해 보낸다. 앞 스텝의
 //! Task 가 나중에 실패·취소·Lost 가 되면(`earlier_broken`) 그 뒤 스텝은 보내지 않고 실행을 멈춘다.
+//!
+//! 큐 깊이 1(`queue_depth_reason`): PLC 에는 실행 중 1 건 + 다음 1 건까지만. 로봇 원장에 Submitted/Accepted/Queued 가
+//! 하나라도 있으면 다음 스텝은 **예정**으로 기다린다. 미리 넣은 실행은 마지막 Task 가 **완료**돼야 끝난다(`drain`).
+//!
+//! PICK/DROP 짝: PICK 이 나가면 짝 DROP 은 정지·일시정지를 미루고 반드시 이어 보낸다(정지는 DROP 제출 뒤 적용).
+//! PICK 이 실패하면 DROP 은 보내지 않고 멈춘다. 짝의 실패는 `skip` 이어도 실행을 멈춘다(`decide_pair`).
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -133,13 +139,33 @@ pub fn earlier_broken(done: &[(u32, u32, u32, TaskState)]) -> Option<String> {
 /// 미리 넣기 검사에 볼 최근 결과 수(버퍼 4 칸보다 넉넉히).
 const EARLIER_LOOKBACK: usize = 8;
 
+/// 큐 깊이 1 — 로봇 원장에 아직 실행되지 않은 Task(Submitted/Accepted/Queued)가 있으면 다음 스텝은 기다린다.
+/// 실행 중 1 건 + 다음 1 건까지만 PLC 에 있게 한다(중간에 문제가 생겨도 꼬이는 작업이 하나뿐이도록).
+pub fn queue_depth_reason(states: impl IntoIterator<Item = TaskState>) -> Option<String> {
+    let waiting = states.into_iter().filter(|s| matches!(s, TaskState::Submitted | TaskState::Accepted | TaskState::Queued)).count();
+    (waiting > 0).then(|| format!("예정 — 실행 대기 중인 Task {waiting} 건 (실행 중 + 다음 1 건까지만)"))
+}
+
+/// 실패한 스텝의 다음 걸음 — PICK/DROP 은 `skip` 해도 짝이 깨지므로 멈춘다(재시도는 그대로).
+pub fn decide_pair(tt: gr_proto::TaskType, d: Decision) -> Decision {
+    match (tt, d) {
+        (gr_proto::TaskType::Pick | gr_proto::TaskType::Drop, Decision::Next) => Decision::Abort,
+        (_, d) => d,
+    }
+}
+
 fn earlier_states(st: &AppState, runner: &Runner) -> Vec<(u32, u32, u32, TaskState)> {
+    run_states(st, runner, EARLIER_LOOKBACK)
+}
+
+/// 이번 실행에서 도달한 스텝들의 Task 지금 상태(최근 `limit` 개).
+fn run_states(st: &AppState, runner: &Runner, limit: usize) -> Vec<(u32, u32, u32, TaskState)> {
     let snap = runner.current();
     snap.results
         .iter()
         .rev()
         .filter(|r| r.error.is_none())
-        .take(EARLIER_LOOKBACK)
+        .take(limit)
         .filter_map(|r| {
             let (_, e) = st.find_task(r.task_id.as_deref()?)?;
             Some((r.step_index, e.work_id, e.task_id, e.state))
@@ -214,11 +240,15 @@ enum Outcome {
 
 pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, plan: Plan, mut ctl: watch::Receiver<Ctl>) {
     let run_id = runner.current().run_id;
+    // PICK 이 나갔고 짝 DROP 이 아직이다 — 정지·일시정지를 DROP 제출 뒤로 미룬다.
+    let mut holding = false;
+    // 접수까지만 기다린 스텝이 있었다 — 끝에 마지막 Task 완료까지 기다린다.
+    let mut prequeued = false;
     tracing::info!(run = %run_id, scenario = %scenario.name, steps = plan.step_count, iterations = ?plan.total_iterations, "scenario run started");
     let mut cur = plan.first();
     let mut error: Option<String> = None;
     let final_phase: Phase = 'outer: loop {
-        if wait_resumed(&mut ctl).await == Go::Stopped {
+        if !holding && wait_resumed(&mut ctl).await == Go::Stopped {
             break Phase::Stopped;
         }
         runner.update(|g| {
@@ -228,15 +258,16 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
             g.note = None;
         });
         let step = &scenario.steps[cur.step_index as usize];
+        let tail = holding && step.task_type == gr_proto::TaskType::Drop;
         let mut attempt = 0u32;
         loop {
             attempt += 1;
-            let (outcome, result) = execute_step(&st, &runner, &scenario, &run_id, step, plan.robot_for(step), cur, attempt, &mut ctl).await;
+            let (outcome, result) = execute_step(&st, &runner, &scenario, &run_id, step, plan.robot_for(step), cur, attempt, tail, &mut ctl).await;
             runner.update(|g| g.push_result(result));
             match outcome {
                 Outcome::Reached => break,
                 Outcome::Stopped => break 'outer Phase::Stopped,
-                Outcome::Failed(msg) => match decide(step.on_failure, attempt, MAX_RETRIES) {
+                Outcome::Failed(msg) => match decide_pair(step.task_type, decide(step.on_failure, attempt, MAX_RETRIES)) {
                     Decision::Next => {
                         tracing::warn!(step = cur.step_index, %msg, "step failed — skipped");
                         break;
@@ -256,13 +287,34 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
                 },
             }
         }
-        if step.wait_after_ms > 0 && sleep_interruptible(step.wait_after_ms, &mut ctl).await == Go::Stopped {
-            break Phase::Stopped;
+        if step.wait_for == WaitFor::Accepted {
+            prequeued = true;
+        }
+        holding = step.task_type == gr_proto::TaskType::Pick;
+        if step.wait_after_ms > 0 {
+            if holding {
+                tokio::time::sleep(Duration::from_millis(step.wait_after_ms)).await;
+            } else if sleep_interruptible(step.wait_after_ms, &mut ctl).await == Go::Stopped {
+                break Phase::Stopped;
+            }
         }
         match plan.advance(cur) {
             Some(n) => cur = n,
             None => break Phase::Done,
         }
+    };
+    // 미리 넣은 실행은 마지막 Task 가 완료돼야 끝난다.
+    let final_phase = if final_phase == Phase::Done && prequeued {
+        match drain(&st, &runner, &mut ctl).await {
+            Drain::Done => Phase::Done,
+            Drain::Stopped => Phase::Stopped,
+            Drain::Failed(msg) => {
+                error = Some(msg);
+                Phase::Failed
+            }
+        }
+    } else {
+        final_phase
     };
     // 콘솔 종료로 멈춘 실행은 그렇게 남긴다 — "왜 끊겼지" 를 원장에서 바로 알 수 있게.
     let (final_phase, error) = match runner.is_shutting_down() && final_phase != Phase::Done {
@@ -282,6 +334,35 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
     tracing::info!(run = %run_id, phase = final_phase.as_str(), results = snap.results.len(), "scenario run ended");
 }
 
+enum Drain {
+    Done,
+    Stopped,
+    Failed(String),
+}
+
+/// 모든 스텝을 보낸 뒤 — 이번 실행의 Task 가 전부 완료될 때까지(정지하면 Task 는 PLC 에 남는다).
+async fn drain(st: &AppState, runner: &Arc<Runner>, ctl: &mut watch::Receiver<Ctl>) -> Drain {
+    let mut noted = false;
+    loop {
+        let states = run_states(st, runner, super::MAX_RESULTS);
+        if let Some(msg) = earlier_broken(&states) {
+            return Drain::Failed(msg);
+        }
+        let left = states.iter().filter(|(_, _, _, s)| *s != TaskState::Completed).count();
+        if left == 0 {
+            return Drain::Done;
+        }
+        if !noted {
+            runner.update(|s| s.note = Some(format!("마지막 Task 완료 대기 ({left} 건)")));
+            noted = true;
+        }
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_millis(LEDGER_POLL_MS)) => {}
+            _ = wait_stop(ctl) => return Drain::Stopped,
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn execute_step(
     st: &AppState,
@@ -292,6 +373,7 @@ async fn execute_step(
     robot_id: Option<u8>,
     cur: Cursor,
     attempt: u32,
+    tail: bool,
     ctl: &mut watch::Receiver<Ctl>,
 ) -> (Outcome, StepResult) {
     let mut res = StepResult { iteration: cur.iteration, step_index: cur.step_index, task_id: None, state: TaskState::Failed, ack: None, started_at: now_str(), ended_at: None, error: None, attempt };
@@ -337,20 +419,24 @@ async fn execute_step(
             return fail(res, msg);
         }
         let c = *ctl.borrow_and_update();
-        if c.stop {
+        // 짝 DROP 은 정지·일시정지를 미룬다(PICK 이 이미 나갔다).
+        if !tail && c.stop {
             return stopped(res, "제출 전 정지됨");
         }
-        if c.paused {
+        if !tail && c.paused {
             if wait_resumed(ctl).await == Go::Stopped {
                 return stopped(res, "제출 전 정지됨");
             }
             continue;
         }
         let g = crate::ledger::ops::gate(st, robot);
-        if g.can_submit {
+        let depth = queue_depth_reason(robot.ledger.list().iter().map(|e| e.state));
+        if g.can_submit && depth.is_none() {
             break;
         }
-        let note = format!("제출 대기: {}", g.reasons.join("; "));
+        let mut reasons = g.reasons;
+        reasons.extend(depth);
+        let note = format!("제출 대기: {}", reasons.join("; "));
         if last_note.as_deref() != Some(&note) {
             runner.update(|s| s.note = Some(note.clone()));
             last_note = Some(note);
@@ -383,7 +469,14 @@ async fn execute_step(
     let mut ack = entry.ack.clone();
     let mut tick = tokio::time::interval(Duration::from_millis(LEDGER_POLL_MS));
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    // PICK 을 보낸 뒤에는 정지를 미룬다 — 짝 DROP 까지 보내고 멈춘다.
+    let holds = step.task_type == gr_proto::TaskType::Pick;
     loop {
+        if !holds && ctl.borrow().stop {
+            res.state = state;
+            res.ack = ack;
+            return stopped(res, "대기 중 정지됨 (PLC 태스크는 유지)");
+        }
         if let Some(ok) = reached(step.wait_for, state) {
             let why = ack.as_ref().filter(|a| !a.accepted && !a.reason.is_empty()).map(|a| format!(" — {}", a.reason)).unwrap_or_default();
             res.state = state;
@@ -418,7 +511,7 @@ async fn execute_step(
                 }
             }
             _ = ctl.changed() => {
-                if ctl.borrow().stop {
+                if !holds && ctl.borrow().stop {
                     res.state = state;
                     res.ack = ack;
                     return stopped(res, "대기 중 정지됨 (PLC 태스크는 유지)");
@@ -447,6 +540,25 @@ mod tests {
             c = plan.advance(cur);
         }
         out
+    }
+
+    #[test]
+    fn queue_depth_is_running_plus_one() {
+        use TaskState::*;
+        assert_eq!(queue_depth_reason([Running, Completed, Canceled, Lost, Draft]), None, "running + terminal: next may go");
+        assert!(queue_depth_reason([Running, Queued]).unwrap().contains("1 건"), "running + next already queued");
+        assert!(queue_depth_reason([Queued]).is_some(), "nothing running but one queued");
+        assert!(queue_depth_reason([Submitted]).is_some() && queue_depth_reason([Accepted]).is_some());
+        assert_eq!(queue_depth_reason([]), None);
+    }
+
+    #[test]
+    fn pair_steps_never_skip() {
+        use gr_proto::TaskType::*;
+        assert_eq!(decide_pair(Pick, Decision::Next), Decision::Abort);
+        assert_eq!(decide_pair(Drop, Decision::Next), Decision::Abort);
+        assert_eq!(decide_pair(Drop, Decision::Retry), Decision::Retry);
+        assert_eq!(decide_pair(Move, Decision::Next), Decision::Next);
     }
 
     #[test]

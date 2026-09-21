@@ -13,6 +13,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ("0005_stock", include_str!("migrations/0005_stock.sql")),
     // 0006…0011 을 하나로 합쳤다(배포 전 정리, 결정 2026-09-18). 0005 까지 올라간 DB 도 이 하나로 따라온다.
     ("0006_console_v2", include_str!("migrations/0006_console_v2.sql")),
+    ("0007_hand", include_str!("migrations/0007_hand.sql")),
 ];
 
 /// `ALTER TABLE … ADD COLUMN …` 중 **이미 있는 열**을 주석으로 지운 사본.
@@ -185,7 +186,7 @@ mod tests {
     #[test]
     fn a_fresh_db_runs_the_single_v2_migration() {
         let db = Db::open_memory().unwrap();
-        assert_eq!(applied(&db), vec!["0001_init", "0002_registry", "0003_ledger", "0004_scenario", "0005_stock", "0006_console_v2"]);
+        assert_eq!(applied(&db), vec!["0001_init", "0002_registry", "0003_ledger", "0004_scenario", "0005_stock", "0006_console_v2", "0007_hand"]);
         // 합친 마이그레이션이 만든 것들이 다 있다
         let names: Vec<String> = schema(&db).into_iter().map(|(_, n, _)| n).collect();
         for t in ["pallet_profile", "pallet_flow", "pallet_pattern", "item_bead_samples", "meas_entries"] {

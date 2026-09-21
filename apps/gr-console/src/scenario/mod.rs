@@ -391,6 +391,12 @@ impl Runner {
             active.take();
         }
         let plan = runner::Plan::new(&scenario, &opts)?;
+        // PICK/DROP 은 늘 한 짝 — 어긋난 계획은 시작하지 않는다(스텝별 사유).
+        let pairs = io::validate_pairs(&scenario.steps, plan.robot, plan.start_step);
+        if !pairs.is_empty() {
+            let why: Vec<String> = pairs.iter().map(|i| format!("스텝 {}: {}", i.step_index.map(|n| n + 1).unwrap_or(0), i.message)).collect();
+            return Err(ApiError::BadRequest(format!("PICK/DROP 짝이 맞지 않아 실행하지 않음 — {}", why.join("; "))));
+        }
         // 없는 로봇으로 달리면 첫 스텝에서야 실패한다 — 시작 전에 막는다.
         let run_robot = st.robot(plan.robot)?;
         for (i, s) in scenario.steps.iter().enumerate() {

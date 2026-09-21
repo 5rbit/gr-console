@@ -97,6 +97,7 @@ pub async fn submit(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<L
     if let Some(req) = entry.request.clone() {
         // 재고는 초안 작성 뒤에도 바뀐다 — 단수 Max 는 보낼 때의 재고로 본다.
         crate::issue::enforce_stack_limit(st, &req, &entry.plc_task)?;
+        crate::issue::enforce_hand(st, &req, &entry.plc_task)?;
         let mut task = entry.plc_task.clone();
         if let Some(audit) = crate::issue::refresh_station_offset(st, &req, &mut task, true)? {
             entry.position = task.position;
@@ -140,6 +141,7 @@ pub async fn create_and_submit(
     let mut task = task;
     if submit_now && let Some(req) = &request {
         crate::issue::enforce_stack_limit(st, req, &task)?;
+        crate::issue::enforce_hand(st, req, &task)?;
     }
     let audit = match &request {
         Some(req) => crate::issue::refresh_station_offset(st, req, &mut task, submit_now)?,

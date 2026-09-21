@@ -180,6 +180,23 @@ pub fn projected_stock(st: &AppState, id: u16) -> Result<crate::stock::Projectio
     st.stock.projected(id, || st.robots.iter().flat_map(|r| r.ledger.list()).collect())
 }
 
+/// 로봇의 예상 Hand — Hand 표 + 그 로봇 원장의 진행 중 PICK/DROP(`stock::Stock::projected_hand`).
+pub fn projected_hand(st: &AppState, robot: Option<u8>) -> Result<crate::stock::HandProjection, ApiError> {
+    let r = st.robot(robot)?;
+    st.stock.projected_hand(&r.plc, || r.ledger.list())
+}
+
+/// 제출 직전 PICK/DROP 짝 검사(`stock::hand_check`) — 어긋나면 409. PICK: 예상 Hand 가 비어 있어야,
+/// DROP: 예상 Hand(짝 PICK 반영)와 품목·수량이 같아야 한다.
+pub fn enforce_hand(st: &AppState, req: &TaskRequest, task: &TaskData) -> Result<(), ApiError> {
+    let Some(tt) = TaskType::from_code(task.task_type).filter(|t| matches!(t, TaskType::Pick | TaskType::Drop)) else { return Ok(()) };
+    if task.cell.id == 0 {
+        return Ok(());
+    }
+    let hand = projected_hand(st, req.robot)?.projected;
+    crate::stock::hand_check(tt, &hand, task.item.code, task.item.count as u32).map_err(|why| ApiError::Conflict(crate::ledger::ops::with_robot(&robot_name(st, req), &format!("PICK/DROP 짝: {why}"))))
+}
+
 /// Full path: resolve target + item from the registry, then compose (stock from the console inventory
 /// plus tasks still in flight — see `projected_stock`).
 pub fn compose(st: &AppState, req: &TaskRequest) -> Result<Composed, ApiError> {
@@ -265,6 +282,16 @@ pub fn compose_with(st: &AppState, req: &TaskRequest, stock_hint: Option<u32>) -
     };
     let mut c = compose_from(&st.registry.defaults()?, req, cell, item, stock_pair, spec.as_ref())?;
     c.warnings.extend(projection_note);
+    // PICK/DROP 짝 — 계획 미리보기(가정 재고)는 계획 표가 따로 본다.
+    if stock_hint.is_none()
+        && let Some(tt) = TaskType::from_code(c.task.task_type).filter(|t| matches!(t, TaskType::Pick | TaskType::Drop))
+        && c.task.cell.id != 0
+    {
+        let hand = projected_hand(st, req.robot)?.projected;
+        if let Err(why) = crate::stock::hand_check(tt, &hand, c.task.item.code, c.task.item.count as u32) {
+            c.warnings.push(format!("제출 거부 예정 — PICK/DROP 짝: {why}"));
+        }
+    }
     // 대상 로봇을 응답에 박는다 — 화면이 `robots.selected` 로 되짚으면 선택이 바뀐 뒤의 미리보기가
     // 엉뚱한 호기 이름을 달게 된다.
     if let Ok(r) = st.robot(req.robot) {

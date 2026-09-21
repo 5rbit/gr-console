@@ -2,6 +2,9 @@
 //! - edited by hand (`PUT /api/stock/{cell}`), or
 //! - folded automatically from **completed** PICK / DROP tasks on the ledger (idempotent per task id).
 //!
+//! PICK/DROP 은 늘 한 짝이다 — 그 사이 화물은 로봇 그리퍼(**Hand**, 로봇 상태 PLC 별 한 줄)에 있다.
+//! PICK 완료: 셀 − n, Hand + n · DROP 완료: Hand − n, 셀 + n. 예상 재고(`project`/`project_hand`)도 같은 규칙.
+//!
 //! `compose` reads it to place Z on the stack:
 //! - PICK/MEASURE: `floor + H * (n - c) + grip` (top tire of the `c` being taken)
 //! - DROP:         `floor + H * n + grip`       (first tire landing on `n` already there)
@@ -37,9 +40,31 @@ pub struct StockEntry {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum StockEvent {
-    Snapshot { stock: Vec<StockEntry> },
-    Upsert { entry: StockEntry, reason: String },
-    Remove { cell_id: u16 },
+    Snapshot {
+        stock: Vec<StockEntry>,
+    },
+    Upsert {
+        entry: StockEntry,
+        reason: String,
+    },
+    Remove {
+        cell_id: u16,
+    },
+    /// 로봇 Hand 가 바뀜.
+    Hand {
+        hand: HandEntry,
+        reason: String,
+    },
+}
+
+/// 로봇 그리퍼에 든 화물. `plc` = 로봇 상태 PLC 이름(원장 `plc_name`).
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct HandEntry {
+    pub plc: String,
+    /// 0 = 빈 손 / 모르는 품목.
+    pub item_code: u32,
+    pub count: u32,
+    pub updated_at: String,
 }
 
 pub struct Stock {
@@ -126,6 +151,36 @@ impl Stock {
         Ok(n)
     }
 
+    /// 모든 Hand(한 번이라도 기록된 로봇).
+    pub fn hands(&self) -> Result<Vec<HandEntry>, ApiError> {
+        let rows: Vec<HandEntry> = self.db.with(|c| {
+            let mut st = c.prepare("SELECT plc, item_code, count, updated_at FROM hand ORDER BY plc")?;
+            let it = st.query_map([], |r| Ok(HandEntry { plc: r.get(0)?, item_code: r.get::<_, i64>(1)? as u32, count: r.get::<_, i64>(2)? as u32, updated_at: r.get(3)? }))?;
+            it.collect()
+        })?;
+        Ok(rows)
+    }
+
+    /// 로봇 `plc` 의 Hand(기록 없으면 빈 손).
+    pub fn hand(&self, plc: &str) -> Result<HandEntry, ApiError> {
+        Ok(self.hands()?.into_iter().find(|h| h.plc == plc).unwrap_or(HandEntry { plc: plc.into(), ..Default::default() }))
+    }
+
+    /// Hand 를 적는다(손 정정 · 접기). 0 개면 품목도 0.
+    pub fn set_hand(&self, plc: &str, item_code: u32, count: u32, reason: &str) -> Result<HandEntry, ApiError> {
+        let now = now_str();
+        let item_code = if count == 0 { 0 } else { item_code };
+        self.db.with(|c| {
+            c.execute(
+                "INSERT INTO hand (plc, item_code, count, updated_at) VALUES (?1,?2,?3,?4) ON CONFLICT(plc) DO UPDATE SET item_code=excluded.item_code, count=excluded.count, updated_at=excluded.updated_at",
+                (plc, item_code, count, &now),
+            )
+        })?;
+        let h = HandEntry { plc: plc.into(), item_code, count, updated_at: now };
+        let _ = self.events.send(StockEvent::Hand { hand: h.clone(), reason: reason.into() });
+        Ok(h)
+    }
+
     /// Folds one completed task into the stock. Returns the new entry when something changed.
     /// Idempotent: the task id is remembered in `stock_applied`.
     pub fn apply_task(&self, e: &LedgerEntry) -> Result<Option<StockEntry>, ApiError> {
@@ -146,6 +201,10 @@ impl Stock {
         let (item_code, count) = fold(cur.item_code, cur.count, &delta);
         let reason = format!("{} #{}:{} {}", if delta.count >= 0 { "DROP" } else { "PICK" }, e.work_id, e.task_id, delta.count);
         let out = self.set(delta.cell_id, item_code, count, &cur.note, &reason)?;
+        // 같은 작업으로 Hand 도 옮긴다(PICK 은 손으로, DROP 은 손에서).
+        let h = self.hand(&e.plc_name)?;
+        let (hi, hn) = fold_hand(h.item_code, h.count, &delta);
+        self.set_hand(&e.plc_name, hi, hn, &reason)?;
         self.db.with(|c| c.execute("INSERT OR IGNORE INTO stock_applied (task_id, applied_at) VALUES (?1, ?2)", (&e.id, now_str())))?;
         Ok(Some(out))
     }
@@ -169,15 +228,97 @@ impl Stock {
     pub fn projected(&self, cell_id: u16, entries: impl FnOnce() -> Vec<LedgerEntry>) -> Result<Projection, ApiError> {
         let _g = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
         let entries = entries();
+        self.fold_fresh(&entries)?;
+        let base = self.get(cell_id)?;
+        Ok(project(cell_id, base, &entries))
+    }
+
+    /// 로봇 `plc` 의 **예상** Hand — `projected` 와 같은 잠금·접기 규칙.
+    pub fn projected_hand(&self, plc: &str, entries: impl FnOnce() -> Vec<LedgerEntry>) -> Result<HandProjection, ApiError> {
+        let _g = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let entries = entries();
+        self.fold_fresh(&entries)?;
+        let base = self.hand(plc)?;
+        Ok(project_hand(base, &entries))
+    }
+
+    /// 모든 셀·Hand 의 예상 값(계획 미리보기 출발점). 대기 작업이 닿는 셀은 표에 없어도 나온다.
+    pub fn projected_all(&self, entries: impl FnOnce() -> Vec<LedgerEntry>) -> Result<(Vec<StockEntry>, Vec<HandEntry>), ApiError> {
+        let _g = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let entries = entries();
+        self.fold_fresh(&entries)?;
+        let cells = self.list()?.into_iter().map(|s| (s.cell_id, s)).collect();
+        let hands = self.hands()?.into_iter().map(|h| (h.plc.clone(), h)).collect();
+        Ok(project_all(cells, hands, &entries))
+    }
+
+    /// 방금(`FRESH_FOLD_MS` 안) `Completed` 가 됐는데 아직 안 접힌 작업을 접는다(멱등). 잠금을 잡고 부른다.
+    fn fold_fresh(&self, entries: &[LedgerEntry]) -> Result<(), ApiError> {
         let now = time::OffsetDateTime::now_utc();
-        for e in &entries {
+        for e in entries {
             let fresh = e.ended_at.as_deref().and_then(crate::ledger::parse_rfc3339).map(|t| (now - t).whole_milliseconds() <= FRESH_FOLD_MS as i128).unwrap_or(false);
-            if e.state == TaskState::Completed && fresh && task_delta(&e.plc_task).is_some_and(|d| d.cell_id == cell_id) {
+            if e.state == TaskState::Completed && fresh && task_delta(&e.plc_task).is_some() {
                 self.apply_locked(e)?;
             }
         }
-        let base = self.get(cell_id)?;
-        Ok(project(cell_id, base, &entries))
+        Ok(())
+    }
+}
+
+/// 순수 — 표(셀·Hand) 위에 진행 중 PICK/DROP 을 `seq` 순서로 접는다(`fold` + `fold_hand`).
+pub fn project_all(mut cells: std::collections::BTreeMap<u16, StockEntry>, mut hands: std::collections::BTreeMap<String, HandEntry>, entries: &[LedgerEntry]) -> (Vec<StockEntry>, Vec<HandEntry>) {
+    let mut mine: Vec<(&LedgerEntry, Delta)> = entries.iter().filter(|e| is_pending(e.state)).filter_map(|e| task_delta(&e.plc_task).map(|d| (e, d))).collect();
+    mine.sort_by_key(|(e, _)| e.seq);
+    for (e, d) in mine {
+        let c = cells.entry(d.cell_id).or_insert_with(|| StockEntry { cell_id: d.cell_id, ..Default::default() });
+        let (code, n) = fold(c.item_code, c.count, &d);
+        c.item_code = if n == 0 { 0 } else { code };
+        c.count = n;
+        let h = hands.entry(e.plc_name.clone()).or_insert_with(|| HandEntry { plc: e.plc_name.clone(), ..Default::default() });
+        let (hi, hn) = fold_hand(h.item_code, h.count, &d);
+        h.item_code = if hn == 0 { 0 } else { hi };
+        h.count = hn;
+    }
+    (cells.into_values().collect(), hands.into_values().collect())
+}
+
+/// `Stock::projected_hand` 결과.
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct HandProjection {
+    pub base: HandEntry,
+    /// 이 로봇의 진행 중 PICK/DROP 을 다 접은 값.
+    pub projected: HandEntry,
+    pub pending: Vec<PendingDelta>,
+    pub lost: u32,
+}
+
+/// 순수 예상 Hand — `base.plc` 로봇의 진행 중 PICK/DROP 을 `seq` 순서로 `fold_hand`.
+pub fn project_hand(base: HandEntry, entries: &[LedgerEntry]) -> HandProjection {
+    let mut mine: Vec<(&LedgerEntry, Delta)> = entries.iter().filter(|e| e.plc_name == base.plc).filter_map(|e| task_delta(&e.plc_task).map(|d| (e, d))).collect();
+    let lost = mine.iter().filter(|(e, _)| e.state == TaskState::Lost).count() as u32;
+    mine.retain(|(e, _)| is_pending(e.state));
+    mine.sort_by_key(|(e, _)| e.seq);
+    let mut cur = base.clone();
+    let mut pending = Vec::new();
+    for (e, d) in mine {
+        let (i, n) = fold_hand(cur.item_code, cur.count, &d);
+        cur.item_code = if n == 0 { 0 } else { i };
+        cur.count = n;
+        pending.push(PendingDelta { id: e.id.clone(), work_id: e.work_id, task_id: e.task_id, plc: e.plc_name.clone(), state: e.state, item_code: d.item_code, count: d.count });
+    }
+    HandProjection { base, projected: cur, pending, lost }
+}
+
+/// PICK/DROP 짝 검사 — `hand` 는 이 작업 **앞까지** 의 예상 Hand.
+/// PICK: 손이 비어 있어야 한다. DROP: 손에 든 것과 품목·수량이 같아야 한다(짝 PICK 이 먼저 나가 있어야 한다).
+pub fn hand_check(tt: TaskType, hand: &HandEntry, item_code: u32, count: u32) -> Result<(), String> {
+    let c = count.max(1);
+    match tt {
+        TaskType::Pick if hand.count > 0 => Err(format!("Hand 에 품목 {} × {} 이 있음 — 짝 DROP 을 먼저 보내야 PICK 할 수 있음", hand.item_code, hand.count)),
+        TaskType::Drop if hand.count == 0 => Err("Hand 가 비어 있음 — DROP 은 짝 PICK 뒤에만 보낼 수 있음".into()),
+        TaskType::Drop if item_code != 0 && hand.item_code != 0 && item_code != hand.item_code => Err(format!("DROP 품목 {item_code} ≠ Hand 품목 {}", hand.item_code)),
+        TaskType::Drop if c != hand.count => Err(format!("DROP 수량 {c} ≠ Hand {} 개", hand.count)),
+        _ => Ok(()),
     }
 }
 
@@ -283,6 +424,16 @@ fn fold(cur_item: u32, cur_count: u32, delta: &Delta) -> (u32, u32) {
             },
             left,
         )
+    }
+}
+
+/// 한 작업을 Hand 에 접는 규칙 — PICK: 품목 = 작업 품목(없으면 손 품목), + n · DROP: − n(0 에서 멈춤), 비면 품목 0.
+fn fold_hand(cur_item: u32, cur_count: u32, delta: &Delta) -> (u32, u32) {
+    if delta.count < 0 {
+        (if delta.item_code != 0 { delta.item_code } else { cur_item }, cur_count + (-delta.count) as u32)
+    } else {
+        let left = cur_count.saturating_sub(delta.count as u32);
+        (if left == 0 { 0 } else { cur_item }, left)
     }
 }
 
@@ -446,6 +597,73 @@ mod tests {
         let mut old = entry("o", 2, TaskType::Drop, 401, 1001, 1, TaskState::Completed);
         old.ended_at = Some("2020-01-01T00:00:00Z".into());
         assert_eq!(s.projected(401, || vec![old]).unwrap().count(), 4);
+    }
+
+    /// 짝 접기: PICK 완료 → 셀 − 2, Hand + 2 · DROP 완료 → Hand 0, 대상 셀 + 2. 예상 값도 같은 모양.
+    #[test]
+    fn pick_drop_pair_moves_through_the_hand() {
+        let s = Stock::new(Db::open_memory().unwrap());
+        s.set(401, 2011, 5, "", "seed").unwrap();
+        let pick = entry("p", 1, TaskType::Pick, 401, 2011, 2, TaskState::Running);
+        let drop = entry("d", 2, TaskType::Drop, 402, 2011, 2, TaskState::Queued);
+        // 둘 다 진행 중 — 예상: 셀 401 = 3, 402 = 2, 손 = 0(들었다 놓음); DROP 앞까지의 손 = 2
+        let (cells, hands) = s.projected_all(|| vec![pick.clone(), drop.clone()]).unwrap();
+        let cnt = |id: u16| cells.iter().find(|c| c.cell_id == id).map(|c| c.count);
+        assert_eq!((cnt(401), cnt(402)), (Some(3), Some(2)));
+        assert_eq!(hands.iter().find(|h| h.plc == "GR2").map(|h| h.count), Some(0));
+        let before_drop = s.projected_hand("GR2", || vec![pick.clone()]).unwrap().projected;
+        assert_eq!((before_drop.item_code, before_drop.count), (2011, 2));
+        assert!(hand_check(TaskType::Drop, &before_drop, 2011, 2).is_ok());
+        // PICK 완료 → 표: 셀 3, 손 2011 × 2
+        let pick_done = entry("p", 1, TaskType::Pick, 401, 2011, 2, TaskState::Completed);
+        s.apply_task(&pick_done).unwrap();
+        assert_eq!(s.get(401).unwrap().unwrap().count, 3);
+        let h = s.hand("GR2").unwrap();
+        assert_eq!((h.item_code, h.count), (2011, 2));
+        // DROP 완료 → 손 비고 402 = 2
+        s.apply_task(&entry("d", 2, TaskType::Drop, 402, 2011, 2, TaskState::Completed)).unwrap();
+        assert_eq!(s.hand("GR2").unwrap().count, 0);
+        assert_eq!(s.get(402).unwrap().unwrap().count, 2);
+    }
+
+    /// PICK 완료 뒤 DROP 취소 — 타이어는 손에 남고, 셀은 한 번만 빠진다. 다음 PICK 은 막히고 같은 DROP 만 된다.
+    #[test]
+    fn canceled_drop_leaves_the_tires_in_the_hand() {
+        let s = Stock::new(Db::open_memory().unwrap());
+        s.set(401, 2011, 5, "", "seed").unwrap();
+        let pick_done = entry("p", 1, TaskType::Pick, 401, 2011, 2, TaskState::Completed);
+        let drop_canceled = entry("d", 2, TaskType::Drop, 402, 2011, 2, TaskState::Canceled);
+        s.apply_task(&pick_done).unwrap();
+        s.apply_task(&drop_canceled).unwrap();
+        let all = || vec![pick_done.clone(), drop_canceled.clone()];
+        assert_eq!(s.projected(401, all).unwrap().count(), 3, "cell not double counted");
+        assert_eq!(s.projected(402, all).unwrap().count(), 0);
+        let hand = s.projected_hand("GR2", all).unwrap().projected;
+        assert_eq!((hand.item_code, hand.count), (2011, 2));
+        assert!(hand_check(TaskType::Pick, &hand, 2011, 1).unwrap_err().contains("짝 DROP"));
+        assert!(hand_check(TaskType::Drop, &hand, 2011, 2).is_ok());
+    }
+
+    #[test]
+    fn hand_check_refuses_unpaired_tasks() {
+        let empty = HandEntry { plc: "GR2".into(), ..Default::default() };
+        let held = HandEntry { plc: "GR2".into(), item_code: 2011, count: 2, ..Default::default() };
+        assert!(hand_check(TaskType::Pick, &empty, 2011, 2).is_ok());
+        assert!(hand_check(TaskType::Drop, &empty, 2011, 2).unwrap_err().contains("비어"));
+        assert!(hand_check(TaskType::Drop, &held, 2012, 2).unwrap_err().contains("2012"));
+        assert!(hand_check(TaskType::Drop, &held, 2011, 1).unwrap_err().contains("수량 1"));
+        assert!(hand_check(TaskType::Move, &held, 0, 1).is_ok());
+        assert!(hand_check(TaskType::Measure, &held, 2011, 1).is_ok());
+        // 다른 로봇의 진행 중 PICK 은 이 로봇 손에 안 들어간다
+        let p = project_hand(
+            empty.clone(),
+            &[{
+                let mut e = entry("x", 1, TaskType::Pick, 401, 2011, 2, TaskState::Running);
+                e.plc_name = "GR1".into();
+                e
+            }],
+        );
+        assert_eq!(p.projected.count, 0);
     }
 
     #[test]
