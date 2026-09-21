@@ -69,3 +69,20 @@ export function itemErrors(i: ItemUpsert): string[] {
     out.push('InnerDiameter 는 OuterDiameter 보다 작아야 합니다')
   return out
 }
+
+type ItemLabelSource = Pick<Item, 'code' | 'name' | 'inner_diameter' | 'outer_diameter' | 'height' | 'note'>
+
+/** 드롭다운 한 줄 — `코드 · 이름 · ID · OD · H · 비고`. 0(미입력) 치수와 빈 이름·비고는 뺀다. */
+export function itemLabel(i: ItemLabelSource): string {
+  const num = (v: number) => String(Math.round(v * 10) / 10)
+  const dims = (
+    [
+      ['ID', i.inner_diameter],
+      ['OD', i.outer_diameter],
+      ['H', i.height],
+    ] as const
+  )
+    .filter(([, v]) => v > 0)
+    .map(([k, v]) => `${k} ${num(v)}`)
+  return [String(i.code), i.name, ...dims, i.note.trim()].filter(Boolean).join(' · ')
+}

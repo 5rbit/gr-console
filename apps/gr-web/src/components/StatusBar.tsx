@@ -11,10 +11,11 @@ import { plcs } from '../lib/plcs'
 import { tasks } from '../lib/tasks'
 import { tasksFeed, useSelectedStatus } from '../lib/feeds'
 import { robots } from '../lib/robots'
+import { withRobot } from '../lib/robotContext'
 import { useSse } from '../lib/sse'
 import { useStore } from '../lib/store'
-import { StatusDot } from '../lib/ui/StatusDot'
-import type { Status } from '../lib/ui/status'
+import { IndicatorChip } from '../lib/ui/IndicatorChip'
+import { feedIndicator, layoutSummary } from '../lib/indicators'
 import { chord } from '../lib/keys'
 import { ALL_TABS } from '../lib/tabs'
 import { workspace } from '../lib/workspace/store'
@@ -24,12 +25,9 @@ export interface StatusBarProps {
   tab: string
 }
 
-function feedStatus(connected: boolean, error: string | null): Status {
-  return connected ? 'ok' : error ? 'fault' : 'neutral'
-}
-
 export function StatusBar({ tab }: StatusBarProps) {
-  useStore(plcs, tasks, workspace)
+  // `robots` 를 직접 구독한다 — 상태 점의 이름이 사이드바 선택과 한 박자라도 어긋나면 안 된다.
+  useStore(plcs, tasks, workspace, robots)
   // 상태 점은 **고른 로봇**의 스트림 — 사이드바에서 호기를 바꾸면 이 점도 그 로봇 것을 말한다.
   const statusFeed = useSelectedStatus()
   useSse(tasksFeed)
@@ -43,7 +41,7 @@ export function StatusBar({ tab }: StatusBarProps) {
     return () => clearInterval(t)
   }, [])
 
-  const layout = plcs.layoutOk
+  const layout = layoutSummary(plcs.list, plcs.loaded)
   const counts = tasks.counts
 
   return (
@@ -66,31 +64,29 @@ export function StatusBar({ tab }: StatusBarProps) {
         <span className="shrink-0 font-medium text-content-tertiary">{tab}</span>
       )}
 
-      <span className="flex shrink-0 items-center gap-2" data-testid="sb-feeds">
-        <StatusDot
-          status={feedStatus(statusFeed.connected, statusFeed.error)}
-          size="sm"
-          label={`상태 ${robots.current?.name ?? ''}`.trim()}
-          title={
-            statusFeed.error ?? `${robots.current?.name ?? '기본 로봇'} 상태 스트림 연결됨`
-          }
+      <span
+        className="flex shrink-0 items-center gap-2"
+        data-testid="sb-feeds"
+        data-robot={robots.chip.name}
+      >
+        {/* 사이드바와 같은 어휘(`lib/indicators`) — `상태 GR2 연결` · `Task 끊김` · `… 연결 중`. */}
+        <IndicatorChip
+          ind={{
+            ...feedIndicator(`상태 ${robots.chip.name}`, statusFeed.connected, statusFeed.error),
+            tooltip: withRobot(robots.chip.name, statusFeed.error ?? '상태 스트림 연결됨'),
+          }}
+          data-testid="sb-feed-status"
         />
-        <StatusDot
-          status={feedStatus(tasksFeed.connected, tasksFeed.error)}
-          size="sm"
-          label="Task"
-          title={tasksFeed.error ?? 'Task 스트림 연결됨'}
+        <IndicatorChip
+          ind={feedIndicator('Task', tasksFeed.connected, tasksFeed.error)}
+          data-testid="sb-feed-tasks"
         />
       </span>
 
-      <span className="flex shrink-0 items-center gap-1" data-testid="sb-layout">
-        <StatusDot
-          status={layout === true ? 'ok' : layout === false ? 'fault' : 'neutral'}
-          size="sm"
-        />
-        {/* 정상은 말로 반복하지 않는다 — 점이 초록이면 OK다(`docs/DESIGN.md` 4절 ④). */}
-        Layout {layout === false ? '불일치' : layout === null && plcs.loaded ? '미검사' : ''}
-      </span>
+      {/* 어느 PLC 가 불일치인지 이름으로 말한다(`레이아웃 불일치 GR1`) — 사유는 툴팁. */}
+      {layout ? (
+        <IndicatorChip ind={layout} data-testid="sb-layout" data-state={layout.tone} />
+      ) : null}
 
       <span className="shrink-0" data-testid="sb-counts">
         Task <strong className="font-medium tabular-nums">{counts.total}</strong>

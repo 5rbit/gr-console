@@ -9,7 +9,7 @@ crates/            공유 크레이트(PLC 레이아웃·계약)
 tools/gr-contract/ TIA 소스 → PLC 레이아웃 생성기
 tools/package.*    배포 패키지 스크립트(cargo feature `embed` — README "패키지 만들기")
 plc/contract/      TIA 소스(진실원)
-docs/              DESIGN.md(UI 규칙) · ui-ux-plan.md(결정 기록) · screenshots/
+docs/              DESIGN.md(UI 규칙) · ui-ux-plan.md(결정 기록) · layout-apply.md(셀 일괄 적용·PLC 쓰기) · screenshots/
 ```
 
 ## UI를 만지면 `docs/DESIGN.md`를 먼저 읽는다

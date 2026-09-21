@@ -304,6 +304,45 @@ export interface Cell {
 }
 export type CellUpsert = Omit<Cell, 'updated_at' | 'source' | 'dirty'>
 
+/**
+ * `/api/cells/bulk` 병합 모드 — 기본은 `append`(아무것도 지우지 않고 충돌만 건너뛴다).
+ * `replace_section` 만 그 구역의 기존 셀을 먼저 지우고, `overwrite` 는 충돌해도 id 가 이긴다.
+ */
+export type CellBulkMode = 'append' | 'replace_section' | 'overwrite'
+export type CellBulkOutcome = 'added' | 'updated' | 'unchanged' | 'skipped' | 'remapped'
+
+/** 요청 한 줄의 결과 — `id` 는 보낸 id, `new_id` 는 `auto_id` 로 옮긴 id. */
+export interface CellBulkRow {
+  id: number
+  outcome: CellBulkOutcome
+  reason?: string
+  new_id?: number
+}
+
+export interface CellBulkResult {
+  mode: CellBulkMode
+  auto_id: boolean
+  created: number
+  updated: number
+  unchanged: number
+  skipped: number
+  remapped: number
+  removed: number
+  total: number
+  rows: CellBulkRow[]
+  warnings?: string[]
+}
+
+export interface CellBulkOptions {
+  mode?: CellBulkMode
+  /** `replace_section` 대상 구역. */
+  section?: number | null
+  /** id 가 겹치면 그 구역의 빈 id 로 옮긴다(`append` 에서만 뜻이 있다). */
+  autoId?: boolean
+  /** 겹침 판정 지름(mm) — 없으면 서버가 셀의 `max(length, width)` 를 쓴다. */
+  diameter?: number
+}
+
 export interface SensorSettings {
   io_link_master_module: number
   io_link_master_port_l: number
@@ -521,7 +560,11 @@ export type TasksEvent =
 
 export interface Gate {
   can_submit: boolean
+  /** 막는 사유 — 백엔드가 `GR1: AUTO 모드가 아님` 처럼 **로봇 이름을 달아** 낸다(다시 꾸미지 않는다). */
   reasons: string[]
+  /** 이 게이트가 말하는 로봇과 그 상태 PLC(`/api/tasks/gate`·`/api/robots`). 구버전 응답에는 없다. */
+  robot?: string
+  plc?: string
 }
 
 // ── 시나리오 ──────────────────────────────────────────────────────────────────
@@ -728,7 +771,13 @@ export interface WebMon {
     TaskCode: number[]
   }
   Axis: PlcAxis[]
-  Gripper: { ItemDetect: boolean; GID: number[]; FLD: number; TorqueReachedPosition: number; State?: GripperState }
+  Gripper: {
+    ItemDetect: boolean
+    GID: number[]
+    FLD: number
+    TorqueReachedPosition: number
+    State?: GripperState
+  }
   Measure: {
     Item: Record<string, number | boolean>
     Sku: Record<string, number | boolean | number[]>

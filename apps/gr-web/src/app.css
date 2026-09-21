@@ -138,32 +138,6 @@ svg text {
   background: var(--color-focus);
 }
 
-/* 레이아웃 맵 선택 링 — 점선이 천천히 돌고 은은하게 숨 쉰다. 움직임 줄이기 설정이면 멈춘다. */
-@keyframes map-sel-march {
-  to {
-    stroke-dashoffset: -20;
-  }
-}
-@keyframes map-sel-breathe {
-  0%,
-  100% {
-    stroke-opacity: 1;
-  }
-  50% {
-    stroke-opacity: 0.45;
-  }
-}
-.map-sel {
-  animation:
-    map-sel-march 0.9s linear infinite,
-    map-sel-breathe 1.6s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .map-sel {
-    animation: none;
-  }
-}
-
 /* 비트 격자 — 불리언 묶음을 고정 열로 편다(DESIGN.md 4절 ④). 폭이 줄면 열 수만 준다. */
 .ds-bitgrid {
   display: grid;

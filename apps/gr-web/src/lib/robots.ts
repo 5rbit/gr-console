@@ -3,6 +3,7 @@
 // 선택된 로봇 id 는 작업 명령(`TaskRequest.robot`)·순차 계획 스텝·시나리오 스텝에 실린다.
 import { api } from './api'
 import { visibleInterval } from './poll'
+import { pickDefaultRobot, robotChip, type RobotChipModel } from './robotContext'
 import { Store } from './store'
 import type { Robot } from './types'
 
@@ -36,15 +37,29 @@ class Robots extends Store {
   get loaded(): boolean {
     return this.#loaded
   }
-  /** 선택된 로봇 id — 목록에 없으면 기본 로봇. 목록이 비면 null. */
+  /** 선택된 로봇 id — 규칙은 `robotContext.pickDefaultRobot`(지난 선택 → 쓸 수 있는 첫 호기 → 첫 호기). */
   get selected(): number | null {
-    if (this.#selected !== null && this.#list.some((r) => r.id === this.#selected))
-      return this.#selected
-    return this.#list.find((r) => r.default)?.id ?? this.#list[0]?.id ?? this.#selected
+    return pickDefaultRobot(this.#list, this.#selected) ?? this.#selected
   }
   get current(): Robot | null {
     const id = this.selected
     return this.#list.find((r) => r.id === id) ?? null
+  }
+  /** 선택된 로봇의 칩 모델 — 이름·PLC·색 한 벌. 목록 전에는 "로봇 미확인". */
+  get chip(): RobotChipModel {
+    return robotChip(this.current)
+  }
+  /**
+   * Task 의 주인 로봇 칩 — Task 는 로봇 id 대신 원장의 상태 PLC 이름(`plc_name`)을 든다.
+   * 선택과 다른 호기의 Task 를 다룰 때 그 행이 **누구 것인지** 이것으로 밝힌다.
+   */
+  chipOfPlc(plc: string | null | undefined): RobotChipModel {
+    const r = plc ? this.#list.find((x) => x.plc === plc || x.name === plc) : null
+    return robotChip(r, { name: plc ?? null })
+  }
+  /** 로봇 하나의 칩 모델(모르면 이름만이라도 남긴다). */
+  chipOf(id: number | null | undefined): RobotChipModel {
+    return robotChip(this.byId(id), { id: id ?? null, name: id === null || id === undefined ? null : `GR${id}` })
   }
   /** 로봇이 둘 이상인가(하나뿐이면 선택 UI 를 숨긴다). */
   get multi(): boolean {
@@ -101,11 +116,6 @@ class Robots extends Store {
 
 export const robots = new Robots()
 
-/** 로봇에 할당된 색 — 맵 작업 테두리·로봇 십자·사이드바 견본이 같은 색을 쓴다. */
-export const ROBOT_COLORS: Readonly<Record<number, string>> = { 1: '#0284c7', 2: '#ea580c' }
-const FALLBACK_COLORS = ['#7c3aed', '#db2777', '#0d9488']
-
-export function robotColor(id: number | null | undefined): string {
-  if (id === null || id === undefined) return FALLBACK_COLORS[0]
-  return ROBOT_COLORS[id] ?? FALLBACK_COLORS[Math.abs(id) % FALLBACK_COLORS.length]
-}
+// 색과 칩 모델의 정본은 `robotContext.ts`(순수 모듈)다 — 여기서는 이미 쓰고 있는 자리들을 위해 다시 낸다.
+export { ROBOT_COLORS, robotColor } from './robotContext'
+export type { RobotChipModel } from './robotContext'

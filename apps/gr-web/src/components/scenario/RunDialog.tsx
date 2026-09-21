@@ -6,6 +6,8 @@
 // 저장되지 않은 변경은 실행에 반영되지 않음을 알린다.
 import { useEffect, useState } from 'react'
 import { robots } from '../../lib/robots'
+import { robotLabel } from '../../lib/robotContext'
+import { RobotChip } from '../shared/RobotChip'
 import { useStore } from '../../lib/store'
 import { FormDialog } from '../../lib/ui/Dialog'
 import { Input } from '../../lib/ui/Input'
@@ -37,20 +39,25 @@ export function RunDialog({ open, scenario, dirty, onOpenChange, onRun }: RunDia
     setRobot(robots.selected)
   }, [open, scenario])
 
+  // 빈 로봇 칸의 스텝이 실제로 갈 곳 — `기본 로봇`은 백엔드의 첫 호기다. 말없이 두지 않고 이름을 보인다.
+  const fallback = robots.list.find((r) => r.default) ?? robots.list[0] ?? null
+  const chip = robot !== null ? robots.chipOf(robot) : robots.chipOf(fallback?.id ?? null)
+
   return (
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="실행"
+      title={`실행 — ${chip.name}`}
       size="sm"
       meta={
         <>
+          <RobotChip chip={chip} prefix="로봇" testid="run-robot-chip" />
           <span className="truncate">{scenario?.name ?? ''}</span>
           {/* 저장 안 한 변경은 **라벨+값 한 짝**으로 말한다 — 같은 말을 바깥 토스트가 이미 한다. */}
           {dirty ? <span className="text-warn-fg">저장 안 함 · 이번 실행 제외</span> : null}
         </>
       }
-      submitLabel="실행"
+      submitLabel={`${chip.name} 에서 실행`}
       disabledReason={!scenario || scenario.steps.length === 0 ? '스텝이 없습니다' : undefined}
       onSubmit={() => {
         if (!scenario || scenario.steps.length === 0) return
@@ -92,7 +99,7 @@ export function RunDialog({ open, scenario, dirty, onOpenChange, onRun }: RunDia
             onValueChange={(v) => setRobot(v === '' ? null : Number(v))}
             data-testid="run-robot"
           >
-            <option value="">기본 로봇</option>
+            <option value="">{`기본 로봇 (${fallback ? robotLabel(robots.chipOf(fallback.id)) : '미확인'})`}</option>
             {robots.list.map((r) => (
               <option key={r.id} value={String(r.id)}>
                 {r.name}

@@ -55,7 +55,8 @@ const RULES = [
     id: 'no-raw-color',
     why: '색값을 직접 쓰지 않는다 — `tokens.css`의 토큰(시맨틱 우선)으로 부른다. 팔레트가 바뀌면 이 자리만 남는다',
     ext: ['.tsx', '.ts'],
-    skip: ['src/tokens.css', 'src/lib/robots.ts', 'src/lib/ui/viz/'],
+    // 로봇 색 정본이 `robots.ts` 에서 `robotContext.ts`(순수 모듈)로 옮겨 갔다 — 자리가 옮겨졌을 뿐 예외의 뜻은 같다.
+    skip: ['src/tokens.css', 'src/lib/robots.ts', 'src/lib/robotContext.ts', 'src/lib/ui/viz/'],
     test: (l) =>
       [...l.matchAll(/#[0-9a-fA-F]{3,8}\b/g), ...l.matchAll(/\b(?:rgba?|hsla?)\(/g)].map(
         (m) => m[0],

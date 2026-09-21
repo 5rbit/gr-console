@@ -1,9 +1,8 @@
-// 레지스트리 툴바가 띄우는 다이얼로그 셋 — PLC 쓰기 확인, 차이 보기, Excel 가져오기 미리보기.
+// 레지스트리 툴바가 띄우는 PLC 다이얼로그 둘 — 쓰기 확인, 차이 보기. (Excel 가져오기는 `ImportDialog.tsx`)
 //
-// 셋 다 **결과를 화면에 남긴다**: 쓰기는 재읽기 검증(바이트 비교) 결과를, 가져오기는 dry-run 카운트와
-// 행별 오류를 보인 뒤에야 적용 버튼을 준다. 토스트는 한 줄 요약이고 상세는 여기다.
+// 둘 다 **결과를 화면에 남긴다**: 쓰기는 재읽기 검증(바이트 비교) 결과를, 차이는 행별 상태를 보인다.
+// 토스트는 한 줄 요약이고 상세는 여기다.
 import { useEffect, useState } from 'react'
-import { Upload } from 'lucide-react'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
@@ -15,7 +14,9 @@ import { StatusDot } from '../../lib/ui/StatusDot'
 import type { Column } from '../../lib/ui/table'
 import type { Status } from '../../lib/ui/status'
 import type { DiffRow } from '../../lib/types'
-import type { FileImportResult, PushResult } from '../../lib/task/types'
+import type { PushResult } from '../../lib/task/types'
+import { robots } from '../../lib/robots'
+import { RobotChip } from '../shared/RobotChip'
 
 // ── PLC 쓰기 확인 ──────────────────────────────────────────────────────────────
 
@@ -50,11 +51,14 @@ export function PushDialog({
       onOpenChange={onOpenChange}
       scope="single-robot"
       danger
-      title={`${what} 테이블 쓰기`}
-      confirmLabel="PLC에 쓰기"
+      title={`${what} 테이블 쓰기 — ${plc}`}
+      confirmLabel={`${plc} 에 쓰기`}
       onConfirm={() => onConfirm(force)}
     >
       <div className="flex flex-col gap-2 text-xs">
+        <div>
+          <RobotChip chip={robots.chip} prefix="선택된 로봇" />
+        </div>
         <p className="m-0 flex items-center gap-1">
           {plc} 에 쓸까요?
           <HelpTip
@@ -218,112 +222,6 @@ export function DiffDialog<T>({
           }
           testid="diff-table"
         />
-      </div>
-    </Dialog>
-  )
-}
-
-// ── Excel 가져오기 미리보기 ──────────────────────────────────────────────────
-
-export interface ImportDialogProps {
-  open: boolean
-  onOpenChange: (o: boolean) => void
-  file: File | null
-  /** dry-run 결과(`null` = 아직 조회 중). */
-  preview: FileImportResult | null
-  error: string | null
-  applying: boolean
-  onApply: () => void
-}
-
-export function ImportDialog({
-  open,
-  onOpenChange,
-  file,
-  preview,
-  error,
-  applying,
-  onApply,
-}: ImportDialogProps) {
-  const canApply = !!preview && preview.imported + preview.updated > 0
-  const errCols: Column<FileImportResult['errors'][number]>[] = [
-    { key: 'row', label: 'Row', get: (e) => e.row, numeric: true },
-    { key: 'sheet', label: 'Sheet', get: (e) => e.sheet ?? '' },
-    { key: 'message', label: 'Message', get: (e) => e.message },
-  ]
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Excel 가져오기 — 미리보기"
-      size="lg"
-      meta={
-        <>
-          <span className="truncate font-mono">{file?.name ?? ''}</span>
-          {preview?.counts ? (
-            <span className="whitespace-nowrap tabular-nums">
-              셀 {preview.counts.cells} · 스테이션 {preview.counts.stations} · 품목{' '}
-              {preview.counts.items}
-            </span>
-          ) : null}
-        </>
-      }
-      footer={
-        <>
-          <Button size="sm" intent="ghost" onClick={() => onOpenChange(false)}>
-            취소
-          </Button>
-          <Button
-            intent="primary"
-            size="sm"
-            icon={<Upload className="h-3.5 w-3.5" />}
-            disabled={!canApply}
-            title={canApply ? undefined : '적용할 행이 없습니다'}
-            loading={applying}
-            onClick={onApply}
-            data-testid="import-apply"
-          >
-            적용
-          </Button>
-        </>
-      }
-      testid="import-dialog"
-    >
-      <div className="flex flex-col gap-3 text-xs">
-        {error ? <p className="m-0 text-fault-fg">{error}</p> : null}
-        {preview ? (
-          <div className="grid grid-cols-4 gap-2" data-testid="import-preview">
-            <span className="sr-only">dry-run 결과</span>
-            {[
-              ['Imported', preview.imported],
-              ['Updated', preview.updated],
-              ['Skipped', preview.skipped],
-              ['Errors', preview.errors.length],
-            ].map(([l, v]) => (
-              <div key={String(l)} className="rounded-md border border-line-default px-2 py-1">
-                <div className="text-3xs text-content-faint">{l}</div>
-                <div className="text-sm font-semibold tabular-nums">{v}</div>
-              </div>
-            ))}
-          </div>
-        ) : !error ? (
-          <p className="m-0 text-content-faint">미리보기 계산 중…</p>
-        ) : null}
-        {preview && preview.errors.length > 0 ? (
-          <DataTable
-            rows={preview.errors}
-            columns={errCols}
-            rowKey={(e) => `${e.sheet ?? ''}:${e.row}:${e.message}`}
-            testid="import-errors"
-          />
-        ) : null}
-        <span className="flex items-center gap-1 text-2xs text-content-muted">
-          로컬에만 적용
-          <HelpTip
-            title="적용 범위"
-            text="오류 행은 건너뛰고 나머지만 로컬 사본에 적용합니다. PLC 에는 쓰지 않습니다 — 적용 뒤 PLC 쓰기로 반영하세요."
-          />
-        </span>
       </div>
     </Dialog>
   )

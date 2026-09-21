@@ -3,6 +3,11 @@ import type { CellUpsert, StationUpsert } from '../types'
 import {
   applyCellEdit,
   applyStationEdit,
+  CELL_POSZ_WARNING,
+  cellErrors,
+  cellPositionErrors,
+  cellPositionWarnings,
+  cellWarnings,
   diffDraft,
   draftFrom,
   newCellRow,
@@ -121,5 +126,28 @@ describe('registryGrid', () => {
     expect(st.value.id).toBe(2102)
     expect(st.value.info.id).toBe(2102)
     expect(newStationRow([], station(0))!.value.id).toBe(2001)
+  })
+
+  // 셀 바닥 Z 는 바닥 평탄도 보정 — 0·음수도 맞는 값이고, PLC 도 셀은 검사하지 않으므로 경고도 없다.
+  it('floor Z ≤ 0 is neither an error nor a warning; X/Y·id·section stay errors', () => {
+    const z = (v: number): CellUpsert => ({ ...cell(301), position: [12000, 3000, v] })
+    for (const v of [-8.8, -23.5, 0]) {
+      expect(cellErrors(z(v))).toEqual([])
+      expect(cellPositionErrors(z(v).position)).toEqual([])
+      expect(cellWarnings(z(v))).toEqual([])
+    }
+    expect(CELL_POSZ_WARNING).toContain('INVALID_CELL_POSZ')
+    expect(cellWarnings(z(1500))).toEqual([])
+    expect(cellPositionWarnings([0, 0, 1])).toEqual([])
+    // 숫자가 아닌 Z 는 오류이고 경고는 붙지 않는다
+    expect(cellErrors(z(Number.NaN))[0]).toContain('숫자')
+    expect(cellWarnings(z(Number.NaN))).toEqual([])
+    // 나머지 규칙은 그대로 오류
+    expect(cellErrors({ ...cell(301), position: [-1, 0, 1500] })[0]).toContain('위치 X')
+    expect(cellErrors({ ...cell(301), position: [0, -1, 1500] })[0]).toContain('위치 Y')
+    expect(cellErrors({ ...cell(0) })).toContain('셀 Id는 1..1000')
+    expect(cellErrors({ ...cell(301), section: 4 })).toContain('구역은 1..3')
+    // Z 칸 편집은 음수도 받아들인다(그리드가 그대로 저장한다)
+    expect(applyCellEdit(cell(301), 'z', '-8.8')!.position[2]).toBe(-8.8)
   })
 })

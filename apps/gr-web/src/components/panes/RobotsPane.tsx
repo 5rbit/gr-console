@@ -4,19 +4,24 @@
 // 오른쪽에도 하단에도 설 수 있어야 하고, 그러려면 섹션이 **자기 머리띠 없이** 자기 몸만 그려야 한다
 // (제목·탭·닫기는 도킹 껍데기가 그린다). 사이드바는 이제 이 패널들을 얹는 존 하나다.
 //
-// 색은 **시맨틱 토큰**으로 부른다(`bg-surface-*` · `text-content-*` · 상태 6종). 처음 떼어 낼 때는
-// 셸 크롬이 아직 `slate` + `dark:` 쌍이라 그대로 옮겼지만, 이제 `tokens.css`가 다크 층을 들고 있어
-// 킷·셸 전체가 토큰을 쓴다 — 두 테마가 이 파일을 고치지 않고 따라온다.
+// 행 하나 = **로봇 색 막대**(정체 — 상태가 아니다) · 이름 · 모드 칩 · 상태 칩 하나(2026-09-21).
+// 예전에는 글자 없는 빨간 사각(게이트) + 둥근 색 점(로봇 색)이 나란히 서서 색 점까지 상태로 읽혔다.
+// 색 막대는 행 왼쪽 끝에 붙어 점 모양이 아니고, 상태는 `제출 가능`/`제출 불가` 글자로 선다
+// (사유는 칩 툴팁, 어휘는 `lib/indicators`).
 import { useEffect } from 'react'
+import { allStatus } from '../../lib/feeds'
+import { modeName } from '../../lib/gr/const'
+import { modeIndicator, robotGate } from '../../lib/indicators'
 import { robotColor, robots } from '../../lib/robots'
 import { density } from '../../lib/density'
 import { useStore } from '../../lib/store'
-import { StatusDot } from '../../lib/ui/StatusDot'
-import { robotTone } from '../shared/RobotPicker'
+import { IndicatorChip } from '../../lib/ui/IndicatorChip'
 
 export default function RobotsPane() {
-  useStore(robots, density)
+  useStore(robots, density, allStatus)
   useEffect(() => robots.start(), [])
+  // 로봇마다 모드를 보이려면 각자의 상태 스트림이 필요하다(맵과 같은 스토어 — 이미 열려 있으면 공유).
+  useEffect(() => allStatus.start(), [])
 
   const rowPad = density.isCompact ? 'py-0.5' : 'py-1.5'
 
@@ -34,22 +39,29 @@ export default function RobotsPane() {
       ) : null}
       {robots.list.map((r) => {
         const on = r.id === robots.selected
+        const gate = robotGate(r)
+        const wm = allStatus.get(r.id)?.webmon ?? null
+        const mode = modeIndicator(wm ? modeName(wm.Mode) : null)
         return (
           <li key={r.id}>
             <button
               type="button"
               role="radio"
               aria-checked={on}
-              className={`flex w-full items-center gap-2 px-2 text-left hover:bg-surface-inset ${rowPad} ${on ? 'bg-accent-soft' : ''}`}
+              className={`relative flex w-full items-center gap-1.5 pr-2 pl-3 text-left ${rowPad} ${
+                on ? 'bg-accent-soft ring-1 ring-accent ring-inset' : 'hover:bg-surface-inset'
+              }`}
               data-testid={`robot-${r.id}`}
-              title={`${r.opcua_root} · DST ${r.dst} · Plc ${r.plc}${r.gate.can_submit ? '' : ` · 게이트 닫힘: ${r.gate.reasons.join('; ')}`}`}
+              data-selected={on ? 'true' : 'false'}
+              title={`${r.name}${on ? ' (선택됨)' : ''} · ${r.opcua_root} · DST ${r.dst} · Plc ${r.plc}`}
               onClick={() => robots.select(r.id)}
             >
-              <StatusDot status={robotTone(r)} size="sm" />
+              {/* 로봇 색 — 맵의 작업 테두리 색. 상태가 아니라 **정체**라 점이 아닌 행 끝 막대로 둔다. */}
               <span
-                className="h-2.5 w-2.5 flex-none rounded-sm"
+                className="absolute inset-y-0 left-0 w-1"
                 style={{ background: robotColor(r.id) }}
-                title="맵에서 이 로봇의 작업 테두리 색"
+                aria-hidden="true"
+                data-testid={`robot-color-${r.id}`}
               />
               <span
                 className={`min-w-0 flex-1 truncate text-xs ${on ? 'font-semibold text-accent-text' : 'font-medium'}`}
@@ -57,10 +69,12 @@ export default function RobotsPane() {
                 {r.name}
               </span>
               {r.active_tasks ? (
-                <span className="font-mono text-3xs text-content-faint" title="진행 중 Task">
-                  {r.active_tasks}
+                <span className="font-mono text-2xs text-content-muted" title="진행 중 Task 수">
+                  T{r.active_tasks}
                 </span>
               ) : null}
+              {mode ? <IndicatorChip ind={mode} bare data-testid={`robot-mode-${r.id}`} /> : null}
+              <IndicatorChip ind={gate} data-testid={`robot-gate-${r.id}`} />
             </button>
           </li>
         )

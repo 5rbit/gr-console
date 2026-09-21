@@ -5,23 +5,32 @@ import { Wand2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
   DEFAULT_RULE,
-  conflicts,
+  MODE_LABEL,
+  annotate,
+  applyButtonLabel,
   extent,
   fitCount,
   generate,
   inferRule,
+  previewApply,
+  previewLabel,
+  ruleWarnings,
   validateRule,
   type LayoutRule,
+  type PreviewCell,
 } from '../../lib/task/layoutGen'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { Input } from '../../lib/ui/Input'
+import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
 import { toast } from '../../lib/ui/toast'
-import type { Cell, CellUpsert } from '../../lib/types'
+import type { Cell, CellBulkMode, CellBulkResult } from '../../lib/types'
+import { PlcWriteBar } from './PlcWriteBar'
 
 const RULE_KEY = 'gr-layout-rule'
+const APPLY_KEY = 'gr-layout-apply'
 
 function loadRule(): LayoutRule {
   try {
@@ -32,10 +41,21 @@ function loadRule(): LayoutRule {
   }
 }
 
+/** 적용 방식은 한 번 고르면 기억한다 — 기본은 **추가**(아무것도 지우지 않는다). */
+function loadApply(): { mode: CellBulkMode; autoId: boolean } {
+  try {
+    const s = localStorage.getItem(APPLY_KEY)
+    const v = s ? (JSON.parse(s) as { mode?: CellBulkMode; autoId?: boolean }) : {}
+    return { mode: v.mode ?? 'append', autoId: v.autoId ?? false }
+  } catch {
+    return { mode: 'append', autoId: false }
+  }
+}
+
 export interface LayoutEditorProps {
   cells: readonly Cell[]
-  /** 미리보기 셀이 바뀔 때(맵에 그린다). */
-  onPreview: (cells: CellUpsert[]) => void
+  /** 미리보기 셀이 바뀔 때(맵에 그린다 — 충돌 판정이 실려 있다). */
+  onPreview: (cells: PreviewCell[]) => void
   /** 적용 뒤 목록 다시 받기. */
   onApplied: () => void
   onClose?: () => void
@@ -51,39 +71,64 @@ export function LayoutEditor({
   embedded = false,
 }: LayoutEditorProps) {
   const [rule, setRule] = useState<LayoutRule>(loadRule)
-  const [replace, setReplace] = useState(true)
+  const [{ mode, autoId }, setApplyOpts] = useState(loadApply)
   const [area, setArea] = useState({ w: 10000, h: 4000 })
   const [confirm, setConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
+  /** 적용 뒤 서버가 돌려준 줄별 결과 — 판정의 **진실**은 서버다. */
+  const [result, setResult] = useState<CellBulkResult | null>(null)
   const set = (p: Partial<LayoutRule>) => setRule((r) => ({ ...r, ...p }))
   const num = (k: keyof LayoutRule) => (s: string) => set({ [k]: Number(s) } as Partial<LayoutRule>)
+  const setApply = (p: { mode?: CellBulkMode; autoId?: boolean }) =>
+    setApplyOpts((cur) => {
+      const next = { ...cur, ...p }
+      try {
+        localStorage.setItem(APPLY_KEY, JSON.stringify(next))
+      } catch {
+        /* 저장 못 해도 동작 */
+      }
+      return next
+    })
 
   const problems = useMemo(() => validateRule(rule), [rule])
+  // 바닥 Z ≤ 0 은 막지 않는다 — 바닥 평탄도 보정이라 음수가 맞을 수 있고, PLC 가 거부하는 건 그 셀로 나간 작업이다.
+  const warns = useMemo(() => ruleWarnings(rule), [rule])
   const gen = useMemo(() => generate(rule), [rule])
   const ext = useMemo(() => extent(gen, rule.diameter), [gen, rule.diameter])
-  const conf = useMemo(
-    () => conflicts(gen, cells, rule.diameter, replace ? rule.section : null),
-    [gen, cells, rule.diameter, replace, rule.section],
+  const plan = useMemo(
+    () =>
+      previewApply(gen, cells, { mode, section: rule.section, diameter: rule.diameter, autoId }),
+    [gen, cells, mode, rule.section, rule.diameter, autoId],
   )
+  const skipped = plan.rows.filter((r) => r.outcome === 'skipped')
+  const marked = useMemo(() => annotate(gen, plan), [gen, plan])
   const inSection = cells.filter((c) => c.section === rule.section).length
+  const dirty = cells.filter((c) => c.dirty).length
 
   useEffect(() => {
-    onPreview(gen)
+    onPreview(marked)
     try {
       localStorage.setItem(RULE_KEY, JSON.stringify(rule))
     } catch {
       /* 저장 못 해도 동작 */
     }
-  }, [gen, rule, onPreview])
+  }, [marked, rule, onPreview])
   useEffect(() => () => onPreview([]), [onPreview])
 
   async function apply() {
     setBusy(true)
     try {
-      const r = await api.cellsBulk(gen, replace ? rule.section : null)
-      toast.ok(
-        `셀 생성 ${r.created} · 갱신 ${r.updated} · 삭제 ${r.removed} (총 ${r.total}) — 로컬 사본, PLC 쓰기는 셀 탭에서`,
-      )
+      const r = await api.cellsBulk(gen, {
+        mode,
+        section: mode === 'replace_section' ? rule.section : undefined,
+        autoId,
+        diameter: rule.diameter,
+      })
+      setResult(r)
+      const line = `${MODE_LABEL[r.mode]} — ${previewLabel(r)} (총 ${r.total}칸)`
+      if (r.skipped) toast.warn(`${line} · 건너뛴 칸은 아래 사유를 보세요`)
+      else toast.ok(`${line} — 로컬 사본입니다. 로봇에 넣으려면 PLC 쓰기`)
+      for (const w of (r.warnings ?? []).slice(0, 1)) toast.warn(w)
       onApplied()
     } catch (e) {
       toast.error(`적용 실패 — ${e instanceof Error ? e.message : String(e)}`)
@@ -322,51 +367,118 @@ export function LayoutEditor({
             ))}
           </ul>
         ) : null}
-        {conf.length ? (
-          <div className="rounded border border-warn bg-warn-soft p-2 text-warn-fg">
-            <b>충돌 {conf.length}건</b>
+        {warns.length ? (
+          <ul className="list-disc pl-4 text-warn-fg" data-testid="rule-warnings">
+            {warns.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        ) : null}
+        {/* 적용 방식 — 기본은 **추가**(지우지 않는다). 구역 교체만 기존 셀을 지운다. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Segmented
+            ariaLabel="적용 방식"
+            compact
+            value={mode}
+            onChange={(m) => setApply({ mode: m })}
+            options={[
+              {
+                id: 'append' as CellBulkMode,
+                label: MODE_LABEL.append,
+                title: '겹치지 않는 칸만 더한다 — 아무것도 지우지 않고 충돌은 건너뛴다',
+                testid: 'rule-mode-append',
+              },
+              {
+                id: 'replace_section' as CellBulkMode,
+                label: MODE_LABEL.replace_section,
+                title: `구간 ${rule.section} 의 기존 ${inSection}칸을 지우고 새로 깐다`,
+                testid: 'rule-mode-replace',
+              },
+              {
+                id: 'overwrite' as CellBulkMode,
+                label: MODE_LABEL.overwrite,
+                title: '겹쳐도 생성한 값으로 덮어쓴다 — 지우지는 않는다',
+                testid: 'rule-mode-overwrite',
+              },
+            ]}
+          />
+          <Switch
+            inline
+            label="AutoId"
+            checked={autoId}
+            disabled={mode !== 'append'}
+            onCheckedChange={(b) => setApply({ autoId: b })}
+            title="id 가 겹치면 그 구간의 빈 id 로 옮겨 담는다(건너뛰는 대신). 겹침 검사는 그대로"
+          />
+        </div>
+        <div
+          className="rounded border border-line-default p-2 font-mono text-2xs tabular-nums"
+          data-testid="rule-preview"
+        >
+          {previewLabel({ ...plan.counts, removed: plan.removed })}
+        </div>
+        {skipped.length ? (
+          <div
+            className="rounded border border-warn bg-warn-soft p-2 text-warn-fg"
+            data-testid="rule-conflicts"
+          >
+            <b>건너뜀 {skipped.length}칸</b>
             <ul className="list-disc pl-4">
-              {conf.slice(0, 6).map((c, i) => (
-                <li key={i}>{c.reason}</li>
+              {skipped.slice(0, 6).map((c) => (
+                <li key={c.id}>
+                  #{c.id} — {c.reason}
+                </li>
               ))}
-              {conf.length > 6 ? <li>… 외 {conf.length - 6}건</li> : null}
+              {skipped.length > 6 ? <li>… 외 {skipped.length - 6}칸</li> : null}
             </ul>
           </div>
         ) : null}
-        <Switch
-          inline
-          label={`구간 ${rule.section} 기존 셀 ${inSection}칸 교체(삭제 후 생성)`}
-          checked={replace}
-          onCheckedChange={setReplace}
-        />
-        <div className="flex justify-end gap-2">
+        {result ? (
+          <div
+            className="rounded border border-line-default p-2 text-2xs text-content-tertiary"
+            data-testid="rule-result"
+          >
+            <b>적용 결과(서버)</b> — {MODE_LABEL[result.mode]} · {previewLabel(result)}
+            <ul className="list-disc pl-4">
+              {result.rows
+                .filter((r) => r.outcome === 'skipped' || r.outcome === 'remapped')
+                .slice(0, 6)
+                .map((r) => (
+                  <li key={r.id}>
+                    #{r.id}
+                    {r.new_id ? ` → #${r.new_id}` : ''} {r.reason ?? ''}
+                  </li>
+                ))}
+            </ul>
+          </div>
+        ) : null}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
             intent="primary"
             disabled={!gen.length || problems.length > 0 || busy}
             loading={busy}
             onClick={() => setConfirm(true)}
+            title={`${MODE_LABEL[mode]} 로 레지스트리(로컬 사본)에 적용합니다`}
             data-testid="rule-apply"
           >
-            레지스트리에 적용
+            {applyButtonLabel(mode, plan)}
           </Button>
         </div>
-        <p className="text-2xs text-content-muted">
-          적용하면 로컬 사본(점선 = PLC 미반영)이 됩니다. 확정하려면 셀 탭에서 <b>PLC 쓰기</b>.
-        </p>
+        {/* 로컬 저장 → PLC 쓰기 두 단계를 같은 자리에서 끝낸다(표의 ⋯ 안에 숨기지 않는다). */}
+        <PlcWriteBar what="셀" rows={cells.length} dirty={dirty} reload={async () => onApplied()} />
       </div>
       <ConfirmDialog
         open={confirm}
         onOpenChange={setConfirm}
         scope="single"
-        danger={replace && inSection > 0}
-        title="레이아웃 적용"
+        danger={mode === 'replace_section' && plan.removed > 0}
+        title={`레이아웃 적용 — ${MODE_LABEL[mode]}`}
         confirmLabel="적용"
         onConfirm={() => void apply()}
       >
         <p className="text-xs">
-          구간 {rule.section} 에 {gen.length}칸 생성
-          {replace && inSection ? ` · 기존 ${inSection}칸 삭제` : ''}
-          {conf.length ? ` · 충돌 ${conf.length}건(덮어쓰기/겹침)` : ''}
+          구간 {rule.section} · {previewLabel({ ...plan.counts, removed: plan.removed })}
+          {mode === 'append' ? ' (지우지 않습니다)' : ''}
         </p>
       </ConfirmDialog>
     </div>

@@ -4,9 +4,11 @@
 //! - `diff`: local vs PLC classification (`same|local_only|plc_only|changed`)
 //! - `xlsx`: Excel / CSV export + import (header-mapped, row-validated)
 //! - `routes`: `/api/items`, `/api/cells`, `/api/stations`, `/api/registry`, `/api/defaults`, `/api/issue/compose`
+//! - `bulk`: `/api/cells/bulk` 병합 계획(append / replace_section / overwrite)
 //! - `beads`: PLC 의 SKU 측정(MEASLOG Kind 2) → 품목 단별 비드 표본 적재·검증·자동 반영
 
 pub mod beads;
+pub mod bulk;
 pub mod diff;
 pub mod plc_io;
 pub mod routes;

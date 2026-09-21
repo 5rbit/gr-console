@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ItemUpsert, StockEntry } from '../types'
-import { duplicateItem, itemErrors, matchesItem, stockUsage, usedCodes } from './model'
+import { duplicateItem, itemErrors, itemLabel, matchesItem, stockUsage, usedCodes } from './model'
 
 const ITEM: ItemUpsert = {
   code: 1001,
@@ -74,5 +74,14 @@ describe('itemErrors', () => {
     expect(itemErrors({ ...ITEM, inner_diameter: 800 })).toEqual(['InnerDiameter 는 OuterDiameter 보다 작아야 합니다'])
     expect(itemErrors({ ...ITEM, inner_diameter: 780.5 })).toHaveLength(1)
     expect(itemErrors({ ...ITEM, outer_diameter: 0 })).toEqual([])
+  })
+})
+
+describe('itemLabel', () => {
+  it('shows code, name, dimensions and note', () => {
+    expect(itemLabel(ITEM)).toBe('1001 · 225/45R17 · ID 381 · OD 780.5 · H 240 · 시험')
+  })
+  it('skips unset dimensions and empty text', () => {
+    expect(itemLabel({ ...ITEM, name: '', inner_diameter: 0, height: 0, note: ' ' })).toBe('1001 · OD 780.5')
   })
 })

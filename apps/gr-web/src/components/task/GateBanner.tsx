@@ -16,6 +16,9 @@ export function useGate(robot: number | null = null): { gate: Gate | null; error
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
+    // 로봇이 바뀌면 옛 로봇의 게이트를 들고 있지 않는다 — 새 응답이 올 때까지 "확인 중"이 맞다.
+    setGate(null)
+    setError(null)
     const tick = async () => {
       try {
         const g = await api.taskGate(robot)

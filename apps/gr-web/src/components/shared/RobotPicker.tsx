@@ -4,13 +4,13 @@ import { robots } from '../../lib/robots'
 import { useStore } from '../../lib/store'
 import { StatusDot } from '../../lib/ui/StatusDot'
 import type { Robot } from '../../lib/types'
+import type { Status } from '../../lib/ui/status'
+import { robotGate, toneStatus } from '../../lib/indicators'
 import { cn } from '../../lib/utils'
 
-export function robotTone(r: Robot): 'ok' | 'warn' | 'fault' | 'neutral' {
-  if (!r.cmd_ready || !r.plc_connected) return 'fault'
-  if (r.layout_ok === false) return 'fault'
-  if (!r.gate.can_submit) return 'warn'
-  return 'ok'
+/** 로봇 점 색 — 사이드바 상태 칩(`lib/indicators.robotGate`)과 같은 톤. 빨강은 통신 끊김뿐이다. */
+export function robotTone(r: Robot): Status {
+  return toneStatus(robotGate(r).tone)
 }
 
 export function RobotPicker({ compact = false }: { compact?: boolean }) {

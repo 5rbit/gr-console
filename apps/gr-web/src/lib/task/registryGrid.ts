@@ -195,6 +195,37 @@ export function applyStationEdit(
   }
 }
 
+// ── 셀 검증(백엔드 `registry/xlsx.rs::validate_cell` 과 같은 규칙) ───────────
+//
+// 셀 바닥 Z 는 **바닥 평탄도 보정**이라 0·음수도 맞는 값이다(현장 CELL 301..305 = -8.8 … -23.5).
+// GR2 `isValidTaskData`(79–83행)의 INVALID_CELL_POSZ 검사는 `IF #Task.Cell.Id > 2000` 안에 있어
+// 스테이션 대상에만 걸리므로(셀 id 는 1..1000) 셀에는 오류도 경고도 내지 않는다.
+
+/** 바닥 Z ≤ 0 경고 — 그리드 툴팁·폼·레이아웃 규칙이 모두 이 문구를 쓴다. */
+export const CELL_POSZ_WARNING =
+  '바닥 Z ≤ 0 — GR2 가 INVALID_CELL_POSZ 로 작업을 거부합니다 (검사는 Cell.Id > 2000 대상, 셀 값은 그대로 저장됩니다)'
+
+/** 막아야 하는 좌표 — X/Y 음수, 숫자가 아닌 값. */
+export const cellPositionErrors = (p: readonly [number, number, number]): string[] => [
+  ...(['X', 'Y'] as const)
+    .filter((_, i) => !(p[i] >= 0))
+    .map((a) => `위치 ${a}는 0 이상이어야 합니다`),
+  ...(Number.isFinite(p[2]) ? [] : ['위치 Z(바닥)가 숫자가 아닙니다']),
+]
+
+/** 막지 않는 좌표 경고 — 셀 바닥 Z 는 PLC 가 검사하지 않으므로 지금은 없다(채널만 유지). */
+export const cellPositionWarnings = (_p: readonly [number, number, number]): string[] => []
+
+export function cellErrors(c: CellUpsert): string[] {
+  const out: string[] = []
+  if (!isCellIdOk(c.id)) out.push('셀 Id는 1..1000')
+  if (![1, 2, 3].includes(c.section)) out.push('구역은 1..3')
+  out.push(...cellPositionErrors(c.position))
+  return out
+}
+
+export const cellWarnings = (c: CellUpsert): string[] => cellPositionWarnings(c.position)
+
 // ── id ───────────────────────────────────────────────────────────────────────
 
 export const isCellIdOk = (id: number): boolean => Number.isInteger(id) && id >= 1 && id <= 1000

@@ -4,6 +4,7 @@
 // (제출·실패 표시·삭제)만 여기서 같은 모양으로 감싼다. 서버 응답은 스토어 Map에 바로 앉힌다 —
 // SSE upsert가 곧 따라오지만, 그때까지 화면이 옛 상태를 들고 있지 않게.
 import { api, del, getJson, postJson } from '../api'
+import { robotFailure, withRobot } from '../robotContext'
 import { tasks } from '../tasks'
 import { toast } from '../ui/toast'
 import type { PlcTask, Task } from '../types'
@@ -57,15 +58,23 @@ export const taskApi = {
   remove: (id: string) => del(`/api/tasks/${id}`),
 }
 
-async function withToast(label: string, run: () => Promise<Task>): Promise<Task | null> {
-  const tid = toast.pending(`${label} 중…`)
+async function withToast(
+  who: string | null,
+  label: string,
+  run: () => Promise<Task>,
+): Promise<Task | null> {
+  const tid = toast.pending(withRobot(who, `${label} 중…`))
   try {
     const t = await run()
     tasks.apply({ kind: 'upsert', task: t })
-    toast.resolve(tid, 'ok', `#${t.seq} ${label}`)
+    toast.resolve(tid, 'ok', withRobot(who, `#${t.seq} ${label}`))
     return t
   } catch (e) {
-    toast.resolve(tid, 'error', `${label} 실패 — ${e instanceof Error ? e.message : String(e)}`)
+    toast.resolve(
+      tid,
+      'error',
+      robotFailure(who, `${label} 실패`, e instanceof Error ? e.message : String(e)),
+    )
     return null
   }
 }
@@ -90,11 +99,11 @@ export async function runAction(
       return { ok: t !== null, task: t }
     }
     case 'submit': {
-      const t = await withToast('제출', () => api.taskSubmit(task.id))
+      const t = await withToast(tasks.ownerOf(task.id), '제출', () => api.taskSubmit(task.id))
       return { ok: t !== null, task: t }
     }
     case 'fail': {
-      const t = await withToast('실패로 표시', () => taskApi.markFailed(task.id, opts.note))
+      const t = await withToast(tasks.ownerOf(task.id), '실패로 표시', () => taskApi.markFailed(task.id, opts.note))
       return { ok: t !== null, task: t }
     }
     case 'delete': {

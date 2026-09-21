@@ -128,7 +128,7 @@ async fn robots(State(st): State<AppState>) -> ApiResult<Json> {
             "id": r.id, "name": r.name, "plc": r.plc, "opcua_root": r.opcua_root, "dst": r.dst, "default": i == 0,
             "cmd_ready": cs.ready, "cmd_error": cs.error,
             "plc_connected": plc.as_ref().map(|h| h.connected).unwrap_or(false), "layout_ok": plc.as_ref().and_then(|h| h.layout_ok),
-            "gate": { "can_submit": g.can_submit, "reasons": g.reasons }, "active_tasks": active,
+            "gate": { "can_submit": g.can_submit, "reasons": g.reasons, "robot": g.robot, "plc": g.plc }, "active_tasks": active,
         }));
     }
     Ok(axum::Json(Json::Array(out)))

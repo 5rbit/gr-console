@@ -3,6 +3,7 @@ import { api } from '../../lib/api'
 import { useRegistry } from '../../lib/registry'
 import { Select } from '../../lib/ui/Select'
 import type { Item } from '../../lib/types'
+import { itemLabel } from '../../lib/items/model'
 
 export interface ItemPickerProps {
   value: number | null
@@ -45,7 +46,7 @@ export function ItemPicker({
       {missing ? <option value={String(value)}>{`#${value} (목록에 없음)`}</option> : null}
       {list.map((i) => (
         <option key={i.code} value={String(i.code)}>
-          {`${i.code} · ${i.name}`}
+          {itemLabel(i)}
         </option>
       ))}
     </Select>

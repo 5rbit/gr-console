@@ -14,13 +14,14 @@ import { stock as stockStore } from '../../lib/stock'
 import { useStore } from '../../lib/store'
 import { tasks } from '../../lib/tasks'
 import type { Shape } from '../../lib/task/layoutModel'
+import type { PreviewCell } from '../../lib/task/layoutGen'
 import { gripOffset, nextType, type PlanStep } from '../../lib/task/plan'
 import { Button } from '../../lib/ui/Button'
 import { InfoRows } from '../../lib/ui/Pair'
 import { f1 } from '../../lib/meas/format'
 import { ctxMenu, type MenuItem } from '../../lib/ui/menu'
 import { Segmented } from '../../lib/ui/Segmented'
-import type { Cell, CellUpsert, GripRef, Item, Station, Target, TaskType } from '../../lib/types'
+import type { Cell, GripRef, Item, Station, Target, TaskType } from '../../lib/types'
 import { PlcStructView } from '../shared/PlcStructView'
 import { CellMap, type RobotMarker, type WorkMark } from './CellMap'
 import { OverflowMenu } from '../../lib/ui/OverflowMenu'
@@ -43,8 +44,8 @@ export interface LayoutTabProps {
   selected: Target | null
   mode: MapMode
   onModeChange: (m: MapMode) => void
-  /** 생성 예정 셀(편집 모드). */
-  preview: readonly CellUpsert[]
+  /** 생성 예정 셀(편집 모드) — 충돌 판정이 실려 있다. */
+  preview: readonly PreviewCell[]
   /** 이 대상으로 화면 이동. */
   focus?: { target: Target; nonce: number } | null
   gripRef?: GripRef

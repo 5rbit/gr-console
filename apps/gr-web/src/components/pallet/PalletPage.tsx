@@ -37,6 +37,8 @@ import {
 } from '../../lib/pallet/model'
 import { useRegistry } from '../../lib/registry'
 import { robots } from '../../lib/robots'
+import { robotLabel, withRobotChip } from '../../lib/robotContext'
+import { RobotChip } from '../shared/RobotChip'
 import { scenarioApi } from '../../lib/scenario/api'
 import { toJson } from '../../lib/scenario/io'
 import { useStore } from '../../lib/store'
@@ -329,7 +331,8 @@ export default function PalletPage() {
     const s = steps()
     if (!plan || s.length === 0) return
     planInbox.push(s)
-    toast.ok(`${s.length}개 스텝(${plan.type} · ${levels}단)을 작업 명령 계획에 보냈습니다`)
+    // 스텝마다 로봇이 실린다(`robots.selected`) — 어느 호기의 계획인지 토스트가 말한다.
+    toast.ok(withRobotChip(robots.chip, `${s.length}개 스텝(${plan.type} · ${levels}단)을 작업 명령 계획에 보냈습니다`))
     nav.go('task')
   }
 
@@ -345,7 +348,7 @@ export default function PalletPage() {
       )
       const file = new File([toJson(doc)], 'pallet-scenario.json', { type: 'application/json' })
       const created = await scenarioApi.importFile(file, 'json')
-      toast.ok(`시나리오 "${created.name}" (${s.length}스텝)을 만들었습니다`)
+      toast.ok(withRobotChip(robots.chip, `시나리오 "${created.name}" (${s.length}스텝)을 만들었습니다`))
       nav.goScenario(created.id)
     } catch (e) {
       toast.error(`시나리오 내보내기 실패 — ${errMsg(e)}`)
@@ -433,7 +436,7 @@ export default function PalletPage() {
 
   const exportMenu = (): MenuItem[] => [
     {
-      label: '시나리오로 내보내기',
+      label: `시나리오로 내보내기 — ${robots.chip.name}`,
       disabled: sendReason ?? (busy ? '처리 중입니다' : undefined),
       run: () => void exportScenario(),
     },
@@ -704,12 +707,14 @@ export default function PalletPage() {
               size="sm"
               icon={<ListPlus size={14} />}
               disabled={busy || sendReason !== null}
-              title={sendReason ?? `${levels}단 × ${plan?.slots.length ?? 0}슬롯을 작업 명령 계획 끝에 추가`}
+              title={sendReason ?? `${levels}단 × ${plan?.slots.length ?? 0}슬롯을 ${robotLabel(robots.chip)} 작업 명령 계획 끝에 추가`}
               onClick={addToPlan}
               data-testid="pallet-add-plan"
             >
               계획에 추가
             </Button>
+            {/* 계획·시나리오로 보내는 스텝에 실리는 로봇 — 보내기 전에 눈에 띄어야 한다. */}
+            <RobotChip chip={robots.chip} prefix="대상" testid="pallet-robot" />
             <span className="flex-1" />
             {hasZ && plan && (
               <HelpTip

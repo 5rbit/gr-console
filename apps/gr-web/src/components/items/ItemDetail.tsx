@@ -63,6 +63,8 @@ import {
 } from '../../lib/items/panelInfo'
 import { itemErrors } from '../../lib/items/model'
 import { robots } from '../../lib/robots'
+import { withRobot } from '../../lib/robotContext'
+import { RobotChip } from '../shared/RobotChip'
 import { useStore } from '../../lib/store'
 import { Button } from '../../lib/ui/Button'
 import { HelpTip } from '../../lib/ui/HelpTip'
@@ -603,16 +605,26 @@ function BeadsTab({
     setApplying(seq)
     try {
       const r = await api.itemBeadSampleApply(draft.code, seq, robot)
-      toast.ok(`Seq ${seq} 반영 — ${r.reason}`)
+      toast.ok(withRobot(robotName, `Seq ${seq} 반영 — ${r.reason}`))
       reload()
     } catch (e) {
-      toast.error(`Seq ${seq} 반영 실패 — ${errMsg(e)}`)
+      toast.error(withRobot(robotName, `Seq ${seq} 반영 실패 — ${errMsg(e)}`))
     } finally {
       setApplying(null)
     }
   }
 
-  const mChip = measuredChip(src)
+  // 잰 로봇은 **값이 온 곳**이다(`src.plc`) — 사이드바 선택이 아니다. 칩이 그 호기를 색·이름으로 말한다.
+  const measuredBy = src ? robots.chipOfPlc(src.plc) : null
+  const mBase = measuredChip(src)
+  const mChip =
+    mBase && measuredBy
+      ? {
+          ...mBase,
+          label: <RobotChip chip={measuredBy} bare testid="beads-measured-robot" />,
+          title: withRobot(measuredBy.name, mBase.title ?? ''),
+        }
+      : mBase
   const bChip = byCodeChip(sum)
   const pChip = sourceChip(stored?.sample_plc, stored?.sample_seq, stored?.at)
   const state = levelsState(levelsErr, levelsLoading, !!src, robotName)
@@ -678,7 +690,7 @@ function BeadsTab({
           )}
         </span>
         {mChip ? (
-          <ChipPopover chip={mChip} title={`최신 SKU 측정 · ${robotName}`} testid="beads-measured-chip">
+          <ChipPopover chip={mChip} title={`최신 SKU 측정 · ${measuredBy?.name ?? robotName}`} testid="beads-measured-chip">
             <InfoRows rows={measuredRows(src)} />
             {bChip ? (
               <>

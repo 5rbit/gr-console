@@ -1,7 +1,7 @@
 // 레지스트리 편집 폼 — 품목·셀·스테이션을 `FormDialog` 안에서 만들고 고친다.
 //
-// 검증은 백엔드와 같은 규칙(셀 1..1000, 스테이션 2001..2999 & mod 100 ∈ 1..32, 셀 X/Y ≥ 0·Z > 0, 스테이션 위치 > 0, 구역 1..3)을
-// 제출 전에 한 번 더 돈다 — 서버 400을 기다리지 않게.
+// 검증은 백엔드와 같은 규칙(셀 1..1000, 스테이션 2001..2999 & mod 100 ∈ 1..32, 셀 X/Y ≥ 0, 스테이션 위치 > 0, 구역 1..3)을
+// 제출 전에 한 번 더 돈다 — 서버 400을 기다리지 않게. 셀 바닥 Z ≤ 0 은 오류가 아니라 **경고**다(바닥 평탄도 보정).
 //
 // 바닥 띠는 **하나**다. 예전에는 폼이 자기 저장 줄을 그리고 `Modal`이 그 아래 닫기 줄을 또 그려
 // 푸터가 두 겹이었고, 열자마자 포커스가 그 닫기에 앉아 첫 칸을 찾아 Tab 을 눌러야 했다(그래서
@@ -15,6 +15,7 @@ import { Input } from '../../lib/ui/Input'
 import { Switch } from '../../lib/ui/Switch'
 import { DEFAULT_SPEC, specErrors, specOf } from '../../lib/items/levelsModel'
 import { itemErrors } from '../../lib/items/model'
+import { cellErrors, cellWarnings } from '../../lib/task/registryGrid'
 import type { CellUpsert, ItemUpsert, StationUpsert } from '../../lib/types'
 
 // ── 공용 조각 ─────────────────────────────────────────────────────────────────
@@ -80,6 +81,21 @@ export function FormErrors({ list }: { list: string[] }) {
   )
 }
 
+/** 막지 않는 경고 목록 — 오류 목록과 같은 자리, 경고 색으로. 저장은 그대로 된다. */
+export function FormWarnings({ list }: { list: string[] }) {
+  if (list.length === 0) return null
+  return (
+    <ul
+      className="list-disc rounded-md border border-warn bg-warn-soft py-1 pr-2 pl-6 text-xs text-warn-fg"
+      data-testid="form-warnings"
+    >
+      {list.map((w) => (
+        <li key={w}>{w}</li>
+      ))}
+    </ul>
+  )
+}
+
 function Section({
   title,
   hint,
@@ -101,12 +117,13 @@ function Section({
   )
 }
 
-/** 공통 껍데기 — 제목 · 저장(Enter) · 오류 목록. 바닥 띠는 `FormDialog` 하나뿐이다. */
+/** 공통 껍데기 — 제목 · 저장(Enter) · 오류·경고 목록. 바닥 띠는 `FormDialog` 하나뿐이다. */
 function FormModal({
   open,
   onOpenChange,
   title,
   errors,
+  warnings = [],
   saving,
   dirty,
   onSave,
@@ -117,6 +134,8 @@ function FormModal({
   onOpenChange: (o: boolean) => void
   title: string
   errors: string[]
+  /** 저장을 막지 않는 경고(셀 바닥 Z ≤ 0 등). */
+  warnings?: string[]
   saving: boolean
   /** 입력이 남아 있는가 — 참이면 Escape·백드롭·취소가 한 번 되묻는다. */
   dirty: boolean
@@ -137,6 +156,7 @@ function FormModal({
       testid="registry-form"
     >
       {children}
+      <FormWarnings list={warnings} />
       <FormErrors list={errors} />
     </FormDialog>
   )
@@ -150,21 +170,13 @@ const positionErrors = (p: [number, number, number]): string[] =>
     .filter((_, i) => !(p[i] > 0))
     .map((a) => `위치 ${a}는 0보다 커야 합니다`)
 
-/** 셀: X/Y 는 0 이상이면 되고, 바닥 Z ≤ 0 은 PLC isValidTaskData 가 거부한다. */
-export const cellPositionErrors = (p: [number, number, number]): string[] => [
-  ...(['X', 'Y'] as const)
-    .filter((_, i) => !(p[i] >= 0))
-    .map((a) => `위치 ${a}는 0 이상이어야 합니다`),
-  ...(p[2] > 0 ? [] : ['위치 Z(바닥)는 0보다 커야 합니다']),
-]
-
-export function validateCell(c: CellUpsert): string[] {
-  const out: string[] = []
-  if (!Number.isInteger(c.id) || c.id < 1 || c.id > 1000) out.push('셀 Id는 1..1000')
-  if (![1, 2, 3].includes(c.section)) out.push('구역은 1..3')
-  out.push(...cellPositionErrors(c.position))
-  return out
-}
+/** 셀 규칙은 `lib/task/registryGrid.ts`(테스트가 있는 순수 모듈)가 진실원이다 — 그리드 편집기와 한 벌을 쓴다. */
+export {
+  cellErrors as validateCell,
+  cellPositionErrors,
+  cellPositionWarnings,
+  cellWarnings,
+} from '../../lib/task/registryGrid'
 
 export function validateStation(s: StationUpsert): string[] {
   const out: string[] = []
@@ -294,7 +306,7 @@ export function CellForm({ open, onOpenChange, initial, editing, onSave }: FormP
   const [saving, setSaving] = useState(false)
   const set = (patch: Partial<CellUpsert>) => setV((cur) => ({ ...cur, ...patch }))
   const save = async () => {
-    const errs = validateCell(v)
+    const errs = cellErrors(v)
     setErrors(errs)
     if (errs.length) return
     setSaving(true)
@@ -312,6 +324,7 @@ export function CellForm({ open, onOpenChange, initial, editing, onSave }: FormP
       onOpenChange={onOpenChange}
       title={editing ? `셀 #${initial.id} 편집` : '셀 추가'}
       errors={errors}
+      warnings={cellWarnings(v)}
       saving={saving}
       dirty={changed(v, initial)}
       onSave={save}

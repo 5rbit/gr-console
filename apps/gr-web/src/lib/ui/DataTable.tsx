@@ -45,6 +45,11 @@ export interface DataTableProps<T> {
   empty?: string
   emptyHint?: string
   /**
+   * 빈 상태의 **다음 행동**(버튼) — `EmptyState.action` 으로 간다. 빈 표가 곧 첫 화면인 레지스트리에서
+   * "추가하세요"를 문장으로만 적으면 사람은 그 버튼을 다시 띠에서 찾아야 한다.
+   */
+  emptyAction?: ReactNode
+  /**
    * 빈 상태를 **한 줄로** 앉힌다 — 반 높이 카드·사이드 패널처럼 240px(`min-h-60`)이 통째로 낭비인
    * 자리. 말하는 것은 같고 자리만 줄인다.
    */
@@ -81,6 +86,7 @@ export function DataTable<T>({
   fit = false,
   empty = '기록 없음',
   emptyHint,
+  emptyAction,
   emptyDense = false,
   loading = false,
   testid,
@@ -149,7 +155,15 @@ export function DataTable<T>({
   }
 
   if (rows.length === 0)
-    return <EmptyState title={empty} hint={emptyHint} compact={emptyDense} testid={testid} />
+    return (
+      <EmptyState
+        title={empty}
+        hint={emptyHint}
+        action={emptyAction}
+        compact={emptyDense}
+        testid={testid}
+      />
+    )
 
   /** 손잡이 열이 서는가 — 접힌 열이 있거나 행 자세히가 있으면. */
   const expandable = hidden.length > 0 || !!rowDetail

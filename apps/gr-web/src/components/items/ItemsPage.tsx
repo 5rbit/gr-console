@@ -9,8 +9,8 @@
 //
 // 재고 사용: 셀 재고 스트림(`lib/stock`)에서 코드별로 몇 칸이 그 코드를 들고 있는지 센다 — 지우기 전에
 // "지금 쓰는 코드인가"가 보여야 한다. StackMax 를 넘은 칸이 있으면 그 칸 수를 경고색으로.
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Copy, Ruler } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Copy, FileSpreadsheet, Plus, Ruler } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
   DEFAULT_PICK_BEAD_OFFSET,
@@ -27,6 +27,7 @@ import { useRegistry } from '../../lib/registry'
 import { stock as stockStore } from '../../lib/stock'
 import { useStore } from '../../lib/store'
 import { taskApi } from '../../lib/task/api'
+import { ITEMS_EXCEL_HELP } from '../../lib/task/importPreview'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
@@ -39,13 +40,16 @@ import { toast } from '../../lib/ui/toast'
 import type { Item, ItemUpsert } from '../../lib/types'
 import { EMPTY_ITEM, ItemForm } from '../task/forms'
 import { toItemUpsert } from '../task/ItemRegistry'
-import { RegistryToolbar, type RegistryIo } from '../task/RegistryToolbar'
+import { RegistryToolbar, type RegistryActions, type RegistryIo } from '../task/RegistryToolbar'
 import { Splitter } from '../workspace/Splitter'
 
 import { ItemDetail } from './ItemDetail'
 
+// 양식이 있으면 툴바의 `추가`가 두 쪽 버튼(폼 · Excel 메뉴)이 된다 — 규격은 폼보다 Excel 로 수십 개씩 들어온다.
 const IO: RegistryIo<Item> = {
   exportUrl: taskApi.itemsExportUrl,
+  templateUrl: taskApi.itemsTemplateUrl,
+  importHelp: ITEMS_EXCEL_HELP,
   importFile: taskApi.itemsImportFile,
 }
 
@@ -105,6 +109,8 @@ export default function ItemsPage() {
   const [bulkStack, setBulkStack] = useState('')
   const [bulkPallet, setBulkPallet] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
+  /** 툴바의 가져오기 창을 빈 표 버튼에서도 연다. */
+  const toolbar = useRef<RegistryActions | null>(null)
 
   const rows = useMemo(() => reg.items.filter((i) => matchesItem(i, q)), [reg.items, q])
   const sel = reg.items.find((i) => i.code === selected) ?? null
@@ -440,6 +446,7 @@ export default function ItemsPage() {
         selected={canDelete}
         disabledReason="행을 누르거나 체크하세요"
         io={IO}
+        actions={toolbar}
         reload={reg.reload}
         onAdd={openAdd}
         onEdit={openEdit}
@@ -549,7 +556,31 @@ export default function ItemsPage() {
               emptyHint={
                 q
                   ? '검색어를 지우면 전체 규격이 보입니다.'
-                  : '추가 버튼이나 Excel 가져오기(Items · ItemBeadProfile 시트)로 타이어 규격을 등록하세요.'
+                  : '한 건씩 입력하거나 양식을 채워 한 번에 가져옵니다.'
+              }
+              emptyAction={
+                q ? undefined : (
+                  <>
+                    <Button
+                      size="sm"
+                      intent="primary"
+                      icon={<Plus className="h-3.5 w-3.5" />}
+                      onClick={openAdd}
+                      data-testid="items-empty-add"
+                    >
+                      직접 입력
+                    </Button>
+                    <Button
+                      size="sm"
+                      intent="outline"
+                      icon={<FileSpreadsheet className="h-3.5 w-3.5" />}
+                      onClick={() => toolbar.current?.importExcel()}
+                      data-testid="items-empty-excel"
+                    >
+                      Excel 가져오기
+                    </Button>
+                  </>
+                )
               }
               testid="items-table"
             />

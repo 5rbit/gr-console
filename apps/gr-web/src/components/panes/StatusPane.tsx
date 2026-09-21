@@ -18,9 +18,10 @@ import { robots } from '../../lib/robots'
 import { useStore } from '../../lib/store'
 import { StatusDot } from '../../lib/ui/StatusDot'
 import type { Status } from '../../lib/ui/status'
+import { RobotChip } from '../shared/RobotChip'
 
 export default function StatusPane() {
-  useStore(density)
+  useStore(density, robots)
   const feed = useSelectedStatus()
 
   const ev = feed.data
@@ -33,9 +34,15 @@ export default function StatusPane() {
       data-testid="status-rows"
     >
       <dt className="text-content-faint">Robot</dt>
-      <dd className="font-mono" data-testid="st-robot">
-        {robots.current?.name ?? '기본'}
-        {ev?.plc ? <span className="ml-1 text-content-faint">{ev.plc}</span> : null}
+      <dd data-testid="st-robot" data-robot={robots.chip.name}>
+        {/* 작업 명령 머리띠·제출 확인과 같은 칩 — 어느 자리에서 보든 같은 호기가 같은 모양으로 선다. */}
+        <RobotChip chip={robots.chip} bare testid="st-robot-chip" />
+        {/* 스트림이 다른 PLC 값을 싣고 오면(선택이 바뀐 직후 등) 숨기지 않고 드러낸다. */}
+        {ev?.plc && robots.chip.plc && ev.plc !== robots.chip.plc ? (
+          <span className="ml-1 font-mono text-warn-fg" title="상태 스트림의 PLC 가 선택된 로봇과 다릅니다">
+            {ev.plc}
+          </span>
+        ) : null}
       </dd>
       <dt className="text-content-faint">Mode</dt>
       <dd className="font-mono" data-testid="st-mode">

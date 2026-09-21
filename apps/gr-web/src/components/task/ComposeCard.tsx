@@ -7,7 +7,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { RotateCcw, Send, Settings2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { TASK_TYPES } from '../../lib/gr/const'
-import { robots } from '../../lib/robots'
+import {
+  robotChip,
+  robotFailure,
+  robotLabel,
+  withRobotChip,
+  type RobotChipModel,
+} from '../../lib/robotContext'
+import { RobotChip, robotField } from '../shared/RobotChip'
 import {
   EMPTY_DRAFT,
   buildRequest,
@@ -66,6 +73,8 @@ export interface ComposeCardProps {
   stations: Station[]
   defaults: Defaults | null
   gate: Gate | null
+  /** 이 카드가 겨냥한 로봇 — 머리줄·확인 창·토스트가 모두 이것을 말한다. */
+  robot: RobotChipModel
   onOpenDefaults: () => void
   /** 바깥(레이아웃 맵·명령 팔레트)에서 고른 대상 — nonce 가 바뀔 때마다 초안에 적용. `type` 이 있으면 종류도. */
   pickedTarget?: { target: Target; type?: TaskType; nonce: number } | null
@@ -85,6 +94,7 @@ export function ComposeCard({
   stations,
   defaults,
   gate,
+  robot,
   onOpenDefaults,
   pickedTarget = null,
   onTargetChange,
@@ -109,6 +119,12 @@ export function ComposeCard({
     [defaults, draft.type, kind],
   )
   const overrideCount = Object.keys(draft.params).length
+  // 미리보기가 백엔드에서 온 대상 이름을 들고 있으면 그것이 진실이다 — 작성 뒤에 사이드바 선택이
+  // 바뀌었어도 확인 창은 **이 요청이 실제로 갈 곳**을 말한다.
+  const targetRobot =
+    preview?.robot && preview.robot !== robot.name
+      ? robotChip(null, { name: preview.robot, plc: preview.plc ?? null })
+      : robot
   // 미리보기가 StackMax 초과 DROP 을 알리면 서버가 409 로 거부한다 — 무시 플래그 없이는 누르지 못하게.
   const stackBlocked = !!request && !!preview?.stack_limit?.blocked
   const canSubmit = !!request && !!gate?.can_submit && !submitting && !stackBlocked
@@ -172,10 +188,11 @@ export function ComposeCard({
     try {
       const t = await api.taskCreate(request, true)
       setAck({ task: t, phase: t.ack || TERMINAL.has(t.state) ? 'done' : 'waiting' })
-      toast.info(`#${t.seq} 제출됨 — Work ${t.work_id} / Task ${t.task_id}`)
+      toast.info(withRobotChip(targetRobot, `#${t.seq} 제출됨 — Work ${t.work_id} / Task ${t.task_id}`))
       if (!(t.ack || TERMINAL.has(t.state))) watchAck(t)
     } catch (e) {
-      toast.error(`제출 실패 — ${e instanceof Error ? e.message : String(e)}`)
+      // 거부 사유는 백엔드가 이미 `GR1: …` 으로 내지만, 그러지 못한 오류(네트워크 등)도 대상을 말한다.
+      toast.error(robotFailure(targetRobot.name, '제출 실패', e instanceof Error ? e.message : String(e)))
     } finally {
       setSubmitting(false)
     }
@@ -331,7 +348,8 @@ export function ComposeCard({
             data-testid="compose-submit"
             title={
               !gate?.can_submit
-                ? '게이트가 닫혀 있습니다'
+                ? // 막힌 사유는 백엔드가 `GR1: …` 으로 낸다 — 여기서 다시 꾸미지 않고 그대로 보인다.
+                  (gate?.reasons.join(' · ') ?? withRobotChip(robot, '게이트 확인 중'))
                 : stackBlocked
                   ? `StackMax 초과 — ${preview?.stack_limit?.blocked ?? ''}`
                   : request
@@ -381,17 +399,18 @@ export function ComposeCard({
         onOpenChange={setConfirm}
         scope="single-robot"
         danger
-        title={`${draft.type} 작업 제출`}
-        confirmLabel="PLC로 제출"
+        title={`${draft.type} 작업 제출 — ${targetRobot.name}`}
+        confirmLabel={`${targetRobot.name} 로 제출`}
         onConfirm={() => void submit()}
       >
         <div className="flex flex-col gap-2 text-xs">
-          <p className="m-0">PLC 로 제출할까요?</p>
+          <p className="m-0">{robotLabel(targetRobot)} 로 제출할까요?</p>
           <FieldList
             columns={2}
             dense
             labelWidth={72}
             items={[
+              robotField(targetRobot, '대상 로봇'),
               { label: '종류', value: draft.type },
               {
                 label: '대상',
@@ -405,7 +424,6 @@ export function ComposeCard({
                 value: draft.item_code !== null ? `${draft.item_code} × ${draft.count}` : '',
                 missing: '품목 없음',
               },
-              { label: '로봇', value: robots.current?.name ?? '', missing: '기본 로봇' },
               ...(preview
                 ? [
                     { label: 'X (mm)', value: f1(preview.task.Position[0]) },
@@ -456,6 +474,9 @@ export function ComposeCard({
       <div className="flex h-screen-header flex-none items-center gap-2 border-b border-line-default px-3">
         <Send className="h-4 w-4 text-content-muted" />
         <span className="text-sm font-semibold">작업 작성</span>
+        <span className="flex-1" />
+        {/* 제 껍데기를 쓰는 경우(단독 카드)에도 대상 호기는 늘 보인다 — 끼워 쓸 때는 바깥 카드가 낸다. */}
+        <RobotChip chip={robot} testid="compose-robot" title={`제출 대상 — ${robotLabel(robot)}`} />
       </div>
       {inner}
     </Card>

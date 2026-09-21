@@ -152,7 +152,8 @@ async fn mark_failed(State(st): State<AppState>, Path(id): Path<String>, body: O
 
 async fn gate(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> ApiResult<Json> {
     let g = super::ops::gate(&st, st.robot(q.robot)?);
-    Ok(axum::Json(json!({ "can_submit": g.can_submit, "reasons": g.reasons })))
+    // `robot`/`plc` 를 같이 낸다 — 화면이 "이 게이트가 누구 것인가"를 선택 상태로 짐작하지 않는다.
+    Ok(axum::Json(json!({ "can_submit": g.can_submit, "reasons": g.reasons, "robot": g.robot, "plc": g.plc })))
 }
 
 async fn plc_view(State(st): State<AppState>, Query(q): Query<RobotQuery>) -> ApiResult<Json> {

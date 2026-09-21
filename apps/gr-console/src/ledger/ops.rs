@@ -13,6 +13,34 @@ use crate::state::{AppState, RobotCtx};
 pub struct Gate {
     pub can_submit: bool,
     pub reasons: Vec<String>,
+    /// 이 게이트가 말하는 로봇과 그 상태 PLC — 화면이 사유를 다시 꾸미지 않고 그대로 읽게 같이 낸다.
+    pub robot: String,
+    pub plc: String,
+}
+
+/// 메시지 앞에 로봇 이름을 단다(이미 달려 있으면 그대로).
+///
+/// 왜 여기서 다는가: 사이드바 선택과 화면이 어긋난 채 거부 문구만 읽으면 "왜 막혔나"는 알아도
+/// **누가 막혔나**를 모른다. 현장에서 GR2 앞에 선 사람이 GR1 의 `Accept = FALSE` 를 읽고
+/// 로봇이 고장 난 줄 알았다 — 사유를 내는 자리에서 이름을 붙여 화면이 빠뜨릴 수 없게 한다.
+pub fn with_robot(robot: &str, msg: &str) -> String {
+    match msg.strip_prefix(robot) {
+        Some(rest) if rest.starts_with(':') => msg.to_string(),
+        _ => format!("{robot}: {msg}"),
+    }
+}
+
+/// 게이트 사유 전부에 로봇 이름을 단다.
+pub fn label_reasons(robot: &str, reasons: Vec<String>) -> Vec<String> {
+    reasons.iter().map(|r| with_robot(robot, r)).collect()
+}
+
+/// 제출 거부 409 의 본문 — 사유가 비어 있어도 어느 로봇이 거부했는지는 남는다.
+pub fn submit_refusal(robot: &str, reasons: &[String]) -> String {
+    if reasons.is_empty() {
+        return with_robot(robot, "제출 거부 — 게이트 사유를 확인할 수 없습니다");
+    }
+    label_reasons(robot, reasons.to_vec()).join("; ")
 }
 
 pub fn gate(st: &AppState, r: &RobotCtx) -> Gate {
@@ -31,13 +59,13 @@ pub fn gate(st: &AppState, r: &RobotCtx) -> Gate {
                 && let Ok(v) = gr_proto::StatusView::from_json(&stat)
             {
                 if !v.task.status.accept {
-                    reasons.push("PLC Task.Status.Accept = FALSE".into());
+                    reasons.push("Task.Status.Accept = FALSE".into());
                 }
                 if !v.task.queue.iter().any(|t| t.is_zero()) {
-                    reasons.push("PLC 태스크 버퍼 가득 참".into());
+                    reasons.push("태스크 버퍼 가득 참".into());
                 }
                 if !v.mode.auto && !v.mode.auto_ready && !st.cfg.demo {
-                    reasons.push("로봇이 AUTO 모드가 아님".into());
+                    reasons.push("AUTO 모드가 아님".into());
                 }
             }
         }
@@ -56,7 +84,7 @@ pub fn gate(st: &AppState, r: &RobotCtx) -> Gate {
             }
         }
     }
-    Gate { can_submit: reasons.is_empty(), reasons }
+    Gate { can_submit: reasons.is_empty(), reasons: label_reasons(&r.name, reasons), robot: r.name.clone(), plc: r.plc.clone() }
 }
 
 /// Submits a Draft entry: writes the command, records the header and moves to Submitted.
@@ -85,7 +113,7 @@ async fn submit_prepared(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Res
     let _busy = st.shutdown.enter(format!("Task 제출 (로봇 {})", r.id))?;
     let g = gate(st, r);
     if !g.can_submit {
-        return Err(ApiError::Conflict(g.reasons.join("; ")));
+        return Err(ApiError::Conflict(submit_refusal(&r.name, &g.reasons)));
     }
     let header = r.cmd.write_task(&entry.plc_task).await?;
     let mut e = entry;
@@ -191,13 +219,13 @@ pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
     if !st.cfg.demo {
         match status_view(st, r) {
             Some(v) if !v.reject_info().delete_allowed => {
-                return Err(ApiError::Conflict("PLC가 취소(Delete)를 허용하지 않습니다 (STAT.RES.Data[6] = 0)".into()));
+                return Err(ApiError::Conflict(with_robot(&r.name, "PLC가 취소(Delete)를 허용하지 않습니다 (STAT.RES.Data[6] = 0)")));
             }
             Some(v) if e.state == TaskState::Running && v.mode.auto => {
-                return Err(ApiError::Conflict("AUTO 모드에서는 실행 중인 태스크를 취소(Delete)할 수 없습니다 — 로봇을 AUTO에서 내린 뒤 다시 시도하세요".into()));
+                return Err(ApiError::Conflict(with_robot(&r.name, "AUTO 모드에서는 실행 중인 태스크를 취소(Delete)할 수 없습니다 — 로봇을 AUTO에서 내린 뒤 다시 시도하세요")));
             }
             Some(_) => {}
-            None => return Err(ApiError::PlcUnavailable("상태 PLC 스냅샷 없음 — 취소 허용 여부를 확인할 수 없습니다".into())),
+            None => return Err(ApiError::PlcUnavailable(with_robot(&r.name, "상태 PLC 스냅샷 없음 — 취소 허용 여부를 확인할 수 없습니다"))),
         }
     }
     // Note the request *before* the op: `task_op` sleeps 600 ms for the re-arm, during which the sync
@@ -229,10 +257,10 @@ pub async fn force_complete(st: &AppState, id: &str) -> Result<LedgerEntry, ApiE
     if !st.cfg.demo {
         match status_view(st, r) {
             Some(v) if !v.reject_info().complete_allowed => {
-                return Err(ApiError::Conflict("PLC가 강제 완료를 허용하지 않습니다 (STAT.RES.Data[5] = 0)".into()));
+                return Err(ApiError::Conflict(with_robot(&r.name, "PLC가 강제 완료를 허용하지 않습니다 (STAT.RES.Data[5] = 0)")));
             }
             Some(_) => {}
-            None => return Err(ApiError::PlcUnavailable("상태 PLC 스냅샷 없음 — 완료 허용 여부를 확인할 수 없습니다".into())),
+            None => return Err(ApiError::PlcUnavailable(with_robot(&r.name, "상태 PLC 스냅샷 없음 — 완료 허용 여부를 확인할 수 없습니다"))),
         }
     }
     // Same ordering as `cancel`: note first, op second, fresh read last.
@@ -285,6 +313,26 @@ mod tests {
         e.task_id = t;
         ledger.upsert(e.clone()).unwrap();
         if state == TaskState::Draft { e } else { ledger.transition(e, state, Actor::Plc, None).unwrap() }
+    }
+
+    #[test]
+    fn gate_reasons_name_the_robot() {
+        let reasons = label_reasons("GR1", vec!["Task.Status.Accept = FALSE".into(), "AUTO 모드가 아님".into()]);
+        assert_eq!(reasons, vec!["GR1: Task.Status.Accept = FALSE", "GR1: AUTO 모드가 아님"]);
+        // 이미 이름이 붙은 사유는 두 번 붙지 않는다(게이트 → 409 로 두 번 지난다).
+        assert_eq!(label_reasons("GR1", reasons.clone()), reasons);
+        // 다른 로봇 이름으로 시작하는 사유는 그 로봇 것이 아니다 — 앞에 제 이름을 단다.
+        assert_eq!(with_robot("GR1", "GR1_PLC S7 연결 없음"), "GR1: GR1_PLC S7 연결 없음");
+    }
+
+    #[test]
+    fn submit_refusal_names_the_robot() {
+        let d = submit_refusal("GR1", &label_reasons("GR1", vec!["Task.Status.Accept = FALSE".into(), "AUTO 모드가 아님".into()]));
+        assert_eq!(d, "GR1: Task.Status.Accept = FALSE; GR1: AUTO 모드가 아님");
+        // 사유가 없어도(게이트가 그 사이에 열렸어도) 어느 로봇이 거부했는지는 남는다.
+        assert!(submit_refusal("GR2", &[]).starts_with("GR2: "));
+        // 라벨 없이 들어온 사유도 이름을 얻는다.
+        assert!(submit_refusal("GR2", &["태스크 버퍼 가득 참".to_string()]).starts_with("GR2: "));
     }
 
     #[test]

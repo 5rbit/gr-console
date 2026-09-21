@@ -70,6 +70,8 @@ pub struct ImportSummary {
     pub removed: usize,
     pub skipped: usize,
     pub errors: Vec<Json>,
+    /// 비차단 경고(가져오기는 그대로 끝난다) — 지금은 셀 바닥 Z ≤ 0.
+    pub warnings: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -82,6 +84,9 @@ pub struct PushResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mismatch_at: Option<u32>,
     pub writes: usize,
+    /// 비차단 경고(쓰기는 그대로 끝난다) — 지금은 셀 바닥 Z ≤ 0.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 // ---- snapshot decoding
@@ -149,7 +154,7 @@ pub fn import_cells(st: &AppState, h: &PlcHandle) -> Result<ImportSummary, ApiEr
     let now = now_str();
     let existing = st.registry.cells()?;
     let decoded = plc_cells(h)?;
-    let mut s = ImportSummary { errors: bad_rows(&decoded.bad), ..Default::default() };
+    let mut s = ImportSummary { errors: bad_rows(&decoded.bad), warnings: super::xlsx::cells_warnings(&decoded.rows), ..Default::default() };
     for cell in decoded.rows {
         match existing.iter().find(|e| e.id == cell.id) {
             Some(e) if e.cell == cell && !e.dirty => s.skipped += 1,
@@ -219,7 +224,7 @@ fn member_range(layout: &Layout, path: &str) -> Result<(u32, u32), ApiError> {
 fn guard(h: &PlcHandle, db: &str, force: bool) -> Result<(), ApiError> {
     let hl = h.health_now();
     if !hl.connected {
-        return Err(ApiError::PlcUnavailable(format!("{} S7 not connected", h.name())));
+        return Err(ApiError::PlcUnavailable(format!("{}: S7 연결 없음", h.name())));
     }
     if !hl.db_ok(db) {
         return Err(ApiError::LayoutMismatch { plc: h.name().into(), db: db.into(), detail: hl.mismatch_detail(db) });
@@ -229,7 +234,7 @@ fn guard(h: &PlcHandle, db: &str, force: bool) -> Result<(), ApiError> {
         && let Some(v) = h.decode_path("OPCUA", "STAT.Mode.Auto")
         && v.as_bool() == Some(true)
     {
-        return Err(ApiError::Conflict(format!("{} is in AUTO mode — table writes are refused while tasks may be validated (force=1 overrides)", h.name())));
+        return Err(ApiError::Conflict(format!("{}: AUTO 모드 — 작업 검증 중에는 테이블 쓰기를 거부합니다 (강제 쓰기로 덮어쓸 수 있습니다)", h.name())));
     }
     Ok(())
 }
@@ -265,7 +270,7 @@ async fn write_and_verify(h: &PlcHandle, db: &str, buf: &[u8], ranges: &[(u32, u
             }
         }
     }
-    Ok(PushResult { plc: h.name().into(), db: db.into(), written_bytes: written, count, verified: mismatch_at.is_none(), mismatch_at, writes: ranges.len() })
+    Ok(PushResult { plc: h.name().into(), db: db.into(), written_bytes: written, count, verified: mismatch_at.is_none(), mismatch_at, writes: ranges.len(), warnings: Vec::new() })
 }
 
 pub async fn push_cells(st: &AppState, h: &PlcHandle, force: bool) -> Result<PushResult, ApiError> {
@@ -286,7 +291,9 @@ pub async fn push_cells(st: &AppState, h: &PlcHandle, force: bool) -> Result<Pus
     h.contract.encode_path(db, "Cell", &Json::Array(arr), &mut buf)?;
     h.contract.encode_path(db, "Count", &json!(entries.len()), &mut buf)?;
     let ranges = vec![member_range(layout, "Cell")?, member_range(layout, "Count")?];
-    let res = write_and_verify(h, db, &buf, &ranges, entries.len()).await?;
+    let mut res = write_and_verify(h, db, &buf, &ranges, entries.len()).await?;
+    // 바닥 Z ≤ 0 은 쓰기를 막지 않는다 — 그 셀을 쓰는 **작업**만 PLC 가 거부한다.
+    res.warnings = super::xlsx::cells_warnings(entries.iter().map(|e| &e.cell));
     if res.verified {
         let ids: Vec<u16> = entries.iter().map(|e| e.id).collect();
         st.registry.mark_cells_synced(&ids, &now_str())?;
@@ -366,8 +373,10 @@ pub fn aggregate(results: Vec<PushResult>) -> Json {
     let verified = results.iter().all(|r| r.verified);
     let mismatch_at = results.iter().find_map(|r| r.mismatch_at);
     let plc = results.iter().map(|r| r.plc.as_str()).collect::<Vec<_>>().join("+");
+    // 같은 셀 표를 여러 PLC 에 쓰므로 경고는 한 벌이면 된다.
+    let warnings = results.first().map(|r| r.warnings.clone()).unwrap_or_default();
     json!({ "plc": plc, "db": results.first().map(|r| r.db.clone()).unwrap_or_default(), "written_bytes": written, "count": count, "verified": verified,
-        "mismatch_at": mismatch_at, "writes": results.iter().map(|r| r.writes).sum::<usize>(), "results": results })
+        "mismatch_at": mismatch_at, "writes": results.iter().map(|r| r.writes).sum::<usize>(), "warnings": warnings, "results": results })
 }
 
 #[cfg(test)]
@@ -393,7 +402,16 @@ mod tests {
 
     #[test]
     fn aggregate_all_reports_first_mismatch() {
-        let r = |plc: &str, verified: bool, mismatch_at: Option<u32>| PushResult { plc: plc.into(), db: "CELL".into(), written_bytes: 10, count: 3, verified, mismatch_at, writes: 2 };
+        let r = |plc: &str, verified: bool, mismatch_at: Option<u32>| PushResult {
+            plc: plc.into(),
+            db: "CELL".into(),
+            written_bytes: 10,
+            count: 3,
+            verified,
+            mismatch_at,
+            writes: 2,
+            warnings: Vec::new(),
+        };
         let j = aggregate(vec![r("GR2", true, None), r("GRM", false, Some(7))]);
         assert_eq!(j["plc"], "GR2+GRM");
         assert_eq!(j["written_bytes"], 20);

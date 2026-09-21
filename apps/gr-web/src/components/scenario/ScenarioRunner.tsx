@@ -10,6 +10,8 @@ import { ExternalLink, Pause, Play, Square } from 'lucide-react'
 import { runsFeed } from '../../lib/feeds'
 import { nav } from '../../lib/nav'
 import { robots } from '../../lib/robots'
+import { robotChip, robotFailure, withRobot } from '../../lib/robotContext'
+import { robotField } from '../shared/RobotChip'
 import { useSse } from '../../lib/sse'
 import { useStore } from '../../lib/store'
 import { Button } from '../../lib/ui/Button'
@@ -62,12 +64,17 @@ function fmtTime(s: string | null | undefined): string {
 }
 const shortId = (id: string | null) => (id ? id.slice(0, 8) : '')
 
-async function act(label: string, run: () => Promise<ScenarioRun>): Promise<void> {
+/** 실행 조작 한 건 — 메시지는 **그 실행이 도는 로봇**을 말한다(`who`). */
+async function act(
+  who: string | null,
+  label: string,
+  run: () => Promise<ScenarioRun>,
+): Promise<void> {
   try {
     await run()
-    toast.ok(label)
+    toast.ok(withRobot(who, label))
   } catch (e) {
-    toast.error(`${label} 실패 — ${e instanceof Error ? e.message : String(e)}`)
+    toast.error(robotFailure(who, `${label} 실패`, e instanceof Error ? e.message : String(e)))
   }
 }
 
@@ -77,6 +84,11 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
   const run = feed.data as ScenarioRunView | null
   const state = run?.state ?? 'idle'
   const active = RUN_ACTIVE.has(state)
+  // 도는 실행이 있으면 그 실행의 로봇, 없으면 다음 실행이 갈 사이드바 선택.
+  const runChip =
+    run && state !== 'idle' && (run.robot_name || run.robot)
+      ? robotChip(robots.byId(run.robot ?? null), { name: run.robot_name ?? null, id: run.robot ?? null })
+      : robots.chip
   const [runOpen, setRunOpen] = useState(false)
   const [stopOpen, setStopOpen] = useState(false)
   const [histOpen, setHistOpen] = useState(false)
@@ -95,7 +107,8 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
   const start = async (opts: RunOptions) => {
     if (!scenario) return
     setRunOpen(false)
-    await act('실행 시작', () => scenarioApi.run(scenario.id, opts))
+    const who = opts.robot !== null && opts.robot !== undefined ? robots.nameOf(opts.robot) : robots.chip.name
+    await act(who, '실행 시작', () => scenarioApi.run(scenario.id, opts))
   }
   const openHistory = async () => {
     setHistOpen(true)
@@ -247,7 +260,7 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
                 size="sm"
                 icon={<Play size={13} />}
                 data-testid="run-resume"
-                onClick={() => void act('재개', scenarioApi.resume)}
+                onClick={() => void act(runChip.name, '재개', scenarioApi.resume)}
               >
                 재개
               </Button>
@@ -258,7 +271,7 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
                 disabled={state !== 'running'}
                 title="현재 스텝이 끝난 뒤 다음 제출을 멈춥니다"
                 data-testid="run-pause"
-                onClick={() => void act('일시정지', scenarioApi.pause)}
+                onClick={() => void act(runChip.name, '일시정지', scenarioApi.pause)}
               >
                 일시정지
               </Button>
@@ -359,10 +372,10 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
         open={stopOpen}
         onOpenChange={setStopOpen}
         scope="single-robot"
-        title="시나리오 정지"
+        title={`시나리오 정지 — ${runChip.name}`}
         danger
         confirmLabel="정지"
-        onConfirm={() => void act('정지', scenarioApi.stop)}
+        onConfirm={() => void act(runChip.name, '정지', scenarioApi.stop)}
       >
         {/* 버튼의 `title` 이 이미 "무엇이 일어나나"를 말한다 — 여기서는 묻고, 대상만 짚는다. */}
         <div className="flex flex-col gap-2 text-xs">
@@ -372,6 +385,7 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
             dense
             labelWidth={64}
             items={[
+              robotField(runChip),
               { label: '시나리오', value: run?.scenario_name ?? '', missing: '이름 없음' },
               {
                 label: '회차',
@@ -410,16 +424,7 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
           dense
           labelWidth={64}
           items={[
-            {
-              label: 'Robot',
-              value:
-                showRun && run.robot_name
-                  ? run.robot_name
-                  : robots.current
-                    ? `${robots.current.name} (다음 실행)`
-                    : null,
-              missing: '기본 로봇',
-            },
+            robotField(runChip, showRun ? 'Robot' : 'Robot (다음 실행)'),
             {
               label: 'Step',
               value: showRun ? `${run.step_index + 1}. ${stepLabel(run.step_index)}` : null,

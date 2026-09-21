@@ -10,6 +10,8 @@ export interface PushResult {
   verified: boolean
   mismatch_at?: number | null
   writes: number
+  /** 막지 않는 경고 — 지금은 바닥 Z ≤ 0 셀(쓰기는 그대로 끝난다). */
+  warnings?: string[]
   /** `plc=both`일 때 PLC별 결과. */
   results?: PushResult[]
 }
@@ -19,6 +21,9 @@ export interface ComposePreview {
   task: PlcTask
   params: TaskParams
   warnings: string[]
+  /** 이 작성이 겨냥한 로봇과 그 상태 PLC — 백엔드 `issue::Composed`. 확인 창이 대상을 짐작하지 않는다. */
+  robot?: string
+  plc?: string
   /** 스테이션 대상 PICK/DROP/MEASURE 일 때만 — GRM 트래킹 보정(`docs/station-offset.md`). */
   station_offset?: StationOffsetAudit | null
   /** 스택 Z 근거(셀 대상 PICK/DROP/MEASURE, 위치 덮어쓰기 없을 때) — 백엔드 `registry::spec::StackZ`. */
@@ -90,13 +95,24 @@ export interface StationOffsetAudit {
   gr2_margin: number | null
 }
 
-/** 파일 가져오기 응답(`ImportResult` + 미리보기용 부가 필드). */
+/** 파일 가져오기 응답(`ImportResult` + 미리보기용 부가 필드).
+ *
+ *  파일 가져오기는 줄마다 `added|updated|unchanged|skipped` 하나가 붙는다(셀 일괄 API와 같은 말).
+ *  `added`·`unchanged` 가 **없는 응답은 PLC 읽기**(`/api/cells/import`)다 — 거기서는 옛 이름
+ *  `imported`·`skipped`(= 동일)만 온다. 둘을 가르는 일은 `lib/task/importPreview.ts`가 한다. */
 export interface FileImportResult {
   imported: number
+  /** `imported`와 같은 수(줄 결과 이름) — 파일 가져오기에만 있다. */
+  added?: number
   updated: number
   removed: number
+  /** 파일 가져오기: **적용 못 한 줄**(오류와 1:1). PLC 읽기: 값이 같아 건너뛴 줄. */
   skipped: number
+  /** 파일의 값이 저장된 것과 같아 쓰지 않은 줄 — 파일 가져오기에만 있다. */
+  unchanged?: number
   errors: { row: number; sheet?: string; message: string }[]
+  /** 막지 않는 경고 — 지금은 바닥 Z ≤ 0 셀(가져오기는 그대로 끝난다). */
+  warnings?: string[]
   dry_run?: boolean
   counts?: { cells: number; stations: number; items: number; item_profiles?: number }
 }

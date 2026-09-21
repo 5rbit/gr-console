@@ -7,9 +7,11 @@ import { Wand2 } from 'lucide-react'
 import type { Registry } from '../../lib/registry'
 import { Input } from '../../lib/ui/Input'
 import { Segmented } from '../../lib/ui/Segmented'
-import type { Cell, CellUpsert, Station, Target } from '../../lib/types'
+import type { PreviewCell } from '../../lib/task/layoutGen'
+import type { Cell, Station, Target } from '../../lib/types'
 import { CellGridEditor } from './CellGridEditor'
 import { LayoutEditor } from './LayoutEditor'
+import { PlcWriteBar } from './PlcWriteBar'
 import { StationGridEditor } from './StationGridEditor'
 
 export type SideTab = 'cell' | 'station' | 'rule'
@@ -21,7 +23,7 @@ export interface LayoutSidePanelProps {
   onTabChange: (t: SideTab) => void
   selected: Target | null
   onSelect: (t: Target | null) => void
-  onPreview: (cells: CellUpsert[]) => void
+  onPreview: (cells: PreviewCell[]) => void
   previewCount: number
   /** 셀 그리드 초안(저장 전) — 맵 미리보기. */
   onCellDraft: (cells: Cell[] | null) => void
@@ -64,6 +66,27 @@ export function LayoutSidePanel({
           ]}
         />
       </div>
+      {/* 로컬 저장 → PLC 쓰기 — 편집 중인 표 바로 위에서 상태와 조작을 같이 낸다
+          (생성 규칙 탭은 적용 버튼 옆에 자기 띠가 선다). */}
+      {tab !== 'rule' ? (
+        <div className="flex min-h-screen-header flex-none items-center border-b border-line-default px-3 py-1">
+          {tab === 'cell' ? (
+            <PlcWriteBar
+              what="셀"
+              rows={cells.items.length}
+              dirty={cells.items.filter((c) => c.dirty).length}
+              reload={() => cells.reload()}
+            />
+          ) : (
+            <PlcWriteBar
+              what="스테이션"
+              rows={stations.items.length}
+              dirty={stations.items.filter((s) => s.dirty).length}
+              reload={() => stations.reload()}
+            />
+          )}
+        </div>
+      ) : null}
       {tab !== 'rule' ? (
         <div className="flex min-h-screen-header flex-none items-center border-b border-line-default px-3 py-1">
           <Input

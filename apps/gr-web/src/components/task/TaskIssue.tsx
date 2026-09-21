@@ -13,8 +13,11 @@ import { Send, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useRegistry } from '../../lib/registry'
 import { robots } from '../../lib/robots'
+import { gateFor, robotLabel, withRobot } from '../../lib/robotContext'
+import { RobotChip } from '../shared/RobotChip'
 import { stock as stockStore } from '../../lib/stock'
 import { useStore } from '../../lib/store'
+import type { PreviewCell } from '../../lib/task/layoutGen'
 import type { Shape } from '../../lib/task/layoutModel'
 import { parseRailTab } from '../../lib/task/railSplitModel'
 import {
@@ -32,7 +35,6 @@ import { toast } from '../../lib/ui/toast'
 import { cn } from '../../lib/utils'
 import type {
   Cell,
-  CellUpsert,
   Defaults,
   Gate,
   GripRef,
@@ -85,7 +87,7 @@ function persist(key: string, v: string) {
  * 밀어냈다. 게이트는 **제출 버튼을 누를 수 있나**를 말하는 한 비트라 색 하나면 충분하다 —
  * 막힌 사유는 손이 멈췄을 때(툴팁) 읽고, 제출 버튼 자신도 같은 이유로 잠긴다.
  */
-function GateChip({ gate, error }: { gate: Gate | null; error: string | null }) {
+function GateChip({ gate, error, robot }: { gate: Gate | null; error: string | null; robot: string }) {
   const tone = error
     ? 'border-warn bg-warn-soft text-warn-fg'
     : !gate
@@ -93,18 +95,20 @@ function GateChip({ gate, error }: { gate: Gate | null; error: string | null }) 
       : gate.can_submit
         ? 'border-ok bg-ok-soft text-ok-fg'
         : 'border-fault bg-fault-soft text-fault-fg'
+  // 게이트는 **한 로봇의** 비트다 — 글자와 툴팁 양쪽에서 그 이름을 말한다(사고: GR2 앞에서 GR1 의
+  // `Accept = FALSE` 를 읽었다). 사유 자체도 백엔드가 `GR1: …` 으로 낸다.
   const text = error
-    ? '게이트 조회 실패'
+    ? `${robot} 게이트 조회 실패`
     : !gate
-      ? '게이트 확인 중…'
+      ? `${robot} 게이트 확인 중…`
       : gate.can_submit
-        ? '제출 가능'
-        : `제출 불가 ${gate.reasons.length}`
+        ? `${robot} 제출 가능`
+        : `${robot} 제출 불가 ${gate.reasons.length}`
   const why = error
-    ? `게이트 조회 실패 — ${error}`
+    ? withRobot(robot, `게이트 조회 실패 — ${error}`)
     : gate && !gate.can_submit
       ? gate.reasons.join(' · ')
-      : 'PLC가 새 작업을 받을 수 있습니다'
+      : withRobot(robot, 'PLC가 새 작업을 받을 수 있습니다')
   return (
     <span
       className={cn(
@@ -113,6 +117,7 @@ function GateChip({ gate, error }: { gate: Gate | null; error: string | null }) 
       )}
       title={why}
       data-testid="gate-banner"
+      data-robot={robot}
       data-state={error ? 'error' : !gate ? 'wait' : gate.can_submit ? 'open' : 'closed'}
     >
       {error || (gate && !gate.can_submit) ? (
@@ -132,8 +137,13 @@ export default function TaskIssue() {
   useStore(stockStore, robots)
   useEffect(() => stockStore.start(), [])
   useEffect(() => robots.start(), [])
+  // 게이트·제출·계획 스텝이 모두 **이 하나**를 본다. 화면 어디도 다른 호기를 겨냥하지 않는다.
   const robot = robots.selected
-  const { gate, error: gateError } = useGate(robot)
+  const chip = robots.chip
+  const polled = useGate(robot)
+  // 응답이 다른 로봇 것이면(선택을 막 바꾼 직후) 없는 것으로 본다 — 칩과 게이트가 늘 같은 호기다.
+  const gate = gateFor(polled.gate, chip.name)
+  const gateError = polled.error
   const [defaults, setDefaults] = useState<Defaults | null>(null)
   const [defaultsOpen, setDefaultsOpen] = useState(false)
   const [side, setSide] = useState<Side>('plan')
@@ -157,8 +167,8 @@ export default function TaskIssue() {
   })
   const [editSel, setEditSel] = useState<Target | null>(null)
   const [sideTab, setSideTab] = useState<SideTab>('cell')
-  const [preview, setPreview] = useState<CellUpsert[]>([])
-  const onPreview = useCallback((c: CellUpsert[]) => setPreview(c), [])
+  const [preview, setPreview] = useState<PreviewCell[]>([])
+  const onPreview = useCallback((c: PreviewCell[]) => setPreview(c), [])
   const [focus, setFocus] = useState<{ target: Target; nonce: number } | null>(null)
   // 레이아웃 편집 그리드의 저장 전 초안 — 맵에 바로 그린다.
   const [cellDraft, setCellDraft] = useState<Cell[] | null>(null)
@@ -264,8 +274,12 @@ export default function TaskIssue() {
           items.items[0]?.code ?? null,
           robots.selected,
         )
+        // 스텝은 지금 고른 로봇을 싣는다(`stepForClick`) — 토스트도 그 이름을 말한다.
         toast.info(
-          `#${h.present.length + 1} ${step.type} ${shape.label}${step.item_code !== null ? ` · 품목 ${step.item_code}` : ''} → 계획`,
+          withRobot(
+            robots.chip.name,
+            `#${h.present.length + 1} ${step.type} ${shape.label}${step.item_code !== null ? ` · 품목 ${step.item_code}` : ''} → 계획`,
+          ),
         )
         return commit(h, [...h.present, step])
       })
@@ -279,7 +293,7 @@ export default function TaskIssue() {
     (target: Target, shape: Shape, type: TaskType) => {
       setPicked({ target, type, nonce: Date.now() })
       setSide('single')
-      toast.info(`${type} · ${shape.label} → 작성 카드`)
+      toast.info(withRobot(robots.chip.name, `${type} · ${shape.label} → 작성 카드`))
       pickTarget(target)
     },
     [pickTarget],
@@ -353,15 +367,14 @@ export default function TaskIssue() {
         icon={<Send className="h-4 w-4" />}
         items={[{ label: 'Plan', value: String(plan.length) }]}
         trailing={
-          <span className="flex items-center gap-3">
-            <GateChip gate={gate} error={gateError} />
-            <span
-              className="text-xs text-content-muted"
-              data-testid="task-robot"
-              title="사이드바 로봇 목록에서 바꿉니다"
-            >
-              로봇 <b className="text-content-primary">{robots.current?.name ?? '…'}</b>
-            </span>
+          <span className="flex items-center gap-2">
+            <GateChip gate={gate} error={gateError} robot={chip.name} />
+            <RobotChip
+              chip={chip}
+              prefix="대상"
+              testid="task-robot"
+              title={`이 화면의 작업은 ${robotLabel(chip)} 로 갑니다 — 사이드바 로봇 목록에서 바꿉니다`}
+            />
           </span>
         }
       />
@@ -427,6 +440,7 @@ export default function TaskIssue() {
               items={items.items}
               stockNow={stockStore.map}
               gate={gate}
+              robot={chip}
               onFocus={(s) => {
                 setFocusStep(s)
                 if (s) {
@@ -446,6 +460,7 @@ export default function TaskIssue() {
                   stations={stations.items}
                   defaults={defaults}
                   gate={gate}
+                  robot={chip}
                   onOpenDefaults={() => setDefaultsOpen(true)}
                   pickedTarget={picked}
                   onTargetChange={onComposeTarget}

@@ -40,6 +40,13 @@ import { Select } from '../../lib/ui/Select'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
 import { robots } from '../../lib/robots'
+import {
+  robotFailure,
+  robotLabel,
+  withRobotChip,
+  type RobotChipModel,
+} from '../../lib/robotContext'
+import { RobotChip, robotField } from '../shared/RobotChip'
 import { useStore } from '../../lib/store'
 import type { Cell, Gate, GripRef, Item, Station, StockEntry, TaskType } from '../../lib/types'
 import { cn } from '../../lib/utils'
@@ -114,6 +121,8 @@ export interface PlanCardProps {
   /** 지금 모드 — `single` 이면 표 대신 `single` 이 작업면을 채운다. */
   mode: PlanMode
   onModeChange: (m: PlanMode) => void
+  /** 이 카드가 겨냥한 로봇 — 머리줄 칩·제출 확인·토스트가 모두 이것을 말한다. */
+  robot: RobotChipModel
   /** 단일 명령 모드의 내용(작성 카드). */
   single?: ReactNode
 }
@@ -135,6 +144,7 @@ export function PlanCard({
   onGripRefChange,
   mode,
   onModeChange,
+  robot,
   single,
 }: PlanCardProps) {
   useStore(robots)
@@ -150,6 +160,9 @@ export function PlanCard({
   const [focus, setFocus] = useState<string | null>(null)
   const warnCount = rows.reduce((a, r) => a + r.warnings.length, 0)
   const first = rows[0] ?? null
+  // 스텝이 제 로봇을 들고 있으면 그 호기로 간다 — 확인 창은 **실제로 갈 곳**을 말해야 한다.
+  const nextRobot =
+    first && first.robot !== null && first.robot !== undefined ? robots.chipOf(first.robot) : robot
 
   function pick(id: string | null) {
     setFocus(id)
@@ -337,7 +350,8 @@ export function PlanCard({
       toast.ok(`시나리오 "${sc.name}" 저장 (${sc.steps.length}스텝)`)
       if (run) {
         await api.scenarioRun(sc.id, { repeat: 1 })
-        toast.info('시나리오 실행 시작 — 진행은 시나리오 탭에서')
+        // 실행은 로봇이 움직이는 일이다 — 어느 호기인지 토스트가 말한다.
+        toast.info(withRobotChip(robot, '시나리오 실행 시작 — 진행은 시나리오 탭에서'))
       }
       nav.goScenario(sc.id)
     } catch (e) {
@@ -352,12 +366,17 @@ export function PlanCard({
     setBusy(true)
     try {
       const t = await api.taskCreate(toRequest(first), true)
+      // 스텝이 제 로봇을 들고 있으면(계획 표의 Robot 열) 그쪽, 아니면 카드 대상.
+      const who = first.robot === null || first.robot === undefined ? robot : robots.chipOf(first.robot)
       toast.info(
-        `#${t.seq} 제출됨 — ${first.type} ${first.target.kind === 'cell' ? 'Cell' : 'Station'} #${first.target.id}`,
+        withRobotChip(
+          who,
+          `#${t.seq} 제출됨 — ${first.type} ${first.target.kind === 'cell' ? 'Cell' : 'Station'} #${first.target.id}`,
+        ),
       )
       onChange(remove(steps, first.id))
     } catch (e) {
-      toast.error(`제출 실패 — ${e instanceof Error ? e.message : String(e)}`)
+      toast.error(robotFailure(nextRobot.name, '제출 실패', e instanceof Error ? e.message : String(e)))
     } finally {
       setBusy(false)
     }
@@ -420,6 +439,12 @@ export function PlanCard({
             : '한 건 작성 → 제출'}
         </span>
         <span className="flex-1" />
+        {/* 이 카드가 만드는 명령은 전부 이 호기로 간다 — 놓칠 수 없는 자리(머리줄 오른쪽)에 늘 선다. */}
+        <RobotChip
+          chip={robot}
+          testid="plan-robot"
+          title={`이 카드의 제출 대상 — ${robotLabel(robot)} (사이드바 로봇 목록에서 바꿉니다)`}
+        />
         <OverflowMenu
           items={menuItems(cardMenu)}
           title={mode === 'plan' ? '계획 — 그립 기준 · 되돌리기 · 비우기' : '작성 — 그립 기준'}
@@ -506,7 +531,12 @@ export function PlanCard({
             intent="primary"
             icon={<Send className="h-3.5 w-3.5" />}
             disabled={!first || busy || !gate?.can_submit}
-            title={!gate?.can_submit ? '게이트가 닫혀 있습니다' : '첫 스텝만 지금 제출'}
+            title={
+              !gate?.can_submit
+                ? // 비활성은 침묵하지 않고 **누가 왜** 막았는지 말한다.
+                  (gate?.reasons.join(' · ') ?? withRobotChip(robot, '게이트 확인 중'))
+                : `첫 스텝만 지금 ${robotLabel(nextRobot)} 로 제출`
+            }
             onClick={() => setConfirmNext(true)}
             data-testid="plan-next"
           >
@@ -563,18 +593,20 @@ export function PlanCard({
         onOpenChange={setConfirmNext}
         scope="single-robot"
         danger
-        title="다음 스텝 제출"
-        confirmLabel="PLC로 제출"
+        title={`다음 스텝 제출 — ${nextRobot.name}`}
+        confirmLabel={`${nextRobot.name} 로 제출`}
         onConfirm={() => void submitNext()}
       >
         {first ? (
           <div className="flex flex-col gap-2 text-xs">
-            <p className="m-0">첫 스텝을 PLC 로 제출할까요?</p>
+            {/* 질문이 로봇을 말한다 — "PLC 로" 가 아니라 "어느 호기로". */}
+            <p className="m-0">첫 스텝을 {robotLabel(nextRobot)} 로 제출할까요?</p>
             <FieldList
               columns={2}
               dense
               labelWidth={72}
               items={[
+                robotField(nextRobot, '대상 로봇'),
                 { label: '종류', value: first.type },
                 {
                   label: '대상',

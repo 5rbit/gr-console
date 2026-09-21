@@ -1231,9 +1231,12 @@ mod tests {
         assert_eq!((z8.base, z8.grip), (0.0, abs_upper(8, 3) - 30.0));
         assert_eq!((z8.level, z8.above, z8.below), (3, 5, 2));
         assert!(z8.used.iter().any(|u| u == &format!("grip=pick_bead abs(n=8,L3) {} (GR2 #8)", abs_upper(8, 3))), "{:?}", z8.used);
-        // floor 는 그대로 더해진다
+        // floor 는 그대로 더해진다 — 바닥 평탄도 보정으로 음수여도 똑같이 더해진다(셀 301..305)
         let on_floor = stack_z_with(TaskType::Pick, 1500.0, &it, Some(&s), "pick_bead", 8, 6);
         assert_eq!(on_floor.z, 1500.0 + abs_upper(8, 3) - 30.0);
+        let below_floor = stack_z_with(TaskType::Pick, -8.8, &it, Some(&s), "pick_bead", 8, 6);
+        assert_eq!(below_floor.z, -8.8 + abs_upper(8, 3) - 30.0);
+        assert_eq!((below_floor.base, below_floor.grip), (on_floor.base, on_floor.grip), "바닥은 그립 계산을 건드리지 않는다");
         // DROP 은 놓고 나면 한 단 높아진다 — 5 단 프로파일의 5 단을 쓴다
         let drop = stack_z_with(TaskType::Drop, 0.0, &it, Some(&s), "pick_bead", 4, 1);
         assert_eq!((drop.level, drop.z_source, drop.z), (5, "profile", abs_upper(5, 5) - 30.0));

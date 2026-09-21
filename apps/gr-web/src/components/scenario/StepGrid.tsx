@@ -16,6 +16,7 @@ import {
   paramCount,
 } from '../../lib/scenario/model'
 import { paramsToKv } from '../../lib/scenario/io'
+import { itemLabel } from '../../lib/items/model'
 import { cellText, stationText } from '../shared/TargetPicker'
 
 export interface StepGridProps {
@@ -233,7 +234,7 @@ export function StepGrid({
     [stations],
   )
   const itemOptions = useMemo<PickOption[]>(
-    () => items.map((i) => ({ value: String(i.code), text: `${i.code} · ${i.name}` })),
+    () => items.map((i) => ({ value: String(i.code), text: itemLabel(i) })),
     [items],
   )
   const cellById = useMemo(() => new Map(cells.map((c) => [c.id, c])), [cells])

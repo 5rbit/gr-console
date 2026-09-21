@@ -9,8 +9,9 @@
 //! columns and the `ItemBeadProfile` sheet are optional. A **missing column / sheet leaves that part of an
 //! existing item's spec unchanged** (a new item gets the default); a present column with an empty cell means
 //! 0 / none. When the `ItemBeadProfile` sheet is present it is authoritative for every code in the `Items`
-//! sheet (no rows = no profile); rows for codes not in the `Items` sheet update the profiles of existing
-//! items only.
+//! sheet (a code with no rows = no profile); rows for codes not in the `Items` sheet update the profiles of
+//! existing items only. A profile sheet with **only its header row counts as absent** — the blank template
+//! (`template_workbook`) carries one, and filling only its `Items` sheet must not wipe measured beads.
 //!
 //! 정본은 **잰 스택 크기별 절대 프로파일**(`Stack` + `Level` 키, 셀 바닥 기준 mm)이다 — 하중(`Above`)
 //! 곡선은 콘솔이 여기서 파생하므로 시트로 오가지 않는다.
@@ -147,9 +148,24 @@ impl From<&ItemEntry> for ItemRow {
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct RowError {
     pub sheet: String,
-    /// 1-based sheet row.
+    /// 1-based sheet row (`0` = 줄을 짚을 수 없는 오류).
     pub row: usize,
     pub message: String,
+}
+
+/// 오류 한 줄의 사람 문장 — **줄을 앞세운다**.
+///
+/// 운전자가 받은 것은 열다섯 열짜리 시트이고, 고칠 수 있는 단위는 줄이다. `count must be >= 1` 만
+/// 오면 어느 줄인지 찾느라 파일을 훑어야 한다 — 표에 열이 따로 있어도 토스트 한 줄과 복사해 붙인
+/// 메시지에는 줄이 같이 붙어 있어야 쓸모가 있다.
+pub fn error_text(e: &RowError) -> String {
+    let sheet = e.sheet.trim();
+    match (sheet.is_empty() || sheet.eq_ignore_ascii_case("csv"), e.row) {
+        (true, 0) => e.message.clone(),
+        (true, n) => format!("row {n}: {}", e.message),
+        (false, 0) => format!("{sheet}: {}", e.message),
+        (false, n) => format!("{sheet} row {n}: {}", e.message),
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -157,8 +173,15 @@ pub struct Tables {
     pub cells: Vec<CellInfo>,
     pub stations: Vec<StationPara>,
     pub items: Vec<ItemRow>,
+    /// `items[i]` 가 온 시트 줄 — 저장된 값과 합쳐야 드러나는 오류도 줄을 짚을 수 있게.
+    pub item_rows: Vec<usize>,
+    /// 품목이 실린 시트 이름(csv 면 `csv`) — 오류 문장이 진짜 시트를 부르게.
+    pub items_sheet: String,
     /// Parsed `ItemBeadProfile` rows — merged into `items[*].spec.profiles`.
     pub item_profiles: Vec<ProfileSheetRow>,
+    /// 프로파일 시트에서 각 코드가 처음 나온 줄.
+    pub profile_row_of: BTreeMap<u32, usize>,
+    pub profile_sheet: String,
     pub orphan_profiles: Vec<(u32, Vec<BeadProfile>)>,
     pub errors: Vec<RowError>,
     /// Which tables the file actually carried (a missing sheet is not an error).
@@ -166,6 +189,15 @@ pub struct Tables {
     pub has_stations: bool,
     pub has_items: bool,
     pub has_item_profiles: bool,
+}
+
+impl Tables {
+    fn items_sheet_name(&self) -> String {
+        if self.items_sheet.is_empty() { "Items".into() } else { self.items_sheet.clone() }
+    }
+    fn profile_sheet_name(&self) -> String {
+        if self.profile_sheet.is_empty() { "ItemBeadProfile".into() } else { self.profile_sheet.clone() }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -185,15 +217,37 @@ pub fn validate_cell(c: &CellInfo) -> Result<(), String> {
     if !(1..=3).contains(&c.section) {
         return Err(format!("section {} must be 1..3", c.section));
     }
-    // PLC: 셀 바닥 Z <= 0 이면 isValidTaskData 가 거부한다. 셀 X/Y 는 0 이상이면 된다(태스크 위치는 RangeMin..Max 로 검사).
+    // 셀 바닥 Z 는 **바닥 평탄도 보정**이라 0 이나 음수일 수 있다(현장 CELL 301..305 = -8.8 … -23.5).
+    // 타이어 높이가 더해져 명령이 나가므로 데이터로도 작업으로도 정상이다: GR2 `isValidTaskData`(79–83행)의
+    // INVALID_CELL_POSZ 검사는 `IF #Task.Cell.Id > 2000` 안에 있어 **스테이션 대상에만** 걸린다(셀 id 는 1..1000).
+    // 그래서 셀에는 경고도 내지 않는다(`floor_z_warning` 은 스테이션 id 만 본다).
+    // 숫자가 아닌 Z(NaN/inf)는 계산을 망가뜨리므로 여전히 오류다.
+    // 셀 X/Y 는 0 이상이면 된다(태스크 위치는 RangeMin..Max 로 검사).
     let [x, y, z] = c.position;
     if let Some((axis, v)) = [("X", x), ("Y", y)].into_iter().find(|(_, v)| *v < 0.0 || v.is_nan()) {
         return Err(format!("position {axis} = {v} must be >= 0"));
     }
-    if z <= 0.0 || z.is_nan() {
-        return Err(format!("position Z = {z} must be > 0 (PLC rejects a cell floor Z <= 0)"));
+    if !z.is_finite() {
+        return Err(format!("position Z = {z} must be a finite number"));
     }
     Ok(())
+}
+
+/// 바닥 Z ≤ 0 경고 문구 — 한 군데서만 만든다(레지스트리 CRUD · 파일/PLC 가져오기 · PLC 쓰기 · 작성 미리보기).
+/// GR2 `isValidTaskData` 의 INVALID_CELL_POSZ 는 `Task.Cell.Id > 2000`(스테이션)일 때만 보므로,
+/// 셀(id 1..1000)은 Z 가 음수여도 경고하지 않는다. 유한하지 않은 Z 는 `validate_cell` 이 막는다.
+pub fn floor_z_warning(kind: &str, id: u16, z: f32) -> Option<String> {
+    (id > 2000 && z <= 0.0).then(|| format!("{kind} {id} Z {z} ≤ 0 — GR2 가 INVALID_CELL_POSZ 로 작업을 거부합니다"))
+}
+
+/// 셀 한 줄의 비차단 경고(셀 바닥 Z 는 PLC 가 검사하지 않으므로 지금은 없다 — 채널만 유지).
+pub fn cell_warnings(c: &CellInfo) -> Vec<String> {
+    floor_z_warning("셀", c.id, c.position[2]).into_iter().collect()
+}
+
+/// 여러 셀의 경고를 한 줄씩 모은다(가져오기·쓰기 요약 채널).
+pub fn cells_warnings<'a>(cells: impl IntoIterator<Item = &'a CellInfo>) -> Vec<String> {
+    cells.into_iter().flat_map(cell_warnings).collect()
 }
 
 pub fn validate_station(p: &StationPara) -> Result<(), String> {
@@ -386,6 +440,17 @@ pub fn export_workbook(cells: Option<&[CellInfo]>, stations: Option<&[StationPar
         wb.add_worksheet();
     }
     wb.save_to_buffer().map_err(xerr)
+}
+
+/// 빈 품목 양식 — `Items` + `ItemBeadProfile` 머리글만(`GET /api/items/template.xlsx`).
+///
+/// **예시 줄은 넣지 않는다.** 예시를 지우지 않고 올린 파일은 있지도 않은 품목을 하나 만들거나
+/// 오류 한 줄을 내고, 어느 쪽이든 "이 줄은 지우세요"를 어딘가에 또 적어야 한다. 줄이 없으면
+/// 받은 그대로 다시 올려도 아무것도 바뀌지 않는다 — 처음 쓰는 사람이 왕복을 먼저 확인할 수 있다.
+/// 채워야 하는 것은 `Code`(없으면 줄이 거부된다)와 `Name`(비면 이름 없는 품목이 된다)뿐이고,
+/// 나머지 열은 비우면 기본값이다(`docs/item-spec-z.md`).
+pub fn template_workbook() -> Result<Vec<u8>, ApiError> {
+    export_workbook(None, None, Some(&[]))
 }
 
 // ---- import: bytes → grid → structs
@@ -720,12 +785,20 @@ fn consume_profile(sheet: &Sheet, out: &mut Tables) {
         out.errors.push(RowError { sheet: sheet.name.clone(), row: 1, message: format!("header row has no '{k}' column") });
         return;
     }
+    // 머리글만 있는 시트는 **없는 시트**로 본다. 양식(`template_workbook`)을 받아 Items 만 채워
+    // 올리면 빈 비드 시트가 따라오는데, 그것을 "이 코드들은 프로파일 없음"으로 읽으면 기존 품목을
+    // 고치려던 사람이 잰 비드를 조용히 잃는다. 프로파일을 비우는 일은 화면(Beads 탭)이 한다.
+    if sheet.rows.is_empty() {
+        return;
+    }
     out.has_item_profiles = true;
+    out.profile_sheet = sheet.name.clone();
     let mut seen = HashSet::new();
     for (rn, cells) in &sheet.rows {
         match parse_profile(&Row { sheet, cells }) {
             Ok(row) => {
                 if seen.insert((row.code, row.count, row.row.level)) {
+                    out.profile_row_of.entry(row.code).or_insert(*rn);
                     out.item_profiles.push(row);
                 } else {
                     out.errors.push(RowError { sheet: sheet.name.clone(), row: *rn, message: format!("code {} stack {} level {} is duplicated", row.code, row.count, row.row.level) });
@@ -791,7 +864,10 @@ fn consume_sheet(sheet: &Sheet, as_kind: Want, out: &mut Tables) {
     match as_kind {
         Want::Cells => out.has_cells = true,
         Want::Stations => out.has_stations = true,
-        Want::Items => out.has_items = true,
+        Want::Items => {
+            out.has_items = true;
+            out.items_sheet = sheet.name.clone();
+        }
         Want::All => {}
     }
     for (rn, cells) in &sheet.rows {
@@ -799,7 +875,10 @@ fn consume_sheet(sheet: &Sheet, as_kind: Want, out: &mut Tables) {
         let res = match as_kind {
             Want::Cells => parse_cell(&r).map(|c| out.cells.push(c)),
             Want::Stations => parse_station(&r).map(|s| out.stations.push(s)),
-            Want::Items => parse_item(&r).map(|i| out.items.push(i)),
+            Want::Items => parse_item(&r).map(|i| {
+                out.items.push(i);
+                out.item_rows.push(*rn);
+            }),
             Want::All => Ok(()),
         };
         if let Err(m) = res {
@@ -894,10 +973,19 @@ pub fn parse_file(name: &str, bytes: &[u8], want: Want) -> Result<Tables, ApiErr
 
 // ---- apply to sqlite
 
+/// 줄마다 하나씩 붙는 결과 — 셀 일괄 API(`bulk::Outcome`)와 같은 말을 쓴다.
+///
+/// 예전에는 `skipped` 하나가 "저장된 값과 같아서 안 썼다"를 뜻했는데, 그건 **건너뜀이 아니라
+/// 동일**이다. 둘을 갈라 두면 미리보기가 "이 파일에 바뀔 것이 정말 없다"와 "고쳐야 할 줄이 있다"를
+/// 한눈에 가른다.
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ApplyCounts {
+    /// 새로 생긴 행.
     pub imported: usize,
     pub updated: usize,
+    /// 파일 값이 저장된 것과 같아 쓰지 않은 행.
+    pub unchanged: usize,
+    /// 적용하지 못한 행 — `errors` 와 1:1 이다.
     pub skipped: usize,
     /// Rows rejected only when merged with the stored state (e.g. a level deeper than the stored stack_max).
     pub errors: Vec<RowError>,
@@ -907,6 +995,7 @@ impl ApplyCounts {
     pub fn add(&mut self, o: &ApplyCounts) {
         self.imported += o.imported;
         self.updated += o.updated;
+        self.unchanged += o.unchanged;
         self.skipped += o.skipped;
         self.errors.extend(o.errors.iter().cloned());
     }
@@ -918,7 +1007,7 @@ pub fn apply_cells(reg: &Registry, cells: &[CellInfo], dry_run: bool) -> Result<
     for cell in cells {
         match existing.iter().find(|e| e.id == cell.id) {
             Some(e) if e.cell == *cell => {
-                c.skipped += 1;
+                c.unchanged += 1;
                 continue;
             }
             Some(_) => c.updated += 1,
@@ -937,7 +1026,7 @@ pub fn apply_stations(reg: &Registry, stations: &[StationPara], dry_run: bool) -
     for p in stations {
         match existing.iter().find(|e| e.id == p.info.id) {
             Some(e) if e.para == *p => {
-                c.skipped += 1;
+                c.unchanged += 1;
                 continue;
             }
             Some(_) => c.updated += 1,
@@ -950,19 +1039,26 @@ pub fn apply_stations(reg: &Registry, stations: &[StationPara], dry_run: bool) -
     Ok(c)
 }
 
-pub fn apply_items(reg: &Registry, items: &[ItemRow], orphan_profiles: &[(u32, Vec<BeadProfile>)], dry_run: bool) -> Result<ApplyCounts, ApiError> {
+/// `Items` + `ItemBeadProfile` 를 한 번에 적용한다 — 한 파일로 품목과 그 단별 비드를 같이 넣는 길.
+///
+/// `Tables` 를 통째로 받는 이유는 **줄 번호** 다: 저장된 값과 합쳐야 드러나는 오류(저장된
+/// `StackMax` 보다 깊은 단 따위)도 파일의 몇 번째 줄인지 말할 수 있어야 고칠 수 있다.
+pub fn apply_items(reg: &Registry, t: &Tables, dry_run: bool) -> Result<ApplyCounts, ApiError> {
     let existing = reg.items()?;
+    let (items_sheet, profile_sheet) = (t.items_sheet_name(), t.profile_sheet_name());
     let mut c = ApplyCounts::default();
-    for it in items {
+    for (i, it) in t.items.iter().enumerate() {
+        let row = t.item_rows.get(i).copied().unwrap_or(0);
         let cur = existing.iter().find(|e| e.code == it.code);
         let spec = it.spec.apply(&cur.map(|e| e.spec.clone()).unwrap_or_default()).normalized();
         if let Err(m) = validate_spec_for(&spec, &it.item) {
-            c.errors.push(RowError { sheet: "Items".into(), row: 0, message: format!("code {}: {m}", it.code) });
+            c.skipped += 1;
+            c.errors.push(RowError { sheet: items_sheet.clone(), row, message: format!("Code {}: {m}", it.code) });
             continue;
         }
         match cur {
             Some(e) if e.item == it.item && e.name == it.name && e.note == it.note && e.spec == spec => {
-                c.skipped += 1;
+                c.unchanged += 1;
                 continue;
             }
             Some(_) => c.updated += 1,
@@ -972,18 +1068,21 @@ pub fn apply_items(reg: &Registry, items: &[ItemRow], orphan_profiles: &[(u32, V
             reg.upsert_item_full(it.code, &it.name, &it.item, &it.note, Some(&spec))?;
         }
     }
-    for (code, profiles) in orphan_profiles {
+    for (code, profiles) in &t.orphan_profiles {
+        let row = t.profile_row_of.get(code).copied().unwrap_or(0);
         let Some(e) = existing.iter().find(|e| e.code == *code) else {
-            c.errors.push(RowError { sheet: "ItemBeadProfile".into(), row: 0, message: format!("code {code}: 등록된 품목이 없습니다(Items 시트에도 없음)") });
+            c.skipped += 1;
+            c.errors.push(RowError { sheet: profile_sheet.clone(), row, message: format!("Code {code}: 등록된 품목이 없습니다(Items 시트에도 없음)") });
             continue;
         };
         let spec = ItemSpec { profiles: profiles.clone(), ..e.spec.clone() }.normalized();
         if let Err(m) = validate_spec_for(&spec, &e.item) {
-            c.errors.push(RowError { sheet: "ItemBeadProfile".into(), row: 0, message: format!("code {code}: {m}") });
+            c.skipped += 1;
+            c.errors.push(RowError { sheet: profile_sheet.clone(), row, message: format!("Code {code}: {m}") });
             continue;
         }
         if e.spec == spec {
-            c.skipped += 1;
+            c.unchanged += 1;
             continue;
         }
         c.updated += 1;
@@ -1073,11 +1172,11 @@ mod tests {
         // apply → stored spec equals; a second apply is a no-op
         let reg = Registry::new(crate::db::Db::open_memory().unwrap());
         let t = parse_file("items.xlsx", &bytes, Want::Items).unwrap();
-        let c = apply_items(&reg, &t.items, &t.orphan_profiles, false).unwrap();
+        let c = apply_items(&reg, &t, false).unwrap();
         assert_eq!((c.imported, c.errors.len()), (2, 0));
         assert_eq!(reg.item(1001).unwrap().unwrap().spec, spec);
-        let c = apply_items(&reg, &t.items, &t.orphan_profiles, false).unwrap();
-        assert_eq!(c.skipped, 2);
+        let c = apply_items(&reg, &t, false).unwrap();
+        assert_eq!((c.unchanged, c.skipped), (2, 0));
     }
 
     #[test]
@@ -1093,10 +1192,10 @@ mod tests {
         let t = parse_file("items.csv", csv.as_bytes(), Want::Items).unwrap();
         assert!(t.errors.is_empty() && !t.has_item_profiles, "{:?}", t.errors);
         assert_eq!(t.items[0].spec, SpecPatch::default());
-        let dry = apply_items(&reg, &t.items, &t.orphan_profiles, true).unwrap();
+        let dry = apply_items(&reg, &t, true).unwrap();
         assert_eq!((dry.imported, dry.updated), (1, 1));
         assert!(reg.item(1005).unwrap().is_none(), "dry run must not write");
-        apply_items(&reg, &t.items, &t.orphan_profiles, false).unwrap();
+        apply_items(&reg, &t, false).unwrap();
         assert_eq!(reg.item(1001).unwrap().unwrap().spec, spec, "missing columns keep the stored spec");
         assert_eq!(reg.item(1001).unwrap().unwrap().name, "A2");
         assert_eq!(reg.item(1005).unwrap().unwrap().spec, ItemSpec::default());
@@ -1106,7 +1205,7 @@ mod tests {
         // a StackMax column alone changes only stack_max
         let csv = "Code,StackMax\n1001,6\n";
         let t = parse_file("items.csv", csv.as_bytes(), Want::Items).unwrap();
-        apply_items(&reg, &t.items, &t.orphan_profiles, false).unwrap();
+        apply_items(&reg, &t, false).unwrap();
         let got = reg.item(1001).unwrap().unwrap().spec;
         assert_eq!((got.stack_max, got.profiles.len()), (6, 1));
     }
@@ -1120,10 +1219,12 @@ mod tests {
         assert!(!t.has_items && t.has_item_profiles);
         assert_eq!(t.errors.iter().map(|e| e.row).collect::<Vec<_>>(), vec![4], "{:?}", t.errors);
         assert!(t.errors[0].message.contains("duplicated"));
-        let c = apply_items(&reg, &t.items, &t.orphan_profiles, false).unwrap();
-        assert_eq!(c.updated, 1);
+        let c = apply_items(&reg, &t, false).unwrap();
+        assert_eq!((c.updated, c.skipped), (1, 1));
         assert_eq!(c.errors.len(), 1);
         assert!(c.errors[0].message.contains("9999"));
+        // 적용 단계 오류도 줄을 짚는다 — 9999 가 처음 나온 시트 줄(머리글 + 네 번째 자료 줄).
+        assert_eq!(c.errors[0].row, 5, "{:?}", c.errors);
         // 절대값 그대로 저장되고, 사람이 쓴 시트라 손입력(manual)으로 들어간다
         let got = reg.item(1001).unwrap().unwrap().spec;
         assert_eq!(got.measured_counts(), vec![3]);
@@ -1133,6 +1234,95 @@ mod tests {
         // 스택 크기보다 깊은 단은 가져올 때 거부된다
         let t = parse_file("profile.csv", "Code,Stack,Level,UpperBead\n1001,3,5,900\n".as_bytes(), Want::Items).unwrap();
         assert!(t.errors[0].message.contains("level must be 1..=3"), "{:?}", t.errors);
+    }
+
+    /// 양식(`GET /api/items/template.xlsx`)은 **머리글만** 들고, 받은 그대로 다시 올리면
+    /// 한 줄도 바뀌지 않는다 — 처음 쓰는 사람이 왕복을 먼저 확인할 수 있어야 한다.
+    #[test]
+    fn items_template_is_headers_only_and_imports_as_a_no_op() {
+        let bytes = template_workbook().unwrap();
+        let sheets = sheets_from_xlsx(&bytes).unwrap();
+        assert_eq!(sheets.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), vec!["Items", "ItemBeadProfile"]);
+        for (name, cols) in [("Items", &ITEM_COLS[..]), ("ItemBeadProfile", &PROFILE_COLS[..])] {
+            let grid = &sheets.iter().find(|(n, _)| n == name).unwrap().1;
+            assert_eq!(grid.len(), 1, "{name} 에 자료 줄이 있으면 안 된다");
+            assert_eq!(grid[0].iter().map(Cell::text).collect::<Vec<_>>(), cols);
+            // 머리글이 하나라도 안 읽히면 그 열은 조용히 버려진다 — 양식이 자기 파서를 통과해야 한다
+            assert!(grid[0].iter().all(|c| canonical(&c.text()).is_some()), "{name} 머리글");
+        }
+        let reg = Registry::new(crate::db::Db::open_memory().unwrap());
+        reg.upsert_item_full(1001, "A", &item(1001).item, "", None).unwrap();
+        let t = parse_file("items_template.xlsx", &bytes, Want::Items).unwrap();
+        assert!(t.errors.is_empty(), "{:?}", t.errors);
+        // 비드 시트는 머리글뿐이라 없는 시트로 읽힌다(`consume_profile`)
+        assert!(t.has_items && !t.has_item_profiles && t.items.is_empty());
+        let c = apply_items(&reg, &t, false).unwrap();
+        assert_eq!((c.imported, c.updated, c.unchanged, c.skipped), (0, 0, 0, 0));
+        assert_eq!(reg.items().unwrap().len(), 1, "빈 양식이 등록된 품목을 지우면 안 된다");
+    }
+
+    /// 오류 문장은 **시트와 줄**을 앞세운다 — 토스트 한 줄만 봐도 고칠 자리를 찾는다.
+    #[test]
+    fn row_errors_name_the_sheet_and_the_row() {
+        let e = |sheet: &str, row: usize| RowError { sheet: sheet.into(), row, message: "count must be >= 1".into() };
+        assert_eq!(error_text(&e("Items", 3)), "Items row 3: count must be >= 1");
+        assert_eq!(error_text(&e("ItemBeadProfile", 12)), "ItemBeadProfile row 12: count must be >= 1");
+        assert_eq!(error_text(&e("Items", 0)), "Items: count must be >= 1");
+        // 시트가 하나뿐인 csv 는 시트 이름을 말할 것이 없다
+        assert_eq!(error_text(&e("csv", 3)), "row 3: count must be >= 1");
+    }
+
+    /// 한 줄이 틀려도 **나머지는 들어온다**(전부 아니면 전무가 아니다) — dry-run 과 실제 적용이 같은 수를 센다.
+    #[test]
+    fn a_bad_row_is_skipped_and_the_good_rows_still_apply() {
+        let bad = ItemRow { item: StockItem { count: 0, ..item(1002).item }, ..item(1002) };
+        let items = vec![item(1001), bad, item(1003)];
+        let bytes = export_workbook(None, None, Some(&items)).unwrap();
+        let t = parse_file("items.xlsx", &bytes, Want::Items).unwrap();
+        assert_eq!(t.items.iter().map(|i| i.code).collect::<Vec<_>>(), vec![1001, 1003]);
+        assert_eq!(t.errors.len(), 1, "{:?}", t.errors);
+        assert_eq!((t.errors[0].sheet.as_str(), t.errors[0].row), ("Items", 3));
+        assert_eq!(error_text(&t.errors[0]), "Items row 3: count must be >= 1");
+        let reg = Registry::new(crate::db::Db::open_memory().unwrap());
+        let dry = apply_items(&reg, &t, true).unwrap();
+        assert_eq!((dry.imported, dry.updated, dry.unchanged, dry.skipped), (2, 0, 0, 0));
+        assert!(reg.items().unwrap().is_empty(), "dry run must not write");
+        let wet = apply_items(&reg, &t, false).unwrap();
+        assert_eq!((wet.imported, wet.skipped), (2, 0));
+        assert_eq!(reg.items().unwrap().len(), 2);
+        assert!(reg.item(1002).unwrap().is_none(), "거부된 줄은 들어오지 않는다");
+        let again = apply_items(&reg, &t, false).unwrap();
+        assert_eq!((again.imported, again.updated, again.unchanged), (0, 0, 2));
+    }
+
+    /// `Items` 시트만 든 파일 — 비드 시트가 없으면 프로파일은 건드리지 않는다.
+    #[test]
+    fn an_items_only_file_adds_new_codes() {
+        let csv = "Code,Name,Count,InnerDiameter,OuterDiameter,LowerBeadHeight,UpperBeadHeight,Height\n\
+                   2001,205/55R16,4,381,650,20,200,220\n\
+                   2002,225/45R17,4,432,700,22,210,230\n";
+        let t = parse_file("items.csv", csv.as_bytes(), Want::Items).unwrap();
+        assert!(t.has_items && !t.has_item_profiles && t.errors.is_empty(), "{:?}", t.errors);
+        let reg = Registry::new(crate::db::Db::open_memory().unwrap());
+        let c = apply_items(&reg, &t, false).unwrap();
+        assert_eq!((c.imported, c.updated, c.unchanged, c.skipped), (2, 0, 0, 0));
+        assert_eq!(reg.item(2001).unwrap().unwrap().name, "205/55R16");
+        assert!(reg.item(2001).unwrap().unwrap().spec.profiles.is_empty());
+    }
+
+    /// 양식이 두 시트인 이유 — 품목 한 줄과 그 단별 비드를 **한 파일로** 같이 넣는다.
+    #[test]
+    fn one_file_adds_an_item_and_its_bead_rows() {
+        let spec = ItemSpec { stack_max: 5, profiles: vec![profile3()], ..Default::default() };
+        let rows = vec![ItemRow { spec: SpecPatch::full(&spec), ..item(3001) }];
+        let bytes = export_workbook(None, None, Some(&rows)).unwrap();
+        let reg = Registry::new(crate::db::Db::open_memory().unwrap());
+        let t = parse_file("items.xlsx", &bytes, Want::Items).unwrap();
+        assert!(t.has_items && t.has_item_profiles);
+        let c = apply_items(&reg, &t, false).unwrap();
+        assert_eq!((c.imported, c.skipped), (1, 0));
+        let got = reg.item(3001).unwrap().unwrap().spec;
+        assert_eq!((got.stack_max, got.measured_counts()), (5, vec![3]));
     }
 
     #[test]
@@ -1146,7 +1336,7 @@ mod tests {
         assert!(t.has_cells && t.has_stations && t.has_items);
         assert_eq!(t.cells, cells);
         assert_eq!(t.stations, stations);
-        assert_eq!(t.items, items);
+        assert_eq!(t.items, without_bead_sheet(&items));
     }
 
     #[test]
@@ -1234,12 +1424,37 @@ mod tests {
         let t = parse_file("items.xlsx", &bytes, Want::Items).unwrap();
         assert!(t.errors.is_empty(), "{:?}", t.errors);
         assert!(t.has_items && !t.has_cells && !t.has_stations);
-        assert_eq!(t.items, items);
+        assert_eq!(t.items, without_bead_sheet(&items));
         // a whole-registry workbook: the Items sheet is picked by name, other sheets are ignored
         let bytes = export_workbook(Some(&[cell(5, 0)]), None, Some(&items)).unwrap();
         let t = parse_file("registry.xlsx", &bytes, Want::Items).unwrap();
-        assert_eq!(t.items, items);
+        assert_eq!(t.items, without_bead_sheet(&items));
         assert!(t.cells.is_empty());
+    }
+
+    /// 비드 줄이 하나도 없는 파일은 비드 시트가 **없는** 것으로 읽힌다(`consume_profile`) —
+    /// 그 파일의 품목은 프로파일을 싣지 않고, 적용할 때 저장된 프로파일이 그대로 남는다.
+    fn without_bead_sheet(items: &[ItemRow]) -> Vec<ItemRow> {
+        items.iter().cloned().map(|i| ItemRow { spec: SpecPatch { profiles: None, ..i.spec.clone() }, ..i }).collect()
+    }
+
+    /// 양식을 받아 Items 만 채워 올려도(빈 비드 시트가 따라온다) **이미 잰 비드는 지워지지 않는다**.
+    #[test]
+    fn an_empty_bead_sheet_keeps_stored_profiles() {
+        let reg = Registry::new(crate::db::Db::open_memory().unwrap());
+        let spec = ItemSpec { stack_max: 4, profiles: vec![profile3()], ..Default::default() };
+        reg.upsert_item_full(1001, "A", &item(1001).item, "", Some(&spec)).unwrap();
+        let stored = reg.item(1001).unwrap().unwrap().spec;
+        // Items 한 줄(이름만 바꿈) + 머리글만 있는 ItemBeadProfile — 양식을 채운 모양
+        let rows = vec![ItemRow { name: "A2".into(), note: String::new(), spec: SpecPatch { profiles: Some(Vec::new()), ..SpecPatch::full(&stored) }, ..item(1001) }];
+        let bytes = export_workbook(None, None, Some(&rows)).unwrap();
+        let t = parse_file("items.xlsx", &bytes, Want::Items).unwrap();
+        assert!(t.has_items && !t.has_item_profiles, "머리글만 있는 비드 시트는 없는 시트");
+        let c = apply_items(&reg, &t, false).unwrap();
+        assert_eq!((c.updated, c.skipped), (1, 0));
+        let got = reg.item(1001).unwrap().unwrap();
+        assert_eq!(got.name, "A2");
+        assert_eq!(got.spec.profiles, stored.profiles, "잰 비드가 남아야 한다");
     }
 
     #[test]
@@ -1265,13 +1480,50 @@ mod tests {
         let incoming = vec![cell(1, 0), cell(2, 1), CellInfo { row: 9, ..cell(1, 0) }];
         // last wins for duplicate ids in the sheet, but counting is per row
         let dry = apply_cells(&reg, &incoming, true).unwrap();
-        assert_eq!((dry.imported, dry.updated, dry.skipped), (1, 1, 1));
+        assert_eq!((dry.imported, dry.updated, dry.unchanged), (1, 1, 1));
         assert_eq!(reg.cells().unwrap().len(), 1, "dry run must not write");
         let wet = apply_cells(&reg, &incoming, false).unwrap();
-        assert_eq!((wet.imported, wet.updated, wet.skipped), (1, 1, 1));
+        assert_eq!((wet.imported, wet.updated, wet.unchanged), (1, 1, 1));
         let cells = reg.cells().unwrap();
         assert_eq!(cells.len(), 2);
         assert_eq!(cells[0].cell.row, 9);
         assert!(cells[0].dirty && cells[0].source == "local");
+    }
+
+    /// 셀 바닥 Z 는 바닥 평탄도 보정이라 음수·0 도 맞다(현장 CELL 301..305). PLC 의 INVALID_CELL_POSZ 는
+    /// 스테이션(Cell.Id > 2000)만 보므로 셀에는 경고도 없다. 숫자가 아닌 Z 는 여전히 오류.
+    #[test]
+    fn cell_floor_z_may_be_negative_or_zero() {
+        let at = |z: f32| CellInfo { position: [12000.0, 3000.0, z], ..cell(301, 0) };
+        for z in [-8.8f32, -23.5, 0.0, 1500.0] {
+            assert!(validate_cell(&at(z)).is_ok(), "z {z} must be accepted");
+            assert!(cell_warnings(&at(z)).is_empty(), "cells never warn: z {z}");
+        }
+        // 경고는 스테이션 id 에만
+        assert!(floor_z_warning("스테이션", 2021, 0.0).is_some_and(|w| w.contains("INVALID_CELL_POSZ")));
+        assert!(floor_z_warning("셀", 301, -8.8).is_none());
+        assert!(floor_z_warning("스테이션", 2021, 10.0).is_none());
+        for z in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert!(validate_cell(&at(z)).unwrap_err().contains("finite"), "z {z} must be rejected");
+        }
+        // X/Y 규칙과 id·구역 규칙은 그대로 오류다
+        assert!(validate_cell(&CellInfo { position: [-1.0, 0.0, 1500.0], ..cell(301, 0) }).is_err());
+        assert!(validate_cell(&CellInfo { section: 4, ..cell(301, 0) }).is_err());
+        assert!(validate_cell(&cell(0, 0)).is_err());
+    }
+
+    /// 음수 바닥 Z 가 든 시트는 오류도 경고도 없이 들어온다.
+    #[test]
+    fn import_sheet_with_negative_floor_z_applies() {
+        let csv = "Id,Section,Row,Col,X,Y,Z,Length,Width\n301,2,1,1,12000,3000,-8.8\n302,2,1,2,13000,3000,1500\n";
+        let t = parse_file("cells.csv", csv.as_bytes(), Want::Cells).unwrap();
+        assert!(t.errors.is_empty(), "{:?}", t.errors);
+        assert_eq!(t.cells.len(), 2);
+        assert_eq!(t.cells[0].position[2], -8.8);
+        assert!(cells_warnings(&t.cells).is_empty());
+        let reg = Registry::new(crate::db::Db::open_memory().unwrap());
+        let c = apply_cells(&reg, &t.cells, false).unwrap();
+        assert_eq!((c.imported, c.errors.len()), (2, 0));
+        assert_eq!(reg.cell(301).unwrap().unwrap().cell.position[2], -8.8);
     }
 }

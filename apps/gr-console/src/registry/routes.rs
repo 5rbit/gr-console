@@ -13,6 +13,7 @@ use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
 use super::beads;
+use super::bulk;
 use super::diff::Diff;
 use super::plc_io::{self, ImportSummary};
 use super::spec::{self, ItemSpec, LevelValues};
@@ -321,7 +322,8 @@ async fn items_bulk_spec(State(st): State<AppState>, axum::Json(b): axum::Json<B
 // ---- cells (frontend shape: snake_case Cell)
 pub fn cell_view(e: &CellEntry) -> Json {
     json!({ "id": e.id, "use": e.cell.use_, "blend_use": e.cell.blend_use, "section": e.cell.section, "row": e.cell.row, "col": e.cell.col,
-        "length": e.cell.length, "width": e.cell.width, "position": e.cell.position, "source": e.source, "dirty": e.dirty, "updated_at": e.updated_at, "plc_seen_at": e.plc_seen_at })
+        "length": e.cell.length, "width": e.cell.width, "position": e.cell.position, "source": e.source, "dirty": e.dirty, "updated_at": e.updated_at, "plc_seen_at": e.plc_seen_at,
+        "warnings": xlsx::cell_warnings(&e.cell) })
 }
 
 #[derive(Deserialize)]
@@ -388,7 +390,7 @@ fn flag(v: Option<&str>) -> bool {
 }
 
 fn summary_view(s: &ImportSummary) -> Json {
-    json!({ "imported": s.imported, "updated": s.updated, "removed": s.removed, "skipped": s.skipped, "errors": s.errors })
+    json!({ "imported": s.imported, "updated": s.updated, "removed": s.removed, "skipped": s.skipped, "errors": s.errors, "warnings": s.warnings })
 }
 
 fn diff_view<T>(rows: Vec<Diff<T>>, view: impl Fn(&T) -> Json) -> Vec<Json> {
@@ -534,6 +536,14 @@ async fn items_export(State(st): State<AppState>) -> Result<Response, ApiError> 
     Ok(xlsx_response(xlsx::export_workbook(None, None, Some(&items))?, &format!("items_{}.xlsx", stamp())))
 }
 
+/// `GET /api/items/template.xlsx` — 빈 양식(`Items` + `ItemBeadProfile` 머리글, 자료 줄 없음).
+///
+/// 내보내기로 양식을 얻으려면 이미 품목이 있어야 한다 — 처음 채우는 현장에는 그 품목이 없다.
+/// 파일 이름에 시각을 붙이지 않는 것은 양식이 **늘 같은 파일**이라서다(받은 것을 다시 받아도 같다).
+async fn items_template() -> Result<Response, ApiError> {
+    Ok(xlsx_response(xlsx::template_workbook()?, "items_template.xlsx"))
+}
+
 async fn registry_export(State(st): State<AppState>) -> Result<Response, ApiError> {
     let cells: Vec<CellInfo> = st.registry.cells()?.into_iter().map(|e| e.cell).collect();
     let stations: Vec<StationPara> = st.registry.stations()?.into_iter().map(|e| e.para).collect();
@@ -571,15 +581,17 @@ fn apply_tables(st: &AppState, t: &Tables, dry_run: bool) -> Result<Json, ApiErr
         c.add(&xlsx::apply_stations(&st.registry, &t.stations, dry_run)?);
     }
     if t.has_items || t.has_item_profiles {
-        c.add(&xlsx::apply_items(&st.registry, &t.items, &t.orphan_profiles, dry_run)?);
+        c.add(&xlsx::apply_items(&st.registry, t, dry_run)?);
     }
-    let errors: Vec<Json> = t
-        .errors
-        .iter()
-        .chain(c.errors.iter())
-        .map(|e| json!({ "row": e.row, "sheet": e.sheet, "message": if e.sheet == "csv" { e.message.clone() } else { format!("{}: {}", e.sheet, e.message) } }))
-        .collect();
-    Ok(json!({ "imported": c.imported, "updated": c.updated, "removed": 0, "skipped": c.skipped, "errors": errors, "dry_run": dry_run,
+    let errors: Vec<Json> = t.errors.iter().chain(c.errors.iter()).map(|e| json!({ "row": e.row, "sheet": e.sheet, "message": xlsx::error_text(e) })).collect();
+    // 비차단 경고 — 바닥 Z ≤ 0 셀은 그대로 들어오고(바닥 평탄도 보정) 운전자에게 PLC 가 작업을 거부한다고만 알린다.
+    let warnings = if t.has_cells { xlsx::cells_warnings(&t.cells) } else { Vec::new() };
+    // 줄마다 하나씩 나오는 결과(`added|updated|unchanged|skipped`) — 셀 일괄 API 와 같은 말이다.
+    // 읽는 중 거부된 줄(`t.errors`)도 적용되지 않았으므로 `skipped` 에 든다: `skipped == errors.len()`.
+    // 옛 이름 `imported` 는 그대로 둔다(PLC 읽기 응답과 짝이 맞아야 한다).
+    let skipped = c.skipped + t.errors.len();
+    Ok(json!({ "imported": c.imported, "added": c.imported, "updated": c.updated, "unchanged": c.unchanged, "removed": 0, "skipped": skipped,
+        "errors": errors, "warnings": warnings, "dry_run": dry_run,
         "counts": { "cells": t.cells.len(), "stations": t.stations.len(), "items": t.items.len(), "item_profiles": t.item_profiles.len() } }))
 }
 
@@ -630,6 +642,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/items", get(items).post(item_create))
         .route("/api/items/export.xlsx", get(items_export))
+        .route("/api/items/template.xlsx", get(items_template))
         .route("/api/items/import-file", post(items_import_file))
         .route("/api/items/bulk-spec", post(items_bulk_spec))
         .route("/api/items/{code}", axum::routing::put(item_update).delete(item_delete))
@@ -665,14 +678,37 @@ async fn registry_diff(State(st): State<AppState>, Query(q): Query<PlcQuery>) ->
     Ok(axum::Json(json!({ "plc": h.name(), "cells": diff_view(plc_io::diff_cells(&st, h)?, cell_view), "stations": diff_view(plc_io::diff_stations(&st, h)?, station_view) })))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct BulkQuery {
+    /// `append`(기본, 아무것도 지우지 않고 충돌만 건너뜀) · `replace_section` · `overwrite`.
+    /// 비어 있으면 옛 클라이언트 규약대로 `replace_section` 값이 있을 때만 구역 교체다.
+    pub mode: Option<String>,
     /// Delete every existing cell of this section first (layout regeneration).
     pub replace_section: Option<u16>,
+    /// id 가 겹치는 생성 셀을 그 구간의 빈 id 로 옮긴다(`append` 에서만 뜻이 있다).
+    pub auto_id: Option<String>,
+    /// 겹침 판정 지름(mm). 없으면 셀의 `max(length, width)`.
+    pub diameter: Option<f32>,
+    /// 겹침 허용 오차(mm, 기본 `bulk::OVERLAP_TOLERANCE`).
+    pub tolerance: Option<f32>,
 }
 
-/// `POST /api/cells/bulk?replace_section=` — upsert many local cells at once (layout editor).
-/// All rows are validated before anything is written; the result counts created/updated/removed.
+impl BulkQuery {
+    fn mode(&self) -> Result<bulk::Mode, ApiError> {
+        let sec = || self.replace_section.map(bulk::Mode::ReplaceSection).ok_or_else(|| ApiError::BadRequest("mode=replace_section needs replace_section=<1..3>".into()));
+        match self.mode.as_deref().map(str::trim).unwrap_or("") {
+            "" => Ok(self.replace_section.map(bulk::Mode::ReplaceSection).unwrap_or(bulk::Mode::Append)),
+            "append" => Ok(bulk::Mode::Append),
+            "overwrite" => Ok(bulk::Mode::Overwrite),
+            "replace_section" | "replace" => sec(),
+            m => Err(ApiError::BadRequest(format!("unknown mode {m} (append | replace_section | overwrite)"))),
+        }
+    }
+}
+
+/// `POST /api/cells/bulk?mode=&replace_section=&auto_id=&diameter=` — 여러 로컬 셀을 한 번에(레이아웃 편집기).
+/// 모든 줄을 먼저 검증하고(하나라도 틀리면 아무것도 쓰지 않는다), 병합 규칙은 `bulk::plan` 이 정한다.
+/// 결과에는 줄마다 `added|updated|unchanged|skipped|remapped` 와 사유가 실린다.
 async fn cells_bulk(State(st): State<AppState>, Query(q): Query<BulkQuery>, axum::Json(rows): axum::Json<Vec<CellBody>>) -> ApiResult<Json> {
     let infos: Vec<gr_proto::CellInfo> = rows.iter().map(|b| b.info()).collect();
     let mut seen = std::collections::HashSet::new();
@@ -682,25 +718,25 @@ async fn cells_bulk(State(st): State<AppState>, Query(q): Query<BulkQuery>, axum
             return Err(ApiError::BadRequest(format!("row {}: duplicate id {}", i + 1, info.id)));
         }
     }
-    let before = st.registry.cells()?;
+    let opts = bulk::Options { mode: q.mode()?, auto_id: flag(q.auto_id.as_deref()), diameter: q.diameter, tolerance: q.tolerance.unwrap_or(bulk::OVERLAP_TOLERANCE) };
+    let before: Vec<gr_proto::CellInfo> = st.registry.cells()?.into_iter().map(|c| c.cell).collect();
+    let plan = bulk::plan(&infos, &before, &opts);
     let mut removed = 0usize;
-    if let Some(sec) = q.replace_section {
-        for c in before.iter().filter(|c| c.cell.section == sec && !seen.contains(&c.id)) {
-            if st.registry.delete_cell(c.id)? {
-                removed += 1;
-            }
+    for id in &plan.deletes {
+        if st.registry.delete_cell(*id)? {
+            removed += 1;
         }
     }
-    let existing: std::collections::HashSet<u16> = before.iter().map(|c| c.id).collect();
-    let mut created = 0usize;
-    let mut updated = 0usize;
-    for info in &infos {
+    let written: Vec<gr_proto::CellInfo> = plan.writes().cloned().collect();
+    for info in &written {
         st.registry.upsert_cell(info, "local", true, None)?;
-        if existing.contains(&info.id) {
-            updated += 1;
-        } else {
-            created += 1;
-        }
     }
-    Ok(axum::Json(json!({ "created": created, "updated": updated, "removed": removed, "total": st.registry.cells()?.len() })))
+    let mut warnings = xlsx::cells_warnings(&written);
+    warnings.extend(plan.warnings.iter().cloned());
+    Ok(axum::Json(json!({
+        "mode": opts.mode.name(), "auto_id": opts.auto_id,
+        "created": plan.count(bulk::Outcome::Added), "updated": plan.count(bulk::Outcome::Updated), "unchanged": plan.count(bulk::Outcome::Unchanged),
+        "skipped": plan.count(bulk::Outcome::Skipped), "remapped": plan.count(bulk::Outcome::Remapped),
+        "removed": removed, "total": st.registry.cells()?.len(), "rows": plan.rows_view(), "warnings": warnings
+    })))
 }

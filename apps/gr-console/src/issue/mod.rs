@@ -22,6 +22,12 @@ pub struct Composed {
     pub task: TaskData,
     pub params: TaskParams,
     pub warnings: Vec<String>,
+    /// 이 작성이 겨냥한 로봇과 그 상태 PLC — 미리보기·확인 창이 대상을 짐작하지 않게 응답에 싣는다.
+    /// 순수 경로(`compose_from`)에서는 비어 있고 `compose_with` 가 채운다.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub robot: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub plc: String,
     /// 스테이션 대상 PICK/DROP/MEASURE 일 때 GRM 트래킹 보정 결과(`station_offset.rs`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub station_offset: Option<StationOffsetAudit>,
@@ -70,6 +76,11 @@ pub fn stack_limit(tt: TaskType, kind: &str, spec: Option<&ItemSpec>, stock: Opt
     Some(StackLimit { stack_max: spec.stack_max, stock, count_after: after, over_limit: over, ignored: drop_over && ignore, blocked })
 }
 
+/// 요청이 겨냥한 로봇 이름(모르면 `로봇`) — 거부 문구 앞에 붙는다.
+fn robot_name(st: &AppState, req: &TaskRequest) -> String {
+    st.robot(req.robot).map(|r| r.name.clone()).unwrap_or_else(|_| "로봇".into())
+}
+
 /// 제출 직전 단수 Max 검사 — 셀 대상 DROP 이 지금 재고 기준으로 `stack_max` 를 넘으면 409 (`ignore_stack_max` 면 통과).
 pub fn enforce_stack_limit(st: &AppState, req: &TaskRequest, task: &TaskData) -> Result<(), ApiError> {
     if req.ignore_stack_max || TaskType::from_code(task.task_type) != Some(TaskType::Drop) || task.item.code == 0 {
@@ -79,7 +90,7 @@ pub fn enforce_stack_limit(st: &AppState, req: &TaskRequest, task: &TaskData) ->
     let Some(entry) = st.registry.item(task.item.code)? else { return Ok(()) };
     let n = st.stock.get(t.id)?.map(|s| s.count);
     match stack_limit(TaskType::Drop, "cell", Some(&entry.spec), n, task.item.count as u32, false).and_then(|l| l.blocked) {
-        Some(b) => Err(ApiError::Conflict(format!("셀 {} StackMax: {b} — 품목 {} (무시하려면 ignore_stack_max)", t.id, task.item.code))),
+        Some(b) => Err(ApiError::Conflict(crate::ledger::ops::with_robot(&robot_name(st, req), &format!("셀 {} StackMax: {b} — 품목 {} (무시하려면 ignore_stack_max)", t.id, task.item.code)))),
         None => Ok(()),
     }
 }
@@ -176,6 +187,12 @@ pub fn compose_with(st: &AppState, req: &TaskRequest, stock_hint: Option<u32>) -
         (None, None, None) => None,
     };
     let mut c = compose_from(&st.registry.defaults()?, req, cell, item, stock_pair, spec.as_ref())?;
+    // 대상 로봇을 응답에 박는다 — 화면이 `robots.selected` 로 되짚으면 선택이 바뀐 뒤의 미리보기가
+    // 엉뚱한 호기 이름을 달게 된다.
+    if let Ok(r) = st.robot(req.robot) {
+        c.robot = r.name.clone();
+        c.plc = r.plc.clone();
+    }
     if let Some(p) = prepared {
         crate::pallet::compose::apply_to(&mut c, p.audit, req.position_override.is_some());
         if let Some(id) = station_id
@@ -209,7 +226,7 @@ pub fn refresh_station_offset(st: &AppState, req: &TaskRequest, task: &mut TaskD
         return Ok(None);
     };
     if enforce && let Some(b) = &audit.blocked {
-        return Err(ApiError::Conflict(format!("스테이션 보정: {b}")));
+        return Err(ApiError::Conflict(crate::ledger::ops::with_robot(&robot_name(st, req), &format!("스테이션 보정: {b}"))));
     }
     task.position = pos;
     Ok(Some(audit))
@@ -324,6 +341,11 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
             if !c.use_ {
                 warnings.push(format!("{kind} {} is marked unused (Use=false)", c.id));
             }
+            // 바닥 Z ≤ 0 은 레지스트리에서 허용한다(바닥 평탄도 보정). 막지는 않고, 이 작업이 PLC 에서
+            // 어떻게 될지만 미리 말한다 — `isValidTaskData` 가 INVALID_CELL_POSZ 로 돌려보낸다.
+            if let Some(w) = crate::registry::xlsx::floor_z_warning(if kind == "station" { "스테이션" } else { "셀" }, c.id, c.position[2]) {
+                warnings.push(w);
+            }
             task.position = [c.position[0], c.position[1], c.position[2], G_DEFAULT];
             task.cell = c;
         }
@@ -422,7 +444,7 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
     if let Some((axis, v)) = ["X", "Y", "Z", "G"].iter().zip(task.position).find(|(_, v)| !v.is_finite() || *v < 0.0) {
         warnings.push(format!("position {axis} = {v} is not a valid coordinate"));
     }
-    Ok(Composed { task, params, warnings, station_offset: None, stack_z, stack_limit: limit, pallet: None })
+    Ok(Composed { task, params, warnings, robot: String::new(), plc: String::new(), station_offset: None, stack_z, stack_limit: limit, pallet: None })
 }
 
 #[cfg(test)]
@@ -541,6 +563,23 @@ mod tests {
         r.position_override = Some([1.0, 2.0, 3.0, 4.0]);
         let c = compose_from(&d, &r, Some(cell()), None, None, None).unwrap();
         assert_eq!(c.task.position, [1.0, 2.0, 3.0, 4.0]);
+    }
+
+    /// 바닥 Z 가 음수인 셀(바닥 평탄도 보정) — 경고 없이 작성되고 Z 는 바닥 + 스택 + 그립이다
+    /// (PLC 의 INVALID_CELL_POSZ 는 스테이션만 본다).
+    #[test]
+    fn negative_floor_cell_composes_without_warning() {
+        let d = defaults();
+        let floor = -8.8f32;
+        let c = compose_from(&d, &req("PICK", "cell"), Some(CellInfo { position: [12000.0, 3000.0, floor], ..cell() }), Some(item()), Some((1001, 5)), None).unwrap();
+        assert_eq!(c.task.position[2], floor + 2.0 * 240.0 + 120.0);
+        assert!(!c.warnings.iter().any(|w| w.contains("INVALID_CELL_POSZ")), "{:?}", c.warnings);
+        // DROP 도 같은 규칙 — 바닥은 그대로 더해진다
+        let c = compose_from(&d, &req("DROP", "cell"), Some(CellInfo { position: [12000.0, 3000.0, floor], ..cell() }), Some(item()), Some((1001, 5)), None).unwrap();
+        assert_eq!(c.task.position[2], floor + 5.0 * 240.0 + 120.0);
+        // 바닥이 양수면 이 경고는 없다
+        let c = compose_from(&d, &req("PICK", "cell"), Some(cell()), Some(item()), Some((1001, 5)), None).unwrap();
+        assert!(!c.warnings.iter().any(|w| w.contains("INVALID_CELL_POSZ")), "{:?}", c.warnings);
     }
 
     #[test]

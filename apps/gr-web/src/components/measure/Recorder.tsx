@@ -15,6 +15,8 @@ import { LASER_DIRS, LASER_SOURCE, ZCAL_ERROR, diagFlagLabels } from '../../lib/
 import { delta, pos } from '../../lib/meas/format'
 import { visibleInterval } from '../../lib/poll'
 import { robots } from '../../lib/robots'
+import { withRobot } from '../../lib/robotContext'
+import { RobotChip } from '../shared/RobotChip'
 import { useStore } from '../../lib/store'
 import {
   LASER_FAR,
@@ -307,7 +309,7 @@ export function Recorder() {
       }),
     )
     if (m) {
-      toast.ok(`기록 시작: ${m.label}`)
+      toast.ok(withRobot(robots.chip.name, `기록 시작: ${m.label}`))
       // 시작하면 입력은 소비된 것이다 — 다음 시험을 옛 이름으로 시작하지 않게 비운다.
       setStartOpen(false)
       setLabel('')
@@ -453,10 +455,10 @@ export function Recorder() {
       <FormDialog
         open={startOpen}
         onOpenChange={setStartOpen}
-        title="기록 시작"
+        title={`기록 시작 — ${robots.chip.name}`}
         meta={
           <>
-            <span>{where}</span>
+            <RobotChip chip={robots.chip} prefix="로봇" testid="record-robot" />
             <span>30 분 후 자동 정지</span>
             <HelpTip
               title="기록"
@@ -467,7 +469,7 @@ export function Recorder() {
         size="md"
         testid="record-start"
         dirty={label.trim() !== '' || note.trim() !== ''}
-        submitLabel="기록 시작"
+        submitLabel={`${robots.chip.name} 기록 시작`}
         busy={busy}
         disabledReason={label.trim() ? undefined : 'Label 을 적어야 시작할 수 있습니다'}
         onSubmit={() => void start()}

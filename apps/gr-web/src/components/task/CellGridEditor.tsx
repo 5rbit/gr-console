@@ -11,6 +11,9 @@ import { taskApi } from '../../lib/task/api'
 import {
   applyCellEdit,
   boolText,
+  CELL_POSZ_WARNING,
+  cellPositionErrors,
+  cellPositionWarnings,
   cellToUpsert,
   diffDraft,
   draftFrom,
@@ -31,7 +34,6 @@ import { HelpTip } from '../../lib/ui/HelpTip'
 import { toast } from '../../lib/ui/toast'
 import type { Cell, CellUpsert } from '../../lib/types'
 import { cellSummary, matchCell } from './CellRegistry'
-import { cellPositionErrors } from './forms'
 import { RegistryToolbar, type RegistryIo } from './RegistryToolbar'
 
 type Row = DraftRow<CellUpsert>
@@ -126,10 +128,13 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
   const sectionError = (c: CellUpsert) => ([1, 2, 3].includes(c.section) ? null : '구역은 1..3')
   const posError = (c: CellUpsert, axis: 'X' | 'Y' | 'Z') =>
     cellPositionErrors(c.position).find((e) => e.includes(`위치 ${axis}`)) ?? null
+  // 바닥 Z ≤ 0 은 오류가 아니다(바닥 평탄도 보정) — 경고 색과 말풍선만 붙이고 행은 그대로 저장된다.
+  const posWarning = (c: CellUpsert) => cellPositionWarnings(c.position)[0] ?? null
   const errorCount = rows.filter(
     (r) =>
       idError(r.value) || sectionError(r.value) || cellPositionErrors(r.value.position).length > 0,
   ).length
+  const warnCount = rows.filter((r) => posWarning(r.value)).length
 
   const shown = useMemo(() => {
     const needle = q.trim()
@@ -200,7 +205,13 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
     num('col', 'Col', (c) => c.col, { width: '3rem', coercePaste: pasteInt }),
     num('x', 'X', (c) => c.position[0], { decimals: 1, invalid: (r) => posError(r.value, 'X') }),
     num('y', 'Y', (c) => c.position[1], { decimals: 1, invalid: (r) => posError(r.value, 'Y') }),
-    num('z', 'Z', (c) => c.position[2], { decimals: 1, invalid: (r) => posError(r.value, 'Z') }),
+    num('z', 'Z', (c) => c.position[2], {
+      decimals: 1,
+      invalid: (r) => posError(r.value, 'Z'),
+      cellClass: (r) => (posWarning(r.value) ? 'bg-warn-soft text-warn-fg' : ''),
+      // `invalid` 가 없을 때의 말풍선은 `title` 이 맡는다 — 경고가 없으면 오류 문구를 그대로 돌려준다.
+      title: (r) => posWarning(r.value) ?? posError(r.value, 'Z') ?? '',
+    }),
     {
       id: 'use',
       header: 'Use',
@@ -251,12 +262,15 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
     setBusy(true)
     try {
       for (const id of diff.deletes) await api.cellDelete(id)
-      if (diff.upserts.length) await api.cellsBulk(diff.upserts, null)
+      // 그리드는 **고친 행을 그대로 반영**하는 자리다 — 겹침·id 중복이 있어도 사용자가 적은 값이 이긴다.
+      if (diff.upserts.length) await api.cellsBulk(diff.upserts, { mode: 'overwrite' })
       justSaved.current = true
       await reg.reload()
       toast.ok(
         `셀 적용 — 수정 ${diff.changed} · 신규 ${diff.added} · 삭제 ${diff.deletes.length} (로컬 사본, PLC 반영은 PLC 쓰기)`,
       )
+      // 서버도 같은 경고를 `/api/cells/bulk` 응답에 실어 주지만, 그 타입은 리드 소유라 화면 쪽 값으로 낸다.
+      if (warnCount) toast.warn(`${CELL_POSZ_WARNING} — 셀 ${warnCount}칸`)
     } catch (e) {
       toast.error(`셀 적용 실패 — ${e instanceof Error ? e.message : String(e)}`)
     } finally {
@@ -309,6 +323,11 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
             ? `수정 ${diff.changed} · 신규 ${diff.added} · 삭제 ${diff.deletes.length}`
             : '변경 없음'}
           {errorCount ? <span className="ml-1 text-fault-fg">· 오류 {errorCount}</span> : null}
+          {warnCount ? (
+            <span className="ml-1 text-warn-fg" title={CELL_POSZ_WARNING} data-testid="grid-warn">
+              · 경고 {warnCount}
+            </span>
+          ) : null}
         </span>
         <Button
           size="sm"

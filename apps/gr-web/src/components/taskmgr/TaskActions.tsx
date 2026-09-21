@@ -10,7 +10,10 @@ import { FieldList, type FieldItem } from '../../lib/ui/FieldList'
 import { Input } from '../../lib/ui/Input'
 import { runAction } from '../../lib/task/actions'
 import { tasks } from '../../lib/tasks'
+import { robots } from '../../lib/robots'
+import type { RobotChipModel } from '../../lib/robotContext'
 import { useStore } from '../../lib/store'
+import { robotField } from '../shared/RobotChip'
 import {
   ACTION_LABEL,
   STATE_LABEL,
@@ -84,8 +87,9 @@ function whyNot(a: TaskAction, state: Task['state']): string {
 
 // 확인은 **질문 한 줄**이다. PLC 허용 조건·AUTO 모드 같은 규칙은 여기 적지 않는다 — 막히면 서버가
 // 그 이유를 토스트로 말하고, 매번 읽지 않는 안내문은 진짜 경고(되돌릴 수 없음)까지 묻어 버린다.
-function describe(action: TaskAction, task: Task): string {
-  const who = `Task #${task.seq}`
+function describe(action: TaskAction, task: Task, robot: string): string {
+  // 질문이 **어느 호기의** Task 인지 말한다 — 표에는 여러 로봇의 행이 섞여 선다.
+  const who = `${robot} Task #${task.seq}`
   switch (action) {
     case 'submit':
       return `${who}을(를) PLC에 제출하시겠습니까?`
@@ -108,11 +112,13 @@ function describe(action: TaskAction, task: Task): string {
  * 어떤 Task인지 알아보는 라벨+값 짝 — 질문 한 줄 아래에 선다. 번호만으로는 작업자가 "무슨 작업"인지
  * 모른다(같은 셀·같은 품목의 Task가 열 개 줄지어 있다). 상세와 같은 말(종류·대상·품목·로봇)을 쓴다.
  */
-function identity(task: Task): FieldItem[] {
+function identity(task: Task, robot: RobotChipModel): FieldItem[] {
   const t = targetOf(task)
   const item = task.plc_task?.Item
   const req = task.request
   return [
+    // 첫 줄이 로봇이다 — 이 Task 의 주인(원장 PLC)이지 사이드바 선택이 아니다.
+    robotField(robot, 'Robot'),
     { label: 'TaskType', value: typeName(task.plc_task?.TaskType) || req?.type?.toUpperCase() || null },
     { label: 'Target', value: t ? `${t.kind === 'station' ? 'Station' : 'Cell'} ${t.id}` : null },
     {
@@ -124,7 +130,6 @@ function identity(task: Task): FieldItem[] {
           : null,
     },
     { label: 'InnerDiameter/OuterDiameter/Height', value: dimsLabel(task) || null, mono: true },
-    { label: 'Robot', value: task.plc_name ?? null },
     { label: 'State', value: STATE_LABEL[task.state] },
     {
       label: 'WorkId / TaskId',
@@ -149,7 +154,9 @@ export function TaskActions({
   const [pending, setPending] = useState<TaskAction | null>(null)
   const [busy, setBusy] = useState<TaskAction | null>(null)
   const [note, setNote] = useState('')
-  useStore(tasks)
+  useStore(tasks, robots)
+  // 이 Task 의 주인 로봇 — 원장의 상태 PLC 로 찾는다(사이드바 선택과 다를 수 있다).
+  const owner = robots.chipOfPlc(task.plc_name)
   const allowed = allowedActions(task.state)
   // 행 모드는 슬롯이 고정이다(`only` 순서대로, 허용 안 되면 비활성). 그 외는 허용된 것만.
   const actions = row
@@ -218,13 +225,19 @@ export function TaskActions({
             if (!o) setPending(null)
           }}
           scope={isRobotAction(pending) ? 'single-robot' : 'single'}
-          title={`${ACTION_LABEL[pending]} — Task #${task.seq}`}
+          title={`${ACTION_LABEL[pending]} — ${owner.name} Task #${task.seq}`}
           danger={DANGER.has(pending)}
           confirmLabel={ACTION_LABEL[pending]}
           onConfirm={() => void run(pending)}
         >
-          <p className="m-0 text-content-primary">{describe(pending, task)}</p>
-          <FieldList className="mt-3" items={identity(task)} columns={2} labelWidth={96} dense />
+          <p className="m-0 text-content-primary">{describe(pending, task, owner.name)}</p>
+          <FieldList
+            className="mt-3"
+            items={identity(task, owner)}
+            columns={2}
+            labelWidth={96}
+            dense
+          />
           {tail.length > 0 ? (
             <p className="mt-3 mb-0 text-warn-fg" data-testid="cascade-note">
               같은 WorkId의 뒤 Task {tail.length}건도 함께 취소됩니다 —{' '}

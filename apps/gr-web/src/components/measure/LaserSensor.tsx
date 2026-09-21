@@ -14,6 +14,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { robots } from '../../lib/robots'
+import { robotChip, robotFailure, withRobotChip } from '../../lib/robotContext'
+import { robotField } from '../shared/RobotChip'
 import { useStore } from '../../lib/store'
 import { ALARM_LABEL } from '../../lib/gr/alarms'
 import {
@@ -120,14 +122,17 @@ export function LaserSensor() {
     return () => clearInterval(t)
   }, [load])
 
+  // 교정·초기화는 **이 로봇의** 센서를 바꾼다 — 응답이 말한 로봇·PLC 가 있으면 그것, 없으면 선택.
+  const chip = robotChip(robots.byId(data?.robot ?? robot), { name: data?.robot ? robots.nameOf(data.robot) : null, plc: data?.plc ?? null })
+
   async function run(label: string, fn: () => Promise<unknown>) {
     setBusy(true)
     try {
       await fn()
-      toast.ok(label)
+      toast.ok(withRobotChip(chip, label))
       await load()
     } catch (e) {
-      toast.error(`${label} 실패: ${errText(e)}`)
+      toast.error(robotFailure(chip.name, `${label} 실패`, errText(e)))
     } finally {
       setBusy(false)
     }
@@ -426,7 +431,7 @@ export function LaserSensor() {
         open={confirm !== null}
         onOpenChange={(o) => !o && setConfirm(null)}
         scope="single-robot"
-        title={confirm === 'reset' ? '레이저 진단 초기화' : 'Z 오프셋 교정 시작'}
+        title={`${confirm === 'reset' ? '레이저 진단 초기화' : 'Z 오프셋 교정 시작'} — ${chip.name}`}
         danger={confirm === 'reset'}
         confirmLabel={confirm === 'reset' ? '초기화' : '교정 시작'}
         onConfirm={() => {
@@ -450,12 +455,12 @@ export function LaserSensor() {
           items={
             confirm === 'reset'
               ? [
-                  { label: '대상', value: `${robots.nameOf(data.robot ?? robot)} · ${data.plc}` },
+                  robotField(chip, '대상'),
                   { label: '쓰는 때', value: '센서 교체 · 재취부 후' },
                   { label: '지우는 것', value: '편차 평균 · 연속 횟수 · 진단 이력', wide: true },
                 ]
               : [
-                  { label: '대상', value: `${robots.nameOf(data.robot ?? robot)} · ${data.plc}` },
+                  robotField(chip, '대상'),
                   { label: '표본', value: `${para.LaserZCal_SampleCount || 5} 회` },
                   { label: '반영', value: 'PARA 센서 Z 오프셋 · CSV 저장 요청', wide: true },
                 ]

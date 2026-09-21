@@ -1,3 +1,7 @@
 * text=auto eol=lf
 *.png binary
 *.db binary
+
+# Windows PowerShell 5.1 은 LF 히어스트링을 못 읽는다 — .ps1/.cmd 는 CRLF 로.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf

@@ -47,6 +47,8 @@ export const taskApi = {
 
   // 품목(화물 규격) — Items 시트만. 레지스트리 전체 파일을 넣어도 Items 시트를 이름으로 고른다.
   itemsExportUrl: '/api/items/export.xlsx',
+  /** 빈 양식(`Items` + `ItemBeadProfile` 머리글만) — 품목이 하나도 없을 때 시작하는 자리. */
+  itemsTemplateUrl: '/api/items/template.xlsx',
   itemsImportFile: (file: File, dryRun: boolean) =>
     postForm<FileImportResult>(`/api/items/import-file${q({ dry_run: dryRun })}`, fileForm(file)),
 

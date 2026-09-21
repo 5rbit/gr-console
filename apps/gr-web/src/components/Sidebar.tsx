@@ -16,6 +16,7 @@ import { Splitter } from './workspace/Splitter'
 import PlcPane, { PlcSummary } from './panes/PlcPane'
 import RobotsPane, { RobotsSummary } from './panes/RobotsPane'
 import StatusPane, { StatusSummary } from './panes/StatusPane'
+import { IndicatorLegend } from './panes/IndicatorLegend'
 
 const LS_WIDTH = 'gr-sidebar-w'
 const MIN_W = ZONE_LIMITS.left.min
@@ -37,12 +38,15 @@ function Section({
   id,
   title,
   summary,
+  help,
   trailing,
   children,
 }: {
   id: string
   title: string
   summary?: React.ReactNode
+  /** 제목 줄의 `?` — 접기 버튼 **밖**에 둔다(버튼 안의 버튼은 누르면 섹션까지 접힌다). */
+  help?: React.ReactNode
   trailing?: React.ReactNode
   children: React.ReactNode
 }) {
@@ -62,6 +66,7 @@ function Section({
           <span className="text-xs font-semibold text-content-muted">{title}</span>
           {summary ? <span className={countCls}>{summary}</span> : null}
         </button>
+        {help}
         {trailing}
       </div>
       {/* 펼친 섹션은 **남은 높이를 나눠 갖는다**(`flex-1` + `min-h-0`) — 스크롤은 패널 자신이 한다.
@@ -82,7 +87,17 @@ export function Sidebar() {
       data-testid="sidebar"
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        <Section id="robot" title="로봇" summary={<RobotsSummary />}>
+        <Section
+          id="robot"
+          title="로봇"
+          summary={<RobotsSummary />}
+          help={
+            <IndicatorLegend
+              testid="legend-robot"
+              extra="행 왼쪽 색 막대 = 로봇 색(맵의 작업 테두리) · 테두리 강조 행 = 명령을 보낼 로봇 · 칩에 마우스를 올리면 사유"
+            />
+          }
+        >
           <RobotsPane />
         </Section>
 
@@ -90,6 +105,12 @@ export function Sidebar() {
           id="plc"
           title="PLC"
           summary={<PlcSummary />}
+          help={
+            <IndicatorLegend
+              testid="legend-plc"
+              extra="레이아웃은 불일치일 때만 표시 · 칩에 마우스를 올리면 불일치 DB · 행을 누르면 상세"
+            />
+          }
           trailing={
             <button
               className={iconCls}

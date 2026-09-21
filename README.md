@@ -131,6 +131,7 @@ crates/            공유 크레이트(s7 · plc-layout · gr-proto · opcua-cmd
 tools/gr-contract/ TIA 소스 → PLC 레이아웃 생성기
 tools/package.*    배포 패키지 스크립트 (+ tools/package/ 설정 템플릿·안내문)
 plc/contract/      TIA 소스(진실원) — 패키지에 내장된다
-docs/              DESIGN.md(UI 규칙) · ui-ux-plan.md(결정 기록) · item-spec-z.md(화물 규격·집는 높이·눌림양)
+docs/              DESIGN.md(UI 규칙) · ui-ux-plan.md(결정 기록) · item-spec-z.md(화물 규격·집는 높이·눌림양
+                   · Excel 로 품목 추가: GET /api/items/template.xlsx 양식 → Items(+ItemBeadProfile) 채워 가져오기)
                    · station-offset.md · palletizing.md · screenshots/
 ```

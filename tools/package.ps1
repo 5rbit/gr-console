@@ -1,4 +1,4 @@
-# 배포 패키지(Windows) — 실행 파일 하나(웹·계약 내장) + 설정 + 안내문을 dist\ 에 묶는다.
+﻿# 배포 패키지(Windows) — 실행 파일 하나(웹·계약 내장) + 설정 + 안내문을 dist\ 에 묶는다.
 #
 #   pwsh tools/package.ps1                                   # 또는 `just package`
 #   pwsh tools/package.ps1 -NoWeb                            # npm 빌드를 건너뛴다(apps/gr-web/dist 가 이미 최신일 때)
@@ -40,9 +40,10 @@ Copy-Item tools/package/gr-console.toml (Join-Path $out 'gr-console.toml')
 Copy-Item tools/package/README.txt (Join-Path $out 'README.txt')
 @"
 @echo off
-rem 장비 없이 화면만 — 가짜 PLC 로 켠다. 이 파일이 있는 폴더가 기준(data\ 가 여기 생긴다).
+rem Demo mode - fake PLC, no equipment needed.
+chcp 65001 >nul
 cd /d "%~dp0"
-gr-console.exe --demo
+"%~dp0gr-console.exe" --demo
 pause
 "@ | Set-Content -Encoding ASCII (Join-Path $out 'run-demo.cmd')
 @"
@@ -52,16 +53,18 @@ cd "`$(dirname "`$0")" && exec ./gr-console --demo
 # 실장비 실행 — 오류로 끝났을 때만 창을 잡아 둔다(이미 실행 중 = 3, 포트 문제 = 4).
 @"
 @echo off
-rem 실장비로 켠다. 이 파일이 있는 폴더가 기준(gr-console.toml · data\ 가 여기).
+rem Run the console (real PLCs). Config and data live next to this file.
+chcp 65001 >nul
 cd /d "%~dp0"
-gr-console.exe %*
+"%~dp0gr-console.exe" %*
 if errorlevel 1 pause
 "@ | Set-Content -Encoding ASCII (Join-Path $out 'run.cmd')
 @"
 @echo off
-rem 실행 중인 콘솔을 안전하게 끈다(진행 중인 PLC 쓰기를 마무리한 뒤 종료).
+rem Stop the running console gracefully.
+chcp 65001 >nul
 cd /d "%~dp0"
-gr-console.exe --stop
+"%~dp0gr-console.exe" --stop
 pause
 "@ | Set-Content -Encoding ASCII (Join-Path $out 'stop.cmd')
 @"

@@ -198,12 +198,49 @@ n=8`)으로 크기를 고르면 그 크기의 `Level 1..n` 이 `AbsLowerBead` ·
 아래 **Measured** 구역이 표본 이력(Time · Robot · TotalCount · EachHeight · Status · Applied/Rejected 사유 +
 Apply 버튼)이다. 옆모습 그림은 고른 스택 크기를 그린다 — 잰 크기면 저장된 절대값 그대로다.
 
-## Excel
+## Excel (2026-09-21 — 품목 추가의 두 번째 길)
 
-`ItemBeadProfile` 시트 하나로 오간다(`Code · Stack · Level · LowerBead · UpperBead · StackHeight · Source ·
-SamplePlc · SampleSeq · TotalHeight · EachHeight · At`). 값은 모두 **셀 바닥 기준 절대값**이고, 시트가 있으면
-`Items` 시트에 있는 모든 코드에 대해 그 시트가 정본이다(줄이 없으면 프로파일 없음). 하중 곡선은 콘솔이
-파생하므로 시트로 오가지 않는다.
+화면: **화물 규격 › `추가 ▾`** — 왼쪽 `추가` 는 폼 하나(직접 입력), `▾` 는 `직접 입력… · Excel 가져오기… ·
+양식 받기 · Excel 내보내기`. 빈 표에도 `직접 입력` · `Excel 가져오기` 버튼이 선다. 가져오기 창은 파일 고르기와
+**끌어다 놓기**를 다 받고, dry-run 결과를 줄 결과 넷(추가 · 갱신 · 동일 · 건너뜀)과 문제 줄 표(Row · Sheet ·
+Message)로 보인 뒤에야 `적용` 을 준다. 쓸 줄이 없으면 `적용` 은 막히고 이유를 말한다(모두 같은 값 / 모든 줄
+오류 / 적용할 행 없음). 적용 뒤 토스트는 `품목 12건 추가 · 3건 갱신`.
+
+| API | 하는 일 |
+|---|---|
+| `GET /api/items/template.xlsx` | **빈 양식** — `Items` · `ItemBeadProfile` 머리글만(자료 줄·예시 줄·설명 줄 없음). 받은 그대로 올리면 아무것도 안 바뀐다 |
+| `GET /api/items/export.xlsx` | 지금 품목 전부 — 같은 두 시트(양식과 머리글이 같다) |
+| `POST /api/items/import-file?dry_run=1\|0` | 두 시트를 한 번에. 응답 `added · updated · unchanged · skipped`(+ 옛 이름 `imported` = added) · `errors[{row, sheet, message}]` · `counts` |
+
+`/api/registry/import-file`(셀 · 스테이션 · 품목 세 표)은 그대로이고 같은 응답 모양을 쓴다.
+
+**`Items` 시트** — 한 줄 = 품목 하나. 머리글 이름으로 열을 찾는다(대소문자·공백 무시, 한국어 별칭 `코드`·`품명` 등도 받음).
+
+| 열 | 필수 | 비우면 | 열 자체가 없으면 |
+|---|---|---|---|
+| `Code` | **필수**(0·빈칸이면 그 줄 거부) | — | 시트 전체 거부 |
+| `Name` | **채울 것**(검사는 안 한다) | 이름 없는 품목 | 이름 없는 품목 |
+| `Count` | | 1 | 1 |
+| `InnerDiameter` · `OuterDiameter` · `LowerBeadHeight` · `UpperBeadHeight` · `Height` · `DeflectionFactor` | | 0(= 미입력) | 0 |
+| `StackMax` · `PalletMax` | | 0(= 제한 없음) | **저장된 값 유지**(새 품목은 0) |
+| `WeightKg` · `PickBeadOffset` · `Compression` | | 없음(기본: PickBeadOffset 30, Compression 0) | **저장된 값 유지** |
+| `Note` | | 빈 칸 | 빈 칸 |
+
+`Name` 을 필수로 막지 않는 이유: `Code,StackMax` 두 열만 든 파일로 기존 품목의 한 값만 고치는 길이 있다 —
+이름을 요구하면 그 길이 막힌다.
+
+**`ItemBeadProfile` 시트(선택)** — 한 줄 = 잰 스택 하나의 한 단(`Code · Stack · Level · LowerBead · UpperBead ·
+StackHeight · Source · SamplePlc · SampleSeq · TotalHeight · EachHeight · At`, 키는 `Code + Stack + Level`, 필수도 그 셋).
+값은 모두 **셀 바닥 기준 절대값**이고 `Source` 를 비우면 `manual` 이다. 줄이 하나라도 있으면 `Items` 시트에 있는
+모든 코드에 대해 이 시트가 정본이다(그 코드의 줄이 없으면 프로파일 없음). `Items` 에 없는 코드의 줄은 이미
+등록된 품목의 프로파일만 고친다(없는 코드면 그 줄은 건너뜀). **머리글만 있는 시트는 없는 시트로 본다** — 양식을
+받아 `Items` 만 채워 올려도 이미 잰 비드가 지워지지 않는다(비드를 비우는 일은 화면의 Beads 탭). 하중 곡선은
+콘솔이 파생하므로 시트로 오가지 않는다. 한 파일로 품목과 그 단별 비드를 같이 넣을 수 있다.
+
+**오류와 적용 규칙** — 오류는 줄마다 하나씩 `Items row 5: count must be >= 1` · `ItemBeadProfile row 7: Code 9999: …`
+처럼 시트와 줄을 앞세운다(csv 는 `row 5: …`). 저장된 값과 합쳐야 드러나는 오류(저장된 StackMax 보다 깊은 단
+등)도 줄을 짚는다. **틀린 줄만 건너뛰고 나머지는 적용한다**(전부 아니면 전무가 아니다) — dry-run 과 실제 적용이
+같은 규칙으로 세므로 미리보기의 `추가 · 갱신` 이 곧 적용될 수다. `skipped` = `errors` 의 수.
 
 ## 검증
 
@@ -221,6 +258,44 @@ SamplePlc · SampleSeq · TotalHeight · EachHeight · At`). 값은 모두 **셀
 | 단이 올라가는데 절대 비드가 내려감 | 경고 |
 | 하중이 커지는데 파생 곡선의 비드가 커짐 | 경고 |
 | 잰 `TotalHeight` 와 `EachHeight × Stack`(또는 맨 윗단 `StackHeight`)이 5 mm 넘게 어긋남 | 경고 |
+
+## 셀 바닥 Z 는 음수일 수 있다 — 막지 않고 경고한다 (2026-09-21)
+
+`Cell.Position["Z"]`(바닥 Z)는 **바닥 평탄도 보정**이다. 명령 Z 는 어차피 `바닥 + 스택 + 그립` 으로 나가므로,
+바닥이 기준면보다 낮은 셀은 음수·0 이 **맞는 값**이다 — 현장 CELL 표의 셀 301..305 가 −8.8 … −23.5 로 들어 있다.
+
+그래서 콘솔은 바닥 Z ≤ 0 을 **저장·편집·가져오기·PLC 쓰기 어디서도 막지 않고**, 대신 한 자리마다 한 번씩 경고만 낸다.
+막는 쪽은 데이터가 아니라 **작업**이다: GR2 `isValidTaskData`(`siemens/export/GR2_PLC/blocks/isValidTaskData.scl`, 79~83행)가
+`Task.Cell.Position["Z"] <= 0` 인 작업을 `INVALID_CELL_POSZ`(305)로 돌려보낸다.
+
+**검사 범위 주의(PLC 원문 확인 2026-09-21)** — 그 검사는 `IF #Task.Cell.Id > 2000` 안에 들어 있다.
+`Task.Cell` 은 스테이션 대상일 때 스테이션 `Info` 가 들어가므로, 실제로 거부되는 것은 **스테이션 대상 작업**이고
+셀 대상(id 1..1000)은 바닥 Z 가 음수여도 GR2 가 거부하지 않는다. 콘솔 경고는 두 경우에 모두 뜨고 문구에
+`(검사는 Cell.Id > 2000 대상)` 을 달아 둔다.
+
+| 값 | 콘솔 | PLC 작업 |
+|---|---|---|
+| 바닥 Z > 0 | 통과 | 통과 |
+| 바닥 Z ≤ 0, 셀 대상(id ≤ 1000) | **경고**(저장됨) | 지금은 통과(검사가 `Cell.Id > 2000` 에만 걸린다) |
+| 바닥 Z ≤ 0, 스테이션 대상(id > 2000) | **경고**(저장됨) | `INVALID_CELL_POSZ` 로 거부 |
+| 바닥 Z 가 NaN/∞ | 400 (계산이 깨진다) | — |
+| 셀 X/Y < 0 | 400 | — |
+
+스테이션 레지스트리 자체는 그대로 `X/Y/Z > 0` 을 요구한다(PLC `isValid_Station_Parameter`) — 이번 완화는 셀 표에만 해당한다.
+
+경고가 나오는 자리 — 값이 지나가는 길목마다 한 번씩:
+
+| 자리 | 채널 |
+|---|---|
+| `POST/PUT /api/cells[/id]`, `GET /api/cells` | 셀 JSON 의 `warnings[]` (`registry::routes::cell_view`) |
+| `POST /api/cells/bulk` (그리드 적용·레이아웃 생성, 모드는 `docs/layout-apply.md`) | 응답 `warnings[]` → 토스트 |
+| `POST /api/cells/import`(PLC→로컬) · `import-file`(Excel/CSV, dry-run 포함) | 요약 `warnings[]` → 미리보기 목록 · 토스트 |
+| `POST /api/cells/push`(로컬→PLC) | `PushResult.warnings[]` → 토스트 |
+| `POST /api/issue/compose` | compose `warnings[]` → ComposeCard · 계획 미리보기 |
+| 셀 그리드 편집기 | Z 칸이 경고 색 + 말풍선, 툴바 `· 경고 n` (오류 수에는 안 들어가고 **적용은 된다**) |
+| 셀 추가·편집 폼 · 레이아웃 생성 규칙 | 경고 목록(저장·생성 버튼은 그대로) |
+
+정본 문구는 백엔드 `registry::xlsx::floor_z_warning`, 프런트 `lib/task/registryGrid.ts::CELL_POSZ_WARNING`.
 
 ## PLC `p973` (Pick_BeadZOffset) — 콘솔이 목표를 정하고, PLC 는 다듬기만 한다
 

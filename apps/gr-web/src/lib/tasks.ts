@@ -4,6 +4,8 @@
 // 묶는다 — 시나리오가 돌면 초당 여러 건이 갈린다.
 import { api } from './api'
 import { tasksFeed } from './feeds'
+import { robots } from './robots'
+import { robotFailure, withRobot } from './robotContext'
 import { frameThrottle } from './sse'
 import { Store } from './store'
 import { toast } from './ui/toast'
@@ -101,33 +103,45 @@ class Tasks extends Store {
    * 아직 끝나지 않았으면 "취소" 대신 "취소 요청 보냄"이라고 말한다: PLC가 무시한 Delete는 그 뒤로도
    * 아무 일이 없고, 그때 "취소 완료" 토스트는 거짓이다(이력에 System 줄이 뜨는 것이 그 다음 신호다).
    */
-  async #act(label: string, run: () => Promise<Task>, robot = false): Promise<Task | null> {
-    const tid = toast.pending(`${label} 중…`)
+  async #act(id: string, label: string, run: () => Promise<Task>, robot = false): Promise<Task | null> {
+    // 메시지는 **그 Task 의 로봇**을 말한다 — 사이드바 선택과 다른 호기의 행을 다룰 수 있다.
+    const who = this.ownerOf(id)
+    const tid = toast.pending(withRobot(who, `${label} 중…`))
     try {
       const t = await run()
       this.#map.set(t.id, t)
       this.#sorted = null
       this.notify()
       if (robot && !TERMINAL_STATES.includes(t.state)) {
-        toast.resolve(tid, 'info', `#${t.seq} ${label} 요청 보냄 — PLC 응답 대기`)
+        toast.resolve(tid, 'info', withRobot(who, `#${t.seq} ${label} 요청 보냄 — PLC 응답 대기`))
       } else {
-        toast.resolve(tid, 'ok', `#${t.seq} ${label}`)
+        toast.resolve(tid, 'ok', withRobot(who, `#${t.seq} ${label}`))
       }
       return t
     } catch (e) {
-      toast.resolve(tid, 'error', `${label} 실패 — ${e instanceof Error ? e.message : String(e)}`)
+      toast.resolve(
+        tid,
+        'error',
+        robotFailure(who, `${label} 실패`, e instanceof Error ? e.message : String(e)),
+      )
       return null
     }
   }
 
+  /** Task 의 주인 로봇 이름(원장의 상태 PLC 로 찾는다). 모르면 null. */
+  ownerOf(id: string): string | null {
+    const plc = this.#map.get(id)?.plc_name
+    return plc ? robots.chipOfPlc(plc).name : null
+  }
+
   cancel(id: string): Promise<Task | null> {
-    return this.#act('취소', () => api.taskCancel(id), true)
+    return this.#act(id, '취소', () => api.taskCancel(id), true)
   }
   complete(id: string): Promise<Task | null> {
-    return this.#act('완료 처리', () => api.taskComplete(id), true)
+    return this.#act(id, '완료 처리', () => api.taskComplete(id), true)
   }
   resubmit(id: string): Promise<Task | null> {
-    return this.#act('재제출', () => api.taskResubmit(id))
+    return this.#act(id, '재제출', () => api.taskResubmit(id))
   }
 }
 

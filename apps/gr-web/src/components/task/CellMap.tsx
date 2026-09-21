@@ -6,6 +6,10 @@
 // 좌표·호버 정보는 왼쪽 아래 한 줄, 축 방향은 오른쪽 아래.
 // 셀 안에는 재고 개수만 크게 그린다(재고 0 = 회색). 로봇이 작업 중인 셀은 그 로봇 색 테두리(대기 = 점선).
 // 화면은 시계 방향 0·90·180·270° 로 돌릴 수 있고, 돌린 뒤 좌우·상하 반전도 된다(설정은 브라우저에 저장).
+//
+// **테두리 언어**(한 번에 한 겹만 주장한다): 선택 = 실선 액센트 링 + 후광 + 옅은 채움(맨 위에 하나),
+// 호버 = 옅은 실선 링, 로컬 수정 = 오른쪽 위 점 하나, 문제(겹침·바닥 Z ≤ 0) = 경고색 **점선** 링.
+// 점선은 문제에만 쓴다 — 고친 칸이 40개여도 화면이 점선 밭이 되지 않는다.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Crosshair, Maximize2, Minus, MoreHorizontal, Plus } from 'lucide-react'
 import {
@@ -25,6 +29,7 @@ import {
   type Shape,
   type View,
 } from '../../lib/task/layoutModel'
+import type { PreviewCell } from '../../lib/task/layoutGen'
 import type { PlanStep } from '../../lib/task/plan'
 import { overlay as planOverlay } from '../../lib/task/plan'
 import { f1 } from '../../lib/meas/format'
@@ -34,7 +39,7 @@ import { Input } from '../../lib/ui/Input'
 import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
-import type { Cell, CellUpsert, Station, StockEntry, Target, TaskType } from '../../lib/types'
+import type { Cell, Station, StockEntry, Target, TaskType } from '../../lib/types'
 import { cn } from '../../lib/utils'
 
 const SIZE_KEY = 'gr-cellmap-size'
@@ -125,8 +130,8 @@ export interface CellMapProps {
   stock?: ReadonlyMap<number, StockEntry>
   /** 순차 계획 — 순번 배지 + 경로(명령 생성 모드에서만 넘긴다). */
   plan?: readonly PlanStep[]
-  /** 생성 예정 셀(레이아웃 편집 모드에서만 넘긴다). */
-  preview?: readonly CellUpsert[]
+  /** 생성 예정 셀(레이아웃 편집 모드에서만 넘긴다) — 충돌 판정이 실려 있으면 색과 툴팁이 달라진다. */
+  preview?: readonly PreviewCell[]
   /** 로봇 작업 테두리. */
   work?: ReadonlyMap<string, WorkMark>
   /** 로봇 위치 표식. */
@@ -194,6 +199,8 @@ export function CellMap({
       })),
     [preview],
   )
+  /** 생성 예정 칸의 판정(색·툴팁) — 보낸 id 로 찾는다. */
+  const previewInfo = useMemo(() => new Map((preview ?? []).map((c) => [c.id, c])), [preview])
   const bounds = useMemo(
     () => boundsOf([...shapes, ...previewShapes], size / 2),
     [shapes, previewShapes, size],
@@ -426,16 +433,36 @@ export function CellMap({
         {/* 생성 예정 셀 */}
         {previewShapes.map((s) => {
           const [sx, sy] = centre(s)
-          const dup = shapes.some((o) => o.kind === 'cell' && o.id === s.id)
+          const info = previewInfo.get(s.id)
+          const out = info?.outcome ?? 'added'
+          // 건너뛸 칸은 **경고 톤 + 점선**(문제에만 쓰는 그 표시), 갱신은 정보 톤, 그대로면 조용하게.
+          const tone =
+            out === 'skipped'
+              ? 'fill-warn-soft stroke-warn'
+              : out === 'updated'
+                ? 'fill-info-soft stroke-info'
+                : out === 'unchanged'
+                  ? 'fill-surface-inset stroke-line-strong'
+                  : 'fill-degraded-soft stroke-degraded'
+          const tip =
+            (out === 'skipped'
+              ? `건너뜀 — ${info?.reason ?? '충돌'}`
+              : out === 'remapped'
+                ? `번호 변경 → #${info?.newId}`
+                : out === 'updated'
+                  ? `기존 셀 #${s.id} 갱신`
+                  : out === 'unchanged'
+                    ? '값이 같아 그대로'
+                    : `생성 예정 셀 #${s.id}`) +
+            (info?.reason && out !== 'skipped' ? ` · ${info.reason}` : '')
           return (
-            <g key={`pv-${s.id}`} data-testid={`map-preview-${s.id}`}>
+            <g key={`pv-${s.id}`} data-testid={`map-preview-${s.id}`} data-outcome={out}>
+              <title>{tip}</title>
               <circle
                 cx={sx}
                 cy={sy}
                 r={rr}
-                className={
-                  dup ? 'fill-red-300 stroke-red-600' : 'fill-orange-200 stroke-orange-500'
-                }
+                className={tone}
                 fillOpacity={0.5}
                 strokeWidth={1.5}
                 strokeDasharray="6 3"
@@ -447,9 +474,12 @@ export function CellMap({
                   textAnchor="middle"
                   dominantBaseline="central"
                   fontSize={Math.min(rr * 0.5, 13)}
-                  className="pointer-events-none fill-orange-800 font-semibold"
+                  className={cn(
+                    'pointer-events-none font-semibold',
+                    out === 'skipped' ? 'fill-warn-fg' : 'fill-content-secondary',
+                  )}
                 >
-                  {s.id}
+                  {info?.newId ?? s.id}
                 </text>
               ) : null}
             </g>
@@ -501,15 +531,16 @@ export function CellMap({
               : empty
                 ? 'fill-surface-active'
                 : sectionFill(s.section)
-          const stroke = sel
-            ? 'stroke-accent'
-            : hov
-              ? 'stroke-content-primary'
-              : empty
-                ? 'stroke-line-strong'
-                : 'stroke-surface-panel/70'
+          // 테두리는 **한 겹만** 주장한다: 선택 링은 맨 위 따로 한 번 그리고(아래 오버레이),
+          // 도형 자체는 조용한 윤곽만 둔다. 로컬 수정은 점선 링이 아니라 작은 점 하나,
+          // 문제(바닥 Z ≤ 0)는 경고색 점선 링 하나 — 점선은 **문제에만** 쓴다.
+          const stroke = empty ? 'stroke-line-strong' : 'stroke-surface-panel/70'
           const shapeCls = cn('cursor-pointer', fill, stroke, !s.use && 'opacity-40')
-          const sw = sel ? 3 : hov ? 2 : 1
+          const sw = 1
+          const problem =
+            s.kind === 'cell' && s.z <= 0
+              ? `바닥 Z ${f1(s.z)} ≤ 0 — 이 셀로 나간 작업을 PLC 가 거부합니다`
+              : null
           const ringR = rr + 4
           const handlers = {
             onMouseEnter: () => setHover(s),
@@ -556,38 +587,32 @@ export function CellMap({
                   />
                 )
               ) : null}
-              {sel
-                ? (() => {
-                    // 선택 링 — 같은 색 셀 사이에서도 보이게 바깥 점선 링이 돌며 숨 쉰다(작업 테두리 바깥).
-                    const selR = rr + (w ? 10 : 7)
-                    const cls = 'map-sel pointer-events-none stroke-accent'
-                    return s.kind === 'cell' ? (
-                      <circle
-                        cx={sx}
-                        cy={sy}
-                        r={selR}
-                        fill="none"
-                        className={cls}
-                        strokeWidth={2.5}
-                        strokeDasharray="6 4"
-                        data-testid={`map-sel-${key}`}
-                      />
-                    ) : (
-                      <rect
-                        x={sx - selR}
-                        y={sy - selR}
-                        width={selR * 2}
-                        height={selR * 2}
-                        rx={4}
-                        fill="none"
-                        className={cls}
-                        strokeWidth={2.5}
-                        strokeDasharray="6 4"
-                        data-testid={`map-sel-${key}`}
-                      />
-                    )
-                  })()
-                : null}
+              {hov && !sel ? (
+                // 호버 — 선택과 헷갈리지 않게 **옅은** 링 하나(색도 굵기도 선택보다 약하다).
+                <circle
+                  cx={sx}
+                  cy={sy}
+                  r={rr + 3}
+                  fill="none"
+                  className="pointer-events-none stroke-content-faint"
+                  strokeWidth={1.5}
+                  data-testid={`map-hover-${key}`}
+                />
+              ) : null}
+              {problem ? (
+                <circle
+                  cx={sx}
+                  cy={sy}
+                  r={rr + 2}
+                  fill="none"
+                  className="pointer-events-none stroke-warn"
+                  strokeWidth={2}
+                  strokeDasharray="5 3"
+                  data-testid={`map-problem-${key}`}
+                >
+                  <title>{problem}</title>
+                </circle>
+              ) : null}
               {s.kind === 'cell' ? (
                 <circle
                   cx={sx}
@@ -595,7 +620,6 @@ export function CellMap({
                   r={rr}
                   className={shapeCls}
                   strokeWidth={sw}
-                  strokeDasharray={s.dirty ? '5 3' : undefined}
                   {...handlers}
                 />
               ) : (
@@ -607,10 +631,22 @@ export function CellMap({
                   rx={2}
                   className={shapeCls}
                   strokeWidth={sw}
-                  strokeDasharray={s.dirty ? '5 3' : undefined}
                   {...handlers}
                 />
               )}
+              {s.dirty ? (
+                // 로컬 수정 — 도형을 둘러싸지 않고 오른쪽 위 점 하나로만 알린다(40칸을 고쳐도 조용하다).
+                <circle
+                  cx={sx + rr * 0.72}
+                  cy={sy - rr * 0.72}
+                  r={Math.min(Math.max(rr * 0.18, 2), 4)}
+                  className="pointer-events-none fill-accent stroke-surface-panel"
+                  strokeWidth={1}
+                  data-testid={`map-dirty-${key}`}
+                >
+                  <title>로컬 수정 — PLC 미반영</title>
+                </circle>
+              ) : null}
               {s.kind === 'cell' && rr >= 6 ? (
                 <text
                   x={sx}
@@ -711,6 +747,73 @@ export function CellMap({
               </g>
             )
           })}
+
+        {/* 선택 링 — 맨 위에 **하나만** 선다. 실선 액센트 + 바깥 후광이라 어두운 칸 위에서도 보이고,
+            점선은 문제 표시에만 남겨 둔다(고친 칸이 40개라도 화면이 조용하다). */}
+        {(() => {
+          const s = shapes.find((x) => sameTarget(selected, x))
+          if (!s) return null
+          const [sx, sy] = centre(s)
+          const key = `${s.kind}-${s.id}`
+          const selR = rr + (work?.get(key) ? 10 : 6)
+          return (
+            <g className="pointer-events-none" data-testid={`map-sel-${key}`}>
+              {s.kind === 'cell' ? (
+                <>
+                  <circle cx={sx} cy={sy} r={rr} className="fill-accent" fillOpacity={0.16} />
+                  <circle
+                    cx={sx}
+                    cy={sy}
+                    r={selR}
+                    fill="none"
+                    className="stroke-surface-panel"
+                    strokeWidth={5}
+                  />
+                  <circle
+                    cx={sx}
+                    cy={sy}
+                    r={selR}
+                    fill="none"
+                    className="stroke-accent"
+                    strokeWidth={2.5}
+                  />
+                </>
+              ) : (
+                <>
+                  <rect
+                    x={sx - rr}
+                    y={sy - rr}
+                    width={rr * 2}
+                    height={rr * 2}
+                    rx={2}
+                    className="fill-accent"
+                    fillOpacity={0.16}
+                  />
+                  <rect
+                    x={sx - selR}
+                    y={sy - selR}
+                    width={selR * 2}
+                    height={selR * 2}
+                    rx={4}
+                    fill="none"
+                    className="stroke-surface-panel"
+                    strokeWidth={5}
+                  />
+                  <rect
+                    x={sx - selR}
+                    y={sy - selR}
+                    width={selR * 2}
+                    height={selR * 2}
+                    rx={4}
+                    fill="none"
+                    className="stroke-accent"
+                    strokeWidth={2.5}
+                  />
+                </>
+              )}
+            </g>
+          )
+        })()}
 
         {/* 축 방향 — 회전·반전 후 +X / +Y 가 화면 어느 쪽인지 */}
         <g
@@ -905,16 +1008,22 @@ export function CellMap({
                 swatch={
                   <span className="h-4 w-4 rounded-full border-2 border-dashed border-degraded bg-degraded-soft" />
                 }
-                text="생성 예정 셀"
+                text="생성 예정 셀 (파랑 = 갱신)"
               />
               <LegendRow
                 swatch={
-                  <span className="h-4 w-4 rounded-full border border-dashed border-content-muted" />
+                  <span className="h-4 w-4 rounded-full border-2 border-dashed border-warn bg-warn-soft" />
                 }
-                text="로컬 수정 (PLC 미반영)"
+                text="충돌·경고 — 건너뜀 · 겹침 · 바닥 Z ≤ 0"
               />
               <LegendRow
-                swatch={<span className="h-4 w-4 rounded-full border-[3px] border-accent" />}
+                swatch={<span className="h-2 w-2 rounded-full bg-accent" />}
+                text="로컬 수정 (PLC 미반영) — 칸 오른쪽 위 점"
+              />
+              <LegendRow
+                swatch={
+                  <span className="h-4 w-4 rounded-full border-[3px] border-accent bg-accent-soft" />
+                }
                 text="선택 / 대상"
               />
               {robotLegend.map((rb) => (

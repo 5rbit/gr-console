@@ -1,5 +1,8 @@
 // PLC 패널 — 접속·레이아웃 검사 상태 목록. 행을 누르면 원본 JSON 팝업(`panels`)이 뜬다.
-// `Sidebar.tsx`의 PLC 섹션을 그대로 떼어 냈다(클래스도 그대로 — 이동이지 재도색이 아니다).
+// `Sidebar.tsx`의 PLC 섹션을 떼어 냈다.
+//
+// 행 = 이름 · (불일치일 때만) `레이아웃 불일치` 칩 · 연결 칩(`연결 4ms`/`끊김`/`연결 중`, OPC UA 는 `준비`).
+// 예전의 글자 없는 초록·빨강 사각 둘을 글자 칩으로 바꿨다(2026-09-21, 어휘는 `lib/indicators`).
 import { useEffect, useState } from 'react'
 import { Link as LinkIcon, RefreshCw } from 'lucide-react'
 import { density } from '../../lib/density'
@@ -8,21 +11,20 @@ import { plcs } from '../../lib/plcs'
 import { useStore } from '../../lib/store'
 import { Button } from '../../lib/ui/Button'
 import { JsonView } from '../../lib/ui/JsonView'
-import { StatusDot } from '../../lib/ui/StatusDot'
+import { IndicatorChip } from '../../lib/ui/IndicatorChip'
+import { plcConnection, plcLayout, toneStatus } from '../../lib/indicators'
 import type { PlcId, PlcStatus } from '../../lib/types'
 import type { Status } from '../../lib/ui/status'
 
-/** PLC 연결 → 점 상태. 한 번도 붙은 적 없고 오류도 없으면 중립(아직 모른다). */
+/** PLC 연결 → 점 상태(`lib/indicators.plcConnection`의 톤). */
 export function plcDot(p: PlcStatus): Status {
-  if (p.connected) return 'ok'
-  return p.last_error || p.last_ok_at ? 'fault' : 'neutral'
+  return toneStatus(plcConnection(p).tone)
 }
 
-/** 레이아웃 검사 → 점 상태 + 글자. */
+/** 레이아웃 검사 → 점 상태 + 글자. 불일치는 빨강이 아니라 degraded(노랑) — 끊김과 가른다. */
 export function layoutMark(p: PlcStatus): { status: Status; label: string } {
-  if (p.layout.ok === true) return { status: 'ok', label: '레이아웃 OK' }
-  if (p.layout.ok === false) return { status: 'fault', label: '레이아웃 불일치' }
-  return { status: 'neutral', label: '미검사' }
+  const l = plcLayout(p)
+  return { status: toneStatus(l.tone), label: l.label || '검사 대상 아님' }
 }
 
 /** PLC 상세 팝업 — 원본 JSON과 재검사·재연결. `panels.open`으로 띄운다. */
@@ -35,8 +37,10 @@ export function PlcDetail({ id }: { id: PlcId }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <StatusDot status={plcDot(p)} label={p.connected ? '연결됨' : '미연결'} />
-        <StatusDot status={lb.status} label={lb.label} />
+        <IndicatorChip ind={plcConnection(p)} />
+        {p.kind === 's7' ? (
+          <IndicatorChip ind={{ ...plcLayout(p), label: lb.label }} />
+        ) : null}
         <span className="font-mono text-xs text-content-faint">{p.endpoint}</span>
         <span className="flex-1" />
         <Button
@@ -87,14 +91,15 @@ export default function PlcPane() {
         </li>
       ) : null}
       {plcs.list.map((p) => {
-        const lb = layoutMark(p)
+        const conn = plcConnection(p)
+        const lay = plcLayout(p)
         return (
           <li key={p.id}>
             <button
               type="button"
-              className={`flex w-full items-center gap-2 px-2 text-left hover:bg-surface-inset ${rowPad}`}
+              className={`flex w-full items-center gap-1.5 px-2 text-left hover:bg-surface-inset ${rowPad}`}
               data-testid={`plc-${p.id}`}
-              title={p.last_error ?? p.endpoint}
+              title={`${p.label} · ${p.endpoint} — 누르면 상세`}
               onClick={() =>
                 panels.open({
                   id: `plc-${p.id}`,
@@ -105,15 +110,10 @@ export default function PlcPane() {
                 })
               }
             >
-              <StatusDot status={plcDot(p)} size="sm" />
               <span className="min-w-0 flex-1 truncate text-xs font-medium">{p.label}</span>
-              <span className="font-mono text-3xs tabular-nums text-content-faint">
-                {p.rtt_ms !== null ? `${Math.round(p.rtt_ms)}ms` : '—'}
-              </span>
-              {/* 정상은 침묵한다 — 고정폭 자리에 점만 두어 이름·RTT의 x가 행마다 같다. */}
-              <span className="inline-flex w-2.5 shrink-0 justify-center" title={lb.label}>
-                {lb.status === 'ok' ? null : <StatusDot status={lb.status} size="sm" />}
-              </span>
+              {/* 정상 레이아웃은 침묵한다 — 불일치일 때만 사유를 툴팁에 든 칩이 선다. */}
+              {lay.hidden ? null : <IndicatorChip ind={lay} data-testid={`plc-layout-${p.id}`} />}
+              <IndicatorChip ind={conn} data-testid={`plc-conn-${p.id}`} />
             </button>
           </li>
         )

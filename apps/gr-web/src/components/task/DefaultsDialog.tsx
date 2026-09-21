@@ -110,6 +110,8 @@ export function DefaultsDialog({ open, onOpenChange, defaults, onSaved }: Defaul
       meta={
         <>
           <span className="tabular-nums">{defaults ? `v${defaults.version}` : '버전 없음'}</span>
+          {/* 기본값은 로봇별이 아니다(`/api/defaults` 하나) — 로봇 칩 대신 범위를 말해 호기별로 오해하지 않게. */}
+          <span data-testid="defaults-scope">모든 로봇 공통</span>
           <HelpTip
             title="기본값 규칙"
             text="우선순위는 공통 ← 종류·대상별 ← 작성 카드의 덮어쓰기입니다. 칸은 더블클릭하거나 바로 타이핑해 고치고 엑셀에서 붙여넣을 수도 있습니다. DragInDist·DragOutDist 는 0 으로 두면 드래그를 켤 때 서버가 150 mm 를 넣고, DragInHeight·DragOutHeight 는 0 이면 지정 없음입니다."

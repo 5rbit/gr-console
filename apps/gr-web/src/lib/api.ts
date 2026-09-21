@@ -9,6 +9,8 @@ import { invalidateShared, shareGet } from './share'
 import type {
   BeadSample,
   Cell,
+  CellBulkOptions,
+  CellBulkResult,
   CellUpsert,
   CompressionSuggestion,
   ConsoleInfo,
@@ -190,8 +192,7 @@ export const api = {
     code?: number,
     limit?: number,
     robot?: number | null,
-  ) =>
-    getJson<MeasLogEntries>(`/api/measlog/entries${qs({ since, kind, code, limit, robot })}`),
+  ) => getJson<MeasLogEntries>(`/api/measlog/entries${qs({ since, kind, code, limit, robot })}`),
   measlogReload: (robot?: number | null) =>
     postJson<MeasLogSnapshot>(`/api/measlog/reload${qs({ robot })}`),
   measlogCsvUrl: (kind?: number, code?: number, robot?: number | null): string =>
@@ -227,21 +228,32 @@ export const api = {
     getJson<ItemLevels>(`/api/items/${code}/levels${qs({ robot, preview })}`),
   /** 최신 SKU 측정을 규격에 바로 넣는다(서버가 검증·저장) — `fields` = beads · compression */
   itemLevelsApplyMeasured: (code: number, robot?: number | null, fields?: string) =>
-    postJson<{ code: number; applied: unknown[]; spec: ItemSpec; suggestion: CompressionSuggestion }>(
-      `/api/items/${code}/levels/apply-measured${qs({ robot, fields })}`,
-      {},
-    ),
+    postJson<{
+      code: number
+      applied: unknown[]
+      spec: ItemSpec
+      suggestion: CompressionSuggestion
+    }>(`/api/items/${code}/levels/apply-measured${qs({ robot, fields })}`, {}),
   /** SKU 측정 표본 이력(최신 순, 반영 여부·거부 사유 포함) */
   itemBeadSamples: (code: number, robot?: number | null, limit?: number, all?: boolean) =>
-    getJson<{ code: number; plc: string | null; limit: number; auto_apply_measured: boolean; samples: BeadSample[] }>(
-      `/api/items/${code}/bead-samples${qs({ robot, limit, all })}`,
-    ),
+    getJson<{
+      code: number
+      plc: string | null
+      limit: number
+      auto_apply_measured: boolean
+      samples: BeadSample[]
+    }>(`/api/items/${code}/bead-samples${qs({ robot, limit, all })}`),
   /** 옛 표본을 손으로 규격에 넣는다(자동 반영 스위치가 꺼져 있어도) */
   itemBeadSampleApply: (code: number, seq: number, robot?: number | null) =>
-    postJson<{ code: number; plc: string; seq: number; applied: boolean; reason: string; spec: ItemSpec; samples: BeadSample[] }>(
-      `/api/items/${code}/bead-samples/${seq}/apply${qs({ robot, force: true })}`,
-      {},
-    ),
+    postJson<{
+      code: number
+      plc: string
+      seq: number
+      applied: boolean
+      reason: string
+      spec: ItemSpec
+      samples: BeadSample[]
+    }>(`/api/items/${code}/bead-samples/${seq}/apply${qs({ robot, force: true })}`, {}),
   /** 체크한 품목들에 단수 Max / 팔레트 Max 를 한 번에(전부 검증 뒤 적용) */
   itemsBulkSpec: (body: { codes: number[]; stack_max?: number; pallet_max?: number }) =>
     postJson<{ updated: number }>('/api/items/bulk-spec', body),
@@ -251,10 +263,18 @@ export const api = {
   cellCreate: (body: CellUpsert) => postJson<Cell>('/api/cells', body),
   cellUpdate: (id: number, body: CellUpsert) => putJson<Cell>(`/api/cells/${id}`, body),
   cellDelete: (id: number) => del(`/api/cells/${id}`),
-  /** 레이아웃 편집기 — 여러 셀 한 번에(로컬 사본). `replaceSection` 이면 그 구간 기존 셀을 먼저 지운다. */
-  cellsBulk: (rows: CellUpsert[], replaceSection: number | null) =>
-    postJson<{ created: number; updated: number; removed: number; total: number }>(
-      `/api/cells/bulk${qs({ replace_section: replaceSection ?? undefined })}`,
+  /**
+   * 레이아웃 편집기·그리드 — 여러 셀 한 번에(로컬 사본). 기본 모드 `append` 는 **아무것도 지우지 않고**
+   * 충돌(id 중복·겹침)만 건너뛴다. 줄마다 결과와 사유가 `rows` 로 돌아온다.
+   */
+  cellsBulk: (rows: CellUpsert[], opts: CellBulkOptions = {}) =>
+    postJson<CellBulkResult>(
+      `/api/cells/bulk${qs({
+        mode: opts.mode,
+        replace_section: opts.section ?? undefined,
+        auto_id: opts.autoId ? 1 : undefined,
+        diameter: opts.diameter,
+      })}`,
       rows,
     ),
   cellsImport: (plc: PlcId) => postJson<ImportResult>(`/api/cells/import${qs({ plc })}`),
