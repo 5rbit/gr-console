@@ -188,11 +188,12 @@ async fn anticol_get(State(st): State<AppState>) -> ApiResult<Json> {
 
 /// `PUT /api/anticol` — 간격·사용 여부 바꾸기.
 async fn anticol_put(State(st): State<AppState>, axum::Json(b): axum::Json<crate::area::AreaConfig>) -> ApiResult<Json> {
-    if !(b.separation_mm.is_finite() && (0.0..=20000.0).contains(&b.separation_mm)) {
-        return Err(ApiError::BadRequest(format!("separation_mm {} — 0..20000 mm", b.separation_mm)));
-    }
-    st.db.set_setting(crate::area::SETTING_KEY, &serde_json::to_string(&b)?)?;
-    Ok(axum::Json(serde_json::to_value(b).unwrap_or_default()))
+    // 파라미터 한 곳(`params`)에 쓴다 — 범위 검사·이력도 거기서.
+    let mut p = crate::params::current(&st.db);
+    p.anticol_separation_mm = b.separation_mm;
+    p.anticol_enabled = b.enabled;
+    crate::params::save(&st.db, p, "api:/api/anticol")?;
+    Ok(axum::Json(serde_json::to_value(crate::area::load(&st.db)).unwrap_or_default()))
 }
 
 async fn list(State(st): State<AppState>) -> ApiResult<Json> {

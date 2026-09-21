@@ -29,13 +29,13 @@ impl Default for AreaConfig {
     }
 }
 
-pub const SETTING_KEY: &str = "anticol";
-
+/// 간격·사용 — 파라미터(`params.rs`) 한 곳에서.
 pub fn load(db: &crate::db::Db) -> AreaConfig {
-    db.setting(SETTING_KEY).ok().flatten().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+    let p = crate::params::current(db);
+    AreaConfig { separation_mm: p.anticol_separation_mm, enabled: p.anticol_enabled }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Interval {
     pub lo: f32,
     pub hi: f32,
@@ -85,6 +85,9 @@ pub struct Reservation {
     pub idle: bool,
     /// 짝(PICK 나감, DROP 아직)이 걸려 있다.
     pub holds_pair: bool,
+    /// 이 로봇의 추가 여유(mm, `params.robot_margin_mm`) — 간격에 더한다.
+    #[serde(default)]
+    pub margin: f32,
 }
 
 /// `committed` = PLC 가 받은(Accepted/Queued/Running) 명령이 있다 — 그 로봇은 목표로 떠나기로 했으므로 **지금 X 는 빼고**
@@ -93,12 +96,12 @@ pub struct Reservation {
 pub fn reservation(robot: u8, name: &str, current: Option<f32>, pending_targets: &[f32], committed: bool, pair_drop: Option<f32>) -> Option<Reservation> {
     let here = if committed && !pending_targets.is_empty() { None } else { current };
     let area = hull(here.into_iter().chain(pending_targets.iter().copied()).chain(pair_drop))?;
-    Some(Reservation { robot, name: name.into(), area, idle: pending_targets.is_empty() && pair_drop.is_none(), holds_pair: pair_drop.is_some() })
+    Some(Reservation { robot, name: name.into(), area, idle: pending_targets.is_empty() && pair_drop.is_none(), holds_pair: pair_drop.is_some(), margin: 0.0 })
 }
 
-/// 첫 번째로 겹치는 다른 로봇(없으면 `None`).
+/// 첫 번째로 겹치는 다른 로봇(없으면 `None`). `sep` 에 내 여유를 더해 넘기고, 상대 여유는 여기서 더한다.
 pub fn blocker(mine: Interval, others: &[Reservation], sep: f32) -> Option<&Reservation> {
-    others.iter().find(|r| mine.gap(r.area) < sep)
+    others.iter().find(|r| mine.gap(r.area) < sep + r.margin)
 }
 
 pub fn wait_reason(r: &Reservation, mine: Interval, sep: f32) -> String {
@@ -189,7 +192,17 @@ pub fn target_x(st: &AppState, t: &Target) -> Option<f32> {
 
 /// `me` 를 뺀 로봇들이 잡은 영역. `pair_drop` = 로봇별 걸린 짝의 DROP 목표 X(실행기가 들고 있다).
 pub fn others(st: &AppState, me: u8, pair_drop: &std::collections::BTreeMap<u8, f32>) -> Vec<Reservation> {
-    st.robots.iter().filter(|r| r.id != me).filter_map(|r| reservation(r.id, &r.name, robot_x(st, r), &pending_targets(r), committed(r), pair_drop.get(&r.id).copied())).collect()
+    let p = crate::params::current(&st.db);
+    st.robots
+        .iter()
+        .filter(|r| r.id != me)
+        .filter_map(|r| {
+            reservation(r.id, &r.name, robot_x(st, r), &pending_targets(r), committed(r), pair_drop.get(&r.id).copied()).map(|mut x| {
+                x.margin = p.margin(r.id);
+                x
+            })
+        })
+        .collect()
 }
 
 /// 로봇 `r` 이 목표 `x`(짝이면 DROP 목표까지)로 가도 되나 — 막는 로봇과 이 Task 영역, 또는 `None`.
@@ -199,7 +212,8 @@ pub fn check(st: &AppState, cfg: &AreaConfig, r: &RobotCtx, x: f32, pair_drop: O
     }
     let mine = task_area(pending_targets(r).last().copied(), robot_x(st, r), x, pair_drop);
     let os = others(st, r.id, pairs);
-    blocker(mine, &os, cfg.separation_mm).cloned().map(|b| (b, mine))
+    let own = crate::params::current(&st.db).margin(r.id);
+    blocker(mine, &os, cfg.separation_mm + own).cloned().map(|b| (b, mine))
 }
 
 #[cfg(test)]
@@ -207,6 +221,17 @@ mod tests {
     use super::*;
 
     const SEP: f32 = 2403.0;
+
+    #[test]
+    fn robot_margins_widen_the_gap() {
+        let mut other = reservation(2, "GR2", Some(10000.0), &[], false, None).unwrap();
+        let mine = Interval::span(5000.0, 7500.0);
+        assert!(blocker(mine, std::slice::from_ref(&other), SEP).is_none(), "gap 2500 >= 2403");
+        other.margin = 200.0;
+        assert!(blocker(mine, std::slice::from_ref(&other), SEP).is_some(), "2500 < 2403 + 200");
+        other.margin = 0.0;
+        assert!(blocker(mine, std::slice::from_ref(&other), SEP + 100.0).is_some(), "own margin");
+    }
 
     #[test]
     fn default_separation_is_the_plc_sum() {

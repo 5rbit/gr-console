@@ -155,9 +155,10 @@ const EARLIER_LOOKBACK: usize = 8;
 
 /// 큐 깊이 1 — 로봇 원장에 아직 실행되지 않은 Task(Submitted/Accepted/Queued)가 있으면 다음 스텝은 기다린다.
 /// 실행 중 1 건 + 다음 1 건까지만 PLC 에 있게 한다(중간에 문제가 생겨도 꼬이는 작업이 하나뿐이도록).
-pub fn queue_depth_reason(states: impl IntoIterator<Item = TaskState>) -> Option<String> {
+pub fn queue_depth_reason(states: impl IntoIterator<Item = TaskState>, depth: u32) -> Option<String> {
     let waiting = states.into_iter().filter(|s| matches!(s, TaskState::Submitted | TaskState::Accepted | TaskState::Queued)).count();
-    (waiting > 0).then(|| format!("예정 — 실행 대기 중인 Task {waiting} 건 (실행 중 + 다음 1 건까지만)"))
+    let depth = depth.max(1) as usize;
+    (waiting >= depth).then(|| format!("예정 — 실행 대기 중인 Task {waiting} 건 (실행 중 + 다음 {depth} 건까지만)"))
 }
 
 /// 실패한 스텝의 다음 걸음 — PICK/DROP 은 `skip` 해도 짝이 깨지므로 멈춘다(재시도는 그대로).
@@ -257,9 +258,6 @@ enum Outcome {
     /// 두 로봇 영역 교착 — `on_failure` 와 상관없이 멈춘다.
     Deadlock(String),
 }
-
-/// 영역 교착으로 보기 전 기다리는 시간(상대 로봇이 잠깐 서 있는 것과 구분).
-pub const AREA_DEADLOCK_MS: u64 = 10_000;
 
 /// 같은 로봇의 다음 스텝이 짝 DROP 이면 그 인덱스.
 pub fn pair_drop_step(steps: &[Step], plan: &Plan, i: usize) -> Option<usize> {
@@ -647,7 +645,7 @@ async fn execute_step(
             continue;
         }
         let g = crate::ledger::ops::gate(st, robot);
-        let depth = queue_depth_reason(robot.ledger.list().iter().map(|e| e.state));
+        let depth = queue_depth_reason(robot.ledger.list().iter().map(|e| e.state), crate::params::current(&st.db).issue_queue_depth);
         // 두 로봇 영역 — 겹치면 예정으로 기다리고, 교착이면 풀거나 멈춘다.
         let area = target_x.and_then(|x| crate::area::check(st, &area_cfg, robot, x, pair_drop_x, ctx.pair_x));
         let area_reason = match &area {
@@ -670,7 +668,7 @@ async fn execute_step(
                     crate::area::Resolve::RunAhead(j) => return (Outcome::RunAhead(j), res),
                     crate::area::Resolve::Deadlock(msg) => {
                         let since = *blocked_since.get_or_insert_with(std::time::Instant::now);
-                        if since.elapsed() >= Duration::from_millis(AREA_DEADLOCK_MS) {
+                        if since.elapsed() >= Duration::from_millis(crate::params::current(&st.db).area_deadlock_ms) {
                             res.error = Some(msg.clone());
                             res.ended_at = Some(now_str());
                             return (Outcome::Deadlock(msg), res);
@@ -800,11 +798,12 @@ mod tests {
     #[test]
     fn queue_depth_is_running_plus_one() {
         use TaskState::*;
-        assert_eq!(queue_depth_reason([Running, Completed, Canceled, Lost, Draft]), None, "running + terminal: next may go");
-        assert!(queue_depth_reason([Running, Queued]).unwrap().contains("1 건"), "running + next already queued");
-        assert!(queue_depth_reason([Queued]).is_some(), "nothing running but one queued");
-        assert!(queue_depth_reason([Submitted]).is_some() && queue_depth_reason([Accepted]).is_some());
-        assert_eq!(queue_depth_reason([]), None);
+        assert_eq!(queue_depth_reason([Running, Completed, Canceled, Lost, Draft], 1), None, "running + terminal: next may go");
+        assert!(queue_depth_reason([Running, Queued], 1).unwrap().contains("1 건"), "running + next already queued");
+        assert!(queue_depth_reason([Queued], 1).is_some(), "nothing running but one queued");
+        assert!(queue_depth_reason([Submitted], 1).is_some() && queue_depth_reason([Accepted], 1).is_some());
+        assert_eq!(queue_depth_reason([], 1), None);
+        assert_eq!(queue_depth_reason([Queued], 0), queue_depth_reason([Queued], 1), "depth never below 1");
     }
 
     #[test]

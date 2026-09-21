@@ -27,8 +27,9 @@ use serde::Serialize;
 use super::{HandEntry, is_pending};
 use crate::ledger::{LedgerEntry, TaskState};
 
+/// 기본값(시험용) — 운전 값은 `params.sync_debounce_ms` · `params.sync_poll_ms`.
+#[cfg(test)]
 pub const DEBOUNCE_MS: u64 = 3000;
-pub const POLL_MS: u64 = 1000;
 
 /// 동기화에 쓰는 PLC 값.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -169,8 +170,13 @@ pub struct Step {
 }
 
 impl Tracker {
+    #[cfg(test)]
     pub fn step(&mut self, plc: &str, check: Check, now: Instant, at: &str) -> Step {
-        let debounce = Duration::from_millis(DEBOUNCE_MS);
+        self.step_with(plc, check, now, at, DEBOUNCE_MS)
+    }
+
+    pub fn step_with(&mut self, plc: &str, check: Check, now: Instant, at: &str, debounce_ms: u64) -> Step {
+        let debounce = Duration::from_millis(debounce_ms);
         let first = self.first.entry(plc.to_string()).or_default();
         let mut keys: Vec<String> = check.issues.iter().map(|i| i.key()).collect();
         keys.extend(check.fixes.iter().map(|Fix::Fold(id)| format!("fold|{id}")));
@@ -209,13 +215,11 @@ impl Tracker {
     }
 }
 
-/// 로봇마다 `POLL_MS` 로 판정 → 자동 접기 → 경고 알림(재고 스트림 `sync`) · 새 경고는 이송 지시 이력에.
+/// 로봇마다 `params.sync_poll_ms` 로 판정 → 자동 접기 → 경고 알림(재고 스트림 `sync`) · 새 경고는 이송 지시 이력에.
 pub fn spawn(st: crate::state::AppState) {
     tokio::spawn(async move {
-        let mut tick = tokio::time::interval(Duration::from_millis(POLL_MS));
-        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
-            tick.tick().await;
+            tokio::time::sleep(Duration::from_millis(crate::params::current(&st.db).sync_poll_ms.max(200))).await;
             for r in st.robots.iter() {
                 if let Err(e) = sync_robot(&st, r) {
                     tracing::debug!(robot = %r.name, %e, "stock sync");
@@ -234,7 +238,8 @@ pub fn sync_robot(st: &crate::state::AppState, r: &crate::state::RobotCtx) -> Re
     let hand = st.stock.hand(&r.plc)?;
     let unfolded = st.stock.unfolded(&entries)?;
     let check = reconcile(&hand, &plc, &entries, &unfolded);
-    let step = st.stock.sync.lock().unwrap_or_else(std::sync::PoisonError::into_inner).step(&r.plc, check, Instant::now(), &crate::util::now_str());
+    let step =
+        st.stock.sync.lock().unwrap_or_else(std::sync::PoisonError::into_inner).step_with(&r.plc, check, Instant::now(), &crate::util::now_str(), crate::params::current(&st.db).sync_debounce_ms);
     for Fix::Fold(id) in &step.fixes {
         if let Some(e) = entries.iter().find(|e| &e.id == id) {
             st.stock.apply_task_sync(e)?;

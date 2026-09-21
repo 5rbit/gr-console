@@ -175,6 +175,8 @@ pub fn spawn(ledger: Arc<Ledger>, plc: PlcHandle, echo_timeout_ms: u64) {
                 Err(broadcast::error::RecvError::Lagged(_)) => continue,
                 Err(broadcast::error::RecvError::Closed) => return,
             }
+            // 에코 한계는 파라미터(없으면 기동 설정 값)
+            st.echo_timeout_ms = crate::params::current(ledger.db()).echo_timeout_ms.unwrap_or(echo_timeout_ms);
             let Some(stat) = plc.decode_path("OPCUA", "STAT") else { continue };
             let Ok(view) = StatusView::from_json(&stat) else { continue };
             if let Err(e) = apply(&ledger, &view, &mut st) {

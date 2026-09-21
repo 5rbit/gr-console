@@ -260,6 +260,11 @@ impl Ledger {
         Ok(())
     }
 
+    /// 파라미터(`params`)를 읽는 동기화 루프용.
+    pub fn db(&self) -> &Db {
+        &self.db
+    }
+
     /// Kept for the other slices (scenario / issue); the ledger itself does not need it.
     #[allow(dead_code)]
     pub fn plc_name(&self) -> &str {

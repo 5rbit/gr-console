@@ -93,6 +93,10 @@ pub fn enforce_stack_limit(st: &AppState, req: &TaskRequest, task: &TaskData) ->
     let Some(entry) = st.registry.item(task.item.code)? else { return Ok(()) };
     // 미리 넣은(아직 안 끝난) 작업까지 친 예상 재고로 본다.
     let n = projected_stock(st, t.id)?.projected.map(|s| s.count);
+    // 파라미터로 끄면 경고만(작성 경고는 그대로 선다).
+    if !crate::params::current(&st.db).stack_max_enforce {
+        return Ok(());
+    }
     match stack_limit(TaskType::Drop, "cell", Some(&entry.spec), n, task.item.count as u32, false).and_then(|l| l.blocked) {
         Some(b) => Err(ApiError::Conflict(crate::ledger::ops::with_robot(&robot_name(st, req), &format!("셀 {} StackMax: {b} — 품목 {} (무시하려면 ignore_stack_max)", t.id, task.item.code)))),
         None => Ok(()),

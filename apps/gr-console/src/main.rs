@@ -14,6 +14,7 @@ mod link;
 mod measure;
 mod pallet;
 mod para;
+mod params;
 mod plc;
 mod record;
 mod registry;
