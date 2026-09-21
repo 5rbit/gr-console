@@ -4,7 +4,7 @@
 //   히스토리 = 서버 페이징(종결, 최신 순) — 필터(State·TaskType·Origin·Since)는 대화상자로 접는다.
 // 칸이 좁아 열은 다섯뿐이다. 나머지(Ack·사유·시각·요청·PLC)는 행을 누르면 뜨는 Task 상세 팝업에 있다.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, Filter, History, ListChecks, RefreshCw } from 'lucide-react'
+import { ArrowLeftRight, Filter, History, ListChecks, ListPlus, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { panels } from '../../lib/panels'
 import { visibleInterval } from '../../lib/poll'
@@ -44,6 +44,7 @@ import { RobotChip } from '../shared/RobotChip'
 import TaskDetail, { TASK_DETAIL_PANEL } from '../taskmgr/TaskDetail'
 import { StateCell } from '../taskmgr/TaskTable'
 import { TransferOrdersDialog } from './TransferOrdersDialog'
+import { TaskGenDialog } from './TaskGenDialog'
 import { TaskActions } from '../taskmgr/TaskActions'
 
 const LIMIT = 20
@@ -120,6 +121,7 @@ export function TaskManagerCard() {
   const [filter, setFilter] = useState<HistoryFilter>(EMPTY_HISTORY_FILTER)
   const [filterOpen, setFilterOpen] = useState(false)
   const [ordersOpen, setOrdersOpen] = useState(false)
+  const [genOpen, setGenOpen] = useState(false)
   const [offset, setOffset] = useState(0)
   const [page, setPage] = useState<TaskPage | null>(null)
   const [loading, setLoading] = useState(false)
@@ -212,6 +214,16 @@ export function TaskManagerCard() {
         <Button
           size="icon-sm"
           intent="ghost"
+          aria-label="생성 규칙"
+          title="Task 생성 규칙 — 조건 · 우선순위 · 영역 (콘솔이 GCS 로 생성)"
+          onClick={() => setGenOpen(true)}
+          data-testid="tm-taskgen"
+        >
+          <ListPlus size={13} />
+        </Button>
+        <Button
+          size="icon-sm"
+          intent="ghost"
           aria-label="이송 이력"
           title="이송 이력 — PICK/DROP 짝(TO-…)별 재고 이동"
           onClick={() => setOrdersOpen(true)}
@@ -272,6 +284,7 @@ export function TaskManagerCard() {
         </div>
       ) : null}
 
+      <TaskGenDialog open={genOpen} onOpenChange={setGenOpen} />
       <TransferOrdersDialog
         open={ordersOpen}
         onOpenChange={setOrdersOpen}
