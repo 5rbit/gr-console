@@ -39,6 +39,8 @@ import { f1 } from '../../lib/meas/format'
 import { itemLabel } from '../../lib/items/model'
 import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
+import { Switch } from '../../lib/ui/Switch'
+import { preQueueLabel, readPreQueue, writePreQueue } from '../../lib/task/preQueue'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
 import { robots } from '../../lib/robots'
@@ -166,6 +168,12 @@ export function PlanCard({
   const [saveOpen, setSaveOpen] = useState(false)
   const [confirmNext, setConfirmNext] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  // 실행 방식 — 켜면 스텝마다 접수까지만 기다리고 다음 스텝을 GR 버퍼에 미리 넣는다(브라우저별 기억, 기본 끔).
+  const [preQueue, setPreQueueState] = useState(readPreQueue)
+  function setPreQueue(on: boolean) {
+    setPreQueueState(on)
+    writePreQueue(on)
+  }
   const [busy, setBusy] = useState(false)
   const [focus, setFocus] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -372,13 +380,18 @@ export function PlanCard({
     setBusy(true)
     try {
       const sc = await api.scenarioSave(
-        toScenario(steps, name.trim() || `계획 ${new Date().toLocaleString()}`),
+        toScenario(steps, name.trim() || `계획 ${new Date().toLocaleString()}`, '', { preQueue }),
       )
       toast.ok(`시나리오 "${sc.name}" 저장 (${sc.steps.length}스텝)`)
       if (run) {
         await api.scenarioRun(sc.id, { repeat: 1 })
         // 실행은 로봇이 움직이는 일이다 — 어느 호기인지 토스트가 말한다.
-        toast.info(withRobotChip(robot, '시나리오 실행 시작 — 진행은 시나리오 탭에서'))
+        toast.info(
+          withRobotChip(
+            robot,
+            `시나리오 실행 시작${preQueue ? ' (Pre-queue)' : ''} — 진행은 시나리오 탭에서`,
+          ),
+        )
       }
       nav.goScenario(sc.id)
     } catch (e) {
@@ -566,6 +579,18 @@ export function PlanCard({
           >
             시나리오로 저장…
           </Button>
+          <Switch
+            inline
+            label="Pre-queue"
+            checked={preQueue}
+            onCheckedChange={setPreQueue}
+            title={
+              '켜면 시나리오 실행 때 스텝마다 GR 접수까지만 기다리고 다음 스텝을 버퍼(4칸)에 미리 넣습니다. ' +
+              'Z 는 진행 중 Task 를 반영한 예상 재고로 작성되고, 앞 Task 가 실패·취소되면 실행이 멈춥니다. ' +
+              '끄면 스텝마다 완료를 기다립니다.'
+            }
+            testid="plan-prequeue"
+          />
           <span className="flex-1" />
           <Button
             size="sm"
@@ -626,6 +651,12 @@ export function PlanCard({
           onValueChange={setName}
           placeholder="비우면 날짜로"
           data-testid="plan-name"
+        />
+        <FieldList
+          columns={1}
+          dense
+          labelWidth={72}
+          items={[{ label: '실행 방식', value: preQueueLabel(preQueue) }]}
         />
       </FormDialog>
 

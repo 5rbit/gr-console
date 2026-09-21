@@ -17,6 +17,7 @@ import {
   planRows,
   redo,
   simulateStock,
+  foldStock,
   stackZ,
   stepForClick,
   toScenario,
@@ -167,6 +168,20 @@ describe('plan', () => {
     expect(sim.get(102)?.count).toBe(0)
   })
 
+  it('foldStock mirrors the backend stock fold (completion and pre-queue projection)', () => {
+    const cur = { item_code: 1001, count: 3 }
+    expect(foldStock(cur, 'DROP', 1001, 1)).toEqual({ item_code: 1001, count: 4 })
+    expect(foldStock(cur, 'PICK', 1001, 2)).toEqual({ item_code: 1001, count: 1 })
+    expect(foldStock(cur, 'PICK', 1001, 5)).toEqual({ item_code: 0, count: 0 })
+    // 품목 모르는 재고에서 일부 PICK → 스텝 품목으로 채운다(백엔드와 같음)
+    expect(foldStock({ item_code: 0, count: 3 }, 'PICK', 2002, 1)).toEqual({
+      item_code: 2002,
+      count: 2,
+    })
+    expect(foldStock(cur, 'MOVE', null, 1)).toBe(cur)
+    expect(foldStock(cur, 'MEASURE', 1001, 1)).toBe(cur)
+  })
+
   it('planRows computes Z from simulated stock and flags problems', () => {
     const steps: PlanStep[] = [
       {
@@ -277,6 +292,10 @@ describe('plan', () => {
     expect(sc.steps.length).toBe(3)
     expect(sc.steps[1].label).toBe('2. DROP Station #2101')
     expect(sc.steps[0].wait_for).toBe('completed')
+    // Pre-queue: 모든 스텝이 접수(accepted)까지만 기다린다
+    const pq = toScenario(steps, 'plan', '', { preQueue: true })
+    expect(pq.steps.every((s) => s.wait_for === 'accepted')).toBe(true)
+    expect(toScenario(steps, 'plan', '', { preQueue: false }).steps[2].wait_for).toBe('completed')
     const o = overlay(steps)
     expect(o.badges.get('cell-101')).toEqual([
       { no: 1, type: 'PICK' },

@@ -239,6 +239,24 @@ export function stepForClick(
   return { id: stepId(), type: t, target, item_code, count, note: '', robot }
 }
 
+/**
+ * 스텝 하나를 셀 재고에 접는다 — 백엔드 `stock::fold`(완료 시 재고 반영 · 미리 넣기의 예상 재고)와 같은 규칙.
+ * DROP: 품목 = 스텝 품목(없으면 셀 품목), 개수 + n · PICK: 개수 − n(0 에서 멈춤), 남으면 셀 품목(없으면 스텝 품목), 다 비면 0.
+ */
+export function foldStock(
+  cur: { item_code: number; count: number },
+  type: TaskType,
+  item_code: number | null,
+  count: number,
+): { item_code: number; count: number } {
+  if (type === 'PICK') {
+    const left = Math.max(cur.count - count, 0)
+    return { item_code: left === 0 ? 0 : cur.item_code || (item_code ?? 0), count: left }
+  }
+  if (type === 'DROP') return { item_code: item_code ?? cur.item_code, count: cur.count + count }
+  return cur
+}
+
 /** 계획을 순서대로 적용한 뒤의 셀 재고(품목/개수). */
 export function simulateStock(
   steps: readonly PlanStep[],
@@ -249,12 +267,7 @@ export function simulateStock(
   for (const s of steps) {
     if (s.target.kind !== 'cell') continue
     const cur = m.get(s.target.id) ?? { item_code: 0, count: 0 }
-    if (s.type === 'PICK') {
-      const left = Math.max(cur.count - s.count, 0)
-      m.set(s.target.id, { item_code: left === 0 ? 0 : cur.item_code, count: left })
-    } else if (s.type === 'DROP') {
-      m.set(s.target.id, { item_code: s.item_code ?? cur.item_code, count: cur.count + s.count })
-    }
+    m.set(s.target.id, foldStock(cur, s.type, s.item_code, s.count))
   }
   return m
 }
@@ -322,14 +335,7 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
       warnings.push(`들고 있는 품목 ${carry.item_code} ≠ ${s.item_code}`)
     const before = st ? st.count : null
     // 적용
-    if (cell && st) {
-      if (s.type === 'PICK') {
-        const left = Math.max(st.count - s.count, 0)
-        sim.set(cell.id, { item_code: left === 0 ? 0 : st.item_code, count: left })
-      } else if (s.type === 'DROP') {
-        sim.set(cell.id, { item_code: s.item_code ?? st.item_code, count: st.count + s.count })
-      }
-    }
+    if (cell && st) sim.set(cell.id, foldStock(st, s.type, s.item_code, s.count))
     if (s.type === 'PICK') carry = { item_code: s.item_code, count: s.count }
     else if (s.type === 'DROP') carry = null
     rows.push({
@@ -448,10 +454,16 @@ export function toRequest(s: PlanStep, fallback: number | null = null): TaskRequ
   }
 }
 
+/**
+ * 계획 → 시나리오. `preQueue` 면 스텝마다 **접수(accepted)** 까지만 기다리고 다음 스텝을 보낸다 — GR 버퍼(4 칸)에
+ * 자리가 있으면 앞 Task 가 끝나기 전에 다음 Task 가 들어간다. 백엔드는 진행 중 Task 를 반영한 예상 재고로 Z 를
+ * 작성하므로(같은 셀 DROP → PICK) 이 표의 재고 시뮬레이션과 같은 값이 나간다. 기본은 완료(completed) 대기.
+ */
 export function toScenario(
   steps: readonly PlanStep[],
   name: string,
   description = '',
+  opts: { preQueue?: boolean } = {},
 ): ScenarioUpsert {
   const st: ScenarioStep[] = steps.map((s, i) => ({
     id: '',
@@ -461,7 +473,7 @@ export function toScenario(
     item_code: sentItem(s),
     count: Math.max(1, s.count),
     params: s.type === 'MOVE' ? moveParams(moveOf(s)) : {},
-    wait_for: 'completed',
+    wait_for: opts.preQueue ? 'accepted' : 'completed',
     wait_after_ms: 0,
     on_failure: 'stop',
     note: s.note,
