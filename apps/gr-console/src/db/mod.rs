@@ -14,6 +14,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
     // 0006…0011 을 하나로 합쳤다(배포 전 정리, 결정 2026-09-18). 0005 까지 올라간 DB 도 이 하나로 따라온다.
     ("0006_console_v2", include_str!("migrations/0006_console_v2.sql")),
     ("0007_hand", include_str!("migrations/0007_hand.sql")),
+    ("0008_transfer_orders", include_str!("migrations/0008_transfer_orders.sql")),
 ];
 
 /// `ALTER TABLE … ADD COLUMN …` 중 **이미 있는 열**을 주석으로 지운 사본.
@@ -186,7 +187,7 @@ mod tests {
     #[test]
     fn a_fresh_db_runs_the_single_v2_migration() {
         let db = Db::open_memory().unwrap();
-        assert_eq!(applied(&db), vec!["0001_init", "0002_registry", "0003_ledger", "0004_scenario", "0005_stock", "0006_console_v2", "0007_hand"]);
+        assert_eq!(applied(&db), vec!["0001_init", "0002_registry", "0003_ledger", "0004_scenario", "0005_stock", "0006_console_v2", "0007_hand", "0008_transfer_orders"]);
         // 합친 마이그레이션이 만든 것들이 다 있다
         let names: Vec<String> = schema(&db).into_iter().map(|(_, n, _)| n).collect();
         for t in ["pallet_profile", "pallet_flow", "pallet_pattern", "item_bead_samples", "meas_entries"] {
@@ -295,5 +296,31 @@ mod tests {
             })
             .unwrap();
         assert_eq!(grips, vec![("t1".into(), Some("pick_bead".to_string())), ("t2".into(), Some("mid".into())), ("t3".into(), None)]);
+    }
+
+    /// 배포된 DB(0006 까지) — Task 가 들어 있는 채로 0007·0008 을 얹으면 행은 그대로, 지시 열·표가 생기고
+    /// 새 DB 와 같은 모양이 된다. 열을 이미 가진 DB(손으로 붙인 경우)도 두 번 붙이지 않고 따라온다.
+    #[test]
+    fn a_deployed_0006_db_gains_transfer_orders_and_keeps_tasks() {
+        let db = Db::open_memory_upto(6).unwrap();
+        db.with(|c| {
+            c.execute("INSERT INTO tasks (id, seq, work_id, task_id, origin, plc, state, doc_json, created_at, updated_at) VALUES ('t1', 1, 1, 1, 'console', 'GR2', 'completed', '{}', 'a', 'a')", [])
+        })
+        .unwrap();
+        db.migrate().unwrap();
+        let fresh = Db::open_memory().unwrap();
+        assert_eq!(applied(&db), applied(&fresh));
+        assert_eq!(schema(&db), schema(&fresh));
+        let (state, to): (String, Option<String>) = db.with(|c| c.query_row("SELECT state, transfer_order_id FROM tasks WHERE id = 't1'", [], |r| Ok((r.get(0)?, r.get(1)?)))).unwrap();
+        assert_eq!((state.as_str(), to), ("completed", None));
+        for t in ["transfer_orders", "stock_log", "hand"] {
+            assert!(schema(&db).iter().any(|(_, n, _)| n == t), "{t}");
+        }
+
+        let pre = Db::open_memory_upto(7).unwrap();
+        pre.with(|c| c.execute_batch("ALTER TABLE tasks ADD COLUMN transfer_order_id TEXT;")).unwrap();
+        pre.migrate().unwrap();
+        let cols: i64 = pre.with(|c| c.query_row("SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name = 'transfer_order_id'", [], |r| r.get(0))).unwrap();
+        assert_eq!(cols, 1);
     }
 }

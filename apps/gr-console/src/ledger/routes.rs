@@ -127,6 +127,11 @@ async fn create(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::
     if crate::issue::parse_task_type(&req.task_type)? == gr_proto::TaskType::Pick && req.source.is_none() {
         return Err(ApiError::Conflict(crate::ledger::ops::with_robot(&r.name, "PICK 단독 제출 불가 — PICK/DROP 은 짝으로 보냅니다(순차 계획 → 저장 후 실행)")));
     }
+    // 단독 DROP(Hand 복구)은 손에 든 화물의 이송 지시를 잇는다.
+    let mut req = req;
+    if req.transfer_order_id.is_none() && crate::issue::parse_task_type(&req.task_type)? == gr_proto::TaskType::Drop {
+        req.transfer_order_id = st.stock.hand(&r.plc)?.transfer_order_id;
+    }
     let composed = crate::issue::compose(&st, &req)?;
     let origin = if req.source.is_some() { Origin::Scenario } else { Origin::Console };
     let e = super::ops::create_and_submit(&st, r, origin, Some(req), Some(composed.params), composed.task, composed.pallet, q.submit.unwrap_or(true)).await?;

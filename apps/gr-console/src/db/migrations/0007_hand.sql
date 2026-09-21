@@ -3,5 +3,6 @@ CREATE TABLE IF NOT EXISTS hand (
   plc TEXT PRIMARY KEY,
   item_code INTEGER NOT NULL DEFAULT 0,
   count INTEGER NOT NULL DEFAULT 0,
+  transfer_order_id TEXT,
   updated_at TEXT NOT NULL
 );

@@ -20,7 +20,7 @@ async fn hands(State(st): State<AppState>) -> ApiResult<Json> {
     let mut out = Vec::new();
     for r in st.robots.iter() {
         let p = crate::issue::projected_hand(&st, Some(r.id))?;
-        out.push(json!({ "robot": r.id, "robot_name": r.name, "plc": r.plc, "item_code": p.base.item_code, "count": p.base.count, "updated_at": p.base.updated_at,
+        out.push(json!({ "robot": r.id, "robot_name": r.name, "plc": r.plc, "item_code": p.base.item_code, "count": p.base.count, "updated_at": p.base.updated_at, "transfer_order_id": p.base.transfer_order_id,
             "projected": { "item_code": p.projected.item_code, "count": p.projected.count }, "pending": p.pending.len(), "lost": p.lost }));
     }
     Ok(axum::Json(Json::Array(out)))
@@ -30,6 +30,9 @@ async fn hands(State(st): State<AppState>) -> ApiResult<Json> {
 struct HandBody {
     item_code: u32,
     count: u32,
+    /// 이 정정이 속한 이송 지시(없으면 `manual` 로만 남는다).
+    #[serde(default)]
+    transfer_order_id: Option<String>,
 }
 
 /// Hand 손 정정(현장에서 그리퍼를 비웠거나 확인한 값) — 이 로봇에 진행 중 PICK/DROP 이 있으면 거부.
@@ -39,7 +42,15 @@ async fn set_hand(State(st): State<AppState>, Path(robot): Path<u8>, axum::Json(
     if !p.pending.is_empty() {
         return Err(ApiError::Conflict(format!("{}: 진행 중 PICK/DROP {} 건 — 끝난 뒤에 Hand 를 고치세요", r.name, p.pending.len())));
     }
-    Ok(axum::Json(serde_json::to_value(st.stock.set_hand(&r.plc, b.item_code, b.count, "manual")?).unwrap_or_default()))
+    let cur = st.stock.hand(&r.plc)?;
+    // 손을 비우면 손에 걸려 있던 지시는 사람이 끝낸 것(aborted) — 이력에 남는다.
+    if b.count == 0
+        && let Some(id) = &cur.transfer_order_id
+    {
+        st.stock.abort_order(id, "Hand 손 정정으로 비움", false)?;
+    }
+    let order = b.transfer_order_id.clone().or(cur.transfer_order_id.clone());
+    Ok(axum::Json(serde_json::to_value(st.stock.set_hand(&r.plc, b.item_code, b.count, "manual", None, order.as_deref())?).unwrap_or_default()))
 }
 
 /// 예상 재고 — 셀 표 + 모든 로봇의 진행 중 PICK/DROP(Hand 포함). 계획 표의 출발점.
@@ -55,6 +66,37 @@ async fn projected(State(st): State<AppState>) -> ApiResult<Json> {
     Ok(axum::Json(json!({ "cells": cells, "hands": hands })))
 }
 
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct OrderListQuery {
+    robot: Option<u8>,
+    state: Option<String>,
+    cell: Option<u16>,
+    since: Option<String>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+}
+
+/// `GET /api/transfer-orders?robot=&state=a,b&cell=&since=&limit=&offset=` — 최신 먼저.
+async fn orders(State(st): State<AppState>, Query(q): Query<OrderListQuery>) -> ApiResult<Json> {
+    let plc = match q.robot {
+        Some(id) => Some(st.robot(Some(id))?.plc.clone()),
+        None => None,
+    };
+    let query = super::transfer::OrderQuery { plc, state: q.state, cell: q.cell, since: q.since, limit: q.limit, offset: q.offset };
+    let (items, total) = st.stock.orders(&query)?;
+    Ok(axum::Json(json!({ "items": items, "total": total })))
+}
+
+/// `GET /api/transfer-orders/{id}` — 지시 + 두 Task + 재고 변경 기록.
+async fn order(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<Json> {
+    let o = st.stock.order(&id)?.ok_or_else(|| ApiError::NotFound(format!("transfer order {id}")))?;
+    let task = |t: &Option<String>| t.as_deref().and_then(|t| st.find_task(t)).map(|(_, e)| e);
+    let tasks: Vec<_> = [task(&o.pick_task), task(&o.drop_task)].into_iter().flatten().collect();
+    let changes = st.stock.order_changes(&id)?;
+    Ok(axum::Json(json!({ "order": o, "tasks": tasks, "stock_changes": changes })))
+}
+
 async fn list(State(st): State<AppState>) -> ApiResult<Json> {
     Ok(axum::Json(serde_json::to_value(st.stock.list()?).unwrap_or_default()))
 }
@@ -65,6 +107,9 @@ struct SetBody {
     count: u32,
     #[serde(default)]
     note: String,
+    /// 이 정정이 속한 이송 지시(없으면 `manual` 로만 남는다).
+    #[serde(default)]
+    transfer_order_id: Option<String>,
 }
 
 async fn set(State(st): State<AppState>, Path(cell): Path<u16>, axum::Json(b): axum::Json<SetBody>) -> ApiResult<Json> {
@@ -80,7 +125,7 @@ async fn set(State(st): State<AppState>, Path(cell): Path<u16>, axum::Json(b): a
             )));
         }
     }
-    Ok(axum::Json(serde_json::to_value(st.stock.set(cell, b.item_code, b.count, &b.note, "manual")?).unwrap_or_default()))
+    Ok(axum::Json(serde_json::to_value(st.stock.set_logged(cell, b.item_code, b.count, &b.note, "manual", None, b.transfer_order_id.as_deref())?).unwrap_or_default()))
 }
 
 async fn remove(State(st): State<AppState>, Path(cell): Path<u16>) -> ApiResult<Json> {
@@ -145,5 +190,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/stock/hands", get(hands))
         .route("/api/stock/hand/{robot}", put(set_hand))
         .route("/api/stock/projected", get(projected))
+        .route("/api/transfer-orders", get(orders))
+        .route("/api/transfer-orders/{id}", get(order))
         .route("/api/stock/{cell}", put(set).delete(remove))
 }

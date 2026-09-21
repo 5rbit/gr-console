@@ -14,6 +14,7 @@
 //! (`pressed_height`, 전체 규칙은 `registry::spec::stack_z_with` 와 `docs/item-spec-z.md`).
 
 pub mod routes;
+pub mod transfer;
 
 use std::sync::{Arc, PoisonError};
 
@@ -64,6 +65,9 @@ pub struct HandEntry {
     /// 0 = 빈 손 / 모르는 품목.
     pub item_code: u32,
     pub count: u32,
+    /// 손에 든 화물의 이송 지시(PICK 완료로 열리고 DROP 완료로 닫힌다).
+    #[serde(default)]
+    pub transfer_order_id: Option<String>,
     pub updated_at: String,
 }
 
@@ -124,8 +128,16 @@ impl Stock {
     }
 
     pub fn set(&self, cell_id: u16, item_code: u32, count: u32, note: &str, reason: &str) -> Result<StockEntry, ApiError> {
+        self.set_logged(cell_id, item_code, count, note, reason, None, None)
+    }
+
+    /// `set` + 재고 변경 기록(`stock_log`) — 작업 완료면 Task·이송 지시를, 손 정정이면 지시(있으면)를 단다.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_logged(&self, cell_id: u16, item_code: u32, count: u32, note: &str, reason: &str, task_id: Option<&str>, order: Option<&str>) -> Result<StockEntry, ApiError> {
+        let before = self.get(cell_id)?.map(|s| (s.item_code, s.count)).unwrap_or((0, 0));
         let now = now_str();
         let item_code = if count == 0 { 0 } else { item_code };
+        transfer::log_change(&self.db, "cell", &cell_id.to_string(), before, (item_code, count), reason, task_id, order)?;
         self.db.with(|c| {
             c.execute(
                 "INSERT INTO stock (cell_id, item_code, count, note, updated_at) VALUES (?1,?2,?3,?4,?5) ON CONFLICT(cell_id) DO UPDATE SET item_code=excluded.item_code, count=excluded.count, note=excluded.note, updated_at=excluded.updated_at",
@@ -154,8 +166,9 @@ impl Stock {
     /// 모든 Hand(한 번이라도 기록된 로봇).
     pub fn hands(&self) -> Result<Vec<HandEntry>, ApiError> {
         let rows: Vec<HandEntry> = self.db.with(|c| {
-            let mut st = c.prepare("SELECT plc, item_code, count, updated_at FROM hand ORDER BY plc")?;
-            let it = st.query_map([], |r| Ok(HandEntry { plc: r.get(0)?, item_code: r.get::<_, i64>(1)? as u32, count: r.get::<_, i64>(2)? as u32, updated_at: r.get(3)? }))?;
+            let mut st = c.prepare("SELECT plc, item_code, count, updated_at, transfer_order_id FROM hand ORDER BY plc")?;
+            let it =
+                st.query_map([], |r| Ok(HandEntry { plc: r.get(0)?, item_code: r.get::<_, i64>(1)? as u32, count: r.get::<_, i64>(2)? as u32, updated_at: r.get(3)?, transfer_order_id: r.get(4)? }))?;
             it.collect()
         })?;
         Ok(rows)
@@ -166,17 +179,20 @@ impl Stock {
         Ok(self.hands()?.into_iter().find(|h| h.plc == plc).unwrap_or(HandEntry { plc: plc.into(), ..Default::default() }))
     }
 
-    /// Hand 를 적는다(손 정정 · 접기). 0 개면 품목도 0.
-    pub fn set_hand(&self, plc: &str, item_code: u32, count: u32, reason: &str) -> Result<HandEntry, ApiError> {
+    /// Hand 를 적는다(손 정정 · 접기). 0 개면 품목도 지시도 비운다. 모든 변경은 `stock_log` 에 남는다.
+    pub fn set_hand(&self, plc: &str, item_code: u32, count: u32, reason: &str, task_id: Option<&str>, order: Option<&str>) -> Result<HandEntry, ApiError> {
         let now = now_str();
         let item_code = if count == 0 { 0 } else { item_code };
+        let order = if count == 0 { None } else { order };
+        let before = self.hand(plc)?;
         self.db.with(|c| {
             c.execute(
-                "INSERT INTO hand (plc, item_code, count, updated_at) VALUES (?1,?2,?3,?4) ON CONFLICT(plc) DO UPDATE SET item_code=excluded.item_code, count=excluded.count, updated_at=excluded.updated_at",
-                (plc, item_code, count, &now),
+                "INSERT INTO hand (plc, item_code, count, updated_at, transfer_order_id) VALUES (?1,?2,?3,?4,?5) ON CONFLICT(plc) DO UPDATE SET item_code=excluded.item_code, count=excluded.count, updated_at=excluded.updated_at, transfer_order_id=excluded.transfer_order_id",
+                (plc, item_code, count, &now, order),
             )
         })?;
-        let h = HandEntry { plc: plc.into(), item_code, count, updated_at: now };
+        transfer::log_change(&self.db, "hand", plc, (before.item_code, before.count), (item_code, count), reason, task_id, order.or(before.transfer_order_id.as_deref()))?;
+        let h = HandEntry { plc: plc.into(), item_code, count, updated_at: now, transfer_order_id: order.map(str::to_string) };
         let _ = self.events.send(StockEvent::Hand { hand: h.clone(), reason: reason.into() });
         Ok(h)
     }
@@ -200,11 +216,28 @@ impl Stock {
         let cur = self.get(delta.cell_id)?.unwrap_or(StockEntry { cell_id: delta.cell_id, ..Default::default() });
         let (item_code, count) = fold(cur.item_code, cur.count, &delta);
         let reason = format!("{} #{}:{} {}", if delta.count >= 0 { "DROP" } else { "PICK" }, e.work_id, e.task_id, delta.count);
-        let out = self.set(delta.cell_id, item_code, count, &cur.note, &reason)?;
-        // 같은 작업으로 Hand 도 옮긴다(PICK 은 손으로, DROP 은 손에서).
         let h = self.hand(&e.plc_name)?;
+        // 이 이동의 이송 지시 — Task 에 달려 있으면 그것, DROP 은 손에 든 화물의 지시, 둘 다 없으면(외부 Task) 새로 연다.
+        let mut order = match e.transfer_order_id.as_deref().or(if delta.count > 0 { h.transfer_order_id.as_deref() } else { None }) {
+            Some(id) => transfer::get(&self.db, id)?,
+            None => None,
+        };
+        if order.is_none() {
+            let target = e.request.as_ref().and_then(|r| r.target.clone()).unwrap_or(crate::ledger::Target { kind: "cell".into(), id: delta.cell_id });
+            let (from, to) = if delta.count < 0 { (Some(target), None) } else { (None, Some(target)) };
+            let note = format!("{} #{}:{} 에 지시 없음 — 완료 때 자동 생성", if delta.count < 0 { "PICK" } else { "DROP" }, e.work_id, e.task_id);
+            let n = transfer::NewOrder { robot: None, plc: e.plc_name.clone(), item_code: delta.item_code, count: delta.count.unsigned_abs(), from, to, source: "external".into(), note };
+            order = Some(transfer::create(&self.db, n, transfer::OrderState::Planned)?);
+        }
+        let mut order = order.expect("order set above");
+        let out = self.set_logged(delta.cell_id, item_code, count, &cur.note, &reason, Some(&e.id), Some(&order.id))?;
+        // 같은 작업으로 Hand 도 옮긴다(PICK 은 손으로, DROP 은 손에서).
         let (hi, hn) = fold_hand(h.item_code, h.count, &delta);
-        self.set_hand(&e.plc_name, hi, hn, &reason)?;
+        self.set_hand(&e.plc_name, hi, hn, &reason, Some(&e.id), Some(&order.id))?;
+        if let Some(tt) = TaskType::from_code(e.plc_task.task_type) {
+            transfer::apply_task_state(&mut order, tt, &e.id, TaskState::Completed);
+            transfer::save(&self.db, &order)?;
+        }
         self.db.with(|c| c.execute("INSERT OR IGNORE INTO stock_applied (task_id, applied_at) VALUES (?1, ?2)", (&e.id, now_str())))?;
         Ok(Some(out))
     }
@@ -231,6 +264,51 @@ impl Stock {
         self.fold_fresh(&entries)?;
         let base = self.get(cell_id)?;
         Ok(project(cell_id, base, &entries))
+    }
+
+    /// 원장 Task 의 상태를 그 이송 지시에 반영(완료는 `apply_task` 가 재고와 함께 한다). 바뀐 지시를 알린다.
+    pub fn on_task(&self, e: &LedgerEntry) -> Result<Option<transfer::TransferOrder>, ApiError> {
+        let (Some(id), Some(tt)) = (e.transfer_order_id.as_deref(), TaskType::from_code(e.plc_task.task_type)) else { return Ok(None) };
+        let _g = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(mut o) = transfer::get(&self.db, id)? else { return Ok(None) };
+        if e.state == TaskState::Completed && !self.is_applied(&e.id)? {
+            return Ok(None); // 접기가 재고와 함께 옮긴다
+        }
+        if transfer::apply_task_state(&mut o, tt, &e.id, e.state) {
+            transfer::save(&self.db, &o)?;
+            return Ok(Some(o));
+        }
+        Ok(None)
+    }
+
+    /// 새 이송 지시(짝을 보내기 직전, 실행기).
+    pub fn open_order(&self, n: transfer::NewOrder) -> Result<transfer::TransferOrder, ApiError> {
+        transfer::create(&self.db, n, transfer::OrderState::Planned)
+    }
+
+    pub fn order(&self, id: &str) -> Result<Option<transfer::TransferOrder>, ApiError> {
+        transfer::get(&self.db, id)
+    }
+
+    pub fn orders(&self, q: &transfer::OrderQuery) -> Result<(Vec<transfer::TransferOrder>, i64), ApiError> {
+        transfer::list(&self.db, q)
+    }
+
+    pub fn order_changes(&self, id: &str) -> Result<Vec<transfer::StockChange>, ApiError> {
+        transfer::changes_of(&self.db, id)
+    }
+
+    /// 사람이 지시를 끝낸다(보내지 못한 채 실행이 멈춤 · Hand 손 정정). 열린 지시만.
+    pub fn abort_order(&self, id: &str, note: &str, only_planned: bool) -> Result<(), ApiError> {
+        let _g = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(mut o) = transfer::get(&self.db, id)?
+            && o.state.is_open()
+            && (!only_planned || o.state == transfer::OrderState::Planned)
+        {
+            transfer::set_state(&mut o, transfer::OrderState::Aborted, note);
+            transfer::save(&self.db, &o)?;
+        }
+        Ok(())
     }
 
     /// 로봇 `plc` 의 **예상** Hand — `projected` 와 같은 잠금·접기 규칙.
@@ -462,7 +540,7 @@ pub fn spawn(stock: Arc<Stock>, events: broadcast::Sender<LedgerEvent>, registry
         let mut rx = events.subscribe();
         loop {
             match rx.recv().await {
-                Ok(LedgerEvent::Upsert { task }) => match stock.apply_task(&task) {
+                Ok(LedgerEvent::Upsert { task }) => match stock.apply_task(&task).and_then(|r| stock.on_task(&task).map(|_| r)) {
                     Ok(Some(e)) if e.item_code != 0 => {
                         if let Ok(Some(item)) = registry.item(e.item_code)
                             && let Some(note) = over_limit_note(&e, &item.spec)
@@ -543,6 +621,7 @@ mod tests {
             history: vec![],
             station_offset: None,
             pallet: None,
+            transfer_order_id: None,
         }
     }
 
@@ -644,6 +723,60 @@ mod tests {
         assert!(hand_check(TaskType::Drop, &hand, 2011, 2).is_ok());
     }
 
+    /// 이송 지시: 짝의 두 Task 가 같은 TO 를 달고, 모든 재고 변경(셀·Hand)이 그 TO 를 가리킨다.
+    /// DROP 취소 → in_hand(타이어는 손에), 새 DROP 완료 → done.
+    #[test]
+    fn stock_changes_reference_the_transfer_order() {
+        use transfer::OrderState as O;
+        let s = Stock::new(Db::open_memory().unwrap());
+        s.set(401, 2011, 5, "", "seed").unwrap();
+        let o = s.open_order(transfer::NewOrder { plc: "GR2".into(), item_code: 2011, count: 2, source: "scenario:r".into(), ..Default::default() }).unwrap();
+        let with = |mut e: LedgerEntry| {
+            e.transfer_order_id = Some(o.id.clone());
+            e
+        };
+        // PICK 진행 → picking, 완료 → in_hand + 손에 TO
+        s.on_task(&with(entry("p", 1, TaskType::Pick, 401, 2011, 2, TaskState::Running))).unwrap();
+        assert_eq!(s.order(&o.id).unwrap().unwrap().state, O::Picking);
+        let pick = with(entry("p", 1, TaskType::Pick, 401, 2011, 2, TaskState::Completed));
+        s.apply_task(&pick).unwrap();
+        s.on_task(&pick).unwrap();
+        assert_eq!(s.order(&o.id).unwrap().unwrap().state, O::InHand);
+        assert_eq!(s.hand("GR2").unwrap().transfer_order_id.as_deref(), Some(o.id.as_str()));
+        // DROP 대기 → dropping, 취소 → in_hand(재고 그대로)
+        s.on_task(&with(entry("d1", 2, TaskType::Drop, 402, 2011, 2, TaskState::Queued))).unwrap();
+        assert_eq!(s.order(&o.id).unwrap().unwrap().state, O::Dropping);
+        let canceled = with(entry("d1", 2, TaskType::Drop, 402, 2011, 2, TaskState::Canceled));
+        s.apply_task(&canceled).unwrap();
+        s.on_task(&canceled).unwrap();
+        assert_eq!(s.order(&o.id).unwrap().unwrap().state, O::InHand);
+        assert_eq!((s.get(401).unwrap().unwrap().count, s.hand("GR2").unwrap().count), (3, 2));
+        // 단독 DROP(지시 없이) — 손에 걸린 TO 로 이어져 done
+        let drop = entry("d2", 3, TaskType::Drop, 402, 2011, 2, TaskState::Completed);
+        s.apply_task(&drop).unwrap();
+        let done = s.order(&o.id).unwrap().unwrap();
+        assert_eq!((done.state, done.drop_task.as_deref()), (O::Done, Some("d2")));
+        assert_eq!(s.hand("GR2").unwrap().transfer_order_id, None);
+        let log = s.order_changes(&o.id).unwrap();
+        let rows: Vec<(&str, &str, u32, u32)> = log.iter().map(|c| (c.kind.as_str(), c.key.as_str(), c.count_before, c.count_after)).collect();
+        assert_eq!(rows, vec![("cell", "401", 5, 3), ("hand", "GR2", 0, 2), ("cell", "402", 0, 2), ("hand", "GR2", 2, 0)]);
+        assert!(log.iter().all(|c| c.transfer_order_id.as_deref() == Some(o.id.as_str()) && c.task_id.is_some()));
+    }
+
+    /// 지시 없이 PLC 에서 온(외부) PICK 도 완료 때 TO 가 생겨 추적된다. 손 정정(`set`)은 지시 없이 manual 로 남는다.
+    #[test]
+    fn external_pick_gets_an_order_and_manual_edits_are_logged() {
+        let s = Stock::new(Db::open_memory().unwrap());
+        s.set(401, 2011, 5, "", "manual").unwrap();
+        s.apply_task(&entry("x", 1, TaskType::Pick, 401, 2011, 1, TaskState::Completed)).unwrap();
+        let h = s.hand("GR2").unwrap();
+        let id = h.transfer_order_id.clone().unwrap();
+        let o = s.order(&id).unwrap().unwrap();
+        assert_eq!((o.state, o.source.as_str(), o.pick_task.as_deref()), (transfer::OrderState::InHand, "external", Some("x")));
+        let manual: i64 = s.db.with(|c| c.query_row("SELECT COUNT(*) FROM stock_log WHERE reason = 'manual' AND transfer_order_id IS NULL", [], |r| r.get(0))).unwrap();
+        assert_eq!(manual, 1);
+    }
+
     #[test]
     fn hand_check_refuses_unpaired_tasks() {
         let empty = HandEntry { plc: "GR2".into(), ..Default::default() };
@@ -698,6 +831,7 @@ mod tests {
             history: vec![],
             station_offset: None,
             pallet: None,
+            transfer_order_id: None,
         };
         assert_eq!(s.apply_task(&mk("a", &t)).unwrap().unwrap().count, 2);
         assert!(s.apply_task(&mk("a", &t)).unwrap().is_none(), "second fold of the same task is ignored");

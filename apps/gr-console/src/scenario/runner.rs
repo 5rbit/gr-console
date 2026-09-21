@@ -14,6 +14,9 @@
 //!
 //! PICK/DROP 짝: PICK 이 나가면 짝 DROP 은 정지·일시정지를 미루고 반드시 이어 보낸다(정지는 DROP 제출 뒤 적용).
 //! PICK 이 실패하면 DROP 은 보내지 않고 멈춘다. 짝의 실패는 `skip` 이어도 실행을 멈춘다(`decide_pair`).
+//!
+//! 이송 지시: PICK 을 보내기 전에 짝마다 `TO-…` 를 열고(`planned`) PICK·DROP 요청에 같은 id 를 단다. 보내지 못한 채
+//! 끝나면 `aborted`. 그 뒤 상태(picking/in_hand/dropping/done/failed)는 원장 이벤트가 옮긴다(`stock::transfer`).
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -244,6 +247,8 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
     let mut holding = false;
     // 접수까지만 기다린 스텝이 있었다 — 끝에 마지막 Task 완료까지 기다린다.
     let mut prequeued = false;
+    // 지금 짝의 이송 지시(PICK 전에 열고 DROP 이 도달하면 놓는다).
+    let mut pair_order: Option<String> = None;
     tracing::info!(run = %run_id, scenario = %scenario.name, steps = plan.step_count, iterations = ?plan.total_iterations, "scenario run started");
     let mut cur = plan.first();
     let mut error: Option<String> = None;
@@ -262,8 +267,19 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
         let mut attempt = 0u32;
         loop {
             attempt += 1;
-            let (outcome, result) = execute_step(&st, &runner, &scenario, &run_id, step, plan.robot_for(step), cur, attempt, tail, &mut ctl).await;
+            if step.task_type == gr_proto::TaskType::Pick && pair_order.is_none() {
+                match open_pair_order(&st, &scenario, cur, step, plan.robot_for(step), &run_id) {
+                    Ok(id) => pair_order = Some(id),
+                    Err(e) => tracing::warn!(step = cur.step_index, %e, "transfer order: open failed"),
+                }
+            }
+            let order = matches!(step.task_type, gr_proto::TaskType::Pick | gr_proto::TaskType::Drop).then(|| pair_order.clone()).flatten();
+            let (outcome, result) = execute_step(&st, &runner, &scenario, &run_id, step, plan.robot_for(step), cur, attempt, tail, order, &mut ctl).await;
             runner.update(|g| g.push_result(result));
+            if !matches!(outcome, Outcome::Reached) && step.task_type == gr_proto::TaskType::Pick {
+                // 보내지 못한 PICK 의 지시는 닫는다(보냈다가 실패한 것은 원장이 failed 로 옮긴다). 재시도는 새 지시로.
+                close_unsent(&st, pair_order.take(), "PICK 을 보내지 못함");
+            }
             match outcome {
                 Outcome::Reached => break,
                 Outcome::Stopped => break 'outer Phase::Stopped,
@@ -291,6 +307,9 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
             prequeued = true;
         }
         holding = step.task_type == gr_proto::TaskType::Pick;
+        if step.task_type == gr_proto::TaskType::Drop {
+            pair_order = None;
+        }
         if step.wait_after_ms > 0 {
             if holding {
                 tokio::time::sleep(Duration::from_millis(step.wait_after_ms)).await;
@@ -303,6 +322,7 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
             None => break Phase::Done,
         }
     };
+    close_unsent(&st, pair_order.take(), "실행이 끝남 — 보내지 않은 짝");
     // 미리 넣은 실행은 마지막 Task 가 완료돼야 끝난다.
     let final_phase = if final_phase == Phase::Done && prequeued {
         match drain(&st, &runner, &mut ctl).await {
@@ -332,6 +352,32 @@ pub async fn run_loop(st: AppState, runner: Arc<Runner>, scenario: Scenario, pla
         tracing::error!(%e, "scenario run: persist failed");
     }
     tracing::info!(run = %run_id, phase = final_phase.as_str(), results = snap.results.len(), "scenario run ended");
+}
+
+/// 짝의 이송 지시를 연다 — 출발 = PICK 대상, 도착 = 다음 스텝(짝 DROP) 대상.
+fn open_pair_order(st: &AppState, scenario: &Scenario, cur: Cursor, step: &Step, robot: Option<u8>, run_id: &str) -> Result<String, ApiError> {
+    let r = st.robot(robot)?;
+    let to = scenario.steps.get(cur.step_index as usize + 1).filter(|n| n.task_type == gr_proto::TaskType::Drop).and_then(|n| n.target.clone());
+    let n = crate::stock::transfer::NewOrder {
+        robot: Some(r.id),
+        plc: r.plc.clone(),
+        item_code: step.item_code.unwrap_or(0),
+        count: step.count,
+        from: step.target.clone(),
+        to,
+        source: format!("scenario:{run_id}"),
+        note: format!("{} · 스텝 {}", scenario.name, cur.step_index + 1),
+    };
+    Ok(st.stock.open_order(n)?.id)
+}
+
+/// 아직 `planned` 인(한 번도 보내지 않은) 지시만 `aborted` 로.
+fn close_unsent(st: &AppState, id: Option<String>, note: &str) {
+    if let Some(id) = id
+        && let Err(e) = st.stock.abort_order(&id, note, true)
+    {
+        tracing::warn!(%id, %e, "transfer order: abort failed");
+    }
 }
 
 enum Drain {
@@ -374,6 +420,7 @@ async fn execute_step(
     cur: Cursor,
     attempt: u32,
     tail: bool,
+    order: Option<String>,
     ctl: &mut watch::Receiver<Ctl>,
 ) -> (Outcome, StepResult) {
     let mut res = StepResult { iteration: cur.iteration, step_index: cur.step_index, task_id: None, state: TaskState::Failed, ack: None, started_at: now_str(), ended_at: None, error: None, attempt };
@@ -402,6 +449,7 @@ async fn execute_step(
         station_offset: Default::default(),
         ignore_stack_max: false,
         pallet: step.pallet.clone(),
+        transfer_order_id: order,
     };
     let robot = match st.robot(robot_id) {
         Ok(r) => r,
