@@ -16,7 +16,7 @@ mod writer;
 
 use std::path::PathBuf;
 
-pub use nodemap::NodeMapInfo;
+pub use nodemap::{NodeMapInfo, array_bases_from_paths, rebase_array_keys};
 pub use path::normalize_path;
 pub use value::PlcKind;
 pub use writer::CmdWriter;
@@ -64,8 +64,15 @@ pub struct OpcUaConfig {
     pub connect_timeout_ms: u64,
     /// Per-request timeout for Read/Write.
     pub write_timeout_ms: u64,
-    /// Requested session timeout.
+    /// Requested session timeout (raised to at least 3x the keep-alive interval).
     pub session_timeout_ms: u64,
+    /// Requested secure channel token lifetime (the library renews at 75 %).
+    pub channel_lifetime_ms: u64,
+    /// Session health probe: the library keep-alive reads `Server_ServerStatus_State` (i=2259) at this
+    /// interval. A session-invalid answer (BadSessionIdInvalid, ...) drops the session and reconnects.
+    pub keepalive_interval_ms: u64,
+    /// Consecutive keep-alive timeouts that count as a dead session.
+    pub keepalive_fail_limit: u32,
     /// JSON cache of the resolved node map (loaded on connect, verified by a Read).
     pub node_cache: Option<PathBuf>,
     /// Client PKI directory. A self-signed application certificate is created here when
@@ -73,6 +80,11 @@ pub struct OpcUaConfig {
     pub pki_dir: Option<PathBuf>,
     /// Trust the server certificate without it being in the PKI trusted folder.
     pub trust_server_cert: bool,
+    /// Declared lower bound of each array under the root, keyed by member path without indices
+    /// (`TaskData.Position` → 1), usually built from the PLC contract with [`array_bases_from_paths`].
+    /// The S7-1500 server exposes arrays of elementary types 0-based; such browsed/cached keys are
+    /// rebased to PLC indices so writes by PLC index resolve. Empty → no rebasing.
+    pub array_bases: std::collections::BTreeMap<String, i64>,
 }
 
 impl Default for OpcUaConfig {
@@ -88,9 +100,13 @@ impl Default for OpcUaConfig {
             connect_timeout_ms: 5_000,
             write_timeout_ms: 3_000,
             session_timeout_ms: 30_000,
+            channel_lifetime_ms: 60_000,
+            keepalive_interval_ms: 5_000,
+            keepalive_fail_limit: 2,
             node_cache: None,
             pki_dir: None,
             trust_server_cert: true,
+            array_bases: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -102,8 +118,22 @@ impl OpcUaConfig {
     pub(crate) fn write_timeout(&self) -> std::time::Duration {
         std::time::Duration::from_millis(if self.write_timeout_ms == 0 { 3_000 } else { self.write_timeout_ms })
     }
+    pub(crate) fn keepalive_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(if self.keepalive_interval_ms == 0 { 5_000 } else { self.keepalive_interval_ms })
+    }
+    pub(crate) fn keepalive_fail_limit(&self) -> u32 {
+        if self.keepalive_fail_limit == 0 { 2 } else { self.keepalive_fail_limit }
+    }
+    pub(crate) fn channel_lifetime(&self) -> u32 {
+        let v = if self.channel_lifetime_ms == 0 { 60_000 } else { self.channel_lifetime_ms };
+        u32::try_from(v).unwrap_or(u32::MAX)
+    }
+    /// Requested session timeout: configured value (0 → 30 s), but never below 3x the keep-alive interval,
+    /// so a server that honours the request cannot expire an idle-but-probed session between two probes.
     pub(crate) fn session_timeout(&self) -> u32 {
         let v = if self.session_timeout_ms == 0 { 30_000 } else { self.session_timeout_ms };
+        let min = u64::try_from(self.keepalive_interval().as_millis()).unwrap_or(u64::MAX).saturating_mul(3);
+        let v = v.max(min);
         u32::try_from(v).unwrap_or(u32::MAX)
     }
 }

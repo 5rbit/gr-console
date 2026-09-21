@@ -36,6 +36,22 @@ pub enum CommandPort {
     Demo { world: Arc<DemoWorld>, cfg: CmdCfg, last: Mutex<Option<Header>> },
 }
 
+/// Declared lower bound of every array under `root` (e.g. `GR[2].CMD`) in the GRM `db` (contract
+/// layout), keyed relative to the root without indices: `TaskData.Position` → 1, `Data` → 0.
+/// The S7-1500 OPC UA server exposes arrays of elementary types 0-based, the writer addresses
+/// members by PLC index — `opcua_cmd` rebases browsed/cached keys with this table.
+pub(crate) fn opcua_array_bases(grm: &plc_layout::Contract, db: &str, root: &str) -> std::collections::BTreeMap<String, i64> {
+    let layout = match grm.layout_db(db) {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::warn!(db, error = %e, "OPC UA array bases: GRM layout unavailable — 0-based arrays will not resolve");
+            return Default::default();
+        }
+    };
+    let prefix = format!("{root}.");
+    opcua_cmd::array_bases_from_paths(layout.members.iter().filter_map(|m| m.path.strip_prefix(&prefix)))
+}
+
 pub(crate) fn to_opc(m: &MemberValue) -> opcua_cmd::MemberValue {
     let value = match m.value {
         WireValue::Bool(b) => opcua_cmd::PlcValue::Bool(b),
@@ -75,10 +91,17 @@ impl CommandPort {
         }
     }
 
-    pub fn is_ready(&self) -> bool {
+    /// 제출 게이트용 명령 경로 사유 — 준비됐으면 None. 매번 writer 의 현재 상태에서 만든다(캐시 없음):
+    /// 서버가 세션을 무효화하면 writer 가 곧바로 Ready 를 벗어나므로 게이트도 바로 막힌다.
+    pub fn not_ready_reason(&self) -> Option<String> {
         match self {
-            CommandPort::Opc { writer, .. } => matches!(writer.state(), opcua_cmd::OpcState::Ready { .. }),
-            CommandPort::Demo { .. } => true,
+            CommandPort::Opc { writer, .. } => match writer.state() {
+                opcua_cmd::OpcState::Ready { .. } => None,
+                opcua_cmd::OpcState::Failed { error, .. } => Some(format!("OPC UA 세션 재연결 중: {error}")),
+                opcua_cmd::OpcState::Connecting | opcua_cmd::OpcState::Browsing => Some("OPC UA 세션 재연결 중".into()),
+                opcua_cmd::OpcState::Disconnected => Some("OPC UA 명령 경로가 준비되지 않음".into()),
+            },
+            CommandPort::Demo { .. } => None,
         }
     }
 
@@ -178,5 +201,66 @@ impl CommandPort {
                 Ok(())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod opc_path_tests {
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+
+    use gr_proto::{StockItem, TaskData};
+
+    /// Member keys and node ids exactly as the real GRM S7-1500 server was browsed (GR[2].CMD, node cache).
+    const REAL_CACHE: &str = include_str!("testdata/opcua-nodes.gr2.real.json");
+
+    fn real_members() -> BTreeMap<String, String> {
+        let j: serde_json::Value = serde_json::from_str(REAL_CACHE).expect("fixture json");
+        serde_json::from_value(j["members"].clone()).expect("members map")
+    }
+
+    fn grm_bases() -> BTreeMap<String, i64> {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../plc/contract/GRM_PLC");
+        let grm = plc_layout::Contract::load_dir(&root).expect("GRM contract");
+        super::opcua_array_bases(&grm, "OPCUA", "GR[2].CMD")
+    }
+
+    #[test]
+    fn contract_bases_for_cmd_arrays() {
+        let b = grm_bases();
+        assert_eq!(b.get("TaskData.Position"), Some(&1), "Array[\"X\"..\"G\"] of Real");
+        assert_eq!(b.get("TaskData.Cell.Position"), Some(&1), "Array[\"X\"..\"Z\"] of Real");
+        assert_eq!(b.get("Data"), Some(&0));
+    }
+
+    #[test]
+    fn real_server_keys_resolve_by_plc_index() {
+        let raw = real_members();
+        assert!(raw.contains_key("TaskData.Position[0]") && !raw.contains_key("TaskData.Position[4]"), "fixture is the 0-based real shape");
+        let (m, n) = opcua_cmd::rebase_array_keys(&raw, &grm_bases());
+        assert_eq!(n, 7, "Position[0..3] + Cell.Position[0..2]");
+        let id = |p: &str| m.get(p).cloned().unwrap_or_else(|| panic!("missing {p}"));
+        for i in 1..=4 {
+            assert_eq!(id(&format!("TaskData.Position[{i}]")), format!("ns=3;s=\"OPCUA\".\"GR\"[2].\"CMD\".\"TaskData\".\"Position\"[{}]", i - 1));
+        }
+        for i in 1..=3 {
+            assert_eq!(id(&format!("TaskData.Cell.Position[{i}]")), format!("ns=3;s=\"OPCUA\".\"GR\"[2].\"CMD\".\"TaskData\".\"Cell\".\"Position\"[{}]", i - 1));
+        }
+        for i in 0..16 {
+            assert_eq!(id(&format!("Data[{i}]")), format!("ns=3;s=\"OPCUA\".\"GR\"[2].\"CMD\".\"Data\"[{i}]"));
+        }
+        // Idempotent (a cache saved after rebasing stays as is).
+        assert_eq!(opcua_cmd::rebase_array_keys(&m, &grm_bases()).1, 0);
+
+        // Every member the writer addresses by name exists after rebasing.
+        let mut t = TaskData { position: [1.0, 2.0, 3.0, 4.0], ..Default::default() };
+        t.item = StockItem { code: 1, ..Default::default() };
+        let mut paths: Vec<String> = t.to_members().iter().map(|m| m.path.clone()).collect();
+        paths.extend(["Header.Protocol", "Header.CMD_ID", "Header.CMD", "Header.SRC", "Header.DST", "Header.SEQ"].map(String::from));
+        for op in ["Complete", "Delete"] {
+            paths.extend(["WorkId", "TaskId"].map(|f| format!("Command.Task.{op}.{f}")));
+        }
+        let missing: Vec<&String> = paths.iter().filter(|p| !m.contains_key(p.as_str())).collect();
+        assert!(missing.is_empty(), "missing on the real server: {missing:?}");
     }
 }

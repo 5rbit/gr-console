@@ -7,6 +7,8 @@
 //! (c) `write_task_op` writes the Complete pair,
 //! (d) `clear_header` zeroes all six header fields,
 //! (e) the session recovers after the server is restarted (Ready → Failed → Ready),
+//! (f) a session the server expires behind a live channel is detected by the keep-alive probe
+//!     and by a failing write (BadSessionIdInvalid) → Failed → reconnect → Ready,
 //! plus read_members, Status/NodeMissing/Config error mapping, the node cache file,
 //! and the "policy not offered" diagnostic.
 
@@ -183,9 +185,19 @@ async fn bind(port: Option<u16>) -> TcpListener {
 
 impl FakeServer {
     async fn start(port: Option<u16>) -> FakeServer {
+        Self::start_with(port, None).await
+    }
+
+    /// `max_session_timeout_ms`: the server revises every session timeout down to this and expires
+    /// idle sessions after it — while the secure channel stays open.
+    async fn start_with(port: Option<u16>, max_session_timeout_ms: Option<u64>) -> FakeServer {
         let listener = bind(port).await;
         let port = listener.local_addr().unwrap().port();
-        let (server, handle) = ServerBuilder::new_anonymous("fake-s7")
+        let mut builder = ServerBuilder::new_anonymous("fake-s7");
+        if let Some(ms) = max_session_timeout_ms {
+            builder = builder.max_session_timeout_ms(ms);
+        }
+        let (server, handle) = builder
             .application_uri("urn:fake-s7")
             .product_uri("urn:fake-s7")
             .host("127.0.0.1")
@@ -245,9 +257,13 @@ fn config(server: &FakeServer, cache: Option<PathBuf>) -> OpcUaConfig {
         connect_timeout_ms: 5_000,
         write_timeout_ms: 3_000,
         session_timeout_ms: 20_000,
+        channel_lifetime_ms: 60_000,
+        keepalive_interval_ms: 5_000,
+        keepalive_fail_limit: 2,
         node_cache: cache,
         pki_dir: Some(temp_dir("client-pki")),
         trust_server_cert: true,
+        array_bases: Default::default(),
     }
 }
 
@@ -464,4 +480,60 @@ async fn unreachable_endpoint_backs_off() {
     assert_eq!(writer.state(), failed);
     writer.shutdown();
     wait_state(&mut rx, 10, |s| matches!(s, OpcState::Disconnected)).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn session_expired_behind_live_channel_is_detected_by_keepalive() {
+    init_tracing();
+    // Server expires sessions 2 s after the last request; the probe runs every 3 s, so every
+    // second probe finds the session gone (BadSessionIdInvalid) while the TCP channel is up.
+    let server = FakeServer::start_with(None, Some(2_000)).await;
+    let mut cfg = config(&server, None);
+    cfg.keepalive_interval_ms = 3_000;
+    let (writer, mut rx) = CmdWriter::spawn(cfg);
+    wait_state(&mut rx, 20, |s| matches!(s, OpcState::Ready { .. })).await;
+
+    let failed = wait_state(&mut rx, 20, |s| matches!(s, OpcState::Failed { .. })).await;
+    let OpcState::Failed { error, retry_in_ms } = failed else { unreachable!() };
+    assert!(error.contains("세션 무효") && error.contains("BadSessionIdInvalid"), "{error}");
+    assert_eq!(retry_in_ms, 1_000, "server is reachable: minimum backoff");
+    // The session is withdrawn before the state says Failed (reconnect waits 1 s): no write goes out on it.
+    assert_eq!(writer.write_task_op(TaskOp::Complete, 0, 0).await, Err(OpcError::NotReady));
+
+    // Reconnects on its own and is usable again.
+    wait_state(&mut rx, 20, |s| matches!(s, OpcState::Ready { .. })).await;
+    writer.write_task_op(TaskOp::Complete, 5, 6).await.expect("write after reconnect");
+    assert_eq!(server.value("Command.Task.Complete.WorkId"), Some(Variant::UInt32(5)));
+
+    writer.shutdown();
+    wait_state(&mut rx, 10, |s| matches!(s, OpcState::Disconnected)).await;
+    server.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn write_on_invalid_session_triggers_reconnect() {
+    init_tracing();
+    // Probe interval far beyond the test: only the write can notice the expired session.
+    let server = FakeServer::start_with(None, Some(1_500)).await;
+    let mut cfg = config(&server, None);
+    cfg.keepalive_interval_ms = 60_000;
+    let (writer, mut rx) = CmdWriter::spawn(cfg);
+    wait_state(&mut rx, 20, |s| matches!(s, OpcState::Ready { .. })).await;
+    tokio::time::sleep(Duration::from_millis(3_000)).await;
+    assert!(matches!(writer.state(), OpcState::Ready { .. }), "probe must not have run: {:?}", writer.state());
+
+    let err = writer.write_task_op(TaskOp::Complete, 1, 2).await.unwrap_err();
+    assert!(matches!(err, OpcError::Transport(ref m) if m.contains("세션 무효") && m.contains("BadSessionIdInvalid")), "{err:?}");
+    // Not ready at once (gate / health), without waiting for any probe.
+    let st = writer.state();
+    assert!(matches!(st, OpcState::Failed { ref error, retry_in_ms: 1_000 } if error.contains("세션 무효")), "{st:?}");
+    assert_eq!(writer.write_task_op(TaskOp::Complete, 1, 2).await, Err(OpcError::NotReady));
+
+    wait_state(&mut rx, 20, |s| matches!(s, OpcState::Ready { .. })).await;
+    writer.write_task_op(TaskOp::Complete, 3, 4).await.expect("write after reconnect");
+    assert_eq!(server.value("Command.Task.Complete.TaskId"), Some(Variant::UInt32(4)));
+
+    writer.shutdown();
+    wait_state(&mut rx, 10, |s| matches!(s, OpcState::Disconnected)).await;
+    server.stop().await;
 }

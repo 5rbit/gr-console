@@ -1548,6 +1548,7 @@ name = "opcua-cmd"
 version = "0.1.0"
 dependencies = [
  "async-opcua",
+ "futures",
  "serde",
  "serde_json",
  "thiserror",

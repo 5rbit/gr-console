@@ -118,10 +118,12 @@ pub const KNOWN_MEMBERS: &[(&str, PlcKind)] = &[
     ("TaskData.WorkId", PlcKind::U32),
     ("TaskData.TaskId", PlcKind::U32),
     ("TaskData.TaskType", PlcKind::U8),
+    // Elementary-type arrays are exposed 0-based by the S7-1500 server (`Array[1..4] of Real` →
+    // `Position[0]..[3]`); `OpcUaConfig::array_bases` rebases them to PLC indices after resolution.
+    ("TaskData.Position[0]", PlcKind::F32),
     ("TaskData.Position[1]", PlcKind::F32),
     ("TaskData.Position[2]", PlcKind::F32),
     ("TaskData.Position[3]", PlcKind::F32),
-    ("TaskData.Position[4]", PlcKind::F32),
     ("TaskData.Item.Code", PlcKind::U32),
     ("TaskData.Item.Count", PlcKind::U8),
     ("TaskData.Item.InnerDiameter", PlcKind::F32),
@@ -138,9 +140,9 @@ pub const KNOWN_MEMBERS: &[(&str, PlcKind)] = &[
     ("TaskData.Cell.Col", PlcKind::U16),
     ("TaskData.Cell.Lenth", PlcKind::F32),
     ("TaskData.Cell.Width", PlcKind::F32),
+    ("TaskData.Cell.Position[0]", PlcKind::F32),
     ("TaskData.Cell.Position[1]", PlcKind::F32),
     ("TaskData.Cell.Position[2]", PlcKind::F32),
-    ("TaskData.Cell.Position[3]", PlcKind::F32),
     ("TaskData.BlendUpDistance", PlcKind::Unknown),
     ("TaskData.GripHeight", PlcKind::Unknown),
     ("TaskData.UseDragOut", PlcKind::Bool),
@@ -437,13 +439,22 @@ async fn synth_map(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str) -> 
     Err(OpcError::Config(format!("fallback probe failed for [{}]", tried.join(", "))))
 }
 
+/// Rewrite 0-based elementary-array keys to PLC indices (`cfg.array_bases`).
+fn rebase(map: &mut NodeMap, cfg: &OpcUaConfig) {
+    let n = map.rebase_arrays(&cfg.array_bases);
+    if n > 0 {
+        tracing::info!(keys = n, source = %map.source, "0-based array elements rebased to PLC indices");
+    }
+}
+
 /// Resolve the node map: cache (verified) → browse → synthesized string ids.
 /// The result is written to `node_cache` when it did not come from the cache.
 pub async fn resolve(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str, use_cache: bool) -> Result<NodeMap, OpcError> {
     if use_cache
         && let Some(path) = &cfg.node_cache
-        && let Some(map) = NodeMap::load(path)
+        && let Some(mut map) = NodeMap::load(path)
     {
+        rebase(&mut map, cfg);
         if verify(session, cfg, &map).await {
             tracing::info!(?path, count = map.members.len(), "node cache verified");
             return Ok(map);
@@ -451,7 +462,7 @@ pub async fn resolve(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str, u
         tracing::warn!(?path, "node cache failed verification; re-browsing");
     }
 
-    let map = match browse_map(session, cfg, endpoint_url).await {
+    let mut map = match browse_map(session, cfg, endpoint_url).await {
         Ok(map) => map,
         Err(browse_err) => {
             tracing::warn!(error = %browse_err, "browse failed; trying string node id fallback");
@@ -463,6 +474,7 @@ pub async fn resolve(session: &Session, cfg: &OpcUaConfig, endpoint_url: &str, u
             }
         }
     };
+    rebase(&mut map, cfg);
     if !verify(session, cfg, &map).await {
         tracing::warn!("resolved map has no readable {PROBE_MEMBER}; continuing anyway");
     }

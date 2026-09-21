@@ -70,6 +70,18 @@ impl NodeMap {
         v.into_iter().map(|(_, k)| k).collect()
     }
 
+    /// Rewrite 0-based array element keys to PLC indices (see [`rebase_array_keys`]).
+    /// Returns the number of keys rewritten.
+    pub fn rebase_arrays(&mut self, bases: &BTreeMap<String, i64>) -> usize {
+        let (members, n) = rebase_array_keys(&self.members, bases);
+        if n > 0 {
+            let (kinds, _) = rebase_array_keys(&self.kinds, bases);
+            self.members = members;
+            self.kinds = kinds;
+        }
+        n
+    }
+
     pub fn load(path: &Path) -> Option<NodeMap> {
         let text = std::fs::read_to_string(path).ok()?;
         match serde_json::from_str::<NodeMap>(&text) {
@@ -101,9 +113,183 @@ impl NodeMap {
     }
 }
 
+/// Path with every array index removed: `TaskData.Cell.Position[2]` → `TaskData.Cell.Position`.
+fn strip_indices(segs: &[crate::path::Segment]) -> String {
+    segs.iter().map(|s| s.name.as_str()).collect::<Vec<_>>().join(".")
+}
+
+/// Declared lower bound of every array in a set of leaf paths that carry PLC indices
+/// (e.g. contract layout members relative to the command root): the smallest index seen
+/// per array, keyed by the array path without indices (`TaskData.Position` → 1).
+/// Only the first dimension of each array segment is considered.
+pub fn array_bases_from_paths<'a>(paths: impl IntoIterator<Item = &'a str>) -> BTreeMap<String, i64> {
+    let mut out: BTreeMap<String, i64> = BTreeMap::new();
+    for p in paths {
+        let Ok(segs) = crate::path::parse_path(p) else { continue };
+        for d in 0..segs.len() {
+            if let Some(&i) = segs[d].indices.first() {
+                let key = strip_indices(&segs[..=d]);
+                let e = out.entry(key).or_insert(i64::from(i));
+                *e = (*e).min(i64::from(i));
+            }
+        }
+    }
+    out
+}
+
+/// Index rebasing for servers that expose arrays 0-based (offset from the declared lower bound).
+///
+/// The S7-1500 OPC UA server keeps the PLC index for arrays of structs (`GR[2]`) but exposes
+/// arrays of elementary types 0-based: `Position : Array[1..4] of Real` browses as
+/// `Position[0]..[3]`. The writer looks members up by PLC index, so such keys are rewritten
+/// `P[k]` → `P[k + lb]` using `bases` (array path without indices → declared lower bound).
+///
+/// Decided per array instance from the index set that is present: an array is rebased only
+/// when `lb > 0` and index `0` is present (a PLC-indexed array with `lb > 0` never has
+/// element 0). Struct arrays that already carry PLC indices, arrays with `lb == 0`, arrays
+/// not in `bases`, and an already rebased map are left unchanged (idempotent).
+/// Returns the rewritten map and the number of keys changed.
+pub fn rebase_array_keys<V: Clone>(map: &BTreeMap<String, V>, bases: &BTreeMap<String, i64>) -> (BTreeMap<String, V>, usize) {
+    use std::collections::BTreeSet;
+    let bases: BTreeMap<String, i64> = bases.iter().filter(|(_, lb)| **lb > 0).filter_map(|(k, lb)| crate::path::parse_path(k).ok().map(|s| (strip_indices(&s), *lb))).collect();
+    if bases.is_empty() {
+        return (map.clone(), 0);
+    }
+    let mut entries: Vec<(Option<Vec<crate::path::Segment>>, String, V)> = map.iter().map(|(k, v)| (crate::path::parse_path(k).ok(), k.clone(), v.clone())).collect();
+    let depth = entries.iter().filter_map(|(s, _, _)| s.as_ref().map(Vec::len)).max().unwrap_or(0);
+    let mut changed = 0usize;
+    for d in 0..depth {
+        // Array instance (rendered prefix + name at depth d) → (lower bound, indices present).
+        let mut groups: BTreeMap<String, (i64, BTreeSet<u32>)> = BTreeMap::new();
+        let instance = |segs: &[crate::path::Segment]| -> Option<(String, i64, u32)> {
+            let seg = segs.get(d)?;
+            let idx = *seg.indices.first()?;
+            let lb = *bases.get(&strip_indices(&segs[..=d]))?;
+            let mut inst = crate::path::render(&segs[..d]);
+            if !inst.is_empty() {
+                inst.push('.');
+            }
+            inst.push_str(&seg.name);
+            Some((inst, lb, idx))
+        };
+        for (segs, _, _) in &entries {
+            if let Some((inst, lb, idx)) = segs.as_deref().and_then(instance) {
+                groups.entry(inst).or_insert_with(|| (lb, BTreeSet::new())).1.insert(idx);
+            }
+        }
+        groups.retain(|_, (_, set)| set.contains(&0));
+        if groups.is_empty() {
+            continue;
+        }
+        for (segs, key, _) in &mut entries {
+            let Some(s) = segs.as_mut() else { continue };
+            let Some((inst, lb, idx)) = instance(s) else { continue };
+            if !groups.contains_key(&inst) {
+                continue;
+            }
+            let Ok(new_idx) = u32::try_from(i64::from(idx) + lb) else { continue };
+            s[d].indices[0] = new_idx;
+            *key = crate::path::render(s);
+            changed += 1;
+        }
+    }
+    (entries.into_iter().map(|(_, k, v)| (k, v)).collect(), changed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn keys(m: &BTreeMap<String, String>) -> Vec<&str> {
+        m.keys().map(String::as_str).collect()
+    }
+
+    fn bases() -> BTreeMap<String, i64> {
+        [("TaskData.Position", 1), ("TaskData.Cell.Position", 1), ("Data", 0), ("GR", 1)].iter().map(|(k, v)| (k.to_string(), *v)).collect()
+    }
+
+    #[test]
+    fn rebase_zero_based_elementary_arrays() {
+        let mut m = BTreeMap::new();
+        for k in [
+            "TaskData.Position[0]",
+            "TaskData.Position[1]",
+            "TaskData.Position[2]",
+            "TaskData.Position[3]",
+            "TaskData.Cell.Position[0]",
+            "TaskData.Cell.Position[1]",
+            "TaskData.Cell.Position[2]",
+            "Data[0]",
+            "Data[15]",
+            "GR[2].X",
+            "GR[3].X",
+            "Header.CMD",
+        ] {
+            m.insert(k.to_string(), format!("id:{k}"));
+        }
+        let (r, n) = rebase_array_keys(&m, &bases());
+        assert_eq!(n, 7);
+        assert_eq!(
+            keys(&r),
+            vec![
+                "Data[0]",
+                "Data[15]",
+                "GR[2].X",
+                "GR[3].X",
+                "Header.CMD",
+                "TaskData.Cell.Position[1]",
+                "TaskData.Cell.Position[2]",
+                "TaskData.Cell.Position[3]",
+                "TaskData.Position[1]",
+                "TaskData.Position[2]",
+                "TaskData.Position[3]",
+                "TaskData.Position[4]",
+            ]
+        );
+        // Node ids stay with their element: PLC index 1 is the server's [0].
+        assert_eq!(r["TaskData.Position[1]"], "id:TaskData.Position[0]");
+        assert_eq!(r["TaskData.Position[4]"], "id:TaskData.Position[3]");
+        assert_eq!(r["TaskData.Cell.Position[3]"], "id:TaskData.Cell.Position[2]");
+        assert_eq!(r["Data[15]"], "id:Data[15]");
+        assert_eq!(r["GR[2].X"], "id:GR[2].X");
+        // Idempotent.
+        let (again, n2) = rebase_array_keys(&r, &bases());
+        assert_eq!(n2, 0);
+        assert_eq!(again, r);
+        // No bases → unchanged.
+        let (same, n3) = rebase_array_keys(&m, &BTreeMap::new());
+        assert_eq!((same, n3), (m, 0));
+    }
+
+    #[test]
+    fn rebase_nested_under_zero_based_struct_array() {
+        // A struct array that the server exposed 0-based would be rebased too, with inner arrays after it.
+        let mut m = BTreeMap::new();
+        for k in ["Q[0].P[0]", "Q[0].P[1]", "Q[1].P[0]", "Q[1].P[1]"] {
+            m.insert(k.to_string(), k.to_string());
+        }
+        let b: BTreeMap<String, i64> = [("Q".to_string(), 1), ("Q.P".to_string(), 1)].into_iter().collect();
+        let (r, _) = rebase_array_keys(&m, &b);
+        assert_eq!(keys(&r), vec!["Q[1].P[1]", "Q[1].P[2]", "Q[2].P[1]", "Q[2].P[2]"]);
+        assert_eq!(r["Q[2].P[2]"], "Q[1].P[1]");
+    }
+
+    #[test]
+    fn bases_from_layout_paths() {
+        let b = array_bases_from_paths([
+            "TaskData.Position[1]",
+            "TaskData.Position[4]",
+            "TaskData.Cell.Position[3]",
+            "TaskData.Cell.Position[1]",
+            "Data[0]",
+            "Data[15]",
+            "Header.CMD",
+            "Q[2].P[5]",
+            "Q[3].P[6]",
+        ]);
+        let want: BTreeMap<String, i64> = [("Data", 0), ("Q", 2), ("Q.P", 5), ("TaskData.Cell.Position", 1), ("TaskData.Position", 1)].iter().map(|(k, v)| (k.to_string(), *v)).collect();
+        assert_eq!(b, want);
+    }
 
     fn map() -> NodeMap {
         let mut m = NodeMap::default();

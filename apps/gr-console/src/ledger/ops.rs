@@ -45,8 +45,8 @@ pub fn submit_refusal(robot: &str, reasons: &[String]) -> String {
 
 pub fn gate(st: &AppState, r: &RobotCtx) -> Gate {
     let mut reasons = Vec::new();
-    if !r.cmd.is_ready() {
-        reasons.push("OPC UA 명령 경로가 준비되지 않음".into());
+    if let Some(why) = r.cmd.not_ready_reason() {
+        reasons.push(why);
     }
     match st.robot_plc(r) {
         Ok(h) => {

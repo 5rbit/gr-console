@@ -188,6 +188,14 @@ pub struct OpcUaCfg {
     pub root_path: String,
     pub connect_timeout_ms: u64,
     pub write_timeout_ms: u64,
+    /// 요청 세션 타임아웃 (keep-alive 의 3 배보다 작으면 3 배로 올려 요청).
+    pub session_timeout_ms: u64,
+    /// 요청 보안 채널 토큰 수명 (라이브러리가 75 % 에서 갱신).
+    pub channel_lifetime_ms: u64,
+    /// 세션 상태 점검(keep-alive: Server_ServerStatus_State 읽기) 주기. 세션 무효 응답이면 바로 재연결.
+    pub keepalive_interval_ms: u64,
+    /// keep-alive 연속 시간 초과 몇 번이면 세션이 죽은 것으로 보나.
+    pub keepalive_fail_limit: u32,
     pub node_cache: Option<PathBuf>,
     pub pki_dir: Option<PathBuf>,
     pub trust_server_cert: bool,
@@ -205,6 +213,10 @@ impl Default for OpcUaCfg {
             root_path: "GR[2].CMD".into(),
             connect_timeout_ms: 5000,
             write_timeout_ms: 3000,
+            session_timeout_ms: 60_000,
+            channel_lifetime_ms: 60_000,
+            keepalive_interval_ms: 5_000,
+            keepalive_fail_limit: 2,
             node_cache: Some("data/opcua-nodes.json".into()),
             pki_dir: Some("data/pki".into()),
             trust_server_cert: true,

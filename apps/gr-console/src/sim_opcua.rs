@@ -1,8 +1,10 @@
 //! In-process OPC UA server that mimics the GRM S7-1500 address space for `"OPCUA".GR[n].CMD`.
 //!
 //! The node tree is generated from the GRM contract layout, so bit structs (`Command.Stop.Normal`),
-//! arrays (`TaskData.Position[1]`, `Data[0]`) and data types match the real UDT instead of a hand-written
-//! list. Writes land in the demo world's GRM `OPCUA` model — the very bytes the console reads back over
+//! arrays and data types match the real UDT instead of a hand-written list. Like the S7-1500 server, arrays of
+//! structs keep the PLC index (`GR[2]`) while arrays of elementary types are named 0-based from the declared
+//! lower bound (`Array[1..4] of Real` → `Position[0]..[3]`), so the console must rebase them (`array_bases`).
+//! Writes land in the demo world's GRM `OPCUA` model — the very bytes the console reads back over
 //! S7 — and a completed Header write is relayed to the demo robot at that `GR[n]` the way GRM does
 //! (`DemoWorld::grm_opcua_write`).
 //! Used by `gr-console --demo-opcua` and the bench tests, never against a real PLC.
@@ -73,7 +75,13 @@ pub async fn start(world: Arc<DemoWorld>, grm: &Contract, roots: &[String], pki_
             let prefix = format!("{root}.");
             for m in layout.members.iter().filter(|m| m.path.starts_with(&prefix)) {
                 let ptr = json_pointer(&all, &m.path, &mut bounds);
-                if t.leaf(&m.path, m.prim, ptr, world.clone()) {
+                // Elementary-type array element (`...Position[1]` as the leaf): the S7-1500 server names it
+                // 0-based from the declared lower bound (`Position[0]`); struct arrays keep the PLC index.
+                let elem_lb = match m.path.rfind('[') {
+                    Some(i) if m.path.ends_with(']') && !m.path[i..].contains('.') => lower_bound(&all, &m.path[..i]),
+                    _ => 0,
+                };
+                if t.leaf(&m.path, m.prim, elem_lb, ptr, world.clone()) {
                     leaves += 1;
                 }
             }
@@ -150,8 +158,9 @@ impl Tree<'_> {
     }
 
     /// Leaf variable bound to the world model at JSON pointer `ptr`. Returns false for types the
-    /// console never writes and the sim does not model.
-    fn leaf(&mut self, path: &str, prim: Prim, ptr: String, world: Arc<DemoWorld>) -> bool {
+    /// console never writes and the sim does not model. `elem_lb`: declared lower bound when the leaf
+    /// is an array element — its node id / browse name use `index - elem_lb` like the real server.
+    fn leaf(&mut self, path: &str, prim: Prim, elem_lb: i64, ptr: String, world: Arc<DemoWorld>) -> bool {
         let Some((dt, init)) = ua_type(prim) else { return false };
         let (parent_path, seg) = match path.rfind('.') {
             Some(i) => (&path[..i], &path[i + 1..]),
@@ -162,6 +171,7 @@ impl Tree<'_> {
         let (parent, sid, browse) = match idx {
             None => (parent, format!("{parent_sid}.\"{name}\""), name.to_string()),
             Some(i) => {
+                let i = i - elem_lb;
                 let array_path = if parent_path.is_empty() { name.to_string() } else { format!("{parent_path}.{name}") };
                 let (array, array_sid) = self.ensure_array(&array_path, &parent, &parent_sid, name);
                 (array, format!("{array_sid}[{i}]"), format!("{name}[{i}]"))
@@ -219,16 +229,19 @@ fn json_pointer(all: &[String], path: &str, bounds: &mut HashMap<String, i64>) -
         ptr.push('/');
         ptr.push_str(name);
         if let Some(i) = idx {
-            let lb = *bounds.entry(prefix.clone()).or_insert_with(|| {
-                let head = format!("{prefix}[");
-                all.iter().filter_map(|p| p.strip_prefix(&head)).filter_map(|r| r.split(']').next()?.parse::<i64>().ok()).min().unwrap_or(0)
-            });
+            let lb = *bounds.entry(prefix.clone()).or_insert_with(|| lower_bound(all, &prefix));
             ptr.push('/');
             ptr.push_str(&(i - lb).to_string());
             prefix.push_str(&format!("[{i}]"));
         }
     }
     ptr
+}
+
+/// Smallest PLC index of the array `array_path` (`GR[2].CMD.TaskData.Position`) among the layout paths.
+fn lower_bound(all: &[String], array_path: &str) -> i64 {
+    let head = format!("{array_path}[");
+    all.iter().filter_map(|p| p.strip_prefix(&head)).filter_map(|r| r.split(']').next()?.parse::<i64>().ok()).min().unwrap_or(0)
 }
 
 fn ua_type(prim: Prim) -> Option<(DataTypeId, Variant)> {
@@ -343,6 +356,7 @@ mod tests {
             connect_timeout_ms: 5_000,
             write_timeout_ms: 5_000,
             session_timeout_ms: 20_000,
+            array_bases: crate::cmd::opcua_array_bases(&grm, DB, "GR[2].CMD"),
             ..OpcUaConfig::default()
         };
         // Drop the state receiver like `main` does: `writer.state()` must still advance to Ready.

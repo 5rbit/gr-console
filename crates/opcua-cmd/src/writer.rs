@@ -5,11 +5,11 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use opcua::client::Session;
-use opcua::types::{AttributeId, DataValue, NumericRange, ReadValueId, TimestampsToReturn, WriteValue};
+use opcua::types::{AttributeId, DataValue, NumericRange, ReadValueId, StatusCode, TimestampsToReturn, WriteValue};
 use tokio::sync::{Notify, watch};
 
 use crate::browse;
-use crate::connect::{self, map_err, with_timeout};
+use crate::connect::{self, LoopEnd, is_session_dead, map_err, with_timeout};
 use crate::nodemap::{NodeMap, NodeMapInfo};
 use crate::value::{coerce, from_variant};
 use crate::{HeaderWire, MemberValue, OpcError, OpcState, OpcUaConfig, PlcValue, TaskOp};
@@ -68,6 +68,9 @@ struct Inner {
     submit: tokio::sync::Mutex<()>,
     shutdown: AtomicBool,
     notify: Notify,
+    /// A request on the active session came back session-invalid: the run loop drops it and reconnects.
+    dead: Notify,
+    dead_reason: Mutex<Option<String>>,
 }
 
 impl Inner {
@@ -96,6 +99,38 @@ impl Inner {
         if let Ok(mut g) = self.active.write() {
             *g = a;
         }
+    }
+
+    /// Called from the request path when the server says the session is gone: stop offering the session
+    /// right away (gate / submit see not-ready) and wake the run loop to reconnect. Ignored when `session`
+    /// is no longer the active one (already handled).
+    fn mark_dead(&self, session: &Arc<Session>, code: StatusCode) {
+        let Ok(mut g) = self.active.write() else { return };
+        if !g.as_ref().is_some_and(|a| Arc::ptr_eq(&a.session, session)) {
+            return;
+        }
+        *g = None;
+        drop(g);
+        let msg = dead_message(code, "");
+        if let Ok(mut r) = self.dead_reason.lock() {
+            *r = Some(format!("request: {code}"));
+        }
+        self.set_state(OpcState::Failed { error: msg, retry_in_ms: BACKOFF_MIN_MS });
+        self.dead.notify_one();
+    }
+
+    fn take_dead_reason(&self) -> Option<String> {
+        self.dead_reason.lock().ok().and_then(|mut g| g.take())
+    }
+
+    /// Map a service-level error; a session-invalid code also triggers the reconnect.
+    fn service_err(&self, session: &Arc<Session>, e: opcua::types::Error) -> OpcError {
+        let code = e.status();
+        if is_session_dead(code) {
+            self.mark_dead(session, code);
+            return OpcError::Transport(format!("{} (요청 실패)", dead_message(code, "")));
+        }
+        map_err(e)
     }
 
     fn ready_state(&self, map: &NodeMap) -> OpcState {
@@ -131,6 +166,8 @@ impl CmdWriter {
             submit: tokio::sync::Mutex::new(()),
             shutdown: AtomicBool::new(false),
             notify: Notify::new(),
+            dead: Notify::new(),
+            dead_reason: Mutex::new(None),
         });
         tokio::spawn(run(inner.clone()));
         (CmdWriter { inner }, state_rx)
@@ -190,7 +227,7 @@ impl CmdWriter {
             keys.push(crate::path::normalize_path(p)?);
             ids.push(ReadValueId::new_value(id));
         }
-        let values = with_timeout(self.inner.cfg.write_timeout(), session.read(&ids, TimestampsToReturn::Neither, 0.0)).await?.map_err(map_err)?;
+        let values = with_timeout(self.inner.cfg.write_timeout(), session.read(&ids, TimestampsToReturn::Neither, 0.0)).await?.map_err(|e| self.inner.service_err(&session, e))?;
         if values.len() != ids.len() {
             return Err(OpcError::Transport(format!("read returned {} results for {} nodes", values.len(), ids.len())));
         }
@@ -266,7 +303,7 @@ impl CmdWriter {
             writes.push(WriteValue { node_id: id, attribute_id: AttributeId::Value as u32, index_range: NumericRange::None, value: DataValue::value_only(variant) });
             keys.push(key);
         }
-        let results = with_timeout(self.inner.cfg.write_timeout(), session.write(&writes)).await?.map_err(map_err)?;
+        let results = with_timeout(self.inner.cfg.write_timeout(), session.write(&writes)).await?.map_err(|e| self.inner.service_err(&session, e))?;
         if results.len() != writes.len() {
             return Err(OpcError::Transport(format!("write returned {} results for {} nodes", results.len(), writes.len())));
         }
@@ -339,20 +376,48 @@ async fn run(inner: Arc<Inner>) {
             "node map ready"
         );
         inner.set_map(map.clone());
+        // A leftover reason belongs to an earlier session.
+        inner.take_dead_reason();
         inner.set_active(Some(Active { session: conn.session.clone() }));
         inner.set_state(inner.ready_state(&map));
         backoff = BACKOFF_MIN_MS;
 
         let mut event_loop = conn.event_loop;
-        let ended = tokio::select! {
-            r = &mut event_loop => Some(r),
-            _ = inner.notify.notified() => None,
+        let ended = loop {
+            tokio::select! {
+                r = &mut event_loop => break SessionEnd::Loop(r),
+                _ = inner.notify.notified() => break SessionEnd::Shutdown,
+                _ = inner.dead.notified() => {
+                    // A stale permit (no reason stored) is ignored.
+                    if let Some(detail) = inner.take_dead_reason() {
+                        break SessionEnd::Dead { detail };
+                    }
+                }
+            }
         };
         inner.set_active(None);
         match ended {
-            Some(r) => {
+            SessionEnd::Loop(Ok(LoopEnd::SessionDead { code, detail })) => {
+                // The channel may still be up but the session is gone: reconnect right away (the
+                // server is reachable), one warn line instead of the library's per-keep-alive errors.
+                let error = dead_message(code, &detail);
+                tracing::warn!(status = %code, %detail, retry_in_ms = BACKOFF_MIN_MS, "session invalid, reconnecting");
+                inner.set_state(OpcState::Failed { error, retry_in_ms: BACKOFF_MIN_MS });
+                backoff_sleep(&inner, BACKOFF_MIN_MS).await;
+                backoff = BACKOFF_MIN_MS;
+            }
+            SessionEnd::Dead { detail } => {
+                // Found by a request (state already Failed, session already withdrawn). Dropping the
+                // driver task drops the transport, so the old session stops producing log noise.
+                event_loop.abort();
+                tracing::warn!(%detail, retry_in_ms = BACKOFF_MIN_MS, "session invalid, reconnecting");
+                backoff_sleep(&inner, BACKOFF_MIN_MS).await;
+                backoff = BACKOFF_MIN_MS;
+            }
+            SessionEnd::Loop(r) => {
                 let why = match r {
-                    Ok(code) => format!("connection lost: {code}"),
+                    Ok(LoopEnd::Closed(code)) => format!("connection lost: {code}"),
+                    Ok(LoopEnd::SessionDead { code, .. }) => format!("session invalid: {code}"),
                     Err(e) => format!("event loop panicked: {e}"),
                 };
                 tracing::warn!(error = %why, retry_in_ms = backoff, "session ended");
@@ -360,8 +425,7 @@ async fn run(inner: Arc<Inner>) {
                 backoff_sleep(&inner, backoff).await;
                 backoff = (backoff * 2).min(BACKOFF_MAX_MS);
             }
-            None => {
-                // Shutdown requested.
+            SessionEnd::Shutdown => {
                 let _ = with_timeout(Duration::from_secs(2), conn.session.disconnect()).await;
                 event_loop.abort();
                 break;
@@ -369,6 +433,22 @@ async fn run(inner: Arc<Inner>) {
         }
     }
     inner.set_state(OpcState::Disconnected);
+}
+
+enum SessionEnd {
+    Loop(Result<LoopEnd, tokio::task::JoinError>),
+    Dead { detail: String },
+    Shutdown,
+}
+
+/// Operator-facing state text for a dead session.
+pub(crate) fn dead_message(code: StatusCode, detail: &str) -> String {
+    if matches!(code, StatusCode::BadTimeout | StatusCode::BadRequestTimeout) {
+        let why = if detail.is_empty() { code.to_string() } else { detail.to_string() };
+        format!("세션 응답 없음 ({why}) — 다시 연결")
+    } else {
+        format!("세션 무효 ({code}) — 다시 연결")
+    }
 }
 
 #[cfg(test)]
@@ -414,5 +494,24 @@ mod tests {
         let paths: Vec<&str> = m.iter().map(|x| x.path.as_str()).collect();
         assert_eq!(paths, HEADER_PATHS);
         assert_eq!(m[5].value, PlcValue::U16(6));
+    }
+
+    #[test]
+    fn dead_session_messages() {
+        assert_eq!(dead_message(StatusCode::BadSessionIdInvalid, "keep-alive: BadSessionIdInvalid"), "세션 무효 (BadSessionIdInvalid) — 다시 연결");
+        assert_eq!(dead_message(StatusCode::BadTimeout, "keep-alive timed out 2 times in a row"), "세션 응답 없음 (keep-alive timed out 2 times in a row) — 다시 연결");
+    }
+
+    #[test]
+    fn session_timeout_covers_three_keepalives() {
+        let cfg = OpcUaConfig { session_timeout_ms: 10_000, keepalive_interval_ms: 5_000, ..OpcUaConfig::default() };
+        assert_eq!(cfg.session_timeout(), 15_000);
+        let cfg = OpcUaConfig::default();
+        assert_eq!(cfg.keepalive_interval(), Duration::from_millis(5_000));
+        assert_eq!(cfg.session_timeout(), 30_000);
+        assert_eq!(cfg.channel_lifetime(), 60_000);
+        assert_eq!(cfg.keepalive_fail_limit(), 2);
+        let cfg = OpcUaConfig { keepalive_interval_ms: 0, keepalive_fail_limit: 0, session_timeout_ms: 0, channel_lifetime_ms: 0, ..OpcUaConfig::default() };
+        assert_eq!((cfg.session_timeout(), cfg.keepalive_fail_limit(), cfg.channel_lifetime()), (30_000, 2, 60_000));
     }
 }

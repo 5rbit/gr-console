@@ -199,6 +199,15 @@ async fn main() -> anyhow::Result<()> {
     stock::spawn(stock.clone(), task_events.clone(), registry.clone());
 
     // robots: one command port (OPC UA GR[n].CMD via GRM) + one ledger + one sync loop each
+    // GRM contract: array lower bounds for the OPC UA node map (elementary arrays are exposed 0-based).
+    let grm_for_opc: Option<Arc<Contract>> = {
+        let name = cfg.plcs.iter().find(|p| p.role == config::PlcRole::Grm).map(|p| p.contract.clone()).unwrap_or_else(|| "GRM_PLC".into());
+        let c = contracts.get(&name).cloned();
+        if c.is_none() {
+            tracing::warn!(contract = %name, "no GRM contract — OPC UA array index rebasing disabled");
+        }
+        c
+    };
     let mut robots = Vec::new();
     for r in cfg.robots_effective() {
         let rcfg = config::CmdCfg { dst: r.dst, status_plc: r.plc.clone(), ..cfg.cmd.clone() };
@@ -227,10 +236,14 @@ async fn main() -> anyhow::Result<()> {
                     root_path: r.opcua_root.clone(),
                     connect_timeout_ms: o.connect_timeout_ms,
                     write_timeout_ms: o.write_timeout_ms,
-                    session_timeout_ms: 60_000,
+                    session_timeout_ms: o.session_timeout_ms,
+                    channel_lifetime_ms: o.channel_lifetime_ms,
+                    keepalive_interval_ms: o.keepalive_interval_ms,
+                    keepalive_fail_limit: o.keepalive_fail_limit,
                     node_cache: o.node_cache.clone().map(|p| if robots_is_multi(&cfg) { p.with_extension(format!("gr{}.json", r.id)) } else { p }),
                     pki_dir: o.pki_dir.clone(),
                     trust_server_cert: o.trust_server_cert,
+                    array_bases: grm_for_opc.as_deref().map(|g| cmd::opcua_array_bases(g, &o.db_name, &r.opcua_root)).unwrap_or_default(),
                 };
                 let (writer, _state_rx) = opcua_cmd::CmdWriter::spawn(ocfg);
                 CommandPort::Opc { writer, cfg: rcfg, last: Mutex::new(None), endpoint: o.endpoint.clone() }

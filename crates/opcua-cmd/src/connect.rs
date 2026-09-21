@@ -4,18 +4,30 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
-use opcua::client::{Client, ClientBuilder, IdentityToken, Password, Session};
+use futures::StreamExt;
+use opcua::client::{Client, ClientBuilder, IdentityToken, Password, Session, SessionActivity, SessionEventLoop, SessionPollResult};
 use opcua::crypto::SecurityPolicy;
 use opcua::types::{EndpointDescription, MessageSecurityMode, StatusCode, UserTokenType};
 
 use crate::{Auth, OpcError, OpcUaConfig};
 
-/// An established (activated) session plus its event loop task.
+/// Why the session driver task ended.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LoopEnd {
+    /// The transport closed / the (single) connect attempt failed / the session was closed on purpose.
+    Closed(StatusCode),
+    /// The channel is still up but the session is gone (server answered a keep-alive with a
+    /// session-invalid code, or too many keep-alives timed out). The driver stopped polling, which
+    /// drops the transport, so the library stops logging keep-alive failures for this session.
+    SessionDead { code: StatusCode, detail: String },
+}
+
+/// An established (activated) session plus its driver task.
 pub struct Connection {
     pub session: Arc<Session>,
-    /// Ends when the session is closed or the library gives up reconnecting
-    /// (`session_retry_limit(0)`: any connection loss ends the loop).
-    pub event_loop: tokio::task::JoinHandle<StatusCode>,
+    /// Polls the library event loop (`SessionEventLoop::enter`) and ends on connection loss
+    /// (no in-library reconnect) or when the keep-alive says the session is dead.
+    pub event_loop: tokio::task::JoinHandle<LoopEnd>,
     /// Endpoint descriptions returned by GetEndpoints (for diagnostics).
     pub endpoints: Vec<String>,
     /// URL of the endpoint the session was created on.
@@ -94,6 +106,11 @@ fn build_client(cfg: &OpcUaConfig, secure: bool) -> Result<Client, OpcError> {
         // connect re-verifies / re-browses the node map and publishes state.
         .session_retry_limit(0)
         .session_timeout(cfg.session_timeout())
+        .channel_lifetime(cfg.channel_lifetime())
+        // The library keep-alive (Read of Server_ServerStatus_State) is the session health probe;
+        // `drive` reacts to its failures. The library itself never acts on them
+        // (`max_failed_keep_alive_count` defaults to 0 = only log).
+        .keep_alive_interval(cfg.keepalive_interval())
         .request_timeout(cfg.write_timeout())
         .client()
         .map_err(|errs| OpcError::Config(format!("client config: {}", errs.join("; "))))
@@ -170,7 +187,7 @@ pub async fn connect(cfg: &OpcUaConfig) -> Result<Connection, OpcError> {
     let endpoint_url = matched.endpoint_url.as_ref().to_string();
 
     let (session, event_loop) = client.connect_to_endpoint_directly(matched, identity(cfg)).map_err(|e| OpcError::Config(format!("session setup: {e}")))?;
-    let mut handle = event_loop.spawn();
+    let mut handle = tokio::spawn(drive(event_loop, cfg.keepalive_fail_limit()));
 
     let connected = tokio::select! {
         ok = session.wait_for_connection() => Ok(ok),
@@ -188,7 +205,7 @@ pub async fn connect(cfg: &OpcUaConfig) -> Result<Connection, OpcError> {
         }
         Err(join) => {
             let code = match join {
-                Ok(code) => code,
+                Ok(LoopEnd::Closed(code) | LoopEnd::SessionDead { code, .. }) => code,
                 Err(e) => return Err(OpcError::Transport(format!("event loop panicked: {e}"))),
             };
             return Err(match auth_hint(code, &descriptions) {
@@ -201,9 +218,103 @@ pub async fn connect(cfg: &OpcUaConfig) -> Result<Connection, OpcError> {
     Ok(Connection { session, event_loop: handle, endpoints: descriptions, endpoint_url })
 }
 
+/// Status codes meaning "this session (or its channel) is gone on the server": reconnecting is the
+/// only way forward. Returned e.g. after a server restart / PLC download that keeps the TCP channel
+/// up, or when the server expired the session.
+pub fn is_session_dead(code: StatusCode) -> bool {
+    matches!(
+        code,
+        StatusCode::BadSessionIdInvalid
+            | StatusCode::BadSessionClosed
+            | StatusCode::BadSessionNotActivated
+            | StatusCode::BadSecureChannelIdInvalid
+            | StatusCode::BadSecureChannelClosed
+            | StatusCode::BadConnectionClosed
+            | StatusCode::BadNotConnected
+    )
+}
+
+fn is_timeout(code: StatusCode) -> bool {
+    matches!(code, StatusCode::BadTimeout | StatusCode::BadRequestTimeout)
+}
+
+/// Keep-alive bookkeeping: `Some(detail)` once the session is to be considered dead.
+#[derive(Debug, Default)]
+pub(crate) struct KeepAliveWatch {
+    timeouts: u32,
+}
+
+impl KeepAliveWatch {
+    pub(crate) fn observe(&mut self, activity: &SessionActivity, fail_limit: u32) -> Option<(StatusCode, String)> {
+        match activity {
+            SessionActivity::KeepAliveSucceeded => {
+                self.timeouts = 0;
+                None
+            }
+            SessionActivity::KeepAliveFailed(code) if is_session_dead(*code) => Some((*code, format!("keep-alive: {code}"))),
+            SessionActivity::KeepAliveFailed(code) if is_timeout(*code) => {
+                self.timeouts += 1;
+                (self.timeouts >= fail_limit.max(1)).then(|| (*code, format!("keep-alive timed out {} times in a row", self.timeouts)))
+            }
+            // Other failures (e.g. BadServerHalted: server state not Running) are left to the
+            // library's own warning; the session itself is still valid.
+            SessionActivity::KeepAliveFailed(_) => None,
+        }
+    }
+}
+
+/// Drive the library event loop ourselves instead of `SessionEventLoop::spawn()`: `spawn()` only
+/// ends when the transport closes, so a session the server invalidated behind a live channel was
+/// kept forever (every keep-alive logged `BadSessionIdInvalid`, state stayed Ready).
+async fn drive<T: opcua::client::transport::Connector + Send + Sync + 'static>(event_loop: SessionEventLoop<T>, fail_limit: u32) -> LoopEnd {
+    let stream = event_loop.enter();
+    tokio::pin!(stream);
+    let mut watch = KeepAliveWatch::default();
+    let mut connected = false;
+    loop {
+        match stream.next().await {
+            None => return LoopEnd::Closed(StatusCode::Good),
+            Some(Err(code)) => return LoopEnd::Closed(code),
+            Some(Ok(SessionPollResult::Reconnected(_))) => connected = true,
+            // The library would try to re-activate the session on a fresh channel by itself; the
+            // writer reconnects instead so the node map is re-verified and the state is published.
+            Some(Ok(SessionPollResult::ConnectionLost(code))) if connected => return LoopEnd::Closed(code),
+            Some(Ok(SessionPollResult::SessionActivity(a))) => {
+                if let Some((code, detail)) = watch.observe(&a, fail_limit) {
+                    return LoopEnd::SessionDead { code, detail };
+                }
+            }
+            Some(Ok(_)) => {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keepalive_watch_classifies() {
+        let mut w = KeepAliveWatch::default();
+        assert_eq!(w.observe(&SessionActivity::KeepAliveSucceeded, 2), None);
+        let dead = w.observe(&SessionActivity::KeepAliveFailed(StatusCode::BadSessionIdInvalid), 2).expect("dead");
+        assert_eq!(dead.0, StatusCode::BadSessionIdInvalid);
+        for c in [StatusCode::BadSessionClosed, StatusCode::BadSessionNotActivated, StatusCode::BadSecureChannelIdInvalid, StatusCode::BadConnectionClosed, StatusCode::BadNotConnected] {
+            assert!(w.observe(&SessionActivity::KeepAliveFailed(c), 2).is_some(), "{c}");
+        }
+        // Timeouts: K in a row; a success in between resets the count.
+        let mut w = KeepAliveWatch::default();
+        assert_eq!(w.observe(&SessionActivity::KeepAliveFailed(StatusCode::BadTimeout), 2), None);
+        assert_eq!(w.observe(&SessionActivity::KeepAliveSucceeded, 2), None);
+        assert_eq!(w.observe(&SessionActivity::KeepAliveFailed(StatusCode::BadTimeout), 2), None);
+        assert!(w.observe(&SessionActivity::KeepAliveFailed(StatusCode::BadTimeout), 2).is_some());
+        // Server not running is not a dead session.
+        let mut w = KeepAliveWatch::default();
+        for _ in 0..5 {
+            assert_eq!(w.observe(&SessionActivity::KeepAliveFailed(StatusCode::BadServerHalted), 2), None);
+        }
+        assert!(!is_session_dead(StatusCode::BadNotWritable));
+    }
 
     #[test]
     fn policy_names() {
