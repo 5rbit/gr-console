@@ -312,6 +312,8 @@ export const api = {
         robot: q.robot,
         state: Array.isArray(q.state) ? q.state.join(',') : q.state,
         type: q.type,
+        origin: q.origin,
+        since: q.since,
         q: q.q,
         limit: q.limit,
         offset: q.offset,

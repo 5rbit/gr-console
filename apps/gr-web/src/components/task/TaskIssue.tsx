@@ -50,6 +50,7 @@ import { LayoutSidePanel, type SideTab } from './LayoutSidePanel'
 import { LayoutTab, MAP_MODES, type MapMode } from './LayoutTab'
 import { PlanCard, type PlanMode } from './PlanCard'
 import { RAIL_KEY, RegistryRail, type RailTab } from './RegistryRail'
+import { TaskManagerCard } from './TaskManagerCard'
 
 const PLAN_KEY = 'gr-plan'
 const MODE_KEY = 'gr-cellmap-mode'
@@ -434,6 +435,7 @@ export default function TaskIssue() {
               onStationDraft={setStationDraft}
             />
           ) : (
+            <>
             <PlanCard
               steps={plan}
               onChange={setPlan}
@@ -473,6 +475,9 @@ export default function TaskIssue() {
                 />
               }
             />
+            {/* 작업 카드 아래 — Task Manager 원장(진행 · 히스토리), 고른 로봇 것만. */}
+            <TaskManagerCard />
+            </>
           )}
         </section>
       </div>

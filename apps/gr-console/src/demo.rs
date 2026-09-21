@@ -31,6 +31,36 @@ const GR_DBS: [&str; 11] = ["OPCUA", "TASK", "CELL", "STATION", "PARA", "ALARM",
 const GRM_DBS: [&str; 4] = ["OPCUA", "STATION", "CELL", "MACHINE"];
 /// Tables a client may write over S7: absorbed back into the model (see `encode_models`).
 const ABSORB: [&str; 3] = ["CELL", "STATION", "LASERDIAG"];
+/// Period (ms) of the demo's stand-in for the GCS Task Manager: every period each idle robot gets one task written
+/// straight into its command path (not through the console), so the ledger sees `origin = external` tasks run to
+/// completion. Unset / unparsable / below 1000 ms = off (the default — other demo users see no surprise tasks).
+pub const DEMO_GCS_ENV: &str = "GR_DEMO_GCS_MS";
+/// Header `SRC` of the stand-in GCS (the console uses its own configured SRC).
+const GCS_SRC: u16 = 1000;
+/// Work ids of stand-in GCS tasks start here, far from console work ids.
+const GCS_WORK_BASE: u32 = 90_000;
+
+/// `GR_DEMO_GCS_MS` → feeder period.
+fn gcs_period(v: Option<&str>) -> Option<Duration> {
+    let ms: u64 = v?.trim().parse().ok()?;
+    (ms >= 1000).then(|| Duration::from_millis(ms))
+}
+
+/// The n-th stand-in GCS task: PICK / DROP alternating over the sample cells, one tire.
+fn gcs_task(n: u32) -> TaskData {
+    let i = (n as usize / 2) % 12;
+    let cell = sample_cell(101 + i as u16, i);
+    let pick = n.is_multiple_of(2);
+    TaskData {
+        work_id: GCS_WORK_BASE + n,
+        task_id: 1,
+        task_type: if pick { TaskType::Pick.code() } else { TaskType::Drop.code() },
+        position: [cell.position[0], cell.position[1], cell.position[2] + 480.0, 300.0],
+        item: StockItem { code: 1001, count: 1, inner_diameter: 381.0, outer_diameter: 780.0, height: 240.0, ..Default::default() },
+        cell,
+        ..Default::default()
+    }
+}
 
 /// One robot of the demo: its status PLC and where it sits behind GRM.
 #[derive(Clone)]
@@ -386,6 +416,18 @@ impl DemoWorld {
                 w.tick();
             }
         });
+        if let Some(period) = gcs_period(std::env::var(DEMO_GCS_ENV).ok().as_deref()) {
+            let w = world.clone();
+            tokio::spawn(async move {
+                let mut n = 0_u32;
+                let mut iv = tokio::time::interval(period);
+                iv.tick().await;
+                loop {
+                    iv.tick().await;
+                    n += w.gcs_feed(n);
+                }
+            });
+        }
         Ok(world)
     }
 
@@ -510,6 +552,23 @@ impl DemoWorld {
     pub fn queue_keys(&self, dst: u16) -> Vec<TaskKey> {
         let g = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
         g.sides[side_index(&g.sides, dst)].queue.iter().map(|t| t.key()).collect()
+    }
+
+    /// Stand-in GCS Task Manager: gives every idle robot (no pending command, fewer than two queued) the next task
+    /// `gcs_task(n..)`. A command the console writes later in the same tick simply replaces it (never the reverse —
+    /// a pending console command is left alone). Returns how many tasks were handed out.
+    pub fn gcs_feed(&self, n: u32) -> u32 {
+        let mut g = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
+        let idle: Vec<usize> = g.sides.iter().enumerate().filter(|(_, s)| s.pending.is_none() && s.queue.len() < 2).map(|(i, _)| i).collect();
+        let mut k = 0;
+        for i in idle {
+            let task = gcs_task(n + k);
+            let dst = g.sides[i].dst;
+            let h = Self::next_header(&mut g, task.task_type, GCS_SRC, dst, 1);
+            g.sides[i].pending = Some((h, task));
+            k += 1;
+        }
+        k
     }
 }
 
@@ -1138,5 +1197,42 @@ mod two_robot_tests {
         assert!(ok, "unknown DST lands on the first robot");
         assert_eq!(world.robot_get("GR1", "OPCUA", "/STAT/RES/Data/0").as_u64().unwrap_or(0) & 0x01, 1, "rejected as wrong robot");
         assert_eq!(world.grm_opcua_get("/GR/1/STAT/ComponentID"), json!(4002));
+    }
+
+    #[test]
+    fn gcs_period_is_off_unless_a_sane_period_is_set() {
+        assert_eq!(gcs_period(None), None);
+        assert_eq!(gcs_period(Some("")), None);
+        assert_eq!(gcs_period(Some("abc")), None);
+        assert_eq!(gcs_period(Some("500")), None, "too fast");
+        assert_eq!(gcs_period(Some(" 20000 ")), Some(Duration::from_millis(20_000)));
+    }
+
+    #[test]
+    fn gcs_tasks_alternate_pick_drop_on_known_cells() {
+        let (a, b) = (gcs_task(0), gcs_task(1));
+        assert_eq!((a.task_type, b.task_type), (TaskType::Pick.code(), TaskType::Drop.code()));
+        assert_eq!((a.work_id, b.work_id), (GCS_WORK_BASE, GCS_WORK_BASE + 1));
+        assert_eq!(a.cell.id, 101);
+        assert_eq!(gcs_task(25).cell.id, 101, "wraps over the 12 sample cells");
+        assert!(a.item.code != 0);
+    }
+
+    /// The stand-in GCS hands each idle robot one task, which the robot accepts, runs and pushes to `Completed`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn gcs_feed_tasks_run_to_the_completed_ring() {
+        let robots = vec![DemoRobot { plc_name: "GR2".into(), contract: contract("GR2_PLC"), dst: 4002, gr_index: 1, machine_id: 2 }];
+        let world = DemoWorld::start(robots, contract("GRM_PLC"), 50).await.expect("world");
+        assert_eq!(world.gcs_feed(0), 1);
+        assert_eq!(world.gcs_feed(1), 0, "pending command blocks the next one");
+        let mut done = false;
+        for _ in 0..200 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            done = world.robot_get("GR2", "OPCUA", "/STAT/Task/Completed/0/WorkId") == json!(GCS_WORK_BASE);
+            if done {
+                break;
+            }
+        }
+        assert!(done, "GCS task completed on GR2");
     }
 }
