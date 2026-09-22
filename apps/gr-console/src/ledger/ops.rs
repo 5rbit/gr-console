@@ -89,7 +89,8 @@ pub fn gate(st: &AppState, r: &RobotCtx) -> Gate {
                 if !v.task.queue.iter().any(|t| t.is_zero()) {
                     reasons.push("태스크 버퍼 가득 참".into());
                 }
-                if !v.mode.auto && !v.mode.auto_ready && !st.cfg.demo {
+                // Task 제출 = Accept + AUTO (READY 는 Start 전 — 운전 명령과 달리 Task 는 AUTO 에서만, 2026-09-22)
+                if !v.mode.auto && !st.cfg.demo {
                     reasons.push("AUTO 모드가 아님".into());
                 }
             } else {

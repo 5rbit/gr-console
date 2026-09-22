@@ -97,16 +97,22 @@ pub struct StockItem {
     #[serde(rename = "Count")]
     pub count: u8,
     #[serde(rename = "InnerDiameter")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub inner_diameter: f32,
     #[serde(rename = "OuterDiameter")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub outer_diameter: f32,
     #[serde(rename = "LowerBidHeight")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub lower_bid_height: f32,
     #[serde(rename = "UpperBidHeight")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub upper_bid_height: f32,
     #[serde(rename = "Height")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub height: f32,
     #[serde(rename = "DeflectionFactor")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub deflection_factor: f32,
 }
 
@@ -126,11 +132,14 @@ pub struct CellInfo {
     #[serde(rename = "Col")]
     pub col: u16,
     #[serde(rename = "Lenth")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub length: f32,
     #[serde(rename = "Width")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub width: f32,
     /// X, Y, Z
     #[serde(rename = "Position")]
+    #[serde(deserialize_with = "crate::nan::arr")]
     pub position: [f32; 3],
 }
 
@@ -151,6 +160,7 @@ pub struct TaskData {
     pub task_type: u8,
     /// X, Y, Z, G
     #[serde(rename = "Position")]
+    #[serde(deserialize_with = "crate::nan::arr")]
     pub position: [f32; 4],
     #[serde(rename = "Item")]
     pub item: StockItem,

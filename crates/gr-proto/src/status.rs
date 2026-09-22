@@ -179,16 +179,22 @@ pub struct DriveView {
     #[serde(rename = "OpMode")]
     pub op_mode: u16,
     #[serde(rename = "Speed")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub speed: f32,
     #[serde(rename = "Torque")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub torque: f32,
     #[serde(rename = "Position")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub position: f32,
     #[serde(rename = "JerkTime")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub jerk_time: f32,
     #[serde(rename = "TorqLimit")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub torq_limit: f32,
     #[serde(rename = "StartPos")]
+    #[serde(deserialize_with = "crate::nan::f32")]
     pub start_pos: f32,
     #[serde(rename = "Direction")]
     pub direction: i16,

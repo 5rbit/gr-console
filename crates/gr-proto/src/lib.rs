@@ -3,6 +3,7 @@
 
 pub mod consts;
 pub mod measure;
+mod nan;
 pub mod params;
 pub mod station;
 pub mod status;
