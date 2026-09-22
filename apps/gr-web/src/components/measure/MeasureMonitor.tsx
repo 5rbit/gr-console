@@ -20,7 +20,7 @@ import { robots } from '../../lib/robots'
 import { KIND } from '../../lib/gr/const'
 import { csvFileName, downloadCsv, toCsv } from '../../lib/meas/csv'
 import { dtl } from '../../lib/meas/format'
-import { codesOf, filt, flatten } from '../../lib/meas/rows'
+import { codesOf, filt, flatten, totalOf } from '../../lib/meas/rows'
 import { measlog } from '../../lib/measlog'
 import { nav } from '../../lib/nav'
 import { useStore } from '../../lib/store'
@@ -111,10 +111,13 @@ const NEEDS_WEBMON: readonly Sub[] = ['live', 'task', 'axis']
 export default function MeasureMonitor() {
   const statusFeed = useSelectedStatus()
   useStore(measlog)
-  useEffect(() => measlog.start(), [])
   const [sub, setSub] = useState<Sub>(loadSub)
   const [kind, setKindState] = useState(() => loadFilter().kind)
   const [code, setCodeState] = useState(() => loadFilter().code)
+  // 필터는 백엔드에서 건다 — 최근 N 건을 받고 거르면 PICK 에 밀려 Item·SKU 가 거의 안 남는다.
+  // start 보다 먼저 걸어야 첫 요청부터 필터가 붙는다(effect 는 선언 순서대로 돈다).
+  useEffect(() => measlog.setFilter(Number(kind || 0), Number(code || 0)), [kind, code])
+  useEffect(() => measlog.start(), [])
   const [selected, setSelected] = useState<number | null>(null)
   const [raw, setRaw] = useState<string | null>(null)
 
@@ -169,16 +172,18 @@ export default function MeasureMonitor() {
     {
       label: '필터 지우기',
       disabled: hasFilter ? undefined : '걸린 필터가 없습니다',
-      run: () => {
-        // 둘을 한 번에 — `setKind('')` → `setCode('')` 로 부르면 두 번째가 **한 렌더 전의** kind 를
-        // 들고 저장해 지운 필터가 되살아난다.
-        setKindState('')
-        setCodeState('')
-        saveFilter('', '')
-      },
+      run: () => clearFilter(),
     },
     { label: '원본 JSON…', run: () => setRaw('webmon') },
   ]
+
+  function clearFilter() {
+    // 둘을 한 번에 — `setKind('')` → `setCode('')` 로 부르면 두 번째가 **한 렌더 전의** kind 를
+    // 들고 저장해 지운 필터가 되살아난다.
+    setKindState('')
+    setCodeState('')
+    saveFilter('', '')
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="screen-measure">
@@ -261,13 +266,17 @@ export default function MeasureMonitor() {
         {sub === 'hist' ? (
           <Records
             rows={filtered}
-            allCount={rows.length}
+            allCount={totalOf(snap, kind, code) ?? rows.length}
             snap={snap}
             kind={kind}
             selected={selected}
             onSelect={setSelected}
             onPickCode={(c) => setCode(String(c))}
             filtered={hasFilter}
+            filterLabel={[kind && `Kind ${KIND[Number(kind)] ?? kind}`, code && `Code ${code}`]
+              .filter(Boolean)
+              .join(' · ')}
+            onClearFilter={clearFilter}
           />
         ) : null}
         {sub === 'rec' ? <Recorder /> : null}

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { MeasLogEntry, PlcTask } from '../types'
+import type { ByCode, MeasLogEntry, MeasLogSnapshot, MeasStat, PlcTask } from '../types'
 import { CSV_COLUMNS, toCsv } from './csv'
 import { METRICS } from './const'
 import { f1, f2, flagStr, tt } from './format'
-import { codesOf, filt, flatten, summary } from './rows'
+import { codesOf, filt, flatten, summary, totalOf } from './rows'
 import { ema, nearest, stats, trendPoints } from './trend'
 
 function task(over: Partial<PlcTask> = {}): PlcTask {
@@ -12,18 +12,71 @@ function task(over: Partial<PlcTask> = {}): PlcTask {
     TaskId: 2,
     TaskType: 0x41,
     Position: [12000, 3000, 1980, 300],
-    Item: { Code: 1001, Count: 3, InnerDiameter: 381, OuterDiameter: 780, LowerBidHeight: 20, UpperBidHeight: 220, Height: 240, DeflectionFactor: 0 },
-    Cell: { Use: true, BlendUse: false, Id: 101, Section: 2, Row: 1, Col: 1, Lenth: 1200, Width: 1200, Position: [12000, 3000, 1500] },
-    BlendUpDistance: 300, BlendDownDistance: 300, DragOutHeight: 0, DragOutDist: 0, DragOutDir: 0, DragInHeight: 0, DragInDist: 0, DragInDir: 0,
-    LiftUpCreepDistance: 30, LiftDownCreepDistance: 30, LiftUpHeight: 2500, PreGripDelta: 10, GripBackDelta: 5, GripHeight: 40,
-    UseDragOut: false, UseDragIn: false, LiftUpAfterComplete: true, LiftUpPartial: false, MeasureFloor: false, MeasureItem: true, MeasureSku: false,
-    AdjustCenter: false, FindStationItem: false, Avoid: false, Outbound: false,
+    Item: {
+      Code: 1001,
+      Count: 3,
+      InnerDiameter: 381,
+      OuterDiameter: 780,
+      LowerBidHeight: 20,
+      UpperBidHeight: 220,
+      Height: 240,
+      DeflectionFactor: 0,
+    },
+    Cell: {
+      Use: true,
+      BlendUse: false,
+      Id: 101,
+      Section: 2,
+      Row: 1,
+      Col: 1,
+      Lenth: 1200,
+      Width: 1200,
+      Position: [12000, 3000, 1500],
+    },
+    BlendUpDistance: 300,
+    BlendDownDistance: 300,
+    DragOutHeight: 0,
+    DragOutDist: 0,
+    DragOutDir: 0,
+    DragInHeight: 0,
+    DragInDist: 0,
+    DragInDir: 0,
+    LiftUpCreepDistance: 30,
+    LiftDownCreepDistance: 30,
+    LiftUpHeight: 2500,
+    PreGripDelta: 10,
+    GripBackDelta: 5,
+    GripHeight: 40,
+    UseDragOut: false,
+    UseDragIn: false,
+    LiftUpAfterComplete: true,
+    LiftUpPartial: false,
+    MeasureFloor: false,
+    MeasureItem: true,
+    MeasureSku: false,
+    AdjustCenter: false,
+    FindStationItem: false,
+    Avoid: false,
+    Outbound: false,
     ...over,
   }
 }
 
-function entry(seq: number, kind: number, data: number[], delta = { InnerDia: 1.5, Height: 0, Z: 2, Offset: 0.5, Count: 0 }): MeasLogEntry {
-  return { TimeStamp: '2026-09-12 10:00:00.000', Seq: seq, Kind: kind, Status: 2, Cmd: task(), Data: data, Delta: delta }
+function entry(
+  seq: number,
+  kind: number,
+  data: number[],
+  delta = { InnerDia: 1.5, Height: 0, Z: 2, Offset: 0.5, Count: 0 },
+): MeasLogEntry {
+  return {
+    TimeStamp: '2026-09-12 10:00:00.000',
+    Seq: seq,
+    Kind: kind,
+    Status: 2,
+    Cmd: task(),
+    Data: data,
+    Delta: delta,
+  }
 }
 
 describe('rows', () => {
@@ -59,7 +112,11 @@ describe('format', () => {
 
 describe('trend', () => {
   it('builds points oldest first and drops zero deltas for common metrics', () => {
-    const rows = flatten([entry(3, 1, [], { InnerDia: 0, Height: 0, Z: 0, Offset: 0, Count: 0 }), entry(2, 1, []), entry(1, 1, [])])
+    const rows = flatten([
+      entry(3, 1, [], { InnerDia: 0, Height: 0, Z: 0, Offset: 0, Count: 0 }),
+      entry(2, 1, []),
+      entry(1, 1, []),
+    ])
     const m = METRICS.find((x) => x.id === 'dInnerDia')!
     const pts = trendPoints(rows, m)
     expect(pts.map((p) => p.x)).toEqual([1, 2])
@@ -81,5 +138,25 @@ describe('csv', () => {
     expect(lines[0].split(',').length).toBe(CSV_COLUMNS.length + 20)
     expect(lines[1].split(',').length).toBe(CSV_COLUMNS.length + 20)
     expect(lines[1]).toContain('381')
+  })
+})
+
+describe('totalOf', () => {
+  const st = (n: number) => ({ Count: n }) as MeasStat
+  const snap = {
+    total: 599,
+    stat: [st(378), st(16), st(0), st(202), st(0)],
+    by_code: [{ Code: 2011, Count: 93, Stat: [st(18), st(13), st(0), st(62), st(0)] } as ByCode],
+  } as MeasLogSnapshot
+  it('Kind · Code 조합마다 PLC 누적 수를 고른다', () => {
+    expect(totalOf(snap, '', '')).toBe(599)
+    expect(totalOf(snap, '1', '')).toBe(378)
+    expect(totalOf(snap, '2', '')).toBe(16)
+    expect(totalOf(snap, '', '2011')).toBe(93)
+    expect(totalOf(snap, '2', '2011')).toBe(13)
+  })
+  it('슬롯이 없거나 스냅샷이 없으면 null', () => {
+    expect(totalOf(snap, '', '9999')).toBeNull()
+    expect(totalOf(null, '', '')).toBeNull()
   })
 })

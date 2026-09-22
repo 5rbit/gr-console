@@ -5,6 +5,7 @@
 // 걸리나"를 매번 다시 확인해야 했다. 보기 전환은 세그먼트 하나이고 **마지막에 본 보기를 기억한다** —
 // 같은 일을 하러 다시 들어온 사람에게 같은 질문을 두 번 하지 않는다.
 import { useState } from 'react'
+import { Button } from '../../lib/ui/Button'
 import { Segmented } from '../../lib/ui/Segmented'
 import type { MeasRow } from '../../lib/meas/rows'
 import type { MeasLogSnapshot } from '../../lib/types'
@@ -38,6 +39,8 @@ export function Records({
   onSelect,
   onPickCode,
   filtered,
+  filterLabel,
+  onClearFilter,
 }: {
   rows: MeasRow[]
   allCount: number
@@ -47,6 +50,9 @@ export function Records({
   onSelect: (seq: number | null) => void
   onPickCode: (code: number) => void
   filtered: boolean
+  /** 걸린 필터 요약('Code 1500') — 필터는 기억되고 집계 행 클릭으로도 걸리므로 늘 보여 준다. */
+  filterLabel: string
+  onClearFilter: () => void
 }) {
   const [view, setView] = useState<RecordsView>(loadView)
 
@@ -62,17 +68,30 @@ export function Records({
   return (
     // 보기 셋이 **남는 높이를 나눠 쓴다** — 표의 높이를 뷰포트 비율로 잡으면 도킹 존에서 어긋난다.
     <div className="flex h-full min-h-0 flex-col gap-2">
-      <Segmented
-        value={view}
-        onChange={go}
-        options={VIEWS.map((v) => ({
-          id: v.id,
-          label: v.label,
-          testid: `measure-records-${v.id}`,
-          badge: v.id === 'table' ? String(rows.length) : undefined,
-        }))}
-        ariaLabel="기록 보기"
-      />
+      <div className="flex flex-none flex-wrap items-center gap-3">
+        <Segmented
+          value={view}
+          onChange={go}
+          options={VIEWS.map((v) => ({
+            id: v.id,
+            label: v.label,
+            testid: `measure-records-${v.id}`,
+            badge: v.id === 'table' ? String(rows.length) : undefined,
+          }))}
+          ariaLabel="기록 보기"
+        />
+        {filtered ? (
+          <span
+            className="flex items-center gap-2 text-xs text-content-muted"
+            data-testid="measure-records-filter"
+          >
+            <span>필터 {filterLabel}</span>
+            <Button size="sm" onClick={onClearFilter}>
+              필터 지우기
+            </Button>
+          </span>
+        ) : null}
+      </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {view === 'table' ? (
           <History

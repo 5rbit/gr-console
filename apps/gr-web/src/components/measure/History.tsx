@@ -3,7 +3,7 @@
 // 통계 카드 여덟 개(Total · Count · 표시 · 종류 다섯)를 걷어 냈다. 누적·버퍼는 화면 머리 숫자 띠가
 // 항상 말하고 있고, 종류별 건수는 집계 보기의 표에 같은 값이 더 자세히 있다. 남은 "표시 N / 전체 M"
 // 하나만 표 머리줄로 옮겼다 — 필터 때문에 비었는지 정말 없는지는 그 자리에서 읽혀야 한다.
-import { DATA_LABEL } from '../../lib/meas/const'
+import { dataLines, type DataLine } from '../../lib/meas/dataFields'
 import { delta, pos, tt } from '../../lib/meas/format'
 import { summary, type MeasRow } from '../../lib/meas/rows'
 import { Card } from '../../lib/ui/Card'
@@ -14,18 +14,24 @@ import type { Column } from '../../lib/ui/table'
 import { Section } from '../../lib/ui/Section'
 import { KvTable, TaskKv } from './helpers'
 
-/** 고른 기록의 `Data[0..19]` 한 줄 — 인덱스·라벨·값. */
-interface DataRow {
-  i: number
-  label: string
-  value: number
-}
-
-// 값은 **편차 규칙(2자리)** 을 따른다 — 같은 화면의 Delta 열이 2자리인데 여기만 3자리였다.
-const DATA_COLS: Column<DataRow>[] = [
+// 값은 항목마다 형식이 다르다(`dataFields`) — 길이는 mm 2자리(편차 규칙), 단수는 정수, 상태·진단 비트는
+// 이름으로. 전에는 전부 "Value (mm)" 2자리라 Status 10 · DiagFlags 257 이 길이처럼 보였다. 원래 값은 툴팁에.
+const DATA_COLS: Column<DataLine>[] = [
   { key: 'i', label: 'Idx', get: (r) => r.i, numeric: true, priority: 1 },
   { key: 'label', label: 'Label', get: (r) => r.label, priority: 1 },
-  { key: 'v', label: 'Value (mm)', get: (r) => r.value, cell: (r) => delta(r.value), numeric: true, priority: 1 },
+  {
+    key: 'v',
+    label: 'Value',
+    get: (r) => r.value,
+    cell: (r) => (
+      <span className={r.bad ? 'text-fault-fg' : undefined} title={`Data[${r.i}] = ${r.value}`}>
+        {r.text}
+      </span>
+    ),
+    numeric: true,
+    priority: 1,
+  },
+  { key: 'unit', label: 'Unit', get: (r) => r.unit, priority: 2 },
 ]
 
 // 측정 종류 다섯을 **구분**하는 색 — 상태(판정)가 아니라 종류 축이라 상태 여섯의 fg 토큰을 빌려
@@ -74,16 +80,54 @@ const COLS: Column<MeasRow>[] = [
   },
   { key: 'cell', label: 'Cell', get: (r) => r.cellId, numeric: true, priority: 2 },
   { key: 'code', label: 'Code', get: (r) => r.code, numeric: true, priority: 2 },
-  { key: 'cmdId', label: 'Cmd.InnerDiameter (mm)', get: (r) => pos(r.cmdId), numeric: true, priority: 3 },
-  { key: 'cmdH', label: 'Cmd.Height (mm)', get: (r) => pos(r.cmdHeight), numeric: true, priority: 3 },
+  {
+    key: 'cmdId',
+    label: 'Cmd.InnerDiameter (mm)',
+    get: (r) => pos(r.cmdId),
+    numeric: true,
+    priority: 3,
+  },
+  {
+    key: 'cmdH',
+    label: 'Cmd.Height (mm)',
+    get: (r) => pos(r.cmdHeight),
+    numeric: true,
+    priority: 3,
+  },
   { key: 'cnt', label: 'Cmd.Count', get: (r) => r.cmdCount, numeric: true, priority: 3 },
   { key: 'zrel', label: 'CmdZRel (mm)', get: (r) => pos(r.cmdZRel), numeric: true, priority: 3 },
   { key: 'sum', label: 'Summary', get: (r) => summary(r), priority: 2 },
-  { key: 'dId', label: 'Delta.InnerDia (mm)', get: (r) => delta(r.dInnerDia), numeric: true, priority: 3 },
-  { key: 'dH', label: 'Delta.Height (mm)', get: (r) => delta(r.dHeight), numeric: true, priority: 3 },
+  {
+    key: 'dId',
+    label: 'Delta.InnerDia (mm)',
+    get: (r) => delta(r.dInnerDia),
+    numeric: true,
+    priority: 3,
+  },
+  {
+    key: 'dH',
+    label: 'Delta.Height (mm)',
+    get: (r) => delta(r.dHeight),
+    numeric: true,
+    priority: 3,
+  },
   { key: 'dZ', label: 'Delta.Z (mm)', get: (r) => delta(r.dZ), numeric: true, priority: 3 },
-  { key: 'dOff', label: 'Delta.Offset (mm)', get: (r) => delta(r.dOffset), numeric: true, priority: 3 },
+  {
+    key: 'dOff',
+    label: 'Delta.Offset (mm)',
+    get: (r) => delta(r.dOffset),
+    numeric: true,
+    priority: 3,
+  },
 ]
+
+/** 단수 편차 — SKU 는 명령·측정 단수를 같이 보여 준다(불일치 판단이 바로 되게). */
+function countDelta(r: MeasRow): string {
+  const d = Math.round(r.dCount)
+  const sign = d > 0 ? '+' : ''
+  if (r.kind !== 2) return `${sign}${d} 단`
+  return `${sign}${d} 단 (명령 ${r.cmdCount} · 측정 ${Math.round(Number(r.data[17] ?? 0))})`
+}
 
 export function History({
   rows,
@@ -100,11 +144,7 @@ export function History({
   filtered: boolean
 }) {
   const sel = rows.find((r) => r.seq === selected) ?? null
-  const dataRows: DataRow[] = sel
-    ? sel.data
-        .map((v, i) => ({ i, label: DATA_LABEL[sel.kind]?.[i] || 'Reserved', value: Number(v) }))
-        .filter((r) => r.value || r.label !== 'Reserved')
-    : []
+  const dataRows: DataLine[] = sel ? dataLines(sel.kind, sel.data) : []
   return (
     // 도킹 존 안에서도 표가 **남는 높이를 먹는다** — 뷰포트 비율(`max-h-[62vh]`)로 잡아 두면
     // 존이 화면의 3분의 1일 때 표가 존 밖으로 넘치고, 존이 전체 화면일 때는 아래가 비었다.
@@ -135,11 +175,7 @@ export function History({
       <Card className="min-h-0 overflow-auto">
         {sel ? (
           <>
-            <Section
-              title={`#${sel.seq} ${sel.kindName} ${sel.statusName}`}
-              right={sel.time}
-              first
-            >
+            <Section title={`#${sel.seq} ${sel.kindName} ${sel.statusName}`} right={sel.time} first>
               <TaskKv t={sel.cmd} />
             </Section>
             <Section title="Data" right={`${dataRows.length} 줄`}>
@@ -155,21 +191,18 @@ export function History({
               <KvTable
                 labelWidth={116}
                 rows={[
-                  [
-                    'InnerDia / Height (mm)',
-                    `${delta(sel.dInnerDia)} / ${delta(sel.dHeight)}`,
-                  ],
-                  [
-                    'Z / Offset (mm)',
-                    `${delta(sel.dZ)} / ${delta(sel.dOffset)}`,
-                  ],
-                  ['Count', delta(sel.dCount)],
+                  ['InnerDia / Height (mm)', `${delta(sel.dInnerDia)} / ${delta(sel.dHeight)}`],
+                  ['Z / Offset (mm)', `${delta(sel.dZ)} / ${delta(sel.dOffset)}`],
+                  ['Count', countDelta(sel)],
                 ]}
               />
             </Section>
           </>
         ) : (
-          <EmptyState title="기록을 고르세요" hint="왼쪽 표의 행을 누르면 명령·Data·Δ 가 여기 섭니다." />
+          <EmptyState
+            title="기록을 고르세요"
+            hint="왼쪽 표의 행을 누르면 명령·Data·Δ 가 여기 섭니다."
+          />
         )}
       </Card>
     </div>

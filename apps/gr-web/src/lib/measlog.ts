@@ -4,6 +4,10 @@
 // 다시 받는다(폴링 없음). 축 위치 이력(`axisHist`)은 상태 메시지마다 링에 쌓는다(축 4개 × 300점).
 // 로봇 선택이 바뀌면 모두 비우고 새 로봇 피드로 갈아탄 뒤 다시 받는다 — 옛 로봇 응답이 늦게 도착해도
 // 세대(`#gen`)가 달라 버린다(GR1 표에 GR2 값이 섞이지 않게).
+//
+// 항목은 **화면의 Kind·Code 필터를 걸어서** 받는다(`setFilter`). 전에는 필터 없이 최근 200 건만 받아
+// 화면에서 걸렀는데, PICK 기록이 대부분이라(최근 200 건 중 Item 43 · Sku 9 — 전체는 378 · 16) Item·SKU
+// 이력과 추세가 거의 비어 보였다.
 import { api } from './api'
 import { statusFeedFor } from './feeds'
 import { robots } from './robots'
@@ -27,6 +31,9 @@ class MeasLog extends Store {
   #refs = 0
   /** 지금 따라가는 로봇(`undefined` = 아직 붙지 않음, `null` = 기본 로봇). */
   #robot: number | null | undefined = undefined
+  /** 항목 필터(0 = 전체) — 백엔드에서 거른 뒤 최근 `ENTRIES_LIMIT` 건을 받는다. */
+  #kind = 0
+  #code = 0
   #gen = 0
   #release: (() => void) | null = null
   #off: (() => void) | null = null
@@ -65,7 +72,13 @@ class MeasLog extends Store {
     try {
       const [snap, ent] = await Promise.all([
         api.measlogSnapshot(robot),
-        api.measlogEntries(undefined, undefined, undefined, ENTRIES_LIMIT, robot),
+        api.measlogEntries(
+          undefined,
+          this.#kind || undefined,
+          this.#code || undefined,
+          ENTRIES_LIMIT,
+          robot,
+        ),
       ])
       if (gen !== this.#gen) return
       this.#snapshot = snap
@@ -78,6 +91,16 @@ class MeasLog extends Store {
     }
     this.#loading = false
     this.notify()
+  }
+
+  /** Kind·Code 필터(0 = 전체)를 바꾸고 다시 받는다 — 같으면 아무것도 안 함. 늦게 온 옛 필터 응답은 세대로 버린다. */
+  setFilter(kind: number, code: number): void {
+    if (kind === this.#kind && code === this.#code) return
+    this.#kind = kind
+    this.#code = code
+    if (this.#robot === undefined) return // 아직 붙지 않음 — 붙을 때 이 필터로 받는다
+    this.#gen++
+    void this.refetch()
   }
 
   /** 다시 읽기 — `full`이면 백엔드가 PLC에서 로그 전체를 다시 긁은 뒤 받는다. */

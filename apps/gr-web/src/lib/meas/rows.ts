@@ -1,6 +1,6 @@
 // 측정 로그 항목 → 표 행 평탄화(GrWeb `flatten/filt/summary/codesOf` 이식). 순수 함수 — 테스트 대상.
 import { KIND, STATUS } from '../gr/const'
-import type { ByCode, MeasLogEntry, PlcTask } from '../types'
+import type { ByCode, MeasLogEntry, MeasLogSnapshot, PlcTask } from '../types'
 import { dtl, f1, flagStr } from './format'
 
 export interface MeasRow {
@@ -120,4 +120,22 @@ export function codesOf(byCode: readonly ByCode[] | undefined, rows: readonly Me
   for (const b of byCode ?? []) if (b.Code) set.add(b.Code)
   for (const r of rows) if (r.code) set.add(r.code)
   return [...set].sort((a, b) => a - b)
+}
+
+/**
+ * 필터에 맞는 **전체** 기록 수(PLC 누적) — 표는 최근 N 건만 받으므로 "보이는 수 / 전체" 의 분모.
+ * Kind 는 `Stat[Kind-1]`, Code 는 `ByCode` 슬롯에서 센다. 슬롯이 없으면(순환 교체로 밀림) `null`.
+ */
+export function totalOf(
+  snap: MeasLogSnapshot | null,
+  kind: string | number,
+  code: string | number,
+): number | null {
+  if (!snap) return null
+  const k = Number(kind || 0)
+  const c = Number(code || 0)
+  if (!c) return k ? (snap.stat?.[k - 1]?.Count ?? null) : snap.total
+  const slot = snap.by_code?.find((b) => b.Code === c)
+  if (!slot) return null
+  return k ? (slot.Stat?.[k - 1]?.Count ?? null) : slot.Count
 }
