@@ -376,7 +376,9 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
     if (s.item_code === null && (s.type === 'PICK' || s.type === 'DROP' || s.type === 'MEASURE'))
       warnings.push('품목 없음')
     const h = item?.height ?? null
-    const st = cell ? (sim.get(cell.id) ?? { item_code: 0, count: 0 }) : null
+    // 셀·스테이션 모두 재고를 본다(같은 id 공간) — 스테이션 위 멀티 PICK/DROP 도 기존 타이어 위로 쌓는다.
+    const tgtId = cell ? cell.id : station ? station.id : null
+    const st = tgtId !== null ? (sim.get(tgtId) ?? { item_code: 0, count: 0 }) : null
     const n = st ? st.count : 0
     const measureMode =
       s.type === 'MEASURE' ? (s.measure ?? autoMeasureMode(st ? st.count : null)) : undefined
@@ -399,11 +401,12 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
       const sku = measureMode === 'sku' && n > 0
       z = planZ(s.type, floor, item, sku ? 'mid' : (ctx.gripRef ?? 'mid'), n, sku ? n : s.count).z
     }
-    if (cell && s.type !== 'MOVE') {
-      if ((s.type === 'PICK' || s.type === 'MEASURE') && n === 0) warnings.push('셀 재고 없음')
+    if (st && s.type !== 'MOVE') {
+      if ((s.type === 'PICK' || s.type === 'MEASURE') && n === 0)
+        warnings.push(`${cell ? '셀' : '스테이션'} 재고 없음`)
       else if (s.type === 'PICK' && n < s.count) warnings.push(`재고 ${n} < 수량 ${s.count}`)
       if (n > 0 && st!.item_code && s.item_code !== null && st!.item_code !== s.item_code)
-        warnings.push(`셀 품목 ${st!.item_code} ≠ ${s.item_code}`)
+        warnings.push(`${cell ? '셀' : '스테이션'} 품목 ${st!.item_code} ≠ ${s.item_code}`)
     }
     if (s.type === 'DROP' && !carry) warnings.push('들고 있는 화물 없음 (앞에 PICK 없음)')
     if (s.type === 'PICK' && carry) warnings.push('이미 들고 있음 (앞의 PICK 미완)')
@@ -417,12 +420,12 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
       warnings.push(`들고 있는 품목 ${carry.item_code} ≠ ${s.item_code}`)
     const before = st ? st.count : null
     // 적용
-    if (cell && st) {
+    if (tgtId !== null && st) {
       if (s.type === 'PICK') {
         const left = Math.max(st.count - s.count, 0)
-        sim.set(cell.id, { item_code: left === 0 ? 0 : st.item_code, count: left })
+        sim.set(tgtId, { item_code: left === 0 ? 0 : st.item_code, count: left })
       } else if (s.type === 'DROP') {
-        sim.set(cell.id, { item_code: s.item_code ?? st.item_code, count: st.count + s.count })
+        sim.set(tgtId, { item_code: s.item_code ?? st.item_code, count: st.count + s.count })
       }
     }
     if (s.type === 'PICK') carry = { item_code: s.item_code, count: s.count }
@@ -433,7 +436,7 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
       ...(measureMode ? { measureMode } : {}),
       no: i + 1,
       stockBefore: before,
-      stockAfter: cell ? (sim.get(cell.id)?.count ?? null) : null,
+      stockAfter: tgtId !== null ? (sim.get(tgtId)?.count ?? null) : null,
       z,
       floor,
       height: h,
