@@ -31,11 +31,17 @@ describe('robotCommandModel', () => {
     }
   })
 
-  it('blocks Start when already AUTO', () => {
+  it('allows Start in READY only, Stop always (mode only — not Task.Accept)', () => {
     const r = { cmd_ready: true, cmd_error: null }
-    expect(robotActionDisabled('start', r, 'AUTO')).toBe('이미 AUTO')
     expect(robotActionDisabled('start', r, 'READY')).toBeUndefined()
-    expect(robotActionDisabled('stop', r, 'AUTO')).toBeUndefined()
+    for (const m of ['AUTO', 'MANUAL', 'FAULT', 'INIT']) {
+      expect(robotActionDisabled('start', r, m)).toContain('READY 에서만')
+    }
+    expect(robotActionDisabled('start', r, null)).toContain('모드 모름')
+    for (const m of ['AUTO', 'READY', 'MANUAL', 'FAULT', null]) {
+      expect(robotActionDisabled('stop', r, m)).toBeUndefined()
+      expect(robotActionDisabled('reset', r, m)).toBeUndefined()
+    }
   })
 
   it('blocks Complete / Clear in AUTO only', () => {

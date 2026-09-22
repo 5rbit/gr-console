@@ -45,8 +45,11 @@ export function describeRobotAction(action: RobotAction, name: string): string {
 }
 
 /**
- * 누를 수 없는 사유 — 없으면 undefined. 명령 경로가 없으면 전부 막고, 그 밖의 판단(실행 중 Task 유무,
- * PLC 허용 비트)은 백엔드가 PLC 스냅샷으로 한다(화면의 추측으로 막지 않는다).
+ * 누를 수 없는 사유 — 없으면 undefined. 운전 명령(Master Command)은 `Task.Status.Accept` 와 **무관**하게 로봇
+ * 모드만 본다(Accept 는 AUTO 에서 Task 를 받을지 여부일 뿐, 2026-09-22):
+ * - Start = READY 에서만 · Stop = 언제든 · Complete / Clear(취소) = AUTO 가 아닐 때 · Reset / Buzzer Stop = 언제든.
+ * (Task 제출은 별도 게이트 = Accept + AUTO.) 명령 경로(OPC UA)가 없으면 보낼 수 없으니 전부 막는다.
+ * 모드를 아직 모르면 Start 만 막고 나머지는 백엔드가 PLC 스냅샷으로 판정한다.
  */
 export function robotActionDisabled(
   action: RobotAction,
@@ -56,7 +59,8 @@ export function robotActionDisabled(
   if (!robot.cmd_ready) {
     return `명령 경로 준비 안 됨${robot.cmd_error ? ` — ${robot.cmd_error}` : ''}`
   }
-  if (action === 'start' && mode === 'AUTO') return '이미 AUTO'
+  if (action === 'start' && mode !== 'READY')
+    return `READY 에서만 Start (지금 ${mode ?? '모드 모름'})`
   if ((action === 'complete' || action === 'clear') && mode === 'AUTO') {
     return 'AUTO 모드에서는 완료·삭제할 수 없음 — 먼저 Stop'
   }

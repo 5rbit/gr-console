@@ -4,7 +4,8 @@
 //!   `.Common.BuzzerStop` 펄스.
 //!   GRM 은 Command 가 바뀌면 헤더 없이 GR 로 중계하고, GR 에코 후 스스로 지운다.
 //! - `complete` : PLC 가 지금 실행 중인 Task(`STAT.Task.Now`) 강제 완료 — Task 관리의 Complete 와 같은 경로.
-//! - Complete / Clear 는 AUTO 에서 거부한다(`ops::auto_refusal`, Task 관리의 개별 완료·삭제와 같은 규칙).
+//! - 운전 명령은 `Task.Status.Accept` 와 무관하게 로봇 모드만 본다: Start = READY 에서만, Stop · Reset · Buzzer Stop = 언제든,
+//!   Complete / Clear 는 AUTO 에서 거부(`ops::auto_refusal`, Task 관리의 개별 완료·삭제와 같은 규칙). Task 제출 = Accept + AUTO.
 //! - `clear` : 이 로봇의 살아 있는 Task(원장 + PLC 대기열) 전부 Delete. WorkId 마다 첫 TaskId 만 부르면
 //!   `ops::cancel` 이 뒤따르는 TaskId 를 같이 지운다.
 
@@ -55,6 +56,14 @@ pub async fn run(st: &AppState, r: &RobotCtx, action: RobotAction) -> Result<Jso
     if let Some(why) = r.cmd.not_ready_reason() {
         return Err(ApiError::OpcNotReady(with_robot(&r.name, &why)));
     }
+    // 운전 명령은 `Task.Status.Accept` 와 무관하게 로봇 모드만 본다(2026-09-22): Start = READY 에서만,
+    // Stop · Reset · Buzzer Stop = 언제든. (Task 제출 게이트 = Accept + AUTO 는 별개.)
+    if action == RobotAction::Start && !st.cfg.demo {
+        let v = status_view(st, r).ok_or_else(|| ApiError::PlcUnavailable(with_robot(&r.name, "상태 PLC 스냅샷 없음 — 모드를 알 수 없어 Start 를 보내지 않습니다")))?;
+        if let Some(why) = start_refusal(&v.mode) {
+            return Err(ApiError::Conflict(with_robot(&r.name, &why)));
+        }
+    }
     r.cmd.write_command_bit(bit, true).await?;
     tokio::time::sleep(std::time::Duration::from_millis(PULSE_MS)).await;
     // 해제는 꼭 들어가야 한다 — 실패하면 Start/Stop/Reset 비트가 TRUE 로 남아 연결이 돌아온 순간 다시 걸린다.
@@ -79,6 +88,27 @@ pub async fn run(st: &AppState, r: &RobotCtx, action: RobotAction) -> Result<Jso
     }
     tracing::info!(robot = %r.name, path = bit.path(), "robot command pulse");
     Ok(json!({ "robot": r.name, "action": action_name(action), "path": bit.path() }))
+}
+
+/// Start 를 막는 사유 — READY(`Mode.AutoReady`) 가 아니면. `Task.Status.Accept` 는 보지 않는다.
+fn start_refusal(m: &gr_proto::status::EquipMode) -> Option<String> {
+    if m.auto_ready {
+        return None;
+    }
+    let now = if m.auto {
+        "AUTO"
+    } else if m.fault {
+        "FAULT"
+    } else if m.manual {
+        "MANUAL"
+    } else if m.init {
+        "INIT"
+    } else if m.maint {
+        "MAINT"
+    } else {
+        "모름"
+    };
+    Some(format!("READY 에서만 Start 할 수 있습니다 (지금 {now})"))
 }
 
 fn action_name(a: RobotAction) -> &'static str {
@@ -192,7 +222,19 @@ fn partial(r: &RobotCtx, done: &[String], err: ApiError) -> ApiError {
 
 #[cfg(test)]
 mod tests {
-    use super::RobotAction;
+    use super::{RobotAction, start_refusal};
+
+    #[test]
+    fn start_only_in_ready_regardless_of_accept() {
+        let mut m = gr_proto::status::EquipMode { auto_ready: true, ..Default::default() };
+        assert_eq!(start_refusal(&m), None);
+        m.auto_ready = false;
+        m.auto = true;
+        assert!(start_refusal(&m).unwrap().contains("AUTO"));
+        m.auto = false;
+        m.manual = true;
+        assert!(start_refusal(&m).unwrap().contains("MANUAL"));
+    }
 
     #[test]
     fn parses_actions_case_insensitively() {
