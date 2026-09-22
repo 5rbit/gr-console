@@ -10,8 +10,8 @@
 
 use std::collections::HashMap;
 
-use opcua::types::{ByteString, ExtensionObject, NodeId, Variant};
 use opcua::types::type_loader::ByteStringBody;
+use opcua::types::{ByteString, ExtensionObject, NodeId, Variant};
 
 use crate::value::PlcKind;
 use crate::{OpcError, PlcValue};
@@ -82,13 +82,7 @@ pub fn encode(spec: &StructSpec, values: &HashMap<String, PlcValue>) -> Result<V
             return Err(OpcError::Config(format!("{path}: value not numeric for struct write")));
         }
         // 정수 종류는 같은 폭의 값만 받는다(범위 밖이면 거절 — 리프 쓰기의 coerce 와 같은 뜻).
-        let int = |lo: f64, hi: f64| -> Result<f64, OpcError> {
-            if n.fract() != 0.0 || n < lo || n > hi {
-                Err(OpcError::Config(format!("{path}: {n} out of range for {kind:?}")))
-            } else {
-                Ok(n)
-            }
-        };
+        let int = |lo: f64, hi: f64| -> Result<f64, OpcError> { if n.fract() != 0.0 || n < lo || n > hi { Err(OpcError::Config(format!("{path}: {n} out of range for {kind:?}"))) } else { Ok(n) } };
         match kind {
             PlcKind::Bool => out.push(u8::from(n != 0.0)),
             PlcKind::U8 => out.push(int(0.0, u8::MAX as f64)? as u8),
@@ -101,11 +95,13 @@ pub fn encode(spec: &StructSpec, values: &HashMap<String, PlcValue>) -> Result<V
             PlcKind::U64 => out.extend_from_slice(&(int(0.0, u32::MAX as f64)? as u64).to_le_bytes()),
             PlcKind::I64 => out.extend_from_slice(&(int(i32::MIN as f64, i32::MAX as f64)? as i64).to_le_bytes()),
             // Real 은 F32 원래 값을 그대로(f64 왕복은 같은 값이지만 NaN 비트 모양까지 지킨다).
-            PlcKind::F32 => out.extend_from_slice(&match v {
-                Some(PlcValue::F32(x)) => *x,
-                _ => n as f32,
-            }
-            .to_le_bytes()),
+            PlcKind::F32 => out.extend_from_slice(
+                &match v {
+                    Some(PlcValue::F32(x)) => *x,
+                    _ => n as f32,
+                }
+                .to_le_bytes(),
+            ),
             PlcKind::F64 => out.extend_from_slice(&n.to_le_bytes()),
             PlcKind::Str | PlcKind::Unknown => return Err(OpcError::Config(format!("{path}: {kind:?} not supported in struct write"))),
         }

@@ -19,6 +19,8 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ("0008_item_dim_changes", include_str!("migrations/0008_item_dim_changes.sql")),
     // 설정 변경 이력(기본값 저장마다 이전/이후) — 2026-09-21
     ("0009_settings_history", include_str!("migrations/0009_settings_history.sql")),
+    // 재고 스냅샷(전체 비우기 · Excel 가져오기 · 되돌리기 직전) — 되돌리기용, 2026-09-22
+    ("0010_stock_snapshots", include_str!("migrations/0010_stock_snapshots.sql")),
 ];
 
 /// `ALTER TABLE … ADD COLUMN …` 중 **이미 있는 열**을 주석으로 지운 사본.
@@ -264,11 +266,22 @@ mod tests {
         let db = Db::open_memory().unwrap();
         assert_eq!(
             applied(&db),
-            vec!["0001_init", "0002_registry", "0003_ledger", "0004_scenario", "0005_stock", "0006_console_v2", "0007_pallet_by_item", "0008_item_dim_changes", "0009_settings_history"]
+            vec![
+                "0001_init",
+                "0002_registry",
+                "0003_ledger",
+                "0004_scenario",
+                "0005_stock",
+                "0006_console_v2",
+                "0007_pallet_by_item",
+                "0008_item_dim_changes",
+                "0009_settings_history",
+                "0010_stock_snapshots"
+            ]
         );
         // 합친 마이그레이션이 만든 것들이 다 있다
         let names: Vec<String> = schema(&db).into_iter().map(|(_, n, _)| n).collect();
-        for t in ["pallet_item", "pallet_robot", "pallet_station", "pallet_flow", "pallet_pattern", "item_bead_samples", "meas_entries", "item_dim_changes"] {
+        for t in ["pallet_item", "pallet_robot", "pallet_station", "pallet_flow", "pallet_pattern", "item_bead_samples", "meas_entries", "item_dim_changes", "stock_snapshots"] {
             assert!(names.iter().any(|n| n == t), "{t} 가 없다: {names:?}");
         }
         let spec_col: i64 = db.with(|c| c.query_row("SELECT COUNT(*) FROM pragma_table_info('tire_codes') WHERE name = 'spec_json'", [], |r| r.get(0))).unwrap();

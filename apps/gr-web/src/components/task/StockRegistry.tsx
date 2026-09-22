@@ -1,6 +1,6 @@
 // 재고 레일 탭 — 등록된 셀마다 재고(품목·개수)를 보고 고친다. 완료된 PICK/DROP 은 백엔드가 자동 반영한다.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Boxes, Eraser, Pencil } from 'lucide-react'
+import { ArrowLeft, Boxes, Pencil } from 'lucide-react'
 import { api } from '../../lib/api'
 import { stock as stockStore } from '../../lib/stock'
 import { useStore } from '../../lib/store'
@@ -25,6 +25,8 @@ import { SHEET_ACCEPT, importOutcome, outcomeSummary } from '../../lib/task/impo
 import type { FileImportResult } from '../../lib/task/types'
 import { Segmented } from '../../lib/ui/Segmented'
 import { ImportDialog } from './ImportDialog'
+import { StockSnapshotsDialog } from './StockSnapshotsDialog'
+import { CLEAR_WORD, clearArmed } from '../../lib/task/stockSnapshot'
 import { ItemPicker } from '../shared/ItemPicker'
 import { EMPTY_ITEM, FormErrors, ItemFields, validateItem } from './forms'
 import type { ItemUpsert } from '../../lib/types'
@@ -237,7 +239,17 @@ export function StockRegistry({
       ?.scrollIntoView({ block: 'nearest' })
   }, [selected])
   const [edit, setEdit] = useState<StockEdit | null>(null)
+  const version = stockStore.getSnapshot()
+  // 비우기·되돌리기는 **검색과 무관하게 표 전체**에 적용된다 — 확인 문구도 전체로 센다.
+  const whole = useMemo(() => {
+    const all = stockStore.all.filter((e) => e.count > 0)
+    return { cells: all.length, total: all.reduce((a, e) => a + e.count, 0) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- version 이 스토어 변경을 대표한다
+  }, [version])
   const [clearAll, setClearAll] = useState(false)
+  /** 전체 비우기 추가 확인 — `비우기` 또는 합계 개수를 쳐야 확인이 풀린다. */
+  const [clearText, setClearText] = useState('')
+  const [snaps, setSnaps] = useState(false)
   // Excel 가져오기 — 파일 → 미리보기(dry-run) → 적용. 방식(병합/교체)을 바꾸면 같은 파일로 미리보기를 다시 한다.
   const fileRef = useRef<HTMLInputElement>(null)
   const exportRef = useRef<HTMLAnchorElement>(null)
@@ -263,7 +275,9 @@ export function StockRegistry({
     setImp((s) => ({ ...s, applying: true }))
     try {
       const r = await taskApi.stockImportFile(imp.file, false, mode)
-      const head = outcomeSummary('재고', importOutcome(r))
+      const head =
+        outcomeSummary('재고', importOutcome(r)) +
+        (r.snapshot_id ? ` · 되돌리기 스냅샷 #${r.snapshot_id}` : '')
       if (r.errors.length) toast.warn(`${head} · 오류 ${r.errors.length} (${r.errors[0].message})`)
       else toast.ok(head)
       setImp({ open: false, file: null, preview: null, error: null, applying: false })
@@ -283,8 +297,21 @@ export function StockRegistry({
     },
     { label: 'Excel 내보내기', testid: 'stock-export', run: () => exportRef.current?.click() },
     ...menuExtra,
+    // 한꺼번에 바꾸는 조작은 **맨 아래, 따로** — 비우기는 늘 팝업에서 한 번 더 묻고 스냅샷으로 되돌린다.
+    { label: '되돌리기' },
+    { label: '스냅샷 · 되돌리기…', testid: 'stock-snapshots-open', run: () => setSnaps(true) },
+    { label: '위험' },
+    {
+      label: '전체 비우기…',
+      testid: 'stock-clear',
+      danger: true,
+      disabled: whole.total === 0 ? '비울 재고가 없습니다' : undefined,
+      run: () => {
+        setClearText('')
+        setClearAll(true)
+      },
+    },
   ]
-  const version = stockStore.getSnapshot()
   const rows = useMemo<Row[]>(() => {
     const needle = q.toLowerCase()
     const all: Row[] = [
@@ -398,16 +425,7 @@ export function StockRegistry({
         dense
         meta={`${rows.length}칸 · 합계 ${total}개`}
       >
-        <Button
-          size="sm"
-          intent="ghost"
-          icon={<Eraser className="h-3.5 w-3.5" />}
-          onClick={() => setClearAll(true)}
-          disabled={total === 0}
-        >
-          전체 비우기
-        </Button>
-        <OverflowMenu items={menuItems(menu)} title="Excel · 보기" testid="stock-more" />
+        <OverflowMenu items={menuItems(menu)} title="도구" testid="stock-more" />
         <input
           ref={fileRef}
           type="file"
@@ -508,26 +526,54 @@ export function StockRegistry({
       <ConfirmDialog
         open={clearAll}
         onOpenChange={setClearAll}
-        scope="single"
+        scope="console-data"
         danger
         title="재고 전체 비우기"
         confirmLabel="비우기"
-        onConfirm={() => void api.stockClear().then((r) => toast.ok(`${r.removed}칸 비움`))}
+        confirmDisabled={
+          clearArmed(clearText, whole.total)
+            ? undefined
+            : `"${CLEAR_WORD}" 또는 합계 ${whole.total} 을 입력해야 비울 수 있습니다`
+        }
+        onConfirm={() =>
+          void api
+            .stockClear()
+            .then((r) =>
+              toast.ok(
+                `${r.removed}칸 비움 · 스냅샷 #${r.snapshot_id} — 도구 ▸ 스냅샷 · 되돌리기 로 복원`,
+              ),
+            )
+            .catch((e) =>
+              toast.error(`비우기 실패 — ${e instanceof Error ? e.message : String(e)}`),
+            )
+        }
       >
         <div className="flex flex-col gap-2 text-xs">
-          <p className="m-0">모든 셀의 재고를 비울까요?</p>
+          <p className="m-0">
+            셀·스테이션의 콘솔 재고를 모두 비울까요? PLC·로봇에는 쓰지 않습니다.
+          </p>
           <FieldList
             columns={2}
             dense
             labelWidth={48}
             items={[
-              { label: '대상', value: `${rows.length}칸` },
-              { label: '합계', value: `${total}개` },
+              { label: '대상', value: `${whole.cells}칸` },
+              { label: '합계', value: `${whole.total}개` },
             ]}
           />
-          <p className="m-0 text-fault-fg">되돌릴 수 없습니다.</p>
+          <p className="m-0">
+            비우기 직전 재고는 스냅샷으로 남아 도구 ▸ 스냅샷 · 되돌리기 에서 되살릴 수 있습니다.
+          </p>
+          <Input
+            label={`확인 — "${CLEAR_WORD}" 또는 합계 ${whole.total} 입력`}
+            value={clearText}
+            onValueChange={setClearText}
+            placeholder={CLEAR_WORD}
+            data-testid="stock-clear-confirm"
+          />
         </div>
       </ConfirmDialog>
+      <StockSnapshotsDialog open={snaps} onOpenChange={setSnaps} current={whole} />
     </div>
   )
 }

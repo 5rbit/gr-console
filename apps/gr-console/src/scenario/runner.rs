@@ -264,6 +264,7 @@ fn multi_pick_auto(scenario: &Scenario, idx: usize, robot_id: Option<u8>) -> Opt
     crate::issue::same_station_group(a.target.as_ref(), a.task_type, b.target.as_ref(), b.task_type).then_some(true)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn execute_step(
     st: &AppState,
     runner: &Arc<Runner>,

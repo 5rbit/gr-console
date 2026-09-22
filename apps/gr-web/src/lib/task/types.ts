@@ -132,6 +132,8 @@ export interface FileImportResult {
   /** 막지 않는 경고 — 지금은 바닥 Z ≤ 0 셀(가져오기는 그대로 끝난다). */
   warnings?: string[]
   dry_run?: boolean
+  /** 재고 가져오기: 적용 직전 재고 스냅샷 id(바뀐 자리가 없으면 없음) — 도구 ▸ 스냅샷 · 되돌리기 */
+  snapshot_id?: number | null
   counts?: { cells: number; stations: number; items: number; item_profiles?: number; stock?: number }
 }
 

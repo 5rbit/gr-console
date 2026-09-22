@@ -5,6 +5,7 @@
 //!   - merge(기본): 파일에 있는 자리만 바꾼다. `Count 0` = 그 자리 비움.
 //!   - replace: 파일에 없는 자리는 비운다(파일 = 재고 전체). 오류 난 줄의 자리는 지우지 않는다.
 //!   - 통합 레지스트리 가져오기는 `Stock` 시트가 있을 때만 merge 로 같이 적용한다.
+//! - 적용(merge·replace 모두)은 직전 재고 스냅샷과 한 트랜잭션 — `stock::snapshot` 으로 되돌린다(`snapshot_id`).
 //! - 줄마다 결과 하나: added · updated(비움 포함) · unchanged · skipped(= errors), replace 는 removed 도.
 //! - 검증: 등록된 셀·스테이션인가, 파일 안 중복, Count > 0 이면 등록 품목인가, 품목 StackMax 를 넘는가.
 use std::collections::{HashMap, HashSet};
@@ -12,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 use serde::Serialize;
 
 use super::StockEntry;
+use super::snapshot::{BulkOp, REASON_IMPORT_MERGE, REASON_IMPORT_REPLACE};
 use crate::error::ApiError;
 use crate::registry::xlsx::{RowError, StockExportRow, StockRow, StockSheet};
 use crate::state::AppState;
@@ -36,6 +38,8 @@ pub struct StockCounts {
     pub skipped: usize,
     pub removed: usize,
     pub errors: Vec<RowError>,
+    /// 적용 직전 재고 스냅샷 id(`stock::snapshot`) — 바뀐 자리가 없거나 dry_run 이면 없음.
+    pub snapshot_id: Option<i64>,
 }
 
 /// 한 자리에 할 일.
@@ -104,25 +108,26 @@ pub fn plan(file: &StockSheet, current: &[StockEntry], mode: Mode, known: &dyn F
     (c, ops)
 }
 
-/// 계획을 세우고 `dry_run` 이 아니면 적용한다(재고 이벤트가 나가 화면이 바로 바뀐다).
+/// 계획을 세우고 `dry_run` 이 아니면 적용한다 — 적용은 **직전 재고 스냅샷과 한 트랜잭션**(되돌리기용,
+/// merge·replace 모두)이고 끝나면 재고 이벤트(표 전체)가 나가 화면이 바로 바뀐다.
 pub fn apply(st: &AppState, file: &StockSheet, mode: Mode, dry_run: bool) -> Result<StockCounts, ApiError> {
     let current = st.stock.list()?;
     let cells: HashSet<u16> = st.registry.cells()?.into_iter().map(|e| e.cell.id).chain(st.registry.stations()?.into_iter().map(|e| e.id)).collect();
     let items: HashMap<u32, u32> = st.registry.items()?.into_iter().map(|i| (i.code, i.spec.stack_max as u32)).collect();
-    let (counts, ops) = plan(file, &current, mode, &|id| cells.contains(&id), &|code| items.get(&code).copied());
+    let (mut counts, ops) = plan(file, &current, mode, &|id| cells.contains(&id), &|code| items.get(&code).copied());
     if !dry_run {
-        for op in &ops {
-            match op {
-                Op::Set(r) => {
-                    st.stock.set(r.cell_id, r.item_code, r.count, &r.note, "file import")?;
-                }
-                Op::Remove(id) => {
-                    st.stock.remove(*id)?;
-                }
-            }
-        }
+        let bulk: Vec<BulkOp> = ops.iter().map(bulk_op).collect();
+        let reason = if mode == Mode::Replace { REASON_IMPORT_REPLACE } else { REASON_IMPORT_MERGE };
+        counts.snapshot_id = st.stock.apply_ops(&bulk, reason)?;
     }
     Ok(counts)
+}
+
+fn bulk_op(op: &Op) -> BulkOp {
+    match op {
+        Op::Set(r) => BulkOp::Set { cell_id: r.cell_id, item_code: r.item_code, count: r.count, note: r.note.clone() },
+        Op::Remove(id) => BulkOp::Remove(*id),
+    }
 }
 
 /// 내보낼 줄 — 품목 이름을 붙여 읽기 쉽게.
@@ -191,6 +196,22 @@ mod tests {
         assert_eq!(c.skipped, 4);
         assert_eq!(c.errors.len(), 4);
         assert_eq!(ops, vec![Op::Remove(102)], "only the untouched place goes");
+    }
+
+    /// replace 가져오기 = 스냅샷 한 줄 + 적용이 한 번에, 그 스냅샷으로 가져오기 전 재고가 그대로 돌아온다.
+    #[test]
+    fn replace_import_is_snapshotted_and_restorable() {
+        let s = super::super::Stock::new(crate::db::Db::open_memory().unwrap());
+        s.set(101, 1001, 3, "keep", "seed").unwrap();
+        s.set(102, 1001, 2, "", "seed").unwrap();
+        let before = s.list().unwrap();
+        let (_, ops) = plan(&sheet(vec![row(103, 1002, 1)]), &before, Mode::Replace, &KNOWN, &ITEM);
+        let id = s.apply_ops(&ops.iter().map(bulk_op).collect::<Vec<_>>(), REASON_IMPORT_REPLACE).unwrap().expect("snapshot");
+        assert_eq!(s.list().unwrap().iter().map(|e| e.cell_id).collect::<Vec<_>>(), vec![103]);
+        let snap = s.snapshot(id).unwrap().unwrap();
+        assert_eq!((snap.info.reason.as_str(), snap.info.row_count, snap.info.total), (REASON_IMPORT_REPLACE, 2, 5));
+        s.restore(id).unwrap();
+        assert_eq!(s.list().unwrap(), before);
     }
 
     #[test]

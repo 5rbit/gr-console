@@ -36,8 +36,7 @@ async fn main() {
 
     let cache_json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&cache).expect("cache")).expect("cache json");
     let members = cache_json["members"].as_object().expect("members");
-    let leaves: Vec<(String, NodeId)> =
-        members.iter().filter(|(k, _)| k.starts_with("TaskData.")).map(|(k, v)| (k.clone(), v.as_str().unwrap().parse::<NodeId>().expect("node id"))).collect();
+    let leaves: Vec<(String, NodeId)> = members.iter().filter(|(k, _)| k.starts_with("TaskData.")).map(|(k, v)| (k.clone(), v.as_str().unwrap().parse::<NodeId>().expect("node id"))).collect();
     let header: Vec<NodeId> = members.iter().filter(|(k, _)| k.starts_with("Header.")).map(|(_, v)| v.as_str().unwrap().parse::<NodeId>().unwrap()).collect();
     let task_node: NodeId = format!("{root}.\"TaskData\"").parse().expect("task node");
 
@@ -158,7 +157,12 @@ async fn main() {
             println!("ABORT during test: header changed");
             break;
         }
-        let wv = WriteValue { node_id: target_struct.clone(), attribute_id: AttributeId::Value as u32, index_range: NumericRange::None, value: DataValue::value_only(opcua_cmd::structs::to_variant(&enc_id, body.clone())) };
+        let wv = WriteValue {
+            node_id: target_struct.clone(),
+            attribute_id: AttributeId::Value as u32,
+            index_range: NumericRange::None,
+            value: DataValue::value_only(opcua_cmd::structs::to_variant(&enc_id, body.clone())),
+        };
         let t = Instant::now();
         let r = s.write(&[wv]).await.expect("write struct");
         w_struct.push(ms(t));

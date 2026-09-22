@@ -17,6 +17,7 @@ export type ConfirmScope =
   | 'fleet'
   | 'firmware'
   | 'surface-cmd'
+  | 'console-data'
 
 const SCOPE_LABEL: Record<ConfirmScope, string> = {
   single: '대상 1건',
@@ -26,6 +27,8 @@ const SCOPE_LABEL: Record<ConfirmScope, string> = {
   fleet: '플릿 전체',
   firmware: '실장비 시스템',
   'surface-cmd': '이 Instance surface 명령',
+  // 콘솔이 가진 표 전체(재고 등) — 로봇에 쓰지 않지만 한 번에 전부 바뀐다.
+  'console-data': '콘솔 데이터 전체 · 로봇 무관',
 }
 const SCOPE_TONE: Record<ConfirmScope, string> = {
   single: 'bg-surface-inset text-content-tertiary',
@@ -36,6 +39,7 @@ const SCOPE_TONE: Record<ConfirmScope, string> = {
   fleet: 'bg-degraded-soft text-degraded-fg',
   firmware: 'bg-fault-soft text-fault-fg',
   'surface-cmd': 'bg-warn-soft text-warn-fg',
+  'console-data': 'bg-warn-soft text-warn-fg',
 }
 
 export interface ConfirmDialogProps {
@@ -49,6 +53,8 @@ export interface ConfirmDialogProps {
   confirmLabel?: string
   cancelLabel?: string
   onConfirm?: () => void
+  /** 확인을 막는 사유(추가 확인 입력 전 등) — 있으면 확인 버튼이 잠기고 이 문장이 `title` 로 나간다. */
+  confirmDisabled?: string
   children?: ReactNode
 }
 
@@ -61,12 +67,14 @@ export function ConfirmDialog({
   confirmLabel = '확인',
   cancelLabel = '취소',
   onConfirm,
+  confirmDisabled,
   children,
 }: ConfirmDialogProps) {
   const box = useFocusTrap<HTMLDivElement>(open)
 
   const close = () => onOpenChange(false)
   const confirm = () => {
+    if (confirmDisabled) return
     onConfirm?.()
     onOpenChange(false)
   }
@@ -113,6 +121,8 @@ export function ConfirmDialog({
           <Button
             intent={danger ? 'danger' : 'primary'}
             onClick={confirm}
+            disabled={!!confirmDisabled}
+            title={confirmDisabled}
             data-testid="confirm-execute"
             data-scope={scope}
           >

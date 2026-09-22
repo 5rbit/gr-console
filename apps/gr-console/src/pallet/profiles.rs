@@ -244,6 +244,7 @@ impl Profiles {
         Ok(self.db.with(|c| c.execute("DELETE FROM pallet_item WHERE code = ?1", [code]))? > 0)
     }
 
+    #[cfg_attr(not(test), allow(dead_code))] // 지금은 시험만 부른다(로봇 드래그 방향 목록)
     pub fn robots(&self) -> Result<Vec<RobotDir>, ApiError> {
         Ok(self.db.with(|c| {
             let mut st = c.prepare("SELECT robot, rotation, mirror_x, mirror_y, note, updated_at FROM pallet_robot ORDER BY robot")?;

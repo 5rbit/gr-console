@@ -964,6 +964,32 @@ export type StockEvent =
   | { kind: 'upsert'; entry: StockEntry; reason: string }
   | { kind: 'remove'; cell_id: number }
 
+/** `GET /api/stock/snapshots` 한 줄 — 한꺼번에 바꾸기 직전의 재고 표 전체(되돌리기용). */
+export interface StockSnapshotInfo {
+  id: number
+  created_at: string
+  /** `clear` · `import-merge` · `import-replace` · `restore-before` */
+  reason: string
+  /** 재고가 있는(count > 0) 칸 수 */
+  row_count: number
+  total: number
+  restored_at: string | null
+  /** `restore-before` 가 가리키는 되돌린 스냅샷 id */
+  restored_from: number | null
+}
+
+export interface StockSnapshot extends StockSnapshotInfo {
+  rows: StockEntry[]
+}
+
+/** `POST /api/stock/snapshots/{id}/restore` — `snapshot_id` = 되돌리기 직전 상태(이것으로 되돌리기를 되돌린다). */
+export interface StockRestored {
+  restored: number
+  snapshot_id: number
+  row_count: number
+  total: number
+}
+
 /** `GET /api/stock/z` — 지금 재고 기준으로 백엔드가 쓸 Z */
 export interface StockZ {
   cell: number

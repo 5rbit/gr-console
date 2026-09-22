@@ -13,6 +13,7 @@
 pub mod conveyor;
 pub mod io;
 pub mod routes;
+pub mod snapshot;
 
 use std::sync::{Arc, PoisonError};
 
@@ -120,12 +121,6 @@ impl Stock {
             let _ = self.events.send(StockEvent::Remove { cell_id });
         }
         Ok(n > 0)
-    }
-
-    pub fn clear(&self) -> Result<usize, ApiError> {
-        let n = self.db.with(|c| c.execute("DELETE FROM stock", []))?;
-        let _ = self.events.send(StockEvent::Snapshot { stock: vec![] });
-        Ok(n)
     }
 
     /// Folds one completed task into the stock. Returns the new entry when something changed.

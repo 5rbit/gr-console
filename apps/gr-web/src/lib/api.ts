@@ -37,6 +37,9 @@ import type {
   StationUpsert,
   StatusEvent,
   StockEntry,
+  StockRestored,
+  StockSnapshot,
+  StockSnapshotInfo,
   StockZ,
   Task,
   TaskPage,
@@ -358,7 +361,12 @@ export const api = {
   stockSet: (cell: number, body: { item_code: number; count: number; note?: string }) =>
     putJson<StockEntry>(`/api/stock/${cell}`, body),
   stockDelete: (cell: number) => del(`/api/stock/${cell}`),
-  stockClear: () => postJson<{ removed: number }>('/api/stock/clear'),
+  /** 전체 비우기 — 직전 재고는 스냅샷(`snapshot_id`)으로 남는다. */
+  stockClear: () => postJson<{ removed: number; snapshot_id: number }>('/api/stock/clear'),
+  stockSnapshots: (limit = 20) =>
+    getJson<StockSnapshotInfo[]>(`/api/stock/snapshots${qs({ limit })}`),
+  stockSnapshot: (id: number) => getJson<StockSnapshot>(`/api/stock/snapshots/${id}`),
+  stockRestore: (id: number) => postJson<StockRestored>(`/api/stock/snapshots/${id}/restore`),
   stockZ: (type: TaskType, cell: number, item?: number | null, count = 1) =>
     getJson<StockZ>(`/api/stock/z${qs({ type, cell, item: item ?? undefined, count })}`),
 

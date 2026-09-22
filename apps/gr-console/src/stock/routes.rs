@@ -1,6 +1,7 @@
 //! `GET /api/stock` · `PUT /api/stock/{cell}` · `DELETE /api/stock/{cell}` · `POST /api/stock/clear`
 //! · `GET /api/stock/stream` (SSE snapshot|upsert|remove) · `GET /api/stock/z?type=&cell=&item=&count=` (Z preview)
 //! · `GET /api/stock/export.xlsx` · `POST /api/stock/import-file?dry_run=&mode=merge|replace` (`stock::io`)
+//! · `GET /api/stock/snapshots?limit=` · `GET /api/stock/snapshots/{id}` · `POST /api/stock/snapshots/{id}/restore` (`stock::snapshot`)
 
 use axum::Router;
 use axum::extract::{Path, Query, State};
@@ -44,7 +45,7 @@ async fn import_file(State(st): State<AppState>, Query(q): Query<ImportQuery>, m
     let errors: Vec<Json> = c.errors.iter().map(|e| json!({ "row": e.row, "sheet": e.sheet, "message": crate::registry::xlsx::error_text(e) })).collect();
     Ok(axum::Json(json!({
         "imported": c.added, "added": c.added, "updated": c.updated, "unchanged": c.unchanged, "removed": c.removed, "skipped": c.skipped,
-        "errors": errors, "dry_run": dry_run, "mode": if mode == super::io::Mode::Replace { "replace" } else { "merge" },
+        "errors": errors, "dry_run": dry_run, "snapshot_id": c.snapshot_id, "mode": if mode == super::io::Mode::Replace { "replace" } else { "merge" },
         "counts": { "cells": 0, "stations": 0, "items": 0, "stock": s.rows.len() + s.errors.len() }
     })))
 }
@@ -82,8 +83,29 @@ async fn remove(State(st): State<AppState>, Path(cell): Path<u16>) -> ApiResult<
     Ok(axum::Json(json!({ "removed": st.stock.remove(cell)? })))
 }
 
+/// 전체 비우기 — 직전 재고를 스냅샷으로 떠 두고 비운다(`snapshot_id` 로 되돌린다).
 async fn clear(State(st): State<AppState>) -> ApiResult<Json> {
-    Ok(axum::Json(json!({ "removed": st.stock.clear()? })))
+    let (removed, snapshot_id) = st.stock.clear()?;
+    Ok(axum::Json(json!({ "removed": removed, "snapshot_id": snapshot_id })))
+}
+
+#[derive(Deserialize)]
+struct SnapshotsQuery {
+    limit: Option<usize>,
+}
+
+async fn snapshots(State(st): State<AppState>, Query(q): Query<SnapshotsQuery>) -> ApiResult<Json> {
+    Ok(axum::Json(serde_json::to_value(st.stock.snapshots(q.limit.unwrap_or(20))?).unwrap_or_default()))
+}
+
+async fn snapshot(State(st): State<AppState>, Path(id): Path<i64>) -> ApiResult<Json> {
+    let s = st.stock.snapshot(id)?.ok_or_else(|| ApiError::NotFound(format!("stock snapshot {id}")))?;
+    Ok(axum::Json(serde_json::to_value(s).unwrap_or_default()))
+}
+
+/// 스냅샷으로 되돌린다 — 지금 재고는 먼저 `restore-before` 스냅샷이 된다(응답 `snapshot_id`).
+async fn restore(State(st): State<AppState>, Path(id): Path<i64>) -> ApiResult<Json> {
+    Ok(axum::Json(serde_json::to_value(st.stock.restore(id)?).unwrap_or_default()))
 }
 
 async fn stream(State(st): State<AppState>) -> impl IntoResponse {
@@ -135,6 +157,9 @@ pub fn router() -> Router<AppState> {
         .route("/api/stock/clear", post(clear))
         .route("/api/stock/export.xlsx", get(export_xlsx))
         .route("/api/stock/import-file", post(import_file))
+        .route("/api/stock/snapshots", get(snapshots))
+        .route("/api/stock/snapshots/{id}", get(snapshot))
+        .route("/api/stock/snapshots/{id}/restore", post(restore))
         .route("/api/stock/stream", get(stream))
         .route("/api/stock/z", get(z_preview))
         .route("/api/stock/{cell}", put(set).delete(remove))

@@ -363,9 +363,7 @@ mod opc_path_tests {
         if std::env::var_os("UPDATE_STRUCT_SPEC").is_some() {
             std::fs::write(&fixture, &json).expect("write fixture");
         }
-        assert_eq!(std::fs::read_to_string(&fixture).unwrap_or_default().replace("
-", "
-"), json, "struct spec fixture out of date");
+        assert_eq!(std::fs::read_to_string(&fixture).unwrap_or_default().replace("\r\n", "\n"), json, "struct spec fixture out of date");
         let mut dump = vec![0u8; 129];
         dump[9] = 4;
         dump[76] = 3;
