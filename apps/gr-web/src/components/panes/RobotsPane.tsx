@@ -12,41 +12,23 @@
 // 행 우클릭 = 그 로봇의 운전 명령(Start/Stop/Reset/Buzzer Stop/Complete/Clear, 2026-09-21). 선택과 무관하게 **우클릭한
 // 행의 로봇**에 간다 — 대상은 메뉴 머리줄과 확인 대화 제목에 이름으로 선다. 규칙은 `lib/robotCommandModel`.
 import { useEffect, useState } from 'react'
-import { api } from '../../lib/api'
 import { allStatus } from '../../lib/feeds'
 import { modeName } from '../../lib/gr/const'
 import { modeIndicator, robotGate } from '../../lib/indicators'
 import { robotColor, robots } from '../../lib/robots'
 import { density } from '../../lib/density'
+import { sendRobotAction } from '../../lib/robotCommand'
 import { useStore } from '../../lib/store'
 import {
   ROBOT_ACTIONS,
   describeRobotAction,
   robotActionDisabled,
-  robotActionDone,
   robotActionSpec,
 } from '../../lib/robotCommandModel'
 import type { Robot, RobotAction } from '../../lib/types'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { IndicatorChip } from '../../lib/ui/IndicatorChip'
 import { ctxMenu } from '../../lib/ui/menu'
-import { toast } from '../../lib/ui/toast'
-
-/** 명령을 보내고 결과를 토스트로 — 왕복이 1초 넘게 걸리므로(비트 펄스) 진행 토스트로 시작한다. */
-async function sendRobotAction(robot: Robot, action: RobotAction): Promise<void> {
-  const label = robotActionSpec(action).label
-  const t = toast.pending(`${robot.name} ${label} 보내는 중…`)
-  try {
-    const res = await api.robotCommand(robot.id, action)
-    toast.resolve(t, 'ok', robotActionDone(action, robot.name, res))
-  } catch (e) {
-    toast.resolve(
-      t,
-      'error',
-      `${robot.name} ${label} 실패 — ${e instanceof Error ? e.message : String(e)}`,
-    )
-  }
-}
 
 export default function RobotsPane() {
   useStore(robots, density, allStatus)

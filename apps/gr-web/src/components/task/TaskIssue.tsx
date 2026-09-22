@@ -11,10 +11,14 @@
 // 레일의 레이아웃+표(나눠 보기)에서 표 행을 고르면 맵이 그 대상으로 이동·강조하고, 맵에서 고르면
 // 표가 그 행으로 따라간다(`tableSel` + `reveal`).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Send, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { OctagonX, Send, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useRegistry } from '../../lib/registry'
 import { robots } from '../../lib/robots'
+import { sendRobotAction } from '../../lib/robotCommand'
+import { robotActionDisabled } from '../../lib/robotCommandModel'
+import { useRobotModeOfPlc } from '../../lib/robotMode'
+import { Button } from '../../lib/ui/Button'
 import { gateFor, robotLabel, withRobot } from '../../lib/robotContext'
 import { RobotChip } from '../shared/RobotChip'
 import { stock as stockStore } from '../../lib/stock'
@@ -141,6 +145,29 @@ function GateChip({
       )}
       {text}
     </span>
+  )
+}
+
+/**
+ * 머리띠의 Stop — 선택 로봇에 Stop(Command.Stop.Normal) 펄스. 운전 명령은 Task.Accept 와 무관하고 Stop 은 모드와도
+ * 무관하게 언제든(명령 경로만 있으면) 누를 수 있다. 멈춤을 확인 창 뒤에 두지 않는다.
+ */
+function StopButton() {
+  const r = robots.current
+  const mode = useRobotModeOfPlc(r?.plc)
+  const why = r ? robotActionDisabled('stop', r, mode) : '로봇 미확인'
+  return (
+    <Button
+      size="sm"
+      intent="danger"
+      icon={<OctagonX className="h-3.5 w-3.5" />}
+      disabled={!!why}
+      title={why ?? `${r?.name} 에 Stop(Command.Stop.Normal) — 확인 없이 바로 보냅니다`}
+      onClick={() => r && void sendRobotAction(r, 'stop')}
+      data-testid="task-robot-stop"
+    >
+      Stop
+    </Button>
   )
 }
 
@@ -410,6 +437,7 @@ export default function TaskIssue() {
         items={[{ label: 'Plan', value: String(plan.length) }]}
         trailing={
           <span className="flex items-center gap-2">
+            <StopButton />
             <GateChip gate={gate} error={gateError} robot={chip.name} />
             <RobotChip
               chip={chip}
