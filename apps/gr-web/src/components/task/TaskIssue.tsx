@@ -60,6 +60,7 @@ import { LayoutTab, MAP_MODES, type MapMode } from './LayoutTab'
 import { PlanCard, type PlanMode } from './PlanCard'
 import { RAIL_KEY, RegistryRail, type RailTab } from './RegistryRail'
 import { TaskManagerCard } from './TaskManagerCard'
+import { Splitter } from '../workspace/Splitter'
 
 const PLAN_KEY = 'gr-plan'
 const MODE_KEY = 'gr-cellmap-mode'
@@ -87,6 +88,20 @@ function persist(key: string, v: string) {
     localStorage.setItem(key, v)
   } catch {
     /* 저장 못 해도 동작 */
+  }
+}
+
+// 오른쪽 칸(작업 작성 / 레이아웃 편집) 폭 — 모드마다 따로 기억한다(편집 표는 열이 많아 더 넓게 쓴다).
+const SIDE_W_KEY = { ops: 'gr-task-side-w', edit: 'gr-task-side-w-edit' } as const
+const SIDE_W_DEF = { ops: 460, edit: 620 } as const
+const SIDE_W_MIN = 320
+const SIDE_W_MAX = 1400
+function loadWidth(key: string, def: number): number {
+  try {
+    const v = Number(localStorage.getItem(key))
+    return Number.isFinite(v) && v >= SIDE_W_MIN && v <= SIDE_W_MAX ? v : def
+  } catch {
+    return def
   }
 }
 
@@ -216,6 +231,11 @@ export default function TaskIssue() {
   const [stationDraft, setStationDraft] = useState<Station[] | null>(null)
   // 편집은 맵이 보일 때만 — 맵만(레이아웃)이든 나눠 보기든.
   const editing = mapMode === 'edit' && (railTab === 'layout' || railTab === 'split')
+  const [sideW, setSideW] = useState(() => ({
+    ops: loadWidth(SIDE_W_KEY.ops, SIDE_W_DEF.ops),
+    edit: loadWidth(SIDE_W_KEY.edit, SIDE_W_DEF.edit),
+  }))
+  const sideMode = editing ? 'edit' : 'ops'
   // 레일 표(셀/스테이션)의 선택. 편집 중에는 편집 선택(`editSel`)이 그 자리를 맡는다.
   const [tableSel, setTableSel] = useState<Target | null>(null)
   // 레일 품목 표의 선택 — 맵이 그 품목이 든 셀들을 강조한다.
@@ -449,10 +469,7 @@ export default function TaskIssue() {
         }
       />
       <div className="flex min-h-0 flex-1">
-        <section
-          className="flex min-h-0 min-w-0 flex-[3] flex-col border-r border-line-default"
-          aria-label="레지스트리"
-        >
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="레지스트리">
           <RegistryRail
             items={items}
             cells={cells}
@@ -474,14 +491,24 @@ export default function TaskIssue() {
             reveal={reveal}
           />
         </section>
+        {/* 레일과 오른쪽 칸 경계 — 오른쪽 칸 폭을 끈다(키보드 ←→ 도 됨). 경계선은 스플리터 선이 맡는다. */}
+        <Splitter
+          axis="col"
+          invert
+          size={sideW[sideMode]}
+          min={SIDE_W_MIN}
+          max={SIDE_W_MAX}
+          label={editing ? '레이아웃 편집 폭' : '작업 작성 폭'}
+          onResize={(v) => setSideW((w) => ({ ...w, [sideMode]: v }))}
+          onCommit={(v) => persist(SIDE_W_KEY[sideMode], String(Math.round(v)))}
+        />
         <section
           className={cn(
-            // `min-w-0` 이 없으면 표·카드 안의 긴 값이 이 칸을 밀어 1280px 에서 왼쪽 레일을 잡아먹는다.
-            editing
-              ? 'flex min-h-0 w-[620px] min-w-0 flex-[2] flex-col'
-              : 'flex min-h-0 w-[460px] min-w-0 flex-[2] flex-col',
+            // 폭은 스플리터가 정한다. `max-w-[70%]` 로 창이 좁아져도 왼쪽 레일(맵)이 남는다.
+            'flex min-h-0 min-w-0 max-w-[70%] flex-none flex-col',
             editing ? '' : 'gap-3 overflow-y-auto p-3',
           )}
+          style={{ width: sideW[sideMode] }}
           aria-label={editing ? '레이아웃 편집' : '작업 작성'}
         >
           {editing ? (

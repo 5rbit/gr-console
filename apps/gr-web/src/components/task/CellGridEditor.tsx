@@ -222,6 +222,17 @@ export function CellGridEditor({ reg, q, selectedId, onSelect, onDraft }: CellGr
       text: (r) => boolText(r.value.use),
       coercePaste: pasteBool,
     },
+    // PLC LGR_Cell_Info.BlendUse — 편집 규칙은 applyCellEdit('blend') 에 이미 있다
+    {
+      id: 'blend',
+      header: 'BlendUse',
+      width: '4rem',
+      align: 'center',
+      editor: 'select',
+      options: ['Y', 'N'],
+      text: (r) => boolText(r.value.blend_use),
+      coercePaste: pasteBool,
+    },
     num('length', 'Length', (c) => c.length, { width: '3.75rem' }),
     num('width', 'Width', (c) => c.width, { width: '3.75rem' }),
   ]
