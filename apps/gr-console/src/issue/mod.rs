@@ -231,9 +231,10 @@ pub fn compose_with(st: &AppState, req: &TaskRequest, stock_hint: Option<u32>) -
         }
         None => None,
     };
-    // stock of the target cell (console-owned inventory) — Z stacking + item code fallback
+    // stock of the target (console-owned inventory, cells and stations share the id space) — Z stacking +
+    // item code fallback. Stations too: multi PICK/DROP on a station stacks on the tires already there (2026-09-22).
     let stock = match &req.target {
-        Some(t) if t.kind == "cell" => st.stock.get(t.id)?,
+        Some(t) if t.kind == "cell" || t.kind == "station" => st.stock.get(t.id)?,
         _ => None,
     };
     let code = req.item_code.or_else(|| stock.as_ref().map(|s| s.item_code).filter(|c| *c != 0));
@@ -919,6 +920,16 @@ mod tests {
         // 바닥이 양수면 이 경고는 없다
         let c = compose_from(&d, &req("PICK", "cell"), Some(cell()), Some(item()), Some((1001, 5)), None).unwrap();
         assert!(!c.warnings.iter().any(|w| w.contains("INVALID_CELL_POSZ")), "{:?}", c.warnings);
+    }
+
+    #[test]
+    fn station_drop_stacks_on_its_stock() {
+        // 스테이션 위 멀티 DROP: 스테이션 재고(2) 위로 — compose_with 가 스테이션 재고도 넘긴다(2026-09-22)
+        let d = defaults();
+        let c = compose_from(&d, &req("DROP", "station"), Some(cell()), Some(item()), Some((1001, 2)), None).unwrap();
+        assert_eq!(c.task.position[2], cell().position[2] + 2.0 * 240.0 + 120.0);
+        let c = compose_from(&d, &req("DROP", "station"), Some(cell()), Some(item()), Some((1001, 3)), None).unwrap();
+        assert_eq!(c.task.position[2], cell().position[2] + 3.0 * 240.0 + 120.0);
     }
 
     #[test]

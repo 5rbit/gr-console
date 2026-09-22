@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SPEC } from '../items/levelsModel'
-import type { Cell, Item, StockEntry } from '../types'
+import type { Cell, Item, Station, StockEntry } from '../types'
 import {
   EMPTY_HISTORY,
   GRIP_REFS,
@@ -394,5 +394,23 @@ describe('stepForClick item matching', () => {
     expect(s2.item_code).toBe(2011)
     expect(simulateStock([s1, s2], stk).get(2101)?.count).toBe(0)
     expect(stepForClick([s1, s2], stT(2101), stk, 'PICK').item_code).toBeNull()
+  })
+})
+
+describe('station stock stacking (2026-09-22)', () => {
+  // 스테이션 위 멀티 DROP 은 이미 있는 타이어 위로 쌓여야 한다 — 전에는 스테이션 재고를 0 으로 봤다.
+  const station = { id: 2101, info: { id: 2101, position: [7000, 4800, 1100] } } as unknown as Station
+  const drop = (id: string): PlanStep => ({ id, type: 'DROP', target: { kind: 'station', id: 2101 }, item_code: 1001, count: 1, note: '' })
+  const pick = (id: string): PlanStep => ({ id, type: 'PICK', target: { kind: 'cell', id: 101 }, item_code: 1001, count: 1, note: '' })
+  it('DROP on a station uses its stock and the chain of steps before', () => {
+    const stockNow = new Map<number, StockEntry>([...stock, [2101, st(2101, 1001, 2)]])
+    const rows = planRows([pick('a'), drop('b'), pick('c'), drop('d')], { ...ctx, stations: [station], stockNow })
+    expect(rows[1].stockBefore).toBe(2)
+    expect(rows[1].stockAfter).toBe(3)
+    expect(rows[3].stockBefore).toBe(3)
+    expect(rows[3].stockAfter).toBe(4)
+    // 두 번째 DROP 은 첫 DROP 보다 한 단(240) 위
+    expect((rows[3].z ?? 0) - (rows[1].z ?? 0)).toBe(240)
+    expect(rows[1].z).toBe(planZ('DROP', 1100, item(1001, 240), 'mid', 2, 1).z)
   })
 })
