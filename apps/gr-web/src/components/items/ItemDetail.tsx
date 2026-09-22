@@ -75,6 +75,7 @@ import { Switch } from '../../lib/ui/Switch'
 import { toast } from '../../lib/ui/toast'
 import { cn } from '../../lib/utils'
 import type { Item, ItemLevels, ItemSpec, ItemUpsert, StockEntry } from '../../lib/types'
+import type { DimField } from '../../lib/items/dims'
 import { toItemUpsert } from '../task/ItemRegistry'
 import { ChipPopover, InfoChip } from '../../lib/ui/InfoChip'
 import { InfoRows } from '../../lib/ui/Pair'
@@ -134,9 +135,18 @@ export interface ItemDetailProps {
   onClose: () => void
   /** 저장하지 않은 변경이 있는가(다른 행을 고르기 전에 묻는 데 쓴다). */
   onDirtyChange?: (dirty: boolean) => void
+  /** 표의 측정 제안 칩을 눌렀을 때 — Measured 탭을 열고 그 필드 줄을 반짝인다(`n` 이 바뀔 때마다). */
+  focus?: { field: DimField; n: number } | null
 }
 
-export function ItemDetail({ item, stock, onSaved, onClose, onDirtyChange }: ItemDetailProps) {
+export function ItemDetail({
+  item,
+  stock,
+  onSaved,
+  onClose,
+  onDirtyChange,
+  focus,
+}: ItemDetailProps) {
   useStore(robots)
   const robot = robots.selected
   const robotName = robots.current?.name ?? (robot === null ? '기본 로봇' : `로봇 ${robot}`)
@@ -176,6 +186,12 @@ export function ItemDetail({ item, stock, onSaved, onClose, onDirtyChange }: Ite
       /* 저장 못 해도 동작 */
     }
   }
+
+  // 표의 제안 칩 — Measured 탭으로(그 필드 줄은 DimsTab 이 반짝인다)
+  useEffect(() => {
+    if (focus) setTab('measured')
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 요청 번호가 바뀔 때만
+  }, [focus?.n])
 
   async function loadLevels() {
     setLevelsLoading(true)
@@ -305,7 +321,12 @@ export function ItemDetail({ item, stock, onSaved, onClose, onDirtyChange }: Ite
             updateSpec={updateSpec}
           />
         ) : tab === 'measured' ? (
-          <DimsTab code={item.code} dirty={dirty} onApplied={() => onSaved(item.code)} />
+          <DimsTab
+            code={item.code}
+            dirty={dirty}
+            onApplied={() => onSaved(item.code)}
+            focus={focus ?? null}
+          />
         ) : (
           <UsageTab code={item.code} spec={spec} stock={stock} />
         )}

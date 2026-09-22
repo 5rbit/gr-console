@@ -70,10 +70,24 @@ export interface DimChange {
   reverted: boolean
 }
 
+/** 적용된 필드 하나 — 서버가 실제로 쓴 이전 · 이후 값과 변경 id(되돌리기용). */
+export interface AppliedDim {
+  id: number
+  field: DimField
+  before: number
+  after: number
+}
+
 export interface BulkResult {
   applied: number
   failed: number
-  results: { code: number; ok: boolean; changes?: number[]; error?: string }[]
+  results: {
+    code: number
+    ok: boolean
+    changes?: number[]
+    applied?: AppliedDim[]
+    error?: string
+  }[]
 }
 
 export const WINDOWS = [3, 5, 10, 20] as const
@@ -82,14 +96,19 @@ export const DEFAULT_WINDOW = 5
 export const dimsApi = {
   item: (code: number, window = DEFAULT_WINDOW) =>
     getJson<ItemDims>(`/api/items/${code}/dims?window=${window}`),
-  suggest: (window = DEFAULT_WINDOW) =>
-    getJson<ItemDims[]>(`/api/items/dims/suggest?window=${window}`),
+  /** `onlyChanges=false` 면 적용할 것이 없는 품목도(반영된 칸을 보이려고) 온다. */
+  suggest: (window = DEFAULT_WINDOW, onlyChanges = true) =>
+    getJson<ItemDims[]>(`/api/items/dims/suggest?window=${window}&only_changes=${onlyChanges}`),
+  allChanges: (limit = 500) => getJson<DimChange[]>(`/api/items/dims/changes?limit=${limit}`),
   apply: (code: number, fields: DimField[], window = DEFAULT_WINDOW, note = '') =>
-    postJson<{ code: number; changes: number[] }>(`/api/items/${code}/dims/apply`, {
-      fields,
-      window,
-      note,
-    }),
+    postJson<{ code: number; changes: number[]; applied?: AppliedDim[] }>(
+      `/api/items/${code}/dims/apply`,
+      {
+        fields,
+        window,
+        note,
+      },
+    ),
   applyBulk: (items: { code: number; fields: DimField[] }[], window = DEFAULT_WINDOW) =>
     postJson<BulkResult>('/api/items/dims/apply-bulk', { items, window }),
   changes: (code: number, limit = 50) =>
@@ -105,11 +124,9 @@ export function applicable(s: DimSuggestion): boolean {
   return s.suggested !== null && s.changed
 }
 
-/** 기본 선택 — 적용할 수 있고 **안정하며 등록값과 크게 다르지 않은** 필드만. 나머지는 사람이 직접 고른다. */
+/** 기본 선택 — 바로 적용해도 되는(적용 가능 · 새 값) 필드만. 표본 부족 · 흔들림 · 차이 큼 은 사람이 직접 고른다. */
 export function defaultPick(d: ItemDims): Set<DimField> {
-  return new Set(
-    d.fields.filter((s) => applicable(s) && !s.unstable && !s.outlier).map((s) => s.field),
-  )
+  return new Set(d.fields.filter((s) => safeTone(dimTone(s))).map((s) => s.field))
 }
 
 /** 상태 칸 — 가장 급한 하나. */
@@ -149,4 +166,82 @@ export function changeLine(s: DimSuggestion): string {
 
 export function fieldLabel(f: string): string {
   return (DIM_LABEL as Record<string, string>)[f] ?? f
+}
+
+// ── 화면 표현(매트릭스 칸 · 신뢰도) ────────────────────────────────────────────
+
+/** 이만큼은 재야 "바로 적용" 이 된다 — 두 개로는 중앙값이 평균일 뿐이고 편차도 믿기 어렵다. */
+export const MIN_SAMPLES = 3
+
+/**
+ * 카드 색 — 한 필드가 지금 어떤 결정을 요구하나.
+ *  - `ok`    : 바뀌고 안정 — 바로 적용해도 되는 제안
+ *  - `info`  : 등록값 0(미입력)을 처음 채우는 제안
+ *  - `thin`  : 표본 부족 — `MIN_SAMPLES` 개 미만(더 재 보기)
+ *  - `warn`  : 흔들림 — 표본끼리 편차가 한도를 넘음(창을 늘리거나 더 재 보기)
+ *  - `fault` : 차이 큼 — 다른 타이어를 잰 것일 수 있음(재고 품목 확인)
+ *  - `muted` : 같음 · 표본 없음 — 할 일 없음
+ */
+export type DimTone = 'ok' | 'info' | 'thin' | 'warn' | 'fault' | 'muted'
+
+export function dimTone(s: DimSuggestion): DimTone {
+  if (!applicable(s)) return 'muted'
+  // 차이 큼이 먼저다 — 두 개뿐이라도 다른 타이어를 잰 것이면 그게 가장 급하다.
+  if (s.outlier) return 'fault'
+  if (s.n < MIN_SAMPLES) return 'thin'
+  if (s.unstable) return 'warn'
+  if (s.current === 0) return 'info'
+  return 'ok'
+}
+
+/** 톤의 한 단어 — 배지 · 필터 · 요약이 같은 말을 쓴다. */
+export const TONE_LABEL: Record<DimTone, string> = {
+  ok: '적용 가능',
+  info: '새 값',
+  thin: '표본 부족',
+  warn: '흔들림',
+  fault: '차이 큼',
+  muted: '할 일 없음',
+}
+
+/** 바로 적용해도 되는 톤(기본 선택과 같은 규칙). */
+export function safeTone(t: DimTone): boolean {
+  return t === 'ok' || t === 'info'
+}
+
+/** 이 필드에 **지금 걸려 있는** 측정 반영 — 되돌리지 않았고, 그 뒤 값이 바뀌지 않았다(되돌리기 가능). */
+export function liveChange(
+  changes: readonly DimChange[],
+  field: DimField,
+  current: number,
+): DimChange | null {
+  const last = changes.find((c) => c.field === field && !c.reverted)
+  if (!last || last.source !== 'measured') return null
+  return Math.abs(last.after - current) < 0.05 ? last : null
+}
+
+/** 일괄 검토 필터 — 전체 · 바로 적용해도 되는 것 · 사람이 봐야 하는 것. */
+export type ReviewFilter = 'all' | 'safe' | 'check'
+
+export function passFilter(s: DimSuggestion, f: ReviewFilter): boolean {
+  const t = dimTone(s)
+  if (t === 'muted') return false
+  if (f === 'safe') return safeTone(t)
+  if (f === 'check') return !safeTone(t)
+  return true
+}
+
+/**
+ * 신뢰도 0..5 — 표본 수(창 대비)와 편차(한도 대비)를 합친 한 숫자. 칸의 점 ●●●○○ 로 보인다.
+ *  - 표본: min(n, window) / window
+ *  - 편차: 한도 안이면 1 → 0.5(한도에서), 넘으면 0.3
+ * 표본이 없으면 0, 있으면 최소 1.
+ */
+export function confidence(s: DimSuggestion, window: number): number {
+  if (!s.n) return 0
+  const w = Math.max(window, 1)
+  const sample = Math.min(s.n, w) / w
+  const spread =
+    s.spread === null ? 1 : s.spread <= s.spread_limit ? 1 - (0.5 * s.spread) / s.spread_limit : 0.3
+  return Math.max(1, Math.min(5, Math.round(5 * sample * spread)))
 }

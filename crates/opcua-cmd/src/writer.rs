@@ -5,17 +5,139 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use opcua::client::Session;
-use opcua::types::{AttributeId, DataValue, NumericRange, ReadValueId, StatusCode, TimestampsToReturn, WriteValue};
+use opcua::types::{AttributeId, DataValue, NodeId, NumericRange, ReadValueId, StatusCode, TimestampsToReturn, VariableId, WriteValue};
 use tokio::sync::{Notify, watch};
 
 use crate::browse;
 use crate::connect::{self, LoopEnd, is_session_dead, map_err, with_timeout};
 use crate::nodemap::{NodeMap, NodeMapInfo};
 use crate::value::{coerce, from_variant};
-use crate::{HeaderWire, MemberValue, OpcError, OpcState, OpcUaConfig, PlcValue, TaskOp};
+use crate::{HeaderWire, IoStats, MemberValue, OpcError, OpcState, OpcUaConfig, PlcValue, TaskOp};
+
+/// 세션별 튜닝 — 등록 노드 ID 와 서버 한도. 세션이 바뀌면 다시 만든다(등록은 세션에 묶인다).
+#[derive(Default)]
+struct Tuned {
+    registered: std::collections::HashMap<NodeId, NodeId>,
+    max_write: usize,
+    max_read: usize,
+    /// 읽기 검증을 통과한 구조체: 멤버 → (쓸 노드 ID, 인코딩 ID, 배치).
+    structs: std::collections::HashMap<String, (NodeId, NodeId, crate::structs::StructSpec)>,
+    struct_note: Option<String>,
+}
+
+impl Tuned {
+    fn id(&self, n: NodeId) -> NodeId {
+        self.registered.get(&n).cloned().unwrap_or(n)
+    }
+}
+
+/// 한 번에 등록하는 노드 수 — 서버 MaxNodesPerRegisterNodes 를 모를 때도 안전한 크기.
+const REGISTER_CHUNK: usize = 200;
+
+/// 서버 한도(MaxNodesPerRead/Write)를 읽는다. 없거나 0 이면 0(제한 없음).
+async fn read_limits(session: &Session, timeout: Duration) -> (u32, u32) {
+    let ids = [
+        ReadValueId::new_value(NodeId::from(VariableId::Server_ServerCapabilities_OperationLimits_MaxNodesPerRead)),
+        ReadValueId::new_value(NodeId::from(VariableId::Server_ServerCapabilities_OperationLimits_MaxNodesPerWrite)),
+    ];
+    let Ok(Ok(v)) = with_timeout(timeout, session.read(&ids, TimestampsToReturn::Neither, 0.0)).await else { return (0, 0) };
+    let num = |i: usize| {
+        v.get(i).and_then(|d| d.value.as_ref()).and_then(|x| match from_variant(x) {
+            Some(PlcValue::U32(n)) => Some(n),
+            Some(PlcValue::U16(n)) => Some(n as u32),
+            Some(PlcValue::I32(n)) if n > 0 => Some(n as u32),
+            _ => None,
+        })
+    };
+    (num(0).unwrap_or(0), num(1).unwrap_or(0))
+}
+
+/// 한도 읽기 + (설정이면) 명령 노드 등록. 실패는 경고만 — 원래 ID 로 계속 쓴다.
+async fn tune(session: &Session, map: &NodeMap, cfg: &OpcUaConfig) -> Tuned {
+    let (max_read, max_write) = read_limits(session, cfg.write_timeout()).await;
+    let mut t = Tuned { max_write: max_write as usize, max_read: max_read as usize, ..Default::default() };
+    if cfg.register_nodes {
+        let ids: Vec<NodeId> = map.members.keys().filter_map(|k| map.lookup(k).ok().map(|(id, _)| id)).collect();
+        for chunk in ids.chunks(REGISTER_CHUNK) {
+            match with_timeout(cfg.write_timeout(), session.register_nodes(chunk)).await {
+                Ok(Ok(reg)) if reg.len() == chunk.len() => {
+                    t.registered.extend(chunk.iter().cloned().zip(reg));
+                }
+                Ok(Ok(reg)) => {
+                    tracing::warn!(asked = chunk.len(), got = reg.len(), "RegisterNodes returned a different count — using plain node ids");
+                    t.registered.clear();
+                    break;
+                }
+                Ok(Err(e)) => {
+                    tracing::warn!(error = %e, "RegisterNodes failed — using plain node ids");
+                    t.registered.clear();
+                    break;
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "RegisterNodes timed out — using plain node ids");
+                    t.registered.clear();
+                    break;
+                }
+            }
+        }
+    }
+    for spec in &cfg.struct_specs {
+        match verify_struct(session, map, &t, spec, cfg).await {
+            Ok((node, enc)) => {
+                // 구조체 노드도 등록해 둔다(쓰기 때 등록 ID 로).
+                let write_id = if cfg.register_nodes {
+                    match with_timeout(cfg.write_timeout(), session.register_nodes(std::slice::from_ref(&node))).await {
+                        Ok(Ok(mut r)) if r.len() == 1 => r.remove(0),
+                        _ => node.clone(),
+                    }
+                } else {
+                    node.clone()
+                };
+                tracing::info!(member = %spec.member, node = %node, encoding = %enc, write = cfg.struct_write, "struct layout verified against server");
+                t.structs.insert(spec.member.clone(), (write_id, enc, spec.clone()));
+            }
+            Err(why) => {
+                tracing::warn!(member = %spec.member, reason = %why, "struct layout not verified — leaf writes");
+                t.struct_note = Some(why);
+            }
+        }
+    }
+    tracing::info!(registered = t.registered.len(), max_nodes_per_read = max_read, max_nodes_per_write = max_write, structs = t.structs.len(), "OPC UA session tuned");
+    t
+}
+
+/// 구조체 노드와 그 리프들을 **한 Read** 로 읽어, 리프 값을 인코딩한 바이트가 서버 본문과 같은지 본다(읽기만).
+async fn verify_struct(session: &Session, map: &NodeMap, t: &Tuned, spec: &crate::structs::StructSpec, cfg: &OpcUaConfig) -> Result<(NodeId, NodeId), String> {
+    use crate::structs;
+    let node = structs::struct_node(spec, |p| map.lookup(p).ok().map(|(id, _)| id)).ok_or_else(|| format!("{}: struct node id not derivable from the node map", spec.member))?;
+    let leaves: Vec<&str> = spec.leaves().map(|(p, _)| p).collect();
+    let mut ids = vec![ReadValueId::new_value(node.clone())];
+    for p in &leaves {
+        let (id, _) = map.lookup(p).map_err(|e| format!("{}: {e}", spec.member))?;
+        ids.push(ReadValueId::new_value(t.id(id)));
+    }
+    if t.max_read > 0 && ids.len() > t.max_read {
+        return Err(format!("{}: {} nodes exceed MaxNodesPerRead {}", spec.member, ids.len(), t.max_read));
+    }
+    let v = with_timeout(cfg.write_timeout(), session.read(&ids, TimestampsToReturn::Neither, 0.0)).await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
+    if v.len() != ids.len() {
+        return Err(format!("{}: read returned {} of {} values", spec.member, v.len(), ids.len()));
+    }
+    let (enc, raw) = v[0].value.as_ref().and_then(structs::raw_body).ok_or_else(|| format!("{}: struct value is not a raw ExtensionObject (status {:?})", spec.member, v[0].status))?;
+    let mut values = std::collections::HashMap::new();
+    for (p, dv) in leaves.iter().zip(&v[1..]) {
+        let x = dv.value.as_ref().and_then(from_variant).ok_or_else(|| format!("{p}: unreadable leaf"))?;
+        values.insert(p.to_string(), x);
+    }
+    structs::verify(spec, &values, &raw)?;
+    Ok((node, enc))
+}
 
 const BACKOFF_MIN_MS: u64 = 1_000;
 const BACKOFF_MAX_MS: u64 = 30_000;
+
+/// 구조체로 묶은 쓰기: (남은 리프, [(키, 구조체 WriteValue)]).
+type Packed = (Vec<MemberValue>, Vec<(String, WriteValue)>);
 
 /// Header field paths in write order.
 pub const HEADER_PATHS: [&str; 6] = ["Header.Protocol", "Header.CMD_ID", "Header.CMD", "Header.SRC", "Header.DST", "Header.SEQ"];
@@ -71,6 +193,8 @@ struct Inner {
     /// A request on the active session came back session-invalid: the run loop drops it and reconnects.
     dead: Notify,
     dead_reason: Mutex<Option<String>>,
+    tuned: RwLock<Tuned>,
+    stats: Mutex<IoStats>,
 }
 
 impl Inner {
@@ -92,6 +216,20 @@ impl Inner {
     fn set_map(&self, map: Arc<NodeMap>) {
         if let Ok(mut g) = self.map.write() {
             *g = Some(map);
+        }
+    }
+
+    fn set_tuned(&self, t: Tuned) {
+        if let Ok(mut s) = self.stats.lock() {
+            s.registered = t.registered.len();
+            s.max_nodes_per_write = t.max_write as u32;
+            s.max_nodes_per_read = t.max_read as u32;
+            s.struct_verified = t.structs.keys().cloned().collect();
+            s.struct_active = if self.cfg.struct_write { s.struct_verified.clone() } else { Vec::new() };
+            s.struct_note = t.struct_note.clone();
+        }
+        if let Ok(mut g) = self.tuned.write() {
+            *g = t;
         }
     }
 
@@ -168,6 +306,8 @@ impl CmdWriter {
             notify: Notify::new(),
             dead: Notify::new(),
             dead_reason: Mutex::new(None),
+            tuned: RwLock::new(Tuned::default()),
+            stats: Mutex::new(IoStats::default()),
         });
         tokio::spawn(run(inner.clone()));
         (CmdWriter { inner }, state_rx)
@@ -201,6 +341,8 @@ impl CmdWriter {
         let session = self.inner.session()?;
         let endpoint = self.inner.map().map(|m| m.endpoint.clone()).unwrap_or_else(|_| self.inner.cfg.endpoint.clone());
         let map = Arc::new(browse::resolve(&session, &self.inner.cfg, &endpoint, false).await?);
+        let t = tune(&session, &map, &self.inner.cfg).await;
+        self.inner.set_tuned(t);
         self.inner.set_map(map.clone());
         if self.inner.session().is_ok() {
             self.inner.set_state(self.inner.ready_state(&map));
@@ -222,12 +364,26 @@ impl CmdWriter {
         let map = self.inner.map()?;
         let mut ids = Vec::with_capacity(paths.len());
         let mut keys = Vec::with_capacity(paths.len());
-        for p in paths {
-            let (id, _) = map.lookup(p)?;
-            keys.push(crate::path::normalize_path(p)?);
+        let (max_read, tuned_ids): (usize, Vec<NodeId>) = {
+            let t = self.inner.tuned.read().map_err(|_| OpcError::Transport("tuned lock poisoned".into()))?;
+            let mut v = Vec::with_capacity(paths.len());
+            for p in paths {
+                let (id, _) = map.lookup(p)?;
+                keys.push(crate::path::normalize_path(p)?);
+                v.push(t.id(id));
+            }
+            (t.max_read, v)
+        };
+        for id in tuned_ids {
             ids.push(ReadValueId::new_value(id));
         }
-        let values = with_timeout(self.inner.cfg.write_timeout(), session.read(&ids, TimestampsToReturn::Neither, 0.0)).await?.map_err(|e| self.inner.service_err(&session, e))?;
+        // 서버 한도(MaxNodesPerRead)를 넘으면 나눠 읽는다.
+        let per = if max_read == 0 { ids.len().max(1) } else { max_read };
+        let mut values = Vec::with_capacity(ids.len());
+        for chunk in ids.chunks(per) {
+            let v = with_timeout(self.inner.cfg.write_timeout(), session.read(chunk, TimestampsToReturn::Neither, 0.0)).await?.map_err(|e| self.inner.service_err(&session, e))?;
+            values.extend(v);
+        }
         if values.len() != ids.len() {
             return Err(OpcError::Transport(format!("read returned {} results for {} nodes", values.len(), ids.len())));
         }
@@ -258,20 +414,51 @@ impl CmdWriter {
             seen.push(key);
             first.push(m.clone());
         }
+        let mut zeros = Vec::new();
         for p in map.paths_with_prefix("Command.").into_iter().chain(map.array_elements("Data")) {
             if !seen.contains(&p) {
                 seen.push(p.clone());
-                first.push(MemberValue::new(p, PlcValue::U8(0)));
+                zeros.push(MemberValue::new(p, PlcValue::U8(0)));
             }
         }
-        self.write_batch(&first).await?;
+        // 검증된 구조체면 그 멤버의 리프들을 노드 하나로(값이 안 맞거나 서버가 거절하면 이번 세션은 리프로 되돌린다).
+        // 헤더를 쓰기 전이라 되풀이해도 안전하다 — GRM 은 헤더가 채워져야 중계한다.
+        let packed = if self.inner.cfg.struct_write { self.pack_structs(&first)? } else { None };
+        match packed {
+            Some((rest, extra)) => {
+                let all: Vec<MemberValue> = rest.into_iter().chain(zeros.iter().cloned()).collect();
+                match self.write_batch_with(&all, &extra).await {
+                    Ok(()) => {
+                        if let Ok(mut st) = self.inner.stats.lock() {
+                            st.struct_writes += extra.len() as u64;
+                        }
+                    }
+                    Err(OpcError::Status { path, code }) if extra.iter().any(|(k, _)| *k == path) => {
+                        let why = format!("{path}: server refused struct write ({})", StatusCode::from(code));
+                        tracing::warn!(reason = %why, "struct write refused — falling back to leaf writes for this session");
+                        self.disable_structs(why);
+                        first.extend(zeros);
+                        self.write_batch(&first).await?;
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            None => {
+                first.extend(zeros);
+                self.write_batch(&first).await?;
+            }
+        }
 
         let header = {
             let mut c = self.inner.counters.lock().map_err(|_| OpcError::Transport("counter lock poisoned".into()))?;
             HeaderWire { protocol, cmd_id: c.next_cmd_id(), cmd: cmd_code, src, dst, seq: c.next_seq() }
         };
-        self.write_batch(&header_members(&header)).await?;
-        Ok(header)
+        match self.write_batch(&header_members(&header)).await {
+            Ok(()) => Ok(header),
+            // 응답만 못 받은 것 — 적용됐을 수 있다(중복 제출 방지를 위해 호출자가 "제출됨·에코로 판정"으로 적는다).
+            Err(e @ (OpcError::Timeout | OpcError::Transport(_))) => Err(OpcError::HeaderUncertain { header, detail: e.to_string() }),
+            Err(e) => Err(e),
+        }
     }
 
     /// Write `Command.Task.{Complete|Delete}.{WorkId,TaskId}`; `(0,0)` re-arms.
@@ -288,32 +475,117 @@ impl CmdWriter {
         self.write_batch(&header_members(&HeaderWire::default())).await
     }
 
+    /// 검증된 구조체 멤버의 리프를 떼어 구조체 쓰기 하나로. 해당 없으면 None.
+    /// 반환: (남은 리프, [(키, 구조체 WriteValue)]).
+    fn pack_structs(&self, members: &[MemberValue]) -> Result<Option<Packed>, OpcError> {
+        let t = self.inner.tuned.read().map_err(|_| OpcError::Transport("tuned lock poisoned".into()))?;
+        if t.structs.is_empty() {
+            return Ok(None);
+        }
+        let mut rest = Vec::with_capacity(members.len());
+        let mut groups: std::collections::HashMap<&str, std::collections::HashMap<String, PlcValue>> = Default::default();
+        for m in members {
+            let key = crate::path::normalize_path(&m.path)?;
+            match t.structs.keys().find(|s| key.starts_with(s.as_str()) && key[s.len()..].starts_with('.')) {
+                Some(s) => {
+                    groups.entry(s.as_str()).or_default().insert(key, m.value.clone());
+                }
+                None => rest.push(m.clone()),
+            }
+        }
+        if groups.is_empty() {
+            return Ok(None);
+        }
+        let mut extra = Vec::new();
+        for (member, values) in groups {
+            let (id, enc, spec) = &t.structs[member];
+            // 배치에 없는 리프는 0 으로 쓰인다 — 리프 쓰기와 뜻이 달라지므로 전부 있을 때만.
+            if let Some((p, _)) = spec.leaves().find(|(p, _)| !values.contains_key(*p)) {
+                tracing::debug!(member, missing = p, "struct write skipped: not every leaf given");
+                return Ok(None);
+            }
+            let body = crate::structs::encode(spec, &values)?;
+            let wv = WriteValue { node_id: id.clone(), attribute_id: AttributeId::Value as u32, index_range: NumericRange::None, value: DataValue::value_only(crate::structs::to_variant(enc, body)) };
+            extra.push((member.to_string(), wv));
+        }
+        Ok(Some((rest, extra)))
+    }
+
+    fn disable_structs(&self, why: String) {
+        if let Ok(mut t) = self.inner.tuned.write() {
+            t.structs.clear();
+            t.struct_note = Some(why.clone());
+        }
+        if let Ok(mut s) = self.inner.stats.lock() {
+            s.struct_active.clear();
+            s.struct_verified.clear();
+            s.struct_note = Some(why);
+        }
+    }
+
     async fn write_batch(&self, members: &[MemberValue]) -> Result<(), OpcError> {
-        if members.is_empty() {
+        self.write_batch_with(members, &[]).await
+    }
+
+    /// 리프 멤버 + 미리 만든 쓰기(구조체)를 한 그룹 쓰기로. 구조체가 앞에 간다(선언 순서와 무관 — 서로 겹치지 않는다).
+    async fn write_batch_with(&self, members: &[MemberValue], extra: &[(String, WriteValue)]) -> Result<(), OpcError> {
+        if members.is_empty() && extra.is_empty() {
             return Ok(());
         }
         let session = self.inner.session()?;
         let map = self.inner.map()?;
-        let mut writes = Vec::with_capacity(members.len());
-        let mut keys = Vec::with_capacity(members.len());
-        for m in members {
-            let (id, kind) = map.lookup(&m.path)?;
-            let key = crate::path::normalize_path(&m.path)?;
-            let variant = coerce(&m.value, kind, &key)?;
-            writes.push(WriteValue { node_id: id, attribute_id: AttributeId::Value as u32, index_range: NumericRange::None, value: DataValue::value_only(variant) });
-            keys.push(key);
+        let mut writes: Vec<WriteValue> = extra.iter().map(|(_, w)| w.clone()).collect();
+        let mut keys: Vec<String> = extra.iter().map(|(k, _)| k.clone()).collect();
+        let max_write = {
+            let t = self.inner.tuned.read().map_err(|_| OpcError::Transport("tuned lock poisoned".into()))?;
+            for m in members {
+                let (id, kind) = map.lookup(&m.path)?;
+                let key = crate::path::normalize_path(&m.path)?;
+                let variant = coerce(&m.value, kind, &key)?;
+                // 등록 ID(있으면)로 — S7-1500 은 등록 노드 접근을 최적화한다.
+                writes.push(WriteValue { node_id: t.id(id), attribute_id: AttributeId::Value as u32, index_range: NumericRange::None, value: DataValue::value_only(variant) });
+                keys.push(key);
+            }
+            t.max_write
+        };
+        let t0 = std::time::Instant::now();
+        let r = self.write_chunks(&session, &writes, &keys, max_write).await;
+        let ms = t0.elapsed().as_millis() as u64;
+        if let Ok(mut st) = self.inner.stats.lock() {
+            st.write_nodes += writes.len() as u64;
+            st.write_last_ms = ms;
+            st.write_max_ms = st.write_max_ms.max(ms);
+            if r.is_err() {
+                st.write_failures += 1;
+            }
         }
-        let results = with_timeout(self.inner.cfg.write_timeout(), session.write(&writes)).await?.map_err(|e| self.inner.service_err(&session, e))?;
-        if results.len() != writes.len() {
-            return Err(OpcError::Transport(format!("write returned {} results for {} nodes", results.len(), writes.len())));
-        }
-        for (key, code) in keys.into_iter().zip(results) {
-            if !code.is_good() {
-                tracing::warn!(path = %key, status = %code, "write rejected");
-                return Err(OpcError::Status { path: key, code: code.bits() });
+        r
+    }
+
+    /// 한 그룹 쓰기(Write 서비스 한 번에 여러 노드). 서버 한도(MaxNodesPerWrite)를 넘으면 순서대로 나눠 보낸다.
+    async fn write_chunks(&self, session: &Arc<Session>, writes: &[WriteValue], keys: &[String], max_write: usize) -> Result<(), OpcError> {
+        let per = if max_write == 0 { writes.len().max(1) } else { max_write };
+        for (wchunk, kchunk) in writes.chunks(per).zip(keys.chunks(per)) {
+            if let Ok(mut st) = self.inner.stats.lock() {
+                st.write_calls += 1;
+            }
+            let results = with_timeout(self.inner.cfg.write_timeout(), session.write(wchunk)).await?.map_err(|e| self.inner.service_err(session, e))?;
+            if results.len() != wchunk.len() {
+                return Err(OpcError::Transport(format!("write returned {} results for {} nodes", results.len(), wchunk.len())));
+            }
+            for (key, code) in kchunk.iter().zip(results) {
+                if !code.is_good() {
+                    tracing::warn!(path = %key, status = %code, "write rejected");
+                    return Err(OpcError::Status { path: key.clone(), code: code.bits() });
+                }
             }
         }
         Ok(())
+    }
+
+    /// 쓰기·읽기 통계와 지금 세션의 튜닝(등록 수·서버 한도).
+    pub fn stats(&self) -> IoStats {
+        self.inner.stats.lock().map(|s| s.clone()).unwrap_or_default()
     }
 }
 
@@ -339,6 +611,7 @@ async fn backoff_sleep(inner: &Inner, ms: u64) {
 
 async fn run(inner: Arc<Inner>) {
     let mut backoff = BACKOFF_MIN_MS;
+    let mut sessions_opened: u64 = 0;
     while !inner.shutdown.load(Ordering::SeqCst) {
         inner.set_state(OpcState::Connecting);
         let conn = match connect::connect(&inner.cfg).await {
@@ -375,7 +648,15 @@ async fn run(inner: Arc<Inner>) {
             root = %map.root_nodeid,
             "node map ready"
         );
+        let t = tune(&conn.session, &map, &inner.cfg).await;
+        inner.set_tuned(t);
         inner.set_map(map.clone());
+        if sessions_opened > 0
+            && let Ok(mut st) = inner.stats.lock()
+        {
+            st.reconnects += 1;
+        }
+        sessions_opened += 1;
         // A leftover reason belongs to an earlier session.
         inner.take_dead_reason();
         inner.set_active(Some(Active { session: conn.session.clone() }));
@@ -408,7 +689,9 @@ async fn run(inner: Arc<Inner>) {
             }
             SessionEnd::Dead { detail } => {
                 // Found by a request (state already Failed, session already withdrawn). Dropping the
-                // driver task drops the transport, so the old session stops producing log noise.
+                // driver task drops the transport, so the old session stops producing log noise. Try a short close first so a
+                // session the server still holds does not linger until its timeout (GRM has a session limit).
+                let _ = with_timeout(Duration::from_secs(1), conn.session.disconnect()).await;
                 event_loop.abort();
                 tracing::warn!(%detail, retry_in_ms = BACKOFF_MIN_MS, "session invalid, reconnecting");
                 backoff_sleep(&inner, BACKOFF_MIN_MS).await;

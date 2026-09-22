@@ -4,6 +4,7 @@
 //! Lookups (target cell / station, item) happen in `compose`; the arithmetic lives in `compose_from`
 //! so it is unit-testable without an `AppState`. `warnings` are advisory — the PLC validates anyway.
 
+pub mod station_live;
 pub mod station_offset;
 
 use gr_proto::{CellInfo, StationPara, StockItem, TaskData, TaskParams, TaskType};
@@ -46,6 +47,18 @@ pub struct Composed {
     /// MOVE 의 모드·Z 근거(`params.move_mode`).
     #[serde(rename = "move", skip_serializing_if = "Option::is_none")]
     pub move_audit: Option<MoveAudit>,
+    /// MEASURE auto 가 고른 측정 종류와 근거 재고(측정 플래그를 아무도 안 정했을 때만).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub measure_auto: Option<MeasureAuto>,
+}
+
+/// MEASURE auto 판정 — 대상 재고 1개 이하 = Item, 2개 이상 = SKU.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct MeasureAuto {
+    /// `item` | `sku`
+    pub mode: &'static str,
+    /// 판정에 쓴 대상 재고 개수(미리보기 체인이면 가정 재고).
+    pub stock: u32,
 }
 
 /// 셀 단수 Max 검사 결과.
@@ -166,7 +179,7 @@ fn move_options(defaults: &Defaults, kind: &str, req: &Json) -> Result<(MoveMode
 pub fn situations_for(tt: TaskType, kind: &str, probe: &gr_proto::TaskParams, req: &TaskRequest) -> Vec<&'static str> {
     let mut out = Vec::new();
     if tt == TaskType::Measure {
-        // 플래그가 하나도 없으면 아래에서 MeasureItem 으로 본다 — 상황도 같게.
+        // 플래그가 하나도 없으면(auto 가 먼저 채우므로 드묾) MeasureItem 으로 본다 — 상황도 같게.
         if probe.measure_item || !(probe.measure_floor || probe.measure_sku) {
             out.push("measure_item");
         }
@@ -418,7 +431,7 @@ pub fn station_offset_rows(st: &AppState) -> Result<Vec<StationOffsetRow>, ApiEr
     Ok(out)
 }
 
-fn age_ms(at: &str) -> Option<i64> {
+pub(crate) fn age_ms(at: &str) -> Option<i64> {
     let t = crate::ledger::parse_rfc3339(at)?;
     Some((time::OffsetDateTime::now_utc() - t).whole_milliseconds() as i64)
 }
@@ -431,38 +444,22 @@ fn tracking_of(j: &Json) -> Tracking {
     Tracking { od: f32_at(&j["OutterDiameter"]), tx: f32_at(&j["TaskOffset"][0]), ty: f32_at(&j["TaskOffset"][1]) }
 }
 
-/// GRM 슬롯 `id MOD 100` 의 트래킹 — fast `OPCUA.STATION[n]`(Comm_CV 가 매 스캔 복사) 우선, 그 슬롯 Id 가
-/// 다르거나 없으면 slow `STATION.Station[n]`. JSON 배열은 0 부터라 PLC 인덱스 n 은 `[n-1]`.
+/// GRM 슬롯 `id MOD 100` 의 트래킹 — 원소 찾기는 `station_live::grm_station_el`(fast OPCUA 우선).
 fn grm_live(st: &AppState, id: u16) -> Result<LiveStation, String> {
-    let slot = station_offset::slot_of(id).ok_or_else(|| format!("슬롯 {}(id MOD 100)이 1..32 밖", id % 100))?;
-    let h = st.grm_plc().ok_or_else(|| "GRM PLC 미설정".to_string())?;
-    let snap = h.snap();
-    let mut seen = Vec::new();
-    for (db, arr) in [("OPCUA", "STATION"), ("STATION", "Station")] {
-        let Some(d) = snap.db(db) else { continue };
-        let el = &d.json[arr][slot - 1];
-        if el.is_null() {
-            continue;
-        }
-        let got = el["Para"]["Info"]["Id"].as_u64().unwrap_or(0);
-        if got != id as u64 {
-            seen.push(format!("{db}[{slot}].Id = {got}"));
-            continue;
-        }
-        let mismatch = el["Status"]["DataMissMatch"].as_array().map(|a| a.iter().any(|b| b.as_bool() == Some(true))).unwrap_or(false);
-        return Ok(LiveStation {
-            rotate_type: el["Para"]["RotateType"].as_u64().unwrap_or(0) as u8,
-            now: tracking_of(&el["Tracking"]["Now"]),
-            staged: tracking_of(&el["Tracking"]["Staged"]),
-            measuring_error: el["Status"]["MeasuringError"].as_bool().unwrap_or(false),
-            data_mismatch: mismatch,
-            source: db.to_string(),
-            snapshot_at: d.at.clone(),
-            age_ms: age_ms(&d.at),
-            disconnected: !h.health_now().connected,
-        });
-    }
-    Err(if seen.is_empty() { "GRM 스냅샷 없음".into() } else { format!("GRM 슬롯 Id 불일치: {} — 스테이션 푸시 필요", seen.join(", ")) })
+    let g = station_live::grm_station_el(st, id)?;
+    let el = &g.el;
+    let mismatch = el["Status"]["DataMissMatch"].as_array().map(|a| a.iter().any(|b| b.as_bool() == Some(true))).unwrap_or(false);
+    Ok(LiveStation {
+        rotate_type: el["Para"]["RotateType"].as_u64().unwrap_or(0) as u8,
+        now: tracking_of(&el["Tracking"]["Now"]),
+        staged: tracking_of(&el["Tracking"]["Staged"]),
+        measuring_error: el["Status"]["MeasuringError"].as_bool().unwrap_or(false),
+        data_mismatch: mismatch,
+        age_ms: age_ms(&g.at),
+        source: g.db,
+        snapshot_at: g.at,
+        disconnected: g.disconnected,
+    })
 }
 
 /// GR2 `isValidTaskArea` 입력 — TaskType 은 슬롯 `id MOD 100`, RotateType·Info 는 Id 로 찾은 원소.
@@ -530,6 +527,22 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
     if let Some(by) = defaults.by.get(tt.name()).and_then(|m| m.get(&kind)) {
         params = params.overlay(by)?;
     }
+    // MEASURE auto — 기본값·요청 어디에도 측정 플래그가 없으면 대상 재고로 고른다: 1개 이하 = Item, 2개 이상 = SKU
+    // (운전자 결정 2026-09-21). 상황 판정보다 먼저 정해야 Measure Item/SKU 기본값 층이 맞게 얹힌다.
+    let measure_auto = if tt == TaskType::Measure {
+        let probe = params.overlay(&req.params)?;
+        if probe.measure_floor || probe.measure_item || probe.measure_sku {
+            None
+        } else {
+            let n = stock.map(|(_, n)| n).unwrap_or(0);
+            let sku = n >= 2;
+            params.measure_item = !sku;
+            params.measure_sku = sku;
+            Some(MeasureAuto { mode: if sku { "sku" } else { "item" }, stock: n })
+        }
+    } else {
+        None
+    };
     // 상황은 상황 층을 빼고 본 값(요청 포함)으로 판정한다 — 상황 층이 제 판정 플래그를 바꿔도 판정이 돌지 않게.
     let applied = situations_for(tt, &kind, &params.overlay(&req.params)?, req);
     for k in &applied {
@@ -541,6 +554,10 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
         warnings.push("multi_pick 은 스테이션 PICK/DROP 에만 적용됩니다 — 무시".into());
     }
     params = params.overlay(&req.params)?;
+    // 모르는 키(오타)는 overlay 가 조용히 버린다 — 미리보기에 알린다(요청은 막지 않는다).
+    for p in gr_proto::check_partial(&req.params, &["move_mode", "move_clearance"]) {
+        warnings.push(format!("params {p}"));
+    }
     if tt == TaskType::Measure && !(params.measure_floor || params.measure_item || params.measure_sku) {
         params.measure_item = true;
         warnings.push("MEASURE without a measure flag: MeasureItem assumed".into());
@@ -562,6 +579,17 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
         params.avoid = mode == MoveMode::Avoid;
     }
     params.apply(&mut task);
+
+    // MEASURE SKU = 스택 전체. GR2 `FB_MeasureSku_V2` 는 명령 Z 에서 **위로** 올라가며 재고, 명령 단수(Item.Count)와
+    // 잰 단수가 다르면 무효(X8)로 본다 → 개수 = 대상 재고 전체, Z = 1단 중간 높이(그립 mid). 예전에는 요청 개수(1)로
+    // 맨 위 1개를 집는 자리에서 시작해 최상단 한 단만 쟀다(2026-09-22).
+    let sku = tt == TaskType::Measure && params.measure_sku;
+    if sku
+        && let Some((_, n)) = stock
+        && n > 0
+    {
+        task.item.count = n.min(u8::MAX as u32) as u8;
+    }
 
     // Z from the cell stock (n tires already there), G from the inner diameter. The UI can override the whole position.
     let mut stack_z = None;
@@ -586,7 +614,7 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
         } else if matches!(tt, TaskType::Pick | TaskType::Drop | TaskType::Measure) {
             warnings.push(format!("cell {} stock unknown — Z assumes {}", task.cell.id, if tt == TaskType::Drop { "an empty cell" } else { "the task count on the floor" }));
         }
-        let grip_ref = req.grip_ref.as_deref().unwrap_or(&defaults.grip_ref);
+        let grip_ref = if sku { "mid" } else { req.grip_ref.as_deref().unwrap_or(&defaults.grip_ref) };
         task.position[2] = match tt {
             TaskType::Pick | TaskType::Measure | TaskType::Drop => {
                 let z = stack_z_with(tt, floor, &task.item, spec, grip_ref, n, c);
@@ -653,6 +681,7 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
         pallet: None,
         situations: applied.iter().map(|k| k.to_string()).collect(),
         move_audit,
+        measure_auto,
     })
 }
 
@@ -708,7 +737,7 @@ mod tests {
         d
     }
 
-    /// 상황 층은 종류·대상별 위, 요청 아래 — MEASURE 는 측정 플래그로 고른다(플래그 없으면 Item).
+    /// 상황 층은 종류·대상별 위, 요청 아래 — MEASURE 는 측정 플래그로 고른다(플래그 없으면 auto: 재고 1 = Item, 2+ = SKU).
     #[test]
     fn measure_situations_layer_between_by_and_request() {
         let d = situated();
@@ -720,13 +749,45 @@ mod tests {
         // 요청 덮어쓰기가 상황보다 이긴다
         r.params = json!({ "measure_sku": true, "grip_height": 5 });
         assert_eq!(compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap().params.grip_height, 5);
-        // 플래그 없음 → MeasureItem 으로 보고 그 층
+        // 플래그 없음 → auto: 재고 1개면 Item 층, 2개 이상이면 SKU 층
         r.params = json!({});
-        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap();
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 1)), None).unwrap();
         assert_eq!(c.situations, vec!["measure_item"]);
         assert_eq!(c.params.lift_up_height, 1111);
+        assert_eq!(c.measure_auto, Some(MeasureAuto { mode: "item", stock: 1 }));
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap();
+        assert_eq!(c.situations, vec!["measure_sku"]);
+        assert!(c.params.measure_sku && !c.params.measure_item);
+        assert_eq!(c.measure_auto, Some(MeasureAuto { mode: "sku", stock: 3 }));
+        // 요청이 정하면 auto 는 없다
+        r.params = json!({ "measure_item": true });
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap();
+        assert!(c.measure_auto.is_none() && c.params.measure_item && !c.params.measure_sku);
         // MEASURE 가 아니면 측정 상황 없음
         assert!(compose_from(&d, &req("PICK", "cell"), Some(cell()), Some(item()), Some((1001, 3)), None).unwrap().situations.is_empty());
+    }
+
+    /// MEASURE SKU = 스택 전체: 개수 = 재고 전체, Z = 1단 중간(그립 mid) — PLC 가 거기서 위로 재고 명령 단수와 비교한다.
+    /// Item 은 예전 그대로 맨 위 1개(요청 개수)를 잡는 자리.
+    #[test]
+    fn measure_sku_starts_at_level_one_with_the_whole_stack() {
+        let d = defaults();
+        let mut r = req("MEASURE", "cell");
+        r.count = 1;
+        // auto → SKU(재고 4): 1단 중간 = 바닥 1500 + 240/2
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 4)), None).unwrap();
+        assert!(c.params.measure_sku);
+        assert_eq!((c.task.item.count, c.task.position[2]), (4, 1620.0));
+        // 그립 기준을 pick_bead 로 줘도 SKU 는 mid
+        r.params = json!({ "measure_sku": true });
+        r.grip_ref = Some("pick_bead".into());
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap();
+        assert_eq!((c.task.item.count, c.task.position[2]), (3, 1620.0));
+        // Item 명시 + 재고 3 → 맨 위(3단) 1개: 1500 + 240·2 + 120
+        r.params = json!({ "measure_item": true });
+        r.grip_ref = None;
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap();
+        assert_eq!((c.task.item.count, c.task.position[2]), (1, 2100.0));
     }
 
     /// Multi-Picking 은 스테이션 PICK/DROP 에만 — 기본 층이 부분 리프트를 켠다. 셀이면 경고만.
@@ -931,7 +992,8 @@ mod tests {
         assert!(c.params.measure_item);
         assert!(c.warnings.iter().any(|w| w.contains("target not set")));
         assert!(c.warnings.iter().any(|w| w.contains("item not set")));
-        assert!(c.warnings.iter().any(|w| w.contains("MeasureItem assumed")));
+        // 재고를 모르면(0) auto 는 Item
+        assert_eq!(c.measure_auto, Some(MeasureAuto { mode: "item", stock: 0 }));
         let c = compose_from(&d, &req("UP", "cell"), None, None, None, None).unwrap();
         assert!(c.warnings.is_empty());
         assert!(compose_from(&d, &req("FLY", "cell"), None, None, None, None).is_err());

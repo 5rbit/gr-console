@@ -335,6 +335,14 @@ impl Runner {
             s.created_at = now_str();
         }
         s.normalize();
+        // 파라미터 검사(오타·종류·범위)를 저장 때 — 예전에는 실행해야 드러났다. 등록 여부(셀·품목)는
+        // 레지스트리가 바뀔 수 있어 저장을 막지 않는다(검증 버튼·실행 전 검사가 본다).
+        let shape = io::validate_shape(&s);
+        // 막는 것은 파라미터 문제뿐 — 대상·품목 미입력 같은 것은 편집 중 저장을 막지 않는다.
+        let errors: Vec<String> = shape.iter().filter(|x| x.field == "params").map(|x| format!("스텝 {} {}: {}", x.step_index.map(|i| i + 1).unwrap_or(0), x.field, x.message)).collect();
+        if !errors.is_empty() {
+            return Err(ApiError::BadRequest(format!("시나리오 검사 실패 — {}", errors.join(" · "))));
+        }
         s.updated_at = now_str();
         let doc = serde_json::to_string(&s)?;
         self.db.with(|c| {

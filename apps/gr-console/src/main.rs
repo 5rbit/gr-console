@@ -1,3 +1,4 @@
+mod backup;
 mod bundle;
 mod cmd;
 mod config;
@@ -70,9 +71,15 @@ struct Cli {
     /// Ask the running console to shut down gracefully and wait for it
     #[arg(long)]
     stop: bool,
-    /// With --stop: kill the process if the graceful shutdown does not finish
+    /// With --stop: kill the process if the graceful shutdown does not finish. With --import-from: replace an existing DB
     #[arg(long)]
     force: bool,
+    /// Back up config + data into <folder>/backup/ (asks the running console when it is up)
+    #[arg(long)]
+    backup: bool,
+    /// Bring config + data over from an old console folder (this console must be stopped)
+    #[arg(long, value_name = "OLD_FOLDER")]
+    import_from: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -95,10 +102,19 @@ async fn main() -> anyhow::Result<()> {
     let (config_path, base) = locate_config(&cli.config);
     let mut cfg = Config::load(&config_path)?;
     cfg.anchor(&base);
-    logsink::open_file_dir(&cfg.paths.data_dir.join("logs"));
-    tracing::info!(base = %base.display(), config = %config_path.display(), bundle = bundle::summary(), "paths");
     if cli.demo || cli.demo_opcua {
         cfg.demo = true;
+    }
+    if cfg.demo {
+        cfg.isolate_demo_data();
+    }
+    logsink::open_file_dir(&cfg.paths.data_dir.join("logs"));
+    tracing::info!(base = %base.display(), config = %config_path.display(), data = %cfg.paths.data_dir.display(), bundle = bundle::summary(), "paths");
+    backup::init(&config_path, &base);
+    if cli.backup || cli.import_from.is_some() {
+        let code = maintenance(&cli, &cfg, &config_path, &base);
+        logsink::flush(std::time::Duration::from_secs(2));
+        std::process::exit(code);
     }
     if let Some(b) = cli.bind {
         cfg.server.bind = b;
@@ -159,7 +175,7 @@ async fn main() -> anyhow::Result<()> {
         // a gr PLC no robot owns shares the first robot's fake PLC
         let first = w.robot_addrs()[0].1;
         for p in cfg.plcs.iter_mut() {
-            let addr = if p.role == config::PlcRole::Grm { w.grm_addr } else { w.addr_of(&p.name).unwrap_or(first) };
+            let addr = if p.role == crate::config::PlcRole::Grm { w.grm_addr } else { w.addr_of(&p.name).unwrap_or(first) };
             p.host = addr.ip().to_string();
             p.port = addr.port();
         }
@@ -186,8 +202,16 @@ async fn main() -> anyhow::Result<()> {
     let mut plcs = HashMap::new();
     for p in &cfg.plcs {
         let c = contracts[&p.contract].clone();
-        let h = plc::spawn(p.clone(), c, cfg.poll.clone())?;
-        plcs.insert(p.name.clone(), h);
+        let mut p = p.clone();
+        // GRM OPCUA 는 쓰는 곳이 로봇별 CMD 헤더(제출 게이트)와 STATION(스테이션 보정)뿐 — 빠른 주기에는 그 범위만 읽는다.
+        if p.role == crate::config::PlcRole::Grm && p.fast_ranges.is_empty() {
+            let mut paths: Vec<String> = if cfg.robots.is_empty() { vec![format!("{}.Header", cfg.opcua.root_path)] } else { cfg.robots.iter().map(|r| format!("{}.Header", r.opcua_root)).collect() };
+            paths.push("STATION".into());
+            p.fast_ranges.insert("OPCUA".into(), paths);
+        }
+        let name = p.name.clone();
+        let h = plc::spawn(p, c, cfg.poll.clone())?;
+        plcs.insert(name, h);
     }
     let plcs = Arc::new(plcs);
 
@@ -251,6 +275,9 @@ async fn main() -> anyhow::Result<()> {
                     node_cache: o.node_cache.clone().map(|p| if robots_is_multi(&cfg) { p.with_extension(format!("gr{}.json", r.id)) } else { p }),
                     pki_dir: o.pki_dir.clone(),
                     trust_server_cert: o.trust_server_cert,
+                    register_nodes: o.register_nodes,
+                    struct_specs: grm_for_opc.as_deref().map(|g| cmd::opcua_struct_specs(g, &o.db_name, &r.opcua_root)).unwrap_or_default(),
+                    struct_write: o.struct_write,
                     array_bases: grm_for_opc.as_deref().map(|g| cmd::opcua_array_bases(g, &o.db_name, &r.opcua_root)).unwrap_or_default(),
                 };
                 let (writer, _state_rx) = opcua_cmd::CmdWriter::spawn(ocfg);
@@ -304,6 +331,8 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!("trace disabled: {}", trace_why.join("; "));
     }
     let st = AppState { cfg: cfg.clone(), plcs, cmd, robots, task_events, db, ledger, registry, scenario, stock, recorder, trace, events, shutdown: sd.clone() };
+
+    stock::conveyor::spawn(st.clone());
 
     // demo: seed registries from the fake PLC tables once they are readable
     if cfg.demo {
@@ -463,6 +492,58 @@ fn spawn_signal_watchers(sd: shutdown::Shutdown) {
     }
 }
 
+/// `--backup` / `--import-from` — 포터블 백업·이관(`backup` 모듈). 종료 코드를 돌려준다.
+fn maintenance(cli: &Cli, cfg: &Config, config_path: &std::path::Path, base: &std::path::Path) -> i32 {
+    let running = match instance::probe(&instance::default_lock_dir(), &instance::default_info_dir()) {
+        Ok(instance::Probe::Running(info)) => Some(info),
+        _ => None,
+    };
+    if let Some(old) = &cli.import_from {
+        if running.is_some() {
+            eprintln!("콘솔이 실행 중입니다 — 먼저 gr-console --stop 으로 끈 뒤 가져오세요.");
+            return 1;
+        }
+        return match backup::import_from(old, cfg, config_path, cli.force) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("가져오기 실패: {e:#}");
+                1
+            }
+        };
+    }
+    // --backup: 켜져 있으면 그 콘솔이 뜬다(일관 사본은 같은 DB 연결에서), 꺼져 있으면 여기서 직접.
+    if let Some(Some(info)) = running {
+        return match instance::connect_addr(&info.bind).map(|a| instance::http_request(a, "POST", "/api/admin/backup", &[])) {
+            Some(Ok(200)) => {
+                println!("백업 완료 — {} 아래 (실행 중인 콘솔이 만듦)", base.join("backup").display());
+                0
+            }
+            Some(Ok(code)) => {
+                eprintln!("백업 요청이 거절됐습니다(HTTP {code}).");
+                1
+            }
+            Some(Err(e)) => {
+                eprintln!("실행 중인 콘솔에 닿지 못했습니다: {e}");
+                1
+            }
+            None => {
+                eprintln!("주소를 해석할 수 없습니다: {}", info.bind);
+                1
+            }
+        };
+    }
+    match crate::db::Db::open(&cfg.paths.sqlite).and_then(|db| backup::snapshot(&db, cfg, config_path, base)) {
+        Ok(p) => {
+            println!("백업 완료 — {}", p.display());
+            0
+        }
+        Err(e) => {
+            eprintln!("백업 실패: {e:#}");
+            1
+        }
+    }
+}
+
 /// `--stop` — 실행 중인 콘솔에 정상 종료를 요청하고 끝날 때까지 기다린다. 프로세스 종료 코드를 돌려준다.
 fn stop_running_instance(force: bool) -> i32 {
     let (lock_dir, info_dir) = (instance::default_lock_dir(), instance::default_info_dir());
@@ -606,13 +687,15 @@ fn locate_config(given: &std::path::Path) -> (PathBuf, PathBuf) {
     if given.is_absolute() {
         return (given.to_path_buf(), given.parent().map(PathBuf::from).unwrap_or(cwd));
     }
-    if cwd.join(given).is_file() {
-        return (cwd.join(given), cwd);
-    }
+    // 실행 파일 옆 설정이 먼저 — 포터블 폴더의 exe 를 다른 폴더(옛 버전 폴더 등)에서 실행해도 **자기 폴더**의
+    // 설정·data 를 쓴다. 옆에 없을 때만 CWD(개발 체크아웃).
     if let Some(exe_dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(PathBuf::from))
         && exe_dir.join(given).is_file()
     {
         return (exe_dir.join(given), exe_dir);
+    }
+    if cwd.join(given).is_file() {
+        return (cwd.join(given), cwd);
     }
     // 설정 파일이 어디에도 없다: 개발 체크아웃(CWD에 plc/contract)이면 CWD, 아니면 실행 파일 옆
     if cwd.join("plc/contract").is_dir() {

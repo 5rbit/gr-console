@@ -320,7 +320,9 @@ impl Registry {
         let mut changed: Vec<(DimField, f32, f32, &Json)> = Vec::new();
         for (f, v, samples) in values {
             let (lo, hi) = f.plausible();
-            if !v.is_finite() || !(lo..=hi).contains(v) {
+            // 되돌리기는 미입력(0)으로도 돌아간다 — 측정 반영이 처음 채운 필드(등록값 0)를 원래대로 비운다.
+            let unset = source == "revert" && *v == 0.0;
+            if !unset && (!v.is_finite() || !(lo..=hi).contains(v)) {
                 return Err(ApiError::BadRequest(format!("{} = {v} 가 범위({lo}..{hi}) 밖", f.key())));
             }
             let before = f.get(&item);
@@ -444,9 +446,21 @@ async fn dims_suggest(State(st): State<AppState>, Query(q): Query<WindowQuery>) 
     Ok(axum::Json(out))
 }
 
+/// 적용된 변경 — 필드 · id · 이전 · 이후. 같은 값이라 건너뛴 필드는 없다(`changes` 만으로는 어느 필드인지 모른다).
+fn applied_view(st: &AppState, ids: &[i64]) -> Result<Vec<Json>, ApiError> {
+    let mut out = Vec::new();
+    for id in ids {
+        if let Some(c) = st.registry.dim_change(*id)? {
+            out.push(json!({ "id": c.id, "field": c.field, "before": c.before, "after": c.after }));
+        }
+    }
+    Ok(out)
+}
+
 async fn dims_apply(State(st): State<AppState>, Path(code): Path<u32>, axum::Json(b): axum::Json<ApplyBody>) -> ApiResult<Json> {
     let (item, ids) = apply_one(&st, code, &b.fields, b.window.unwrap_or(DEFAULT_WINDOW), &b.note)?;
-    Ok(axum::Json(json!({ "code": item.code, "changes": ids, "item": item })))
+    let applied = applied_view(&st, &ids)?;
+    Ok(axum::Json(json!({ "code": item.code, "changes": ids, "applied": applied, "item": item })))
 }
 
 async fn dims_apply_bulk(State(st): State<AppState>, axum::Json(b): axum::Json<BulkBody>) -> ApiResult<Json> {
@@ -455,7 +469,7 @@ async fn dims_apply_bulk(State(st): State<AppState>, axum::Json(b): axum::Json<B
         .items
         .iter()
         .map(|it| match apply_one(&st, it.code, &it.fields, window, &b.note) {
-            Ok((_, ids)) => json!({ "code": it.code, "ok": true, "changes": ids }),
+            Ok((_, ids)) => json!({ "code": it.code, "ok": true, "applied": applied_view(&st, &ids).unwrap_or_default(), "changes": ids }),
             Err(e) => json!({ "code": it.code, "ok": false, "error": e.to_string() }),
         })
         .collect();
@@ -605,5 +619,10 @@ mod tests {
         let ch = reg.dim_changes(Some(1501), 10).unwrap();
         assert_eq!((ch[0].before, ch[0].after, ch[0].field.as_str()), (372.0, 370.5, "inner_diameter"));
         assert!(reg.set_dims(1501, &[(DimField::InnerDiameter, 5.0, json!([]))], "measured", "").is_err()); // 범위 밖
+        // 미입력(0)을 처음 채운 필드는 되돌리기로 다시 비울 수 있다 — 측정 반영으로 0 을 쓰는 것은 여전히 막는다
+        reg.set_dims(1501, &[(DimField::UpperBeadHeight, 197.9, json!([]))], "measured", "").unwrap();
+        assert!(reg.set_dims(1501, &[(DimField::UpperBeadHeight, 0.0, json!([]))], "measured", "").is_err());
+        let (it, _) = reg.set_dims(1501, &[(DimField::UpperBeadHeight, 0.0, json!([]))], "revert", "revert").unwrap();
+        assert_eq!(it.item.upper_bid_height, 0.0);
     }
 }

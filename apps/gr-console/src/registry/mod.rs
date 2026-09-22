@@ -9,6 +9,7 @@
 
 pub mod beads;
 pub mod bulk;
+pub mod defaults_io;
 pub mod diff;
 pub mod dims;
 pub mod plc_io;
@@ -75,10 +76,24 @@ pub struct Defaults {
     /// 상황별 덮어쓰기(부분 파라미터) — 종류·대상별(`by`) **위**, 작성 카드 덮어쓰기 **아래**에 얹힌다.
     /// 키는 [`SITUATIONS`] 순서로 적용되고(뒤가 이긴다), 판정은 `issue::situations_for`.
     pub situations: BTreeMap<String, Json>,
+    /// 읽을 때 걷어 낸 것(깨진 값·모르는 키) — 화면이 알린다. 요청으로는 받지 않고, 저장하면 사라진다.
+    #[serde(default, skip_deserializing, skip_serializing_if = "Vec::is_empty")]
+    pub load_warnings: Vec<String>,
+}
+
+/// 기본값 이력 한 줄(목록용 — JSON 본문은 되돌릴 때만 읽는다).
+#[derive(Clone, Debug, Serialize)]
+pub struct DefaultsHistoryRow {
+    pub id: i64,
+    pub version: u32,
+    pub at: String,
+    pub note: String,
+    /// 이 저장이 바꾼 것(앞 몇 줄).
+    pub changes: Vec<String>,
 }
 
 /// 상황 키 — 적용 순서(뒤가 이긴다). 화면(`lib/task/compose.ts` `SITUATIONS`)과 같은 목록이다.
-/// - `measure_item` : MEASURE + MeasureItem(측정 플래그가 없으면 Item 으로 본다)
+/// - `measure_item` : MEASURE + MeasureItem(측정 플래그가 없으면 auto — 대상 재고 1개 이하 Item, 2개 이상 SKU)
 /// - `measure_sku`  : MEASURE + MeasureSku
 /// - `pallet_station` : 켜진 팔렛 스테이션에 `pallet` 슬롯을 단 작업(팔렛타이징)
 /// - `multi_pick`   : 스테이션 PICK/DROP 인데 다음 작업이 **같은 스테이션 그룹**(PLC DoublePicking — LiftUpPartial 로
@@ -104,7 +119,7 @@ impl Default for Defaults {
             m.insert("station".to_string(), serde_json::json!({ "find_station_item": t == "PICK" }));
             by.insert(t.into(), m);
         }
-        Self { version: 1, updated_at: now_str(), base: TaskParams::default(), by, grip_ref: "mid".into(), situations: default_situations() }
+        Self { version: 1, updated_at: now_str(), base: TaskParams::default(), by, grip_ref: "mid".into(), situations: default_situations(), load_warnings: Vec::new() }
     }
 }
 
@@ -265,32 +280,110 @@ impl Registry {
     // ---- defaults
     pub fn defaults(&self) -> Result<Defaults, ApiError> {
         let mut d: Defaults = match self.db.setting("defaults")? {
-            Some(s) => serde_json::from_str(&s).unwrap_or_default(),
+            Some(s) => {
+                // 깨진 부분만 버린다(`defaults_io::load_lenient`). 무엇이든 버렸으면 원본을 `defaults.recovered` 에
+                // 남긴다 — 다음 저장이 덮어써도 원본은 남는다.
+                let (d, warn) = defaults_io::load_lenient(&s);
+                if !warn.is_empty() {
+                    tracing::error!(problems = ?warn, "stored defaults had invalid parts — kept the rest, raw copy in settings 'defaults.recovered'");
+                    if self.db.setting("defaults.recovered")?.as_deref() != Some(s.as_str()) {
+                        self.db.set_setting("defaults.recovered", &s)?;
+                    }
+                }
+                Defaults { load_warnings: warn, ..d }
+            }
             None => Defaults::default(),
         };
+        for k in SITUATIONS {
+            d.situations.entry(k.to_string()).or_insert_with(|| serde_json::json!({}));
+        }
         // 옛 값(`bead`)·오타는 읽는 자리에서 정본으로 — 화면에도 저장된 값에도 `bead` 는 남지 않는다.
         d.grip_ref = spec::normalize_grip_ref(&d.grip_ref).into();
         Ok(d)
     }
-    pub fn save_defaults(&self, mut d: Defaults) -> Result<Defaults, ApiError> {
-        // 상황 층: 모르는 키·잘못된 값은 저장 전에 막는다(작성 때 400 으로 터지지 않게). 없는 키는 빈 층으로 채운다.
-        for (k, v) in &d.situations {
-            if !SITUATIONS.contains(&k.as_str()) {
-                return Err(ApiError::BadRequest(format!("알 수 없는 상황 '{k}' — {}", SITUATIONS.join(", "))));
-            }
-            if !v.is_object() {
-                return Err(ApiError::BadRequest(format!("상황 '{k}' 는 파라미터 객체여야 합니다")));
-            }
-            TaskParams::default().overlay(v).map_err(|e| ApiError::BadRequest(format!("상황 '{k}': {e}")))?;
+    /// 저장(검사 → 버전 +1 → 이력 한 줄). 버전 충돌은 보지 않는다 — 화면 저장은 [`Self::save_defaults_checked`].
+    #[cfg_attr(not(test), allow(dead_code))] // 화면은 버전을 보는 save_defaults_checked — 이것은 시험·내부용
+    pub fn save_defaults(&self, d: Defaults) -> Result<Defaults, ApiError> {
+        self.save_defaults_noted(d, "")
+    }
+
+    /// 화면의 저장 — 보낸 `version` 이 저장된 것과 다르면(다른 탭·세션이 먼저 저장) 409. 옛 스냅샷으로 남의
+    /// 변경을 되돌리지 않게.
+    pub fn save_defaults_checked(&self, d: Defaults, note: &str) -> Result<Defaults, ApiError> {
+        let cur = self.defaults()?;
+        if d.version != cur.version {
+            return Err(ApiError::Conflict(format!("기본값이 다른 곳에서 먼저 바뀌었습니다(저장된 v{}, 보낸 v{}) — 다시 읽은 뒤 저장하세요", cur.version, d.version)));
+        }
+        self.save_defaults_noted(d, note)
+    }
+
+    /// 그립 기준만 — 전체를 다시 보내지 않는다(작업 명령 화면의 토글이 옛 스냅샷으로 남의 변경을 덮던 경로).
+    pub fn set_grip_ref(&self, grip_ref: &str) -> Result<Defaults, ApiError> {
+        let mut d = self.defaults()?;
+        d.grip_ref = grip_ref.to_string();
+        self.save_defaults_noted(d, "grip_ref")
+    }
+
+    fn save_defaults_noted(&self, mut d: Defaults, note: &str) -> Result<Defaults, ApiError> {
+        // 구조 검사 — 문제를 한 번에 모아 거부한다(작성 때 400 으로 터지지 않게).
+        let problems = defaults_io::validate(&d);
+        if !problems.is_empty() {
+            return Err(ApiError::BadRequest(format!("기본값 검사 실패 {}건 — {}", problems.len(), problems.join(" · "))));
         }
         for k in SITUATIONS {
             d.situations.entry(k.to_string()).or_insert_with(|| serde_json::json!({}));
         }
+        let before = self.db.setting("defaults")?;
+        let prev_version = before.as_deref().map(|s| defaults_io::load_lenient(s).0.version).unwrap_or(0);
         d.updated_at = now_str();
-        d.version += 1;
+        d.version = d.version.max(prev_version) + 1;
         d.grip_ref = spec::normalize_grip_ref(&d.grip_ref).into();
-        self.db.set_setting("defaults", &serde_json::to_string(&d)?)?;
+        d.load_warnings.clear();
+        let after = serde_json::to_string(&d)?;
+        self.db.with(|c| {
+            let tx = c.unchecked_transaction()?;
+            tx.execute("INSERT INTO settings (key, value_json) VALUES ('defaults', ?1) ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json", [&after])?;
+            tx.execute("INSERT INTO settings_history (key, version, at, note, before_json, after_json) VALUES ('defaults', ?1, ?2, ?3, ?4, ?5)", (d.version, &d.updated_at, note, &before, &after))?;
+            tx.execute(
+                "DELETE FROM settings_history WHERE key = 'defaults' AND id NOT IN (SELECT id FROM settings_history WHERE key = 'defaults' ORDER BY id DESC LIMIT ?1)",
+                [defaults_io::HISTORY_KEEP],
+            )?;
+            tx.commit()
+        })?;
         Ok(d)
+    }
+
+    /// 기본값 이력(최신 먼저).
+    pub fn defaults_history(&self, limit: usize) -> Result<Vec<DefaultsHistoryRow>, ApiError> {
+        type Row = (i64, u32, String, String, Option<String>, String);
+        let rows: Vec<Row> = self.db.with(|c| {
+            let mut q = c.prepare("SELECT id, version, at, note, before_json, after_json FROM settings_history WHERE key = 'defaults' ORDER BY id DESC LIMIT ?1")?;
+            let it = q.query_map([limit as i64], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)))?;
+            it.collect()
+        })?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, version, at, note, before, after)| {
+                let b = before.as_deref().map(|s| defaults_io::load_lenient(s).0).unwrap_or_default();
+                let a = defaults_io::load_lenient(&after).0;
+                let mut changes = defaults_io::diff(&b, &a);
+                changes.truncate(20);
+                DefaultsHistoryRow { id, version, at, note, changes }
+            })
+            .collect())
+    }
+
+    /// 이력 한 줄의 **이후** 값으로 되돌린다(새 버전으로 저장 — 되돌리기도 이력에 남는다).
+    pub fn restore_defaults(&self, id: i64) -> Result<Defaults, ApiError> {
+        let after: Option<String> = self.db.with(|c| {
+            c.query_row("SELECT after_json FROM settings_history WHERE key = 'defaults' AND id = ?1", [id], |r| r.get(0))
+                .map(Some)
+                .or_else(|e| if e == rusqlite::Error::QueryReturnedNoRows { Ok(None) } else { Err(e) })
+        })?;
+        let after = after.ok_or_else(|| ApiError::NotFound(format!("defaults history {id}")))?;
+        let (mut d, _) = defaults_io::load_lenient(&after);
+        d.version = self.defaults()?.version;
+        self.save_defaults_noted(d, &format!("restore #{id}"))
     }
 }
 
@@ -299,6 +392,33 @@ mod tests {
     use super::*;
 
     /// 기본 그립 기준은 `mid`(Height/2)다. 옛 `bead` 는 읽을 때도 쓸 때도 `pick_bead` 로 옮긴다.
+    /// 화면 저장은 버전을 본다(다른 탭이 먼저 저장하면 409). 저장마다 이력, 되돌리기도 새 버전.
+    #[test]
+    fn checked_save_history_and_restore() {
+        let db = crate::db::Db::open_memory().unwrap();
+        let reg = Registry::new(db);
+        let d0 = reg.defaults().unwrap();
+        let mut a = d0.clone();
+        a.base.grip_height = 55;
+        let s1 = reg.save_defaults_checked(a, "").unwrap();
+        // 옛 스냅샷(d0)으로 또 저장 → 409
+        let mut stale = d0.clone();
+        stale.base.lift_up_height = 1000;
+        assert!(matches!(reg.save_defaults_checked(stale, ""), Err(ApiError::Conflict(_))));
+        // 그립 기준만은 버전 없이
+        let s2 = reg.set_grip_ref("pick_bead").unwrap();
+        assert_eq!((s2.grip_ref.as_str(), s2.base.grip_height), ("pick_bead", 55));
+        assert!(reg.set_grip_ref("nope").is_err());
+        let h = reg.defaults_history(10).unwrap();
+        assert_eq!(h.len(), 2);
+        assert!(h[1].changes.iter().any(|c| c.starts_with("base.grip_height: 40 → 55")), "{:?}", h[1].changes);
+        // 첫 저장(55, mid) 으로 되돌리기
+        let r = reg.restore_defaults(h[1].id).unwrap();
+        assert_eq!((r.grip_ref.as_str(), r.base.grip_height), ("mid", 55));
+        assert!(r.version > s2.version && s1.version < s2.version);
+        assert_eq!(reg.defaults_history(10).unwrap()[0].note, format!("restore #{}", h[1].id));
+    }
+
     /// 상황 층: 옛 저장값(키 없음)은 기본 층(Multi-Picking = 부분 리프트)을 받고, 모르는 키·잘못된 값은 저장이 막힌다.
     #[test]
     fn situations_default_and_validate() {
@@ -333,6 +453,7 @@ mod tests {
         assert_eq!(saved.grip_ref, "pick_bead");
         assert!(db.setting("defaults").unwrap().unwrap().contains(r#""grip_ref":"pick_bead""#));
         assert_eq!(reg.save_defaults(Defaults { grip_ref: "bead+offset".into(), ..Default::default() }).unwrap().grip_ref, "pick_bead");
-        assert_eq!(reg.save_defaults(Defaults { grip_ref: "nonsense".into(), ..Default::default() }).unwrap().grip_ref, "mid");
+        // 모르는 값은 저장이 막힌다(예전에는 조용히 mid 로 바뀌었다).
+        assert!(reg.save_defaults(Defaults { grip_ref: "nonsense".into(), ..Default::default() }).is_err());
     }
 }

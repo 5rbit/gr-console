@@ -142,3 +142,115 @@ impl TaskParams {
         }
     }
 }
+
+/// 파라미터 값의 종류 — 검사와 화면 입력이 같은 표를 본다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ParamKind {
+    Bool,
+    U8,
+    U16,
+}
+
+/// 파라미터 하나의 정의(키 · 종류 · 단위). [`TaskParams`] 의 필드와 1:1 — 테스트가 맞춤을 확인한다.
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct ParamSpec {
+    pub key: &'static str,
+    pub kind: ParamKind,
+    /// 표시 단위(`mm`, 없으면 빈 문자열).
+    pub unit: &'static str,
+}
+
+const fn spec(key: &'static str, kind: ParamKind, unit: &'static str) -> ParamSpec {
+    ParamSpec { key, kind, unit }
+}
+
+/// 모든 작업 파라미터의 정의 — 기본값 저장·시나리오 저장·작성 요청 검사가 이 표 하나로 한다.
+pub const PARAM_SPECS: &[ParamSpec] = &[
+    spec("lift_up_height", ParamKind::U16, "mm"),
+    spec("grip_height", ParamKind::U16, "mm"),
+    spec("pre_grip_delta", ParamKind::U16, "mm"),
+    spec("grip_back_delta", ParamKind::U16, "mm"),
+    spec("blend_up_distance", ParamKind::U16, "mm"),
+    spec("blend_down_distance", ParamKind::U16, "mm"),
+    spec("lift_up_creep_distance", ParamKind::U16, "mm"),
+    spec("lift_down_creep_distance", ParamKind::U16, "mm"),
+    spec("lift_up_after_complete", ParamKind::Bool, ""),
+    spec("lift_up_partial", ParamKind::Bool, ""),
+    spec("measure_floor", ParamKind::Bool, ""),
+    spec("measure_item", ParamKind::Bool, ""),
+    spec("measure_sku", ParamKind::Bool, ""),
+    spec("adjust_center", ParamKind::Bool, ""),
+    spec("find_station_item", ParamKind::Bool, ""),
+    spec("avoid", ParamKind::Bool, ""),
+    spec("outbound", ParamKind::Bool, ""),
+    spec("use_drag_out", ParamKind::Bool, ""),
+    spec("drag_out_height", ParamKind::U16, "mm"),
+    spec("drag_out_dist", ParamKind::U16, "mm"),
+    spec("drag_out_dir", ParamKind::U8, ""),
+    spec("use_drag_in", ParamKind::Bool, ""),
+    spec("drag_in_height", ParamKind::U16, "mm"),
+    spec("drag_in_dist", ParamKind::U16, "mm"),
+    spec("drag_in_dir", ParamKind::U8, ""),
+];
+
+/// 부분 파라미터(JSON 객체) 검사 — 모르는 키(오타), 종류가 틀린 값, 범위를 넘는 값을 한 줄씩 돌려준다(없으면 빈 목록).
+/// `extra` 는 [`TaskParams`] 밖에서 따로 읽는 키(예: MOVE 의 `move_mode`·`move_clearance`) — 여기서는 통과시킨다.
+/// `null` 값은 "상속"이라 통과.
+pub fn check_partial(partial: &serde_json::Value, extra: &[&str]) -> Vec<String> {
+    let Some(obj) = partial.as_object() else {
+        return if partial.is_null() { Vec::new() } else { vec!["파라미터는 객체여야 합니다".into()] };
+    };
+    let mut out = Vec::new();
+    for (k, v) in obj {
+        if v.is_null() || extra.contains(&k.as_str()) {
+            continue;
+        }
+        let Some(s) = PARAM_SPECS.iter().find(|s| s.key == k) else {
+            out.push(format!("{k}: 모르는 파라미터(오타?)"));
+            continue;
+        };
+        let ok = match s.kind {
+            ParamKind::Bool => v.is_boolean(),
+            ParamKind::U8 => v.as_u64().is_some_and(|n| n <= u8::MAX as u64),
+            ParamKind::U16 => v.as_u64().is_some_and(|n| n <= u16::MAX as u64),
+        };
+        if !ok {
+            let want = match s.kind {
+                ParamKind::Bool => "true/false".to_string(),
+                ParamKind::U8 => format!("0..{} 정수", u8::MAX),
+                ParamKind::U16 => format!("0..{} 정수{}", u16::MAX, if s.unit.is_empty() { String::new() } else { format!("({})", s.unit) }),
+            };
+            out.push(format!("{k}: {v} — {want}"));
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod spec_tests {
+    use super::*;
+
+    /// 표와 구조체가 어긋나면(필드를 더하고 표를 잊으면) 검사가 새 키를 "모르는 파라미터" 로 막는다 — 여기서 잡는다.
+    #[test]
+    fn specs_match_the_struct() {
+        let v = serde_json::to_value(TaskParams::default()).unwrap();
+        let obj = v.as_object().unwrap();
+        assert_eq!(obj.len(), PARAM_SPECS.len());
+        for s in PARAM_SPECS {
+            let val = obj.get(s.key).unwrap_or_else(|| panic!("{} not in TaskParams", s.key));
+            assert_eq!(val.is_boolean(), s.kind == ParamKind::Bool, "{}", s.key);
+        }
+        assert!(check_partial(&v, &[]).is_empty(), "기본값 전체는 통과");
+    }
+
+    #[test]
+    fn check_partial_reports_typos_types_and_ranges() {
+        let p = serde_json::json!({ "grip_heigth": 40, "grip_height": -1, "lift_up_partial": 1, "drag_in_dir": 300, "blend_up_distance": 12.5, "avoid": null, "move_mode": "top" });
+        let e = check_partial(&p, &["move_mode"]);
+        assert_eq!(e.len(), 5, "{e:?}");
+        assert!(e.iter().any(|m| m.starts_with("grip_heigth: 모르는")));
+        assert!(check_partial(&serde_json::json!({ "grip_height": 55, "avoid": true }), &[]).is_empty());
+        assert!(!check_partial(&serde_json::json!([1]), &[]).is_empty());
+    }
+}

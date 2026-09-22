@@ -1,22 +1,25 @@
-// 품목 상세의 "Measured" 탭 — MeasureItem 기록으로 만든 치수 제안을 **검토하고 골라 적용**하고, 바꾼 이력을
-// 보고 되돌린다(`lib/items/dims.ts`, 백엔드 `registry/dims.rs`).
+// 품목 상세의 "Measured" 탭 — MeasureItem 기록으로 만든 치수 제안을 **칸마다 골라 적용**하고, 측정 기록과
+// 바꾼 이력을 본다(`lib/items/dims.ts`, 백엔드 `registry/dims.rs`).
 //
-// 적용은 서버가 방금 계산한 제안값을 그대로 쓴다(화면이 값을 보내지 않는다) — 보는 사이 새 기록이 들어와도
-// "지금 표본의 중앙값"이 적용된다. 저장하지 않은 편집이 있으면 적용을 막는다: 적용 뒤 상세가 새 값으로
-// 다시 열리면서 그 편집이 사라지기 때문이다.
+// 위 = 일괄 검토와 같은 표(`DimTable`)의 이 품목 세 줄: State 배지가 결정(초록 적용 가능 · 파랑 새 값 · 회색
+// 표본 부족 · 주황 흔들림 · 빨강 차이 큼), 점이 신뢰도, 줄의 적용 단추 또는 체크 후 "선택 적용". 적용한 줄은
+// 초록 "반영됨" 과 되돌리기로 남는다. 줄을 펼치면 측정 표본. 아래 = 변경 이력.
+//
+// 적용은 서버가 방금 계산한 제안값을 그대로 쓴다(화면이 값을 보내지 않는다). 저장하지 않은 편집이 있으면
+// 적용을 막는다: 적용 뒤 상세가 새 값으로 다시 열리면서 그 편집이 사라지기 때문이다.
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, Undo2 } from 'lucide-react'
+import { CheckCheck, RefreshCw, Undo2 } from 'lucide-react'
 import {
-  DIM_LABEL,
-  DIM_SOURCE,
+  TONE_LABEL,
   WINDOWS,
   applicable,
   changeLine,
   defaultPick,
-  dimState,
+  dimTone,
   dimsApi,
   fieldLabel,
-  signed,
+  liveChange,
+  safeTone,
   type DimChange,
   type DimField,
   type DimSuggestion,
@@ -27,10 +30,12 @@ import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
 import { FieldList } from '../../lib/ui/FieldList'
+import { HelpTip } from '../../lib/ui/HelpTip'
 import { Select } from '../../lib/ui/Select'
-import { StatusBadge } from '../../lib/ui/StatusBadge'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
+import { DIM_TONE_CLASS, DimTable, buildRows, reason, rowKey as cellKey } from './DimTable'
+import { DIMS_HELP } from './DimsReviewDialog'
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -40,18 +45,20 @@ export interface DimsTabProps {
   dirty: boolean
   /** 적용·되돌리기 뒤 — 부모가 목록을 다시 받는다(상세가 새 값으로 다시 열린다). */
   onApplied: () => Promise<void>
+  /** 표의 제안 칩에서 온 필드 — 그 줄을 강조하고 한 번 반짝인다. */
+  focus?: { field: DimField; n: number } | null
 }
 
-export function DimsTab({ code, dirty, onApplied }: DimsTabProps) {
+export function DimsTab({ code, dirty, onApplied, focus }: DimsTabProps) {
   const [win, setWin] = useState<number>(5)
   const [dims, setDims] = useState<ItemDims | null>(null)
   const [changes, setChanges] = useState<DimChange[]>([])
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [pick, setPick] = useState<Set<DimField>>(new Set())
-  const [confirm, setConfirm] = useState(false)
+  const [confirm, setConfirm] = useState<DimSuggestion[] | null>(null)
+  const [flash, setFlash] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
-  const [revert, setRevert] = useState<DimChange | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -68,26 +75,41 @@ export function DimsTab({ code, dirty, onApplied }: DimsTabProps) {
     }
   }, [code, win])
   useEffect(() => void load(), [load])
+  useEffect(() => {
+    if (!flash.size) return
+    const t = setTimeout(() => setFlash(new Set()), 1400)
+    return () => clearTimeout(t)
+  }, [flash])
 
-  const toggle = (f: DimField) =>
-    setPick((s) => {
-      const n = new Set(s)
-      if (n.has(f)) n.delete(f)
-      else n.add(f)
-      return n
-    })
-  const chosen = dims?.fields.filter((s) => pick.has(s.field) && applicable(s)) ?? []
+  // 표의 제안 칩 — 그 필드 줄을 반짝인다(강조는 아래 표의 selected 로 남는다)
+  useEffect(() => {
+    if (focus) setFlash(new Set([cellKey(code, focus.field)]))
+  }, [focus, code])
 
-  async function apply() {
+  const fields = dims?.fields ?? []
+  const chosen = fields.filter((s) => applicable(s) && pick.has(s.field))
+  const risky = chosen.filter((s) => !safeTone(dimTone(s)))
+  const safe = fields.filter((s) => safeTone(dimTone(s)))
+  const blocked = dirty
+    ? '저장하지 않은 편집이 있습니다 — 먼저 저장하거나 되돌리세요'
+    : busy
+      ? '처리 중입니다'
+      : undefined
+
+  async function apply(list: DimSuggestion[]) {
     setBusy(true)
     try {
       const r = await dimsApi.apply(
         code,
-        chosen.map((s) => s.field),
+        list.map((s) => s.field),
         win,
       )
-      toast.ok(`#${code} 측정 반영 ${r.changes.length}건`)
+      toast.ok(
+        `#${code} 측정 반영 ${r.changes.length}건 — ${list.map((s) => fieldLabel(s.field)).join(' · ')}`,
+      )
+      setFlash(new Set((r.applied ?? []).map((a) => cellKey(code, a.field))))
       await onApplied()
+      await load()
     } catch (e) {
       toast.error(errMsg(e))
     } finally {
@@ -95,117 +117,22 @@ export function DimsTab({ code, dirty, onApplied }: DimsTabProps) {
     }
   }
 
-  async function doRevert(c: DimChange, force: boolean) {
+  async function doRevert(c: DimChange) {
+    setBusy(true)
     try {
-      await dimsApi.revert(code, c.id, force)
-      toast.ok(`#${c.id} 되돌림 — ${fieldLabel(c.field)} ${pos(c.before)}`)
+      await dimsApi.revert(code, c.id)
+      toast.ok(
+        `#${code} ${fieldLabel(c.field)} 되돌림 — ${c.before === 0 ? '미입력' : pos(c.before)}`,
+      )
+      setFlash(new Set([cellKey(code, c.field as DimField)]))
       await onApplied()
+      await load()
     } catch (e) {
       toast.error(errMsg(e))
+    } finally {
+      setBusy(false)
     }
   }
-
-  const columns: Column<DimSuggestion>[] = [
-    {
-      key: 'use',
-      label: '',
-      get: () => 0,
-      cell: (s) => (
-        <input
-          type="checkbox"
-          checked={pick.has(s.field)}
-          disabled={!applicable(s)}
-          aria-label={`${DIM_LABEL[s.field]} 적용`}
-          title={
-            applicable(s)
-              ? '적용할 필드로 고른다'
-              : s.suggested === null
-                ? '측정 표본 없음'
-                : '지금 값과 같다'
-          }
-          onClick={(e) => e.stopPropagation()}
-          onChange={() => toggle(s.field)}
-          data-testid={`dims-pick-${s.field}`}
-        />
-      ),
-      priority: 1,
-    },
-    {
-      key: 'field',
-      label: 'Field',
-      get: (s) => DIM_LABEL[s.field],
-      cell: (s) => <span title={DIM_SOURCE[s.field]}>{DIM_LABEL[s.field]}</span>,
-      priority: 1,
-    },
-    {
-      key: 'cur',
-      label: 'Current',
-      get: (s) => s.current,
-      numeric: true,
-      cell: (s) => pos(s.current),
-      priority: 1,
-    },
-    {
-      key: 'sug',
-      label: 'Measured',
-      get: (s) => s.suggested ?? 0,
-      numeric: true,
-      cell: (s) =>
-        s.suggested === null ? (
-          <span className="text-content-faint">-</span>
-        ) : (
-          <b className={s.changed ? 'text-content-primary' : 'text-content-muted'}>
-            {pos(s.suggested)}
-          </b>
-        ),
-      priority: 1,
-    },
-    {
-      key: 'delta',
-      label: 'Δ',
-      get: (s) => s.delta ?? 0,
-      numeric: true,
-      cell: (s) => (s.changed ? signed(s.delta) : <span className="text-content-faint">0.0</span>),
-      priority: 1,
-    },
-    { key: 'n', label: 'n', get: (s) => s.n, numeric: true, priority: 2 },
-    {
-      key: 'spread',
-      label: 'Spread',
-      get: (s) => s.spread ?? 0,
-      numeric: true,
-      cell: (s) =>
-        s.spread === null ? (
-          <span className="text-content-faint">-</span>
-        ) : (
-          <span
-            className={s.unstable ? 'text-warn-fg' : undefined}
-            title={`한도 ${s.spread_limit} mm`}
-          >
-            {pos(s.spread)}
-          </span>
-        ),
-      priority: 2,
-    },
-    {
-      key: 'state',
-      label: 'State',
-      get: (s) => (s.outlier ? 3 : s.unstable ? 2 : s.changed ? 1 : 0),
-      cell: (s) => {
-        const st = dimState(s)
-        return st.tone ? (
-          <StatusBadge status={st.tone} title={st.title}>
-            {st.text}
-          </StatusBadge>
-        ) : (
-          <span className={st.text === '제안' ? 'text-2xs' : 'text-2xs text-content-faint'}>
-            {st.text}
-          </span>
-        )
-      },
-      priority: 1,
-    },
-  ]
 
   const histCols: Column<DimChange>[] = [
     {
@@ -274,48 +201,61 @@ export function DimsTab({ code, dirty, onApplied }: DimsTabProps) {
         >
           다시 읽기
         </Button>
+        <span className="pb-1.5">
+          <HelpTip title="측정 반영" text={DIMS_HELP} />
+        </span>
         <span className="flex-1" />
         <Button
           size="sm"
-          intent="primary"
-          disabled={dirty || chosen.length === 0 || busy}
+          intent="ghost"
+          disabled={!!blocked || safe.length === 0}
+          title={`${TONE_LABEL.ok} · ${TONE_LABEL.info} 줄만 선택`}
+          onClick={() => setPick(new Set(safe.map((s) => s.field)))}
+        >
+          바로 적용 줄만 ({safe.length})
+        </Button>
+        <Button
+          size="sm"
+          intent={risky.length ? 'outline' : 'primary'}
+          icon={<CheckCheck className="h-3.5 w-3.5" />}
+          disabled={!!blocked || chosen.length === 0}
+          loading={busy}
           title={
-            dirty
-              ? '저장하지 않은 편집이 있습니다 — 먼저 저장하거나 되돌리세요'
-              : chosen.length === 0
-                ? '적용할 필드를 고르세요'
-                : undefined
+            blocked ??
+            (chosen.length === 0
+              ? '적용할 줄을 체크하세요'
+              : risky.length
+                ? `확인이 필요한 줄 ${risky.length}개 포함 — 확인 후 적용`
+                : undefined)
           }
-          onClick={() => setConfirm(true)}
+          onClick={() => (risky.length ? setConfirm(chosen) : void apply(chosen))}
           data-testid="dims-apply"
         >
-          선택 {chosen.length}개 적용
+          선택 {chosen.length}줄 적용
         </Button>
       </div>
       {err ? <div className="text-xs text-fault-fg">{err}</div> : null}
 
-      <DataTable
-        rows={dims?.fields ?? []}
-        columns={columns}
-        rowKey={(s) => s.field}
-        loading={loading && !dims}
-        density="compact"
-        emptyDense
-        empty="측정 기록 없음"
-        rowDetail={(s) =>
-          s.samples.length ? (
-            <div className="flex flex-col gap-0.5 text-2xs text-content-muted tabular-nums">
-              <span>{DIM_SOURCE[s.field]}</span>
-              {s.samples.map((x) => (
-                <span key={`${x.plc}-${x.seq}`}>
-                  {x.plc}#{x.seq} · {x.at.slice(5, 19)} · Cell {x.cell_id} · <b>{pos(x.value)}</b>
-                </span>
-              ))}
-            </div>
-          ) : (
-            <span className="text-2xs text-content-faint">{DIM_SOURCE[s.field]} — 표본 없음</span>
-          )
+      <DimTable
+        rows={
+          dims ? buildRows([dims], 'all', (_, s) => liveChange(changes, s.field, s.current)) : []
         }
+        window={win}
+        picked={new Set([...pick].map((f) => cellKey(code, f)))}
+        flash={flash}
+        disabled={!!blocked}
+        onToggle={(r) =>
+          setPick((p) => {
+            const n = new Set(p)
+            if (n.has(r.s.field)) n.delete(r.s.field)
+            else n.add(r.s.field)
+            return n
+          })
+        }
+        onApply={(r) => (safeTone(dimTone(r.s)) ? void apply([r.s]) : setConfirm([r.s]))}
+        onRevert={(_, c) => void doRevert(c)}
+        single
+        selected={focus ? cellKey(code, focus.field) : null}
         testid="dims-table"
       />
 
@@ -355,9 +295,9 @@ export function DimsTab({ code, dirty, onApplied }: DimsTabProps) {
                 intent="ghost"
                 icon={<Undo2 className="h-3.5 w-3.5" />}
                 aria-label={`#${c.id} 되돌리기`}
-                title={`되돌리기 — ${fieldLabel(c.field)} 를 ${pos(c.before)} 로`}
-                disabled={dirty}
-                onClick={() => setRevert(c)}
+                title={`되돌리기 — ${fieldLabel(c.field)} 를 ${c.before === 0 ? '미입력' : pos(c.before)} 로`}
+                disabled={!!blocked}
+                onClick={() => void doRevert(c)}
               />
             ) : null
           }
@@ -366,43 +306,34 @@ export function DimsTab({ code, dirty, onApplied }: DimsTabProps) {
       </div>
 
       <ConfirmDialog
-        open={confirm}
-        onOpenChange={setConfirm}
+        open={confirm !== null}
+        onOpenChange={(o) => !o && setConfirm(null)}
         scope="single"
-        title={`#${code} 측정 반영`}
+        title={`#${code} 측정 반영 — 확인이 필요한 줄 포함`}
         confirmLabel="적용"
-        onConfirm={() => void apply()}
+        danger
+        onConfirm={() => confirm && void apply(confirm)}
       >
         <div className="flex flex-col gap-1 text-xs">
-          {chosen.map((s) => (
-            <div key={s.field} className="tabular-nums">
-              {changeLine(s)}
-              {s.outlier ? (
-                <span className="text-fault-fg"> · 차이 큼 — 재고 품목 확인</span>
-              ) : s.unstable ? (
-                <span className="text-warn-fg"> · 흔들림(편차 {pos(s.spread)})</span>
-              ) : null}
-            </div>
-          ))}
+          {(confirm ?? []).map((s) => {
+            const t = dimTone(s)
+            return (
+              <div key={s.field} className="tabular-nums">
+                {changeLine(s)}
+                {!safeTone(t) ? (
+                  <span className={DIM_TONE_CLASS[t].text}>
+                    {' '}
+                    · {TONE_LABEL[t]} — {reason(s)}
+                  </span>
+                ) : null}
+              </div>
+            )
+          })}
           <div className="text-content-muted">
-            PLC 로 보내는 품목 값이라 다음 명령부터 G · Z 가 바뀝니다. 이력에서 되돌릴 수 있습니다.
+            PLC 로 보내는 품목 값이라 다음 명령부터 G · Z 가 바뀝니다. 줄의 되돌리기로 되돌릴 수
+            있습니다.
           </div>
         </div>
-      </ConfirmDialog>
-      <ConfirmDialog
-        open={revert !== null}
-        onOpenChange={(o) => !o && setRevert(null)}
-        scope="single"
-        title="측정 반영 되돌리기"
-        confirmLabel="되돌리기"
-        onConfirm={() => revert && void doRevert(revert, false)}
-      >
-        {revert ? (
-          <div className="text-xs tabular-nums">
-            {fieldLabel(revert.field)} {pos(revert.after)} → {pos(revert.before)} (변경 #{revert.id}
-            )
-          </div>
-        ) : null}
       </ConfirmDialog>
     </div>
   )

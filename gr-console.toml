@@ -59,6 +59,11 @@ grm_fast_ms = 500
 enabled = true
 bind = "0.0.0.0:2000"
 
+# 컨베이어 화물 코드 트래킹 — GRM ConnectionPrev/Next 밖의 추가 연결 [from, to] (스테이션 Id).
+# 품목 코드만 넘기고 PLC 에는 쓰지 않는다(GRM 측정·OD 트래킹은 그대로). 테스트 베드: 2003(CV 2103) → 2102.
+[conveyor]
+# extra_links = [[2003, 2102]]
+
 [cmd]
 protocol = 1
 src = 5000

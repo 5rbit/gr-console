@@ -70,7 +70,7 @@ describe('replay', () => {
 describe('segments / taskSpec', () => {
   it('측정 플래그가 켜진 연속 구간을 나눈다', () => {
     const s = descent(tire, 1710, 1700)
-    s.forEach((x, i) => (x.Measure = { Item: { InBusy: i >= 2 && i <= 5 }, LastBead: { Enable: false, Busy: i === 8, Done: false, LastBidPos: 0, PickZTarget: 0 } }))
+    s.forEach((x, i) => (x.Measure = { Item: { InBusy: i >= 2 && i <= 5 }, LastBead: { Enable: false, Busy: i === 8, Done: false, LastBeadPos: 0, PickZTarget: 0 } }))
     const seg = segments(s)
     expect(seg.map((g) => [g.kind, g.i0, g.i1])).toEqual([
       ['in', 2, 5],

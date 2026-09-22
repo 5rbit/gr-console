@@ -425,6 +425,11 @@ fn profile_rows(items: &[ItemRow]) -> Vec<ProfileSheetRow> {
 
 /// Builds a workbook with the sheets given (`None` = omit the sheet).
 pub fn export_workbook(cells: Option<&[CellInfo]>, stations: Option<&[StationPara]>, items: Option<&[ItemRow]>) -> Result<Vec<u8>, ApiError> {
+    export_workbook_with_stock(cells, stations, items, None)
+}
+
+/// 같은 것 + 재고(`Stock` 시트) — 운영 데이터 한 파일(`GET /api/registry/export.xlsx`)·재고만(`GET /api/stock/export.xlsx`).
+pub fn export_workbook_with_stock(cells: Option<&[CellInfo]>, stations: Option<&[StationPara]>, items: Option<&[ItemRow]>, stock: Option<&[StockExportRow]>) -> Result<Vec<u8>, ApiError> {
     let mut wb = rust_xlsxwriter::Workbook::new();
     if let Some(c) = cells {
         write_sheet(&mut wb, "Cells", &CELL_COLS, c, cell_field)?;
@@ -436,10 +441,107 @@ pub fn export_workbook(cells: Option<&[CellInfo]>, stations: Option<&[StationPar
         write_sheet(&mut wb, "Items", &ITEM_COLS, i, item_field)?;
         write_sheet(&mut wb, "ItemBeadProfile", &PROFILE_COLS, &profile_rows(i), profile_field)?;
     }
-    if cells.is_none() && stations.is_none() && items.is_none() {
+    if let Some(s) = stock {
+        write_sheet(&mut wb, STOCK_SHEET, &STOCK_COLS, s, stock_field)?;
+    }
+    if cells.is_none() && stations.is_none() && items.is_none() && stock.is_none() {
         wb.add_worksheet();
     }
     wb.save_to_buffer().map_err(xerr)
+}
+
+// ---- stock sheet
+
+pub const STOCK_SHEET: &str = "Stock";
+/// `ItemName`·`UpdatedAt` 은 읽기 쉬우라고 싣는 열 — 가져올 때는 읽지 않는다.
+const STOCK_COLS: [&str; 6] = ["CellId", "ItemCode", "ItemName", "Count", "Note", "UpdatedAt"];
+
+/// 내보낼 재고 한 줄(셀·스테이션 모두 — 스테이션은 컨베이어 화물 코드).
+#[derive(Clone, Debug, Default)]
+pub struct StockExportRow {
+    pub cell_id: u16,
+    pub item_code: u32,
+    pub item_name: String,
+    pub count: u32,
+    pub note: String,
+    pub updated_at: String,
+}
+
+fn stock_field(r: &StockExportRow, i: usize) -> Field {
+    match i {
+        0 => Field::Num(r.cell_id as f64),
+        1 => Field::Num(r.item_code as f64),
+        2 => Field::Text(r.item_name.clone()),
+        3 => Field::Num(r.count as f64),
+        4 => Field::Text(r.note.clone()),
+        _ => Field::Text(r.updated_at.clone()),
+    }
+}
+
+/// 파일의 재고 한 줄. `count = 0` 은 "비움".
+#[derive(Clone, Debug, PartialEq)]
+pub struct StockRow {
+    pub cell_id: u16,
+    pub item_code: u32,
+    pub count: u32,
+    pub note: String,
+}
+
+#[derive(Debug, Default)]
+pub struct StockSheet {
+    /// 읽은 시트 이름(csv 면 `csv`). 재고 시트가 없으면 빈 문자열.
+    pub sheet: String,
+    /// (1-based 시트 줄, 값)
+    pub rows: Vec<(usize, StockRow)>,
+    pub errors: Vec<RowError>,
+}
+
+impl StockSheet {
+    pub fn found(&self) -> bool {
+        !self.sheet.is_empty()
+    }
+}
+
+fn parse_stock_row(r: &Row) -> Result<StockRow, String> {
+    let cell_id: u16 = r.int("Id")?;
+    if cell_id == 0 {
+        return Err("CellId 가 비었다".into());
+    }
+    let item_code: u32 = if r.get("ItemCode").is_some() { r.int("ItemCode")? } else { r.int("Code")? };
+    let count: u32 = r.int("Count")?;
+    if count > 0 && item_code == 0 {
+        return Err(format!("Count {count} 인데 ItemCode 가 없다"));
+    }
+    Ok(StockRow { cell_id, item_code, count, note: r.text("Note") })
+}
+
+/// 재고 파일 읽기. 시트는 이름 `Stock` → (`any_sheet` 면) 첫 시트. `CellId`(= `Id`) · `Count` 머리글이 있어야 한다.
+/// 통합 레지스트리 파일은 `any_sheet = false` 로 부른다(재고 시트가 없으면 재고는 건드리지 않는다).
+pub fn parse_stock(name: &str, bytes: &[u8], any_sheet: bool) -> Result<StockSheet, ApiError> {
+    let raw: Vec<(String, Grid)> = if is_csv(name) { vec![("csv".into(), grid_from_csv(bytes)?)] } else { sheets_from_xlsx(bytes)? };
+    let sheets: Vec<Sheet> = raw.iter().filter_map(|(n, g)| Sheet::from_grid(n, g)).collect();
+    let pick = sheets.iter().find(|s| s.is_stock()).or_else(|| if any_sheet { sheets.first() } else { None });
+    let Some(sheet) = pick else { return Ok(StockSheet::default()) };
+    let mut out = StockSheet { sheet: sheet.name.clone(), ..Default::default() };
+    for (k, label) in [("Id", "CellId"), ("Count", "Count")] {
+        if !sheet.has(k) {
+            out.errors.push(RowError {
+                sheet: sheet.name.clone(),
+                row: 1,
+                message: format!("머리글에 '{label}' 열이 없다 (있는 열: {})", sheet.cols.iter().map(|(k, _)| *k).collect::<Vec<_>>().join(", ")),
+            });
+        }
+    }
+    if !out.errors.is_empty() {
+        return Ok(out);
+    }
+    for (rn, cells) in &sheet.rows {
+        match parse_stock_row(&Row { sheet, cells }) {
+            Ok(r) => out.rows.push((*rn, r)),
+            Err(m) => out.errors.push(RowError { sheet: sheet.name.clone(), row: *rn, message: m }),
+        }
+    }
+    Ok(out)
 }
 
 /// 빈 품목 양식 — `Items` + `ItemBeadProfile` 머리글만(`GET /api/items/template.xlsx`).
@@ -562,6 +664,7 @@ fn canonical(h: &str) -> Option<&'static str> {
         "code" | "코드" | "품목코드" | "타이어코드" => "Code",
         "name" | "이름" | "품명" | "품목명" => "Name",
         "count" | "수량" | "적재수" | "개수" => "Count",
+        "itemcode" => "ItemCode",
         "innerdiameter" | "내경" | "id(mm)" => "InnerDiameter",
         "outerdiameter" | "외경" => "OuterDiameter",
         "lowerbeadheight" | "lowerbidheight" | "하부비드" | "하부비드높이" => "LowerBeadHeight",
@@ -608,13 +711,17 @@ impl Sheet {
     fn has(&self, k: &str) -> bool {
         self.cols.iter().any(|(c, _)| *c == k)
     }
+    /// 재고 시트(이름 `Stock`) — 레지스트리 표가 아니라 `parse_stock` 이 읽는다. 머리글 `CellId` 는 `Id` 로 읽힌다.
+    fn is_stock(&self) -> bool {
+        self.name.eq_ignore_ascii_case(STOCK_SHEET)
+    }
     /// 절대 프로파일 시트(`ItemBeadProfile`, 또는 품목 치수 없이 Code + Stack + Level 머리글).
     fn is_profile(&self) -> bool {
         self.name.eq_ignore_ascii_case("ItemBeadProfile") || (self.has("Code") && self.has("Stack") && self.has("Level") && !self.has("InnerDiameter") && !self.has("Name"))
     }
     /// Which table this sheet looks like, from its headers (`None` for the profile sheet — handled apart).
     fn kind(&self) -> Option<Want> {
-        if self.is_profile() {
+        if self.is_stock() || self.is_profile() {
             None
         } else if self.has("ConvNo") || self.has("IOBlockNo") || self.has("GroupIndex") {
             Some(Want::Stations)
@@ -1525,5 +1632,38 @@ mod tests {
         let c = apply_cells(&reg, &t.cells, false).unwrap();
         assert_eq!((c.imported, c.errors.len()), (2, 0));
         assert_eq!(reg.cell(301).unwrap().unwrap().cell.position[2], -8.8);
+    }
+}
+
+#[cfg(test)]
+mod stock_sheet_tests {
+    use super::*;
+
+    #[test]
+    fn stock_sheet_round_trips_and_stays_out_of_registry_tables() {
+        let rows = vec![
+            StockExportRow { cell_id: 101, item_code: 1001, item_name: "225/45R17".into(), count: 3, note: "a".into(), updated_at: "t".into() },
+            StockExportRow { cell_id: 2003, item_code: 1002, count: 1, ..Default::default() },
+        ];
+        let items: Vec<ItemRow> = vec![];
+        let bytes = export_workbook_with_stock(None, None, Some(&items), Some(&rows)).unwrap();
+        let s = parse_stock("r.xlsx", &bytes, false).unwrap();
+        assert!(s.found() && s.errors.is_empty(), "{:?}", s.errors);
+        assert_eq!(s.rows.iter().map(|(_, r)| (r.cell_id, r.item_code, r.count, r.note.clone())).collect::<Vec<_>>(), vec![(101, 1001, 3, "a".to_string()), (2003, 1002, 1, String::new())]);
+        // 통합 가져오기의 레지스트리 표에는 Stock 줄이 섞이지 않는다
+        let t = parse_file("r.xlsx", &bytes, Want::All).unwrap();
+        assert!(t.cells.is_empty() && t.items.is_empty() && t.errors.is_empty(), "{:?}", t.errors);
+    }
+
+    #[test]
+    fn stock_csv_needs_cellid_and_count_and_an_item_for_nonzero_count() {
+        let ok = parse_stock("s.csv", "CellId,ItemCode,Count\n101,1001,2\n102,,0\n".as_bytes(), true).unwrap();
+        assert_eq!(ok.rows.len(), 2);
+        let bad = parse_stock("s.csv", "CellId,Count\n101,2\n".as_bytes(), true).unwrap();
+        assert_eq!(bad.errors.len(), 1, "count without item code");
+        let no_header = parse_stock("s.csv", "Code,Qty\n1,2\n".as_bytes(), true).unwrap();
+        assert!(no_header.rows.is_empty() && !no_header.errors.is_empty());
+        let absent = parse_stock("r.xlsx", &export_workbook(Some(&[]), None, None).unwrap(), false).unwrap();
+        assert!(!absent.found(), "registry file without a Stock sheet leaves stock alone");
     }
 }

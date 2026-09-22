@@ -15,6 +15,8 @@ import type {
   CompressionSuggestion,
   ConsoleInfo,
   Defaults,
+  DefaultsHistoryRow,
+  DefaultsImportResult,
   DiffRow,
   Gate,
   ImportResult,
@@ -304,7 +306,19 @@ export const api = {
 
   // 기본 파라미터
   defaults: () => getJson<Defaults>('/api/defaults'),
+  /** 저장 — 보낸 `version` 이 저장된 것과 다르면 409(다른 곳에서 먼저 저장). */
   defaultsSave: (body: Defaults) => putJson<Defaults>('/api/defaults', body),
+  /** 그립 기준만(버전 충돌 없이) */
+  defaultsGripRef: (grip_ref: string) => putJson<Defaults>('/api/defaults/grip-ref', { grip_ref }),
+  defaultsHistory: (limit = 30) =>
+    getJson<DefaultsHistoryRow[]>(`/api/defaults/history${qs({ limit })}`),
+  defaultsRestore: (id: number) => postJson<Defaults>(`/api/defaults/history/${id}/restore`),
+  defaultsExportUrl: '/api/defaults/export.json',
+  defaultsImport: (body: unknown, dryRun: boolean) =>
+    postJson<DefaultsImportResult>(
+      `/api/defaults/import${qs({ dry_run: dryRun ? 1 : undefined })}`,
+      body,
+    ),
 
   // Task
   tasks: (q: TaskQuery = {}) =>

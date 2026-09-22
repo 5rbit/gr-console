@@ -1,5 +1,6 @@
 //! `GET /api/stock` · `PUT /api/stock/{cell}` · `DELETE /api/stock/{cell}` · `POST /api/stock/clear`
 //! · `GET /api/stock/stream` (SSE snapshot|upsert|remove) · `GET /api/stock/z?type=&cell=&item=&count=` (Z preview)
+//! · `GET /api/stock/export.xlsx` · `POST /api/stock/import-file?dry_run=&mode=merge|replace` (`stock::io`)
 
 use axum::Router;
 use axum::extract::{Path, Query, State};
@@ -15,6 +16,39 @@ use crate::registry::spec::stack_z_with;
 use crate::sse::broadcast_sse;
 use crate::state::AppState;
 
+/// 재고만 한 파일(`Stock` 시트) — 셀·스테이션 모두.
+async fn export_xlsx(State(st): State<AppState>) -> Result<axum::response::Response, ApiError> {
+    use crate::registry::routes::{stamp, xlsx_response};
+    let rows = super::io::export_rows(&st)?;
+    let bytes = crate::registry::xlsx::export_workbook_with_stock(None, None, None, Some(&rows))?;
+    Ok(xlsx_response(bytes, &format!("stock_{}.xlsx", stamp())))
+}
+
+#[derive(Deserialize, Default)]
+struct ImportQuery {
+    dry_run: Option<String>,
+    mode: Option<String>,
+}
+
+/// 파일 → 재고. 응답은 레지스트리 가져오기와 같은 모양(`added|updated|unchanged|skipped|removed` + `errors`).
+async fn import_file(State(st): State<AppState>, Query(q): Query<ImportQuery>, mut mp: axum::extract::Multipart) -> ApiResult<Json> {
+    use crate::registry::routes::{flag, read_upload};
+    let dry_run = flag(q.dry_run.as_deref());
+    let mode = super::io::Mode::parse(q.mode.as_deref());
+    let (name, bytes) = read_upload(&mut mp).await?;
+    let s = crate::registry::xlsx::parse_stock(&name, &bytes, true)?;
+    if !s.found() {
+        return Err(ApiError::BadRequest("file has no data rows".into()));
+    }
+    let c = super::io::apply(&st, &s, mode, dry_run)?;
+    let errors: Vec<Json> = c.errors.iter().map(|e| json!({ "row": e.row, "sheet": e.sheet, "message": crate::registry::xlsx::error_text(e) })).collect();
+    Ok(axum::Json(json!({
+        "imported": c.added, "added": c.added, "updated": c.updated, "unchanged": c.unchanged, "removed": c.removed, "skipped": c.skipped,
+        "errors": errors, "dry_run": dry_run, "mode": if mode == super::io::Mode::Replace { "replace" } else { "merge" },
+        "counts": { "cells": 0, "stations": 0, "items": 0, "stock": s.rows.len() + s.errors.len() }
+    })))
+}
+
 async fn list(State(st): State<AppState>) -> ApiResult<Json> {
     Ok(axum::Json(serde_json::to_value(st.stock.list()?).unwrap_or_default()))
 }
@@ -28,7 +62,8 @@ struct SetBody {
 }
 
 async fn set(State(st): State<AppState>, Path(cell): Path<u16>, axum::Json(b): axum::Json<SetBody>) -> ApiResult<Json> {
-    if st.registry.cell(cell)?.is_none() {
+    // 스테이션도 받는다 — 손으로 컨베이어에 올린 화물의 품목 코드를 지정하면 `stock::conveyor` 가 따라간다.
+    if st.registry.cell(cell)?.is_none() && st.registry.station(cell)?.is_none() {
         return Err(ApiError::NotFound(format!("cell {cell} not registered")));
     }
     if b.count > 0 && b.item_code != 0 {
@@ -98,6 +133,8 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/stock", get(list))
         .route("/api/stock/clear", post(clear))
+        .route("/api/stock/export.xlsx", get(export_xlsx))
+        .route("/api/stock/import-file", post(import_file))
         .route("/api/stock/stream", get(stream))
         .route("/api/stock/z", get(z_preview))
         .route("/api/stock/{cell}", put(set).delete(remove))

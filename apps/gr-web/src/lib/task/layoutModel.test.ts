@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { Cell, Station } from '../types'
 import {
+  bodyCentre,
   boundsOf,
   fitView,
   gridStep,
   panBy,
   resolveView,
   shapesFrom,
+  stationAlign,
   toScreen,
   toWorld,
   zoomAt,
@@ -60,6 +62,25 @@ describe('layoutModel', () => {
       ['cell', 101, 1000, 2000],
       ['station', 2101, 5000, 300],
     ])
+  })
+
+  it('station align follows GRM StationCenterAdjust (wall at Position, tire toward ±OD/2)', () => {
+    expect([1, 5].map(stationAlign)).toEqual([[0, -1], [0, -1]])
+    expect([2, 6].map(stationAlign)).toEqual([[0, 1], [0, 1]])
+    expect([3, 7].map(stationAlign)).toEqual([[1, 0], [1, 0]])
+    expect([4, 8].map(stationAlign)).toEqual([[-1, 0], [-1, 0]])
+    expect([0, 9, -1].map(stationAlign)).toEqual([null, null, null])
+  })
+
+  it('aligned station body is pushed off the wall; cells and type 0 stay centred', () => {
+    const [c, s0] = shapesFrom([cell(1, 100, 200)], [station(2101, 5000, 300)])
+    expect(c.align).toBeNull()
+    expect(bodyCentre(c, 300)).toEqual([100, 200])
+    expect(bodyCentre(s0, 300)).toEqual([5000, 300])
+    const [s6] = shapesFrom([], [{ ...station(2101, 5000, 300), rotate_type: 6 }])
+    expect(bodyCentre(s6, 300)).toEqual([5000, 600])
+    // 경계도 민 몸체 기준.
+    expect(boundsOf([s6], 300)).toEqual({ minX: 4700, minY: 300, maxX: 5300, maxY: 900 })
   })
 
   it('bounds pad by radius and ignore non-finite', () => {

@@ -132,7 +132,7 @@ export interface FileImportResult {
   /** 막지 않는 경고 — 지금은 바닥 Z ≤ 0 셀(가져오기는 그대로 끝난다). */
   warnings?: string[]
   dry_run?: boolean
-  counts?: { cells: number; stations: number; items: number; item_profiles?: number }
+  counts?: { cells: number; stations: number; items: number; item_profiles?: number; stock?: number }
 }
 
 /** PLC 쓰기/읽기 대상 — 백엔드 `?plc=` 값. 설정 이름(`GR1`·`GR2`·`GRM` …) 또는 쓰기 전체 `all`
@@ -155,4 +155,39 @@ export interface Draft {
   multi_pick?: boolean
   /** MOVE 방식(없으면 `top`) — 요청 `params.move_mode`. */
   move?: MoveOpts | null
+}
+
+/** `GET /api/stations/live` 한 줄 — 백엔드 `issue::station_live::StationLive`(GRM Status·Tracking.Now·Interlock). */
+export interface StationLive {
+  id: number
+  /** GRM 스냅샷에서 찾았는가 — 거짓이면 `why` 만 의미가 있다. */
+  live: boolean
+  why: string | null
+  source: string
+  /** GET 에만 — 스트림은 변화만 보내므로 null */
+  age_ms: number | null
+  disconnected: boolean
+  /** GRM 끊김 또는 스냅샷 3 s 초과 */
+  stale: boolean
+  /** GRM Para.RotateType(실제값) */
+  rotate_type: number
+  /** 측정 센서 스테이션(IOLinkMasterModule > 0) */
+  sensor: boolean
+  state: number
+  error_code: number
+  item_detect: boolean
+  has_tracking: boolean
+  measuring: boolean
+  measuring_error: boolean
+  data_mismatch: boolean
+  od: number
+  tx: number
+  ty: number
+  /** GRM Para.ConnectionPrev / ConnectionNext 슬롯(0 = 없음) */
+  prev: number
+  next: number
+  /** 화물이 넘어갈 다음 스테이션 Id(GRM 연결 + 설정 extra_links). 0 = 라인 끝, null = 연결 없음 */
+  next_id: number | null
+  pi: { cvok: boolean; req: boolean; meas_req: boolean; item_exist: boolean }
+  po: { cvno: boolean; comp: boolean; meas_comp: boolean; meas_err: boolean }
 }

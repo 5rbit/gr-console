@@ -10,6 +10,8 @@
 //! 눌림양(`ItemSpec.compression`)이 있으면 **타이어 위에 얹힌 개수**만큼 단 높이와 비드가 내려간다
 //! (`pressed_height`, 전체 규칙은 `registry::spec::stack_z_with` 와 `docs/item-spec-z.md`).
 
+pub mod conveyor;
+pub mod io;
 pub mod routes;
 
 use std::sync::{Arc, PoisonError};

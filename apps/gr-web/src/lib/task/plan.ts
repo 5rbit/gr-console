@@ -21,6 +21,7 @@ import type {
   GripRef,
   Item,
   ItemSpec,
+  MeasureMode,
   PalletRef,
   ScenarioStep,
   ScenarioUpsert,
@@ -46,6 +47,8 @@ export interface PlanStep {
   pallet?: PalletRef | null
   /** MOVE 방식(없으면 화면 기본 `top`) — `toRequest` 가 `params.move_mode` 로 싣는다. */
   move?: MoveOpts | null
+  /** MEASURE 측정 종류. 없으면 자동 — 셀 재고 1개 이하 = Item, 2개 이상 = SKU(`autoMeasureMode`). */
+  measure?: MeasureMode | null
 }
 
 export interface PlanRow extends PlanStep {
@@ -61,6 +64,33 @@ export interface PlanRow extends PlanStep {
   warnings: string[]
   /** Multi-Picking — 다음 스텝이 같은 로봇·같은 스테이션 그룹의 스테이션 PICK/DROP(`sameStationGroup`). */
   multiPick: boolean
+  /** MEASURE 측정 종류 — 고정값, auto 면 그 시점 계획 재고로 본 **예상**(실제 판정은 서버). MEASURE 가 아니면 없음. */
+  measureMode?: MeasureMode
+}
+
+/**
+ * 자동 측정 종류 — 셀에 1개(이하) 있으면 Item, 2개 이상이면 SKU(스택 전체의 단별 비드).
+ * **판정은 서버가 한다**(`issue::compose_from` 의 MEASURE auto, 작성 시점 재고). 이 함수는 표에 "auto(SKU)" 처럼
+ * 예상 값을 보이려고 같은 규칙을 계획 시뮬레이션 재고에 적용할 뿐이다.
+ */
+export function autoMeasureMode(stock: number | null | undefined): MeasureMode {
+  return (stock ?? 0) >= 2 ? 'sku' : 'item'
+}
+
+/** 측정 종류 → 요청 플래그. 둘 다 명시해 기본값 층의 플래그가 섞이지 않게 한다. */
+export function measureParams(mode: MeasureMode): {
+  measure_item: boolean
+  measure_sku: boolean
+  measure_floor: boolean
+} {
+  return { measure_item: mode === 'item', measure_sku: mode === 'sku', measure_floor: false }
+}
+
+/** 스텝 요청 `params` — MOVE 방식 · MEASURE 고정 종류. auto(비움)는 플래그를 싣지 않는다 → 서버가 그때 재고로 고른다. */
+function stepParams(s: PlanStep): TaskRequest['params'] {
+  if (s.type === 'MOVE') return moveParams(moveOf(s))
+  if (s.type === 'MEASURE' && s.measure) return measureParams(s.measure)
+  return {}
 }
 
 /** PLC `isAllowDoublePicking` 의 스테이션 그룹 — `(id / 100) MOD 10`, 0 = 그룹 없음. */
@@ -268,6 +298,37 @@ export function stepForClick(
   return { id: stepId(), type: t, target, item_code, count, note: '', robot }
 }
 
+/** DROP 을 놓을 자리에 **다른 품목**이 이미 있을 때의 양쪽 — 확인 창이 보인다(`dropMismatch`). */
+export interface DropMismatch {
+  /** 들고 있는 화물 — 가져온 자리(마지막 PICK 대상)와 품목·개수. */
+  from: { target: Target | null; item_code: number; count: number }
+  /** 놓을 자리의 계획 반영 재고. */
+  to: { target: Target; item_code: number; count: number }
+}
+
+/**
+ * PICK/DROP 짝에서 놓을 자리(셀·스테이션)의 **계획 반영 재고** 품목이 들고 있는 품목과 다르면 그 내용.
+ * 비었거나 같은 품목이면(또는 어느 한쪽 품목을 모르면) `null` — 묻지 않고 넣는다.
+ */
+export function dropMismatch(
+  steps: readonly PlanStep[],
+  step: PlanStep,
+  stockNow: ReadonlyMap<number, StockEntry>,
+): DropMismatch | null {
+  if (step.type !== 'DROP' || !step.item_code) return null
+  const st = simulateStock(steps, stockNow).get(step.target.id)
+  if (!st || st.count <= 0 || !st.item_code || st.item_code === step.item_code) return null
+  let pick: PlanStep | null = null
+  for (let i = steps.length - 1; i >= 0 && !pick; i--) {
+    if (steps[i].type === 'DROP') break
+    if (steps[i].type === 'PICK') pick = steps[i]
+  }
+  return {
+    from: { target: pick?.target ?? null, item_code: step.item_code, count: step.count },
+    to: { target: step.target, item_code: st.item_code, count: st.count },
+  }
+}
+
 /** 계획을 순서대로 적용한 뒤의 셀 재고(품목/개수). */
 export function simulateStock(
   steps: readonly PlanStep[],
@@ -317,6 +378,8 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
     const h = item?.height ?? null
     const st = cell ? (sim.get(cell.id) ?? { item_code: 0, count: 0 }) : null
     const n = st ? st.count : 0
+    const measureMode =
+      s.type === 'MEASURE' ? (s.measure ?? autoMeasureMode(st ? st.count : null)) : undefined
     let z: number | null = null
     if (s.type === 'MOVE') {
       const mv = moveOf(s)
@@ -331,8 +394,11 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
             : null
       if (mv.mode === 'stack' && sh === null) warnings.push('스택 높이 모름 — Top 권장')
       if (floor !== null) z = moveZ(mv, floor, sh)
-    } else if (floor !== null && h !== null)
-      z = planZ(s.type, floor, item, ctx.gripRef ?? 'mid', n, s.count).z
+    } else if (floor !== null && h !== null) {
+      // MEASURE SKU = 스택 전체 — 1단 중간 높이에서 위로 잰다(개수 = 재고 전체, 그립 mid). 서버 `compose_from` 과 같다.
+      const sku = measureMode === 'sku' && n > 0
+      z = planZ(s.type, floor, item, sku ? 'mid' : (ctx.gripRef ?? 'mid'), n, sku ? n : s.count).z
+    }
     if (cell && s.type !== 'MOVE') {
       if ((s.type === 'PICK' || s.type === 'MEASURE') && n === 0) warnings.push('셀 재고 없음')
       else if (s.type === 'PICK' && n < s.count) warnings.push(`재고 ${n} < 수량 ${s.count}`)
@@ -364,6 +430,7 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
     rows.push({
       ...s,
       multiPick: sameStationGroup(s, steps[i + 1]),
+      ...(measureMode ? { measureMode } : {}),
       no: i + 1,
       stockBefore: before,
       stockAfter: cell ? (sim.get(cell.id)?.count ?? null) : null,
@@ -473,7 +540,7 @@ export function toRequest(
     target: s.target,
     item_code: sentItem(s),
     count: Math.max(1, s.count),
-    params: s.type === 'MOVE' ? moveParams(moveOf(s)) : {},
+    params: stepParams(s),
     position_override: null,
     note: s.note,
     source: null,
@@ -483,6 +550,7 @@ export function toRequest(
   }
 }
 
+/** 계획 → 시나리오. MEASURE auto 스텝은 플래그 없이 실린다 — 실행 때 서버가 그 시점 재고로 Item/SKU 를 고른다. */
 export function toScenario(
   steps: readonly PlanStep[],
   name: string,
@@ -495,7 +563,7 @@ export function toScenario(
     target: s.target,
     item_code: sentItem(s),
     count: Math.max(1, s.count),
-    params: s.type === 'MOVE' ? moveParams(moveOf(s)) : {},
+    params: stepParams(s),
     wait_for: 'completed',
     wait_after_ms: 0,
     on_failure: 'stop',

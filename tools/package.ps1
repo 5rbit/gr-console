@@ -33,7 +33,20 @@ $name = "gr-console-$version+$sha-$Target"
 $out = Join-Path 'dist' $name
 $bin = if (Test-Path "$binDir/gr-console.exe") { "$binDir/gr-console.exe" } else { "$binDir/gr-console" }
 
-if (Test-Path $out) { Remove-Item -Recurse -Force $out }
+# 같은 이름 폴더가 이미 있으면(같은 커밋으로 다시 빌드) 운용 자료를 지우지 않는다 — data/ 와 운용 중인
+# gr-console.toml 을 옆으로 옮겨 두었다가, zip 을 만든 **뒤에** 되돌린다(zip 에는 자료가 들어가지 않는다).
+# 실행 중이면 data 를 옮기지 못해 여기서 멈춘다(콘솔을 먼저 끌 것).
+$keep = $null
+if (Test-Path $out) {
+  if ((Test-Path (Join-Path $out 'data')) -or (Test-Path (Join-Path $out 'gr-console.toml'))) {
+    $keep = "$out.keep-$((Get-Date).ToString('yyyyMMddHHmmss'))"
+    New-Item -ItemType Directory -Path $keep | Out-Null
+    if (Test-Path (Join-Path $out 'data')) { Move-Item (Join-Path $out 'data') (Join-Path $keep 'data') }
+    if (Test-Path (Join-Path $out 'gr-console.toml')) { Move-Item (Join-Path $out 'gr-console.toml') (Join-Path $keep 'gr-console.toml') }
+    Write-Host "operator data kept aside: $keep"
+  }
+  Remove-Item -Recurse -Force $out
+}
 New-Item -ItemType Directory -Path $out | Out-Null
 Copy-Item $bin $out
 Copy-Item tools/package/gr-console.toml (Join-Path $out 'gr-console.toml')
@@ -81,4 +94,10 @@ $zip = Join-Path 'dist' "$name.zip"
 if (Test-Path $zip) { Remove-Item -Force $zip }
 Compress-Archive -Path $out -DestinationPath $zip
 Write-Host "packaged: $zip"
+if ($keep) {
+  if (Test-Path (Join-Path $keep 'data')) { Move-Item (Join-Path $keep 'data') (Join-Path $out 'data') }
+  if (Test-Path (Join-Path $keep 'gr-console.toml')) { Move-Item -Force (Join-Path $keep 'gr-console.toml') (Join-Path $out 'gr-console.toml') }
+  Remove-Item -Recurse -Force $keep
+  Write-Host "operator data restored into: $out"
+}
 Get-Item $zip | Select-Object Name, Length

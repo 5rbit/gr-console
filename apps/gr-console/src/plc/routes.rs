@@ -44,6 +44,9 @@ pub struct PlcStatusView {
     pub last_ok_at: Option<String>,
     pub last_error: Option<String>,
     pub layout: LayoutCheckView,
+    /// 통신 품질(S7) — 폴링 실패·재연결 횟수, 주기별 마지막/최대 한 바퀴(ms). OPC UA 줄에는 없다.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub comm: Option<serde_json::Value>,
 }
 
 pub fn plc_status_views(st: &AppState) -> Vec<PlcStatusView> {
@@ -77,6 +80,7 @@ pub fn plc_status_views(st: &AppState) -> Vec<PlcStatusView> {
             endpoint: format!("{}:{}", h.cfg.host, h.cfg.port),
             connected: hl.connected,
             rtt_ms: hl.rtt_ms,
+            comm: Some(serde_json::json!({ "errors": hl.error_count, "reconnects": hl.reconnect_count, "cycle_ms": hl.cycle_ms, "cycle_max_ms": hl.cycle_max_ms, "heartbeat_age_ms": hl.heartbeat_age_ms, "slow_overruns": hl.slow_overruns })),
             last_ok_at: hl.last_ok_at.clone(),
             last_error: hl.last_error.clone(),
             layout: LayoutCheckView {
@@ -98,7 +102,9 @@ pub fn plc_status_views(st: &AppState) -> Vec<PlcStatusView> {
             kind: "opcua",
             endpoint: cs.endpoint,
             connected: cs.ready,
-            rtt_ms: None,
+            rtt_ms: cs.io.as_ref().map(|io| io.write_last_ms),
+            // OPC UA 줄: 쓰기 시간(마지막/최대)·실패·재연결 + 등록 노드 수·서버 한도.
+            comm: cs.io.as_ref().map(|io| serde_json::json!({ "errors": io.write_failures, "reconnects": io.reconnects, "cycle_ms": { "write": io.write_last_ms }, "cycle_max_ms": { "write": io.write_max_ms }, "write_calls": io.write_calls, "write_nodes": io.write_nodes, "registered": io.registered, "max_nodes_per_write": io.max_nodes_per_write, "max_nodes_per_read": io.max_nodes_per_read, "struct_verified": io.struct_verified, "struct_active": io.struct_active, "struct_note": io.struct_note, "struct_writes": io.struct_writes })),
             last_ok_at: cs.last_ok_at,
             last_error: cs.error,
             layout: LayoutCheckView { ok: cs.ready.then_some(true), detail: cs.detail, checked_at: None, mismatches: vec![] },

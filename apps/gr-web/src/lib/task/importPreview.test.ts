@@ -39,9 +39,28 @@ describe('importOutcome', () => {
       updated: 3,
       unchanged: 5,
       skipped: 2,
+      removed: 0,
       applicable: 15,
       problems: 0,
     })
+  })
+
+  it('재고 교체의 삭제는 적용할 줄로 세고, 있을 때만 칸이 생긴다', () => {
+    const o = importOutcome(
+      file({ imported: 0, added: 0, updated: 0, unchanged: 3, skipped: 0, removed: 2 }),
+    )
+    expect(o.removed).toBe(2)
+    expect(o.applicable).toBe(2)
+    expect(outcomeStats(o).map((x) => x.key)).toEqual([
+      'added',
+      'updated',
+      'unchanged',
+      'skipped',
+      'removed',
+    ])
+    expect(outcomeStats(importOutcome(file({ imported: 1 }))).map((x) => x.key)).not.toContain(
+      'removed',
+    )
   })
 
   it('added 가 없으면 imported 를 쓴다', () => {

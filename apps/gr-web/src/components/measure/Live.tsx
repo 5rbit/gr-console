@@ -168,8 +168,8 @@ export function Live({ wm }: { wm: WebMon }) {
               [
                 'LastBead',
                 <span key="b" className="flex flex-wrap items-center gap-1">
-                  <Bits obj={mb} keys={['Enable', 'Busy', 'Done']} inline /> LastBidPos{' '}
-                  {pos(num(mb, 'LastBidPos'))} · PickZTarget{' '}
+                  <Bits obj={mb} keys={['Enable', 'Busy', 'Done']} inline /> LastBeadPos{' '}
+                  {pos(num(mb, 'LastBeadPos'))} · PickZTarget{' '}
                   {num(mb, 'PickZTarget') ? pos(num(mb, 'PickZTarget')) : '-'}
                 </span>,
               ],

@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_SPEC } from '../items/levelsModel'
 import type { Cell, Item, StockEntry } from '../types'
 import {
+  dropMismatch,
   EMPTY_HISTORY,
   GRIP_REFS,
   aboveCount,
+  autoMeasureMode,
   carried,
   gripLabel,
   gripOffset,
@@ -394,5 +396,95 @@ describe('stepForClick item matching', () => {
     expect(s2.item_code).toBe(2011)
     expect(simulateStock([s1, s2], stk).get(2101)?.count).toBe(0)
     expect(stepForClick([s1, s2], stT(2101), stk, 'PICK').item_code).toBeNull()
+  })
+})
+
+describe('MEASURE item / sku', () => {
+  const m = (id: string, target: number, measure?: 'item' | 'sku' | null): PlanStep => ({
+    id,
+    type: 'MEASURE',
+    target: { kind: 'cell', id: target },
+    item_code: 1001,
+    count: 1,
+    note: '',
+    measure,
+  })
+  it('auto picks item for 1, sku for 2+ at that point of the plan', () => {
+    expect([0, 1, 2, 5].map((n) => autoMeasureMode(n))).toEqual(['item', 'item', 'sku', 'sku'])
+    // 101 에 3개 → SKU. PICK 2개 뒤에는 1개 → Item.
+    const pick: PlanStep = {
+      id: 'p',
+      type: 'PICK',
+      target: { kind: 'cell', id: 101 },
+      item_code: 1001,
+      count: 2,
+      note: '',
+    }
+    const rows = planRows([m('m1', 101), pick, m('m2', 101)], ctx)
+    expect(rows.map((r) => r.measureMode)).toEqual(['sku', undefined, 'item'])
+    // auto 는 플래그를 싣지 않는다 — 서버가 작성 시점 재고로 고른다
+    expect(toRequest(rows[0]).params).toEqual({})
+    expect(toRequest(rows[2]).params).toEqual({})
+  })
+  it('SKU starts at the middle of level 1; Item grips the top tire', () => {
+    // 101 에 3개(높이 240): SKU = 1500 + 120, Item = 맨 위 1500 + 480 + 120
+    const rows = planRows([m('s', 101), m('i', 101, 'item'), m('k', 101, 'sku')], ctx)
+    expect(rows.map((r) => [r.measureMode, r.z])).toEqual([
+      ['sku', 1620],
+      ['item', 2100],
+      ['sku', 1620],
+    ])
+  })
+  it('a fixed choice wins over stock; auto goes to the server without flags', () => {
+    const rows = planRows([m('m1', 101, 'item')], ctx)
+    expect(rows[0].measureMode).toBe('item')
+    expect(toScenario(rows, 'x').steps[0].params).toMatchObject({
+      measure_item: true,
+      measure_sku: false,
+    })
+    expect(toScenario([m('m1', 101, 'sku')], 'x').steps[0].params).toMatchObject({
+      measure_sku: true,
+    })
+    // auto — 실행 때 서버가 그 시점 재고로 고른다
+    expect(toScenario([m('m1', 101)], 'x').steps[0].params).toEqual({})
+  })
+})
+
+describe('dropMismatch', () => {
+  const pick = (cell: number, code: number, count = 1): PlanStep => ({
+    id: 'p' + cell,
+    type: 'PICK',
+    target: { kind: 'cell', id: cell },
+    item_code: code,
+    count,
+    note: '',
+  })
+  const drop = (cell: number, code: number, count = 1): PlanStep => ({
+    id: 'd' + cell,
+    type: 'DROP',
+    target: { kind: 'cell', id: cell },
+    item_code: code,
+    count,
+    note: '',
+  })
+  const stockMap = new Map([
+    [101, st(101, 1001, 3)],
+    [103, st(103, 1002, 2)],
+  ])
+  it('asks only when the drop place holds a different item', () => {
+    const steps = [pick(101, 1001)]
+    expect(dropMismatch(steps, drop(102, 1001), stockMap)).toBeNull() // 빈 자리
+    expect(dropMismatch(steps, drop(101, 1001), stockMap)).toBeNull() // 같은 품목
+    expect(dropMismatch(steps, drop(103, 1001), stockMap)).toEqual({
+      from: { target: { kind: 'cell', id: 101 }, item_code: 1001, count: 1 },
+      to: { target: { kind: 'cell', id: 103 }, item_code: 1002, count: 2 },
+    })
+  })
+  it('uses the planned stock and ignores PICK/MEASURE steps', () => {
+    // 103 을 앞에서 다 비웠으면 묻지 않는다
+    const steps = [pick(103, 1002, 2), drop(102, 1002, 2), pick(101, 1001)]
+    expect(dropMismatch(steps, drop(103, 1001), stockMap)).toBeNull()
+    expect(dropMismatch([pick(101, 1001)], pick(103, 1002), stockMap)).toBeNull()
+    expect(dropMismatch([], { ...drop(103, 0), item_code: null }, stockMap)).toBeNull()
   })
 })

@@ -37,6 +37,27 @@ export interface PlcStatus {
   rtt_ms: number | null
   last_ok_at: string | null
   last_error: string | null
+  /** S7 통신 품질 — 폴링 실패·재연결 횟수, 주기별 마지막/최대 한 바퀴(ms). OPC UA 줄·구버전에는 없다. */
+  comm?: {
+    errors: number
+    reconnects: number
+    cycle_ms: Record<string, number>
+    cycle_max_ms: Record<string, number>
+    /** 하트비트(2 Hz)가 마지막으로 바뀐 뒤 ms — 감시하는 PLC 만. 3 s 넘으면 PLC 프로그램 정지. */
+    heartbeat_age_ms?: number | null
+    /** 느린 주기 작업이 다음 주기까지 못 끝나 건너뛴 횟수. */
+    slow_overruns?: number
+    /** OPC UA 줄: 등록 노드 수(RegisterNodes) · 서버 한도 · 쓰기 호출·노드 수. */
+    registered?: number
+    max_nodes_per_write?: number
+    /** 세션 읽기 검증을 통과한 구조체 멤버(TaskData) / 실제로 구조체로 쓰는 멤버 / 검증 실패·거절 사유. */
+    struct_verified?: string[]
+    struct_active?: string[]
+    struct_note?: string | null
+    struct_writes?: number
+    write_calls?: number
+    write_nodes?: number
+  }
   layout: LayoutCheck
 }
 
@@ -399,8 +420,14 @@ export interface Target {
 /** MOVE 작성 방식 — 요청 `params.move_mode`(백엔드 `issue::MoveMode`). stack = 스택 윗면 + 여유까지 하강, top = Z 9999(상단 유지 XY 이동), avoid = Avoid + Z 9999(상단에서 X 만). */
 export type MoveMode = 'stack' | 'top' | 'avoid'
 
+/** MEASURE 측정 종류 — 요청 `params.measure_item` / `params.measure_sku`. 순차 계획은 비우면 재고로 고른다. */
+export type MeasureMode = 'item' | 'sku'
+
 /** 작업 요청 `params` — 튜닝 값(부분) + MOVE 옵션(`TaskParams` 밖의 키라 백엔드가 원본 JSON 에서 읽는다). */
-export type TaskRequestParams = Partial<TaskParams> & { move_mode?: MoveMode; move_clearance?: number }
+export type TaskRequestParams = Partial<TaskParams> & {
+  move_mode?: MoveMode
+  move_clearance?: number
+}
 
 export interface TaskParams {
   lift_up_height: number
@@ -448,6 +475,26 @@ export interface Defaults {
   grip_ref: GripRef
   /** 상황별 덮어쓰기 — 종류·대상별 위, 작성 카드 덮어쓰기 아래(백엔드 `Defaults.situations`). 구버전 응답엔 없다. */
   situations?: Partial<Record<Situation, Partial<TaskParams>>>
+  /** 읽을 때 서버가 걷어 낸 것(깨진 값·모르는 키) — 있으면 대화상자가 알린다. 저장하면 사라진다. */
+  load_warnings?: string[]
+}
+
+/** 기본값 변경 이력 한 줄(`GET /api/defaults/history`). */
+export interface DefaultsHistoryRow {
+  id: number
+  version: number
+  at: string
+  note: string
+  changes: string[]
+}
+
+/** 기본값 가져오기 결과(`POST /api/defaults/import`) — 문제·버린 키가 있으면 저장하지 않는다. */
+export interface DefaultsImportResult {
+  saved: boolean
+  changes: string[]
+  problems: string[]
+  dropped: string[]
+  version?: number
 }
 
 /** 상황 키 — 적용 순서(뒤가 이긴다). 백엔드 `registry::SITUATIONS` 와 같다. */

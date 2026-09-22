@@ -14,7 +14,7 @@ import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
 import { robots } from '../../lib/robots'
 import type { RobotChipModel } from '../../lib/robotContext'
-import type { Cell, Item, MoveMode, Station, TaskType } from '../../lib/types'
+import type { Cell, Item, MeasureMode, MoveMode, Station, TaskType } from '../../lib/types'
 import { ItemPicker } from '../shared/ItemPicker'
 import { RobotChip } from '../shared/RobotChip'
 import { TargetPicker, stockItemFor } from '../shared/TargetPicker'
@@ -136,6 +136,34 @@ export function PlanStepDialog({
             <HelpTip
               title="MoveMode"
               text="Top: Z 9999 — 상단에서 XY 이동만. Avoid: Z 9999 + Avoid — X 만 이동(Y 유지). Stack: 스택 윗면 + Clearance 까지 내려갔다 올라옴."
+            />
+          </span>
+        </div>
+      ) : null}
+
+      {d.type === 'MEASURE' ? (
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="Measure">
+            <Segmented<'' | MeasureMode>
+              ariaLabel="Measure"
+              value={d.measure ?? ''}
+              onChange={(m) => set({ measure: m === '' ? null : m })}
+              options={[
+                {
+                  id: '',
+                  label: 'auto',
+                  title: '셀 재고 1개 = Item, 2개 이상 = SKU',
+                  testid: 'plan-step-measure-auto',
+                },
+                { id: 'item', label: 'Item', testid: 'plan-step-measure-item' },
+                { id: 'sku', label: 'SKU', testid: 'plan-step-measure-sku' },
+              ]}
+            />
+          </Field>
+          <span className="pb-2">
+            <HelpTip
+              title="Measure"
+              text="Item: 타이어 한 개 치수(MeasureItem). SKU: 스택 전체의 단별 비드(MeasureSku). auto 는 그 스텝 시점 셀 재고로 고릅니다 — 1개면 Item, 2개 이상이면 SKU."
             />
           </span>
         </div>

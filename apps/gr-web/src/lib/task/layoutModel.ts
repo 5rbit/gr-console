@@ -3,7 +3,10 @@
 // 좌표계: 기본은 PLC X+ = 화면 오른쪽, PLC Y+ = 화면 위쪽. 현장 배치에 맞춰 화면을 시계 방향으로
 // 0·90·180·270° 돌리고(`rot`), 돌린 뒤의 화면 가로/세로를 각각 뒤집을 수 있다(`flipX` / `flipY`).
 // 변환 순서: 월드 (x, y) → 회전 (u, v) → 반전·배율·원점 → 화면 (sx, sy).
-// 도형은 모두 **중심점** = PLC Position[0..1] 에 놓인다 — 셀은 원(지름은 UI 에서 고른다), 스테이션은 정사각형.
+// 셀은 **중심점** = PLC Position[0..1] 에 놓인 원(지름은 UI 에서 고른다). 스테이션은 정사각형인데, Info.Position 은
+// 타이어 중심이 아니라 **정렬 벽(스토퍼)** 이다 — 타이어는 RotateType 방향 한쪽 벽에 닿아 정렬되고, GRM
+// `StationCenterAdjust` / GR2 `isValidTaskArea` 가 그 방향으로 ±OD/2 를 더한다(`stationAlign`). 그래서 맵도
+// 벽을 Position 에 두고 몸체·타이어를 그 방향으로 민다(`bodyCentre`). RotateType 0/정의 밖은 예전처럼 가운데.
 import type { Cell, Station, Target } from '../types'
 
 export interface Shape {
@@ -22,6 +25,10 @@ export interface Shape {
   use: boolean
   dirty: boolean
   label: string
+  /** 스테이션 — 벽(Position)에서 타이어 중심 쪽 단위 방향(`stationAlign`). 셀·정렬 없음 = null. */
+  align: [number, number] | null
+  /** 스테이션 RotateType(레지스트리). 셀 = 0. */
+  rotate: number
 }
 
 export interface Bounds {
@@ -76,6 +83,50 @@ export function unrotate(rot: Rotation | undefined, u: number, v: number): [numb
   }
 }
 
+/**
+ * RotateType → 벽(Info.Position)에서 타이어 중심 쪽 단위 방향 (월드 X, Y).
+ * GRM `StationCenterAdjust` 의 CASE 그대로: 1·5 Y −OD/2, 2·6 Y +OD/2, 3·7 X +OD/2, 4·8 X −OD/2.
+ * 0 / 정의 밖 = null (보정 없음 → 가운데 기준).
+ */
+export function stationAlign(rotateType: number): [number, number] | null {
+  switch (rotateType) {
+    case 1:
+    case 5:
+      return [0, -1]
+    case 2:
+    case 6:
+      return [0, 1]
+    case 3:
+    case 7:
+      return [1, 0]
+    case 4:
+    case 8:
+      return [-1, 0]
+    default:
+      return null
+  }
+}
+
+/** 도형을 그릴 중심(월드 mm). 정렬 스테이션은 벽(Position)에서 `half`(= 도형 반지름) 만큼 타이어 쪽으로. */
+export function bodyCentre(s: Pick<Shape, 'x' | 'y' | 'align'>, half: number): [number, number] {
+  return s.align ? [s.x + s.align[0] * half, s.y + s.align[1] * half] : [s.x, s.y]
+}
+
+/** 스테이션 몸체 반폭(월드 mm) — 슬롯 실제 크기(Length = X, Width = Y), 모르면 `fallback`(맵 도형 반지름). */
+export function stationHalf(
+  s: Pick<Shape, 'length' | 'width'>,
+  fallback: number,
+): [number, number] {
+  return [s.length > 0 ? s.length / 2 : fallback, s.width > 0 ? s.width / 2 : fallback]
+}
+
+/** 도형을 그리는 중심(월드). 셀 = Position, 정렬 스테이션 = 벽(Position)에서 흐름 방향 반폭만큼 민 자리. */
+export function shapeCentre(s: Shape, fallback: number): [number, number] {
+  if (s.kind !== 'station' || !s.align) return [s.x, s.y]
+  const [hx, hy] = stationHalf(s, fallback)
+  return [s.x + s.align[0] * hx, s.y + s.align[1] * hy]
+}
+
 export function shapesFrom(cells: readonly Cell[], stations: readonly Station[]): Shape[] {
   const out: Shape[] = []
   for (const c of cells) {
@@ -93,6 +144,8 @@ export function shapesFrom(cells: readonly Cell[], stations: readonly Station[])
       use: c.use,
       dirty: c.dirty,
       label: `Cell #${c.id}`,
+      align: null,
+      rotate: 0,
     })
   }
   for (const s of stations) {
@@ -111,12 +164,14 @@ export function shapesFrom(cells: readonly Cell[], stations: readonly Station[])
       use: i.use,
       dirty: s.dirty,
       label: `Station #${s.id} (ConvNo ${s.conv_no})`,
+      align: stationAlign(s.rotate_type),
+      rotate: s.rotate_type,
     })
   }
   return out
 }
 
-/** 도형 중심에 반경 `pad` 를 더한 경계. 도형이 없으면 null. */
+/** 도형 중심에 반경 `pad` 를 더한 경계(스테이션은 실제 몸체 — `shapeCentre`·`stationHalf`). 도형이 없으면 null. */
 export function boundsOf(shapes: readonly Shape[], pad = 0): Bounds | null {
   if (!shapes.length) return null
   let minX = Infinity
@@ -125,10 +180,12 @@ export function boundsOf(shapes: readonly Shape[], pad = 0): Bounds | null {
   let maxY = -Infinity
   for (const s of shapes) {
     if (!Number.isFinite(s.x) || !Number.isFinite(s.y)) continue
-    minX = Math.min(minX, s.x - pad)
-    minY = Math.min(minY, s.y - pad)
-    maxX = Math.max(maxX, s.x + pad)
-    maxY = Math.max(maxY, s.y + pad)
+    const [x, y] = shapeCentre(s, pad)
+    const [hx, hy] = s.kind === 'station' ? stationHalf(s, pad) : [pad, pad]
+    minX = Math.min(minX, x - hx)
+    minY = Math.min(minY, y - hy)
+    maxX = Math.max(maxX, x + hx)
+    maxY = Math.max(maxY, y + hy)
   }
   if (!Number.isFinite(minX)) return null
   return { minX, minY, maxX, maxY }
@@ -138,8 +195,21 @@ export function boundsOf(shapes: readonly Shape[], pad = 0): Bounds | null {
  * 경계가 `w × h` 픽셀 안에 여백 `margin` 을 두고 들어가는 변환.
  * 회전하면 돌린 뒤의 가로·세로 범위로 배율을 잡는다(90°/270° 에서는 폭과 높이가 바뀐다).
  */
-export function fitView(b: Bounds, w: number, h: number, margin = 24, flipY = true, flipX = false, rot: Rotation = 0): View {
-  const corners = [rotate(rot, b.minX, b.minY), rotate(rot, b.maxX, b.minY), rotate(rot, b.minX, b.maxY), rotate(rot, b.maxX, b.maxY)]
+export function fitView(
+  b: Bounds,
+  w: number,
+  h: number,
+  margin = 24,
+  flipY = true,
+  flipX = false,
+  rot: Rotation = 0,
+): View {
+  const corners = [
+    rotate(rot, b.minX, b.minY),
+    rotate(rot, b.maxX, b.minY),
+    rotate(rot, b.minX, b.maxY),
+    rotate(rot, b.maxX, b.maxY),
+  ]
   const us = corners.map((c) => c[0])
   const vs = corners.map((c) => c[1])
   const minU = Math.min(...us)
@@ -174,8 +244,11 @@ export function resolveView(
   flipX: boolean,
   rot: Rotation,
 ): View {
-  if (manual && manual.flipY === flipY && manual.flipX === flipX && (manual.rot ?? 0) === rot) return manual
-  return b ? fitView(b, w, h, margin, flipY, flipX, rot) : { k: 0.05, ox: w / 2, oy: h / 2, flipY, flipX, rot }
+  if (manual && manual.flipY === flipY && manual.flipX === flipX && (manual.rot ?? 0) === rot)
+    return manual
+  return b
+    ? fitView(b, w, h, margin, flipY, flipX, rot)
+    : { k: 0.05, ox: w / 2, oy: h / 2, flipY, flipX, rot }
 }
 
 export function toScreen(v: View, x: number, y: number): [number, number] {
@@ -190,7 +263,14 @@ export function toWorld(v: View, sx: number, sy: number): [number, number] {
 }
 
 /** 화면 점 `(sx, sy)` 를 고정한 채 배율을 `factor` 배 한다. */
-export function zoomAt(v: View, sx: number, sy: number, factor: number, min = 1e-4, max = 10): View {
+export function zoomAt(
+  v: View,
+  sx: number,
+  sy: number,
+  factor: number,
+  min = 1e-4,
+  max = 10,
+): View {
   const k = Math.min(Math.max(v.k * factor, min), max)
   const f = k / v.k
   return { ...v, k, ox: sx - (sx - v.ox) * f, oy: sy - (sy - v.oy) * f }

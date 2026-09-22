@@ -63,6 +63,10 @@ pub fn extract_contract(to: &std::path::Path) -> std::io::Result<bool> {
     #[cfg(feature = "embed")]
     {
         if inner::CONTRACT.dirs().next().is_some() {
+            // 매번 비우고 푼다 — 업그레이드 뒤 새 계약에서 빠진 옛 DB/UDT 파일이 남아 읽히지 않게.
+            if to.is_dir() {
+                std::fs::remove_dir_all(to)?;
+            }
             std::fs::create_dir_all(to)?;
             inner::CONTRACT.extract(to)?;
             return Ok(true);

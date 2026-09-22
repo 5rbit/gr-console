@@ -400,7 +400,7 @@ impl PlcQuery {
     }
 }
 
-fn flag(v: Option<&str>) -> bool {
+pub(crate) fn flag(v: Option<&str>) -> bool {
     matches!(v.map(str::trim).map(str::to_ascii_lowercase).as_deref(), Some("1" | "true" | "yes" | "on"))
 }
 
@@ -494,6 +494,14 @@ async fn stations(State(st): State<AppState>) -> ApiResult<Vec<Json>> {
 async fn station_offsets(State(st): State<AppState>) -> ApiResult<Vec<crate::issue::StationOffsetRow>> {
     Ok(axum::Json(crate::issue::station_offset_rows(&st)?))
 }
+/// 스테이션마다 GRM 실시간 상태(Status·Tracking.Now·Interlock) — 레이아웃 맵 색·테두리.
+async fn station_live(State(st): State<AppState>) -> ApiResult<Vec<crate::issue::station_live::StationLive>> {
+    Ok(axum::Json(crate::issue::station_live::station_live_rows(&st)?))
+}
+/// 같은 것을 바뀔 때만 — 첫 메시지는 지금 값(`issue::station_live::publish`).
+async fn station_live_stream() -> impl axum::response::IntoResponse {
+    crate::sse::broadcast_sse(crate::issue::station_live::subscribe(), "stations", Some(crate::issue::station_live::snapshot()))
+}
 async fn station_create(State(st): State<AppState>, axum::Json(b): axum::Json<StationBody>) -> ApiResult<Json> {
     let para = b.para();
     xlsx::validate_station(&para).map_err(ApiError::BadRequest)?;
@@ -532,11 +540,11 @@ async fn stations_diff(State(st): State<AppState>, Query(q): Query<PlcQuery>) ->
 
 const XLSX_MIME: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-fn xlsx_response(bytes: Vec<u8>, filename: &str) -> Response {
+pub(crate) fn xlsx_response(bytes: Vec<u8>, filename: &str) -> Response {
     ([(header::CONTENT_TYPE, XLSX_MIME.to_string()), (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{filename}\""))], bytes).into_response()
 }
 
-fn stamp() -> String {
+pub(crate) fn stamp() -> String {
     crate::util::now_str().chars().take(19).filter(|c| c.is_ascii_digit()).collect()
 }
 
@@ -567,7 +575,9 @@ async fn registry_export(State(st): State<AppState>) -> Result<Response, ApiErro
     let cells: Vec<CellInfo> = st.registry.cells()?.into_iter().map(|e| e.cell).collect();
     let stations: Vec<StationPara> = st.registry.stations()?.into_iter().map(|e| e.para).collect();
     let items: Vec<ItemRow> = st.registry.items()?.iter().map(ItemRow::from).collect();
-    Ok(xlsx_response(xlsx::export_workbook(Some(&cells), Some(&stations), Some(&items))?, &format!("registry_{}.xlsx", stamp())))
+    // 운영 데이터 한 파일 — 셀·스테이션·품목 + 재고(`Stock`). 같은 파일을 가져오면 재고도 merge 로 돌아온다.
+    let stock = crate::stock::io::export_rows(&st)?;
+    Ok(xlsx_response(xlsx::export_workbook_with_stock(Some(&cells), Some(&stations), Some(&items), Some(&stock))?, &format!("registry_{}.xlsx", stamp())))
 }
 
 #[derive(Deserialize, Default)]
@@ -575,7 +585,7 @@ struct FileQuery {
     dry_run: Option<String>,
 }
 
-async fn read_upload(mp: &mut Multipart) -> Result<(String, Vec<u8>), ApiError> {
+pub(crate) async fn read_upload(mp: &mut Multipart) -> Result<(String, Vec<u8>), ApiError> {
     let merr = |e: axum::extract::multipart::MultipartError| ApiError::BadRequest(format!("multipart: {e}"));
     while let Some(field) = mp.next_field().await.map_err(merr)? {
         if field.name() == Some("file") || field.file_name().is_some() {
@@ -617,11 +627,35 @@ fn apply_tables(st: &AppState, t: &Tables, dry_run: bool) -> Result<Json, ApiErr
 async fn import_file(st: &AppState, mp: &mut Multipart, want: Want, dry_run: bool) -> ApiResult<Json> {
     let (name, bytes) = read_upload(mp).await?;
     let t = xlsx::parse_file(&name, &bytes, want)?;
-    let out = apply_tables(st, &t, dry_run)?;
+    let mut out = apply_tables(st, &t, dry_run)?;
+    // 통합 파일에 `Stock` 시트가 있으면 재고도 같이(merge) — 셀·품목을 먼저 넣은 뒤라 새 자리·새 품목도 받는다.
+    // dry_run 에서는 셀·품목이 아직 저장 전이라 새 자리의 재고 줄은 미리보기에서 오류로 보일 수 있다.
+    if matches!(want, Want::All) {
+        let s = xlsx::parse_stock(&name, &bytes, false)?;
+        if s.found() {
+            let c = crate::stock::io::apply(st, &s, crate::stock::io::Mode::Merge, dry_run)?;
+            merge_stock_counts(&mut out, &c);
+        }
+    }
     if !dry_run {
         st.emit("registry", json!({ "kind": "file_imported", "file": name, "result": out }));
     }
     Ok(axum::Json(out))
+}
+
+/// 재고 결과를 레지스트리 결과 JSON 에 더한다(줄 결과 넷 + 오류 + `counts.stock`).
+fn merge_stock_counts(out: &mut Json, c: &crate::stock::io::StockCounts) {
+    let add = |out: &mut Json, k: &str, n: usize| out[k] = json!(out[k].as_u64().unwrap_or(0) + n as u64);
+    add(out, "imported", c.added);
+    add(out, "added", c.added);
+    add(out, "updated", c.updated);
+    add(out, "unchanged", c.unchanged);
+    add(out, "skipped", c.skipped);
+    add(out, "removed", c.removed);
+    if let Some(errs) = out["errors"].as_array_mut() {
+        errs.extend(c.errors.iter().map(|e| json!({ "row": e.row, "sheet": e.sheet, "message": xlsx::error_text(e) })));
+    }
+    out["counts"]["stock"] = json!(c.added + c.updated + c.unchanged + c.skipped);
 }
 
 async fn cells_import_file(State(st): State<AppState>, Query(q): Query<FileQuery>, mut mp: Multipart) -> ApiResult<Json> {
@@ -642,8 +676,71 @@ async fn registry_import_file(State(st): State<AppState>, Query(q): Query<FileQu
 async fn defaults(State(st): State<AppState>) -> ApiResult<Defaults> {
     Ok(axum::Json(st.registry.defaults()?))
 }
+/// 저장 — 보낸 `version` 이 저장된 것과 다르면 409(다른 곳에서 먼저 저장).
 async fn defaults_save(State(st): State<AppState>, axum::Json(d): axum::Json<Defaults>) -> ApiResult<Defaults> {
-    Ok(axum::Json(st.registry.save_defaults(d)?))
+    Ok(axum::Json(st.registry.save_defaults_checked(d, "")?))
+}
+
+#[derive(Deserialize)]
+struct GripRefBody {
+    grip_ref: String,
+}
+
+/// 그립 기준만(전체를 보내지 않는다 — 옛 스냅샷으로 남의 변경을 덮지 않게).
+async fn defaults_grip_ref(State(st): State<AppState>, axum::Json(b): axum::Json<GripRefBody>) -> ApiResult<Defaults> {
+    Ok(axum::Json(st.registry.set_grip_ref(&b.grip_ref)?))
+}
+
+#[derive(Deserialize)]
+struct HistoryQuery {
+    limit: Option<usize>,
+}
+
+async fn defaults_history(State(st): State<AppState>, Query(q): Query<HistoryQuery>) -> ApiResult<Vec<super::DefaultsHistoryRow>> {
+    Ok(axum::Json(st.registry.defaults_history(q.limit.unwrap_or(30).clamp(1, 200))?))
+}
+
+async fn defaults_restore(State(st): State<AppState>, Path(id): Path<i64>) -> ApiResult<Defaults> {
+    Ok(axum::Json(st.registry.restore_defaults(id)?))
+}
+
+/// 내보내기 — 다른 PC·백업용 한 파일(`kind` · `schema` 로 알아본다).
+async fn defaults_export(State(st): State<AppState>) -> Result<axum::response::Response, ApiError> {
+    use axum::http::{HeaderValue, header};
+    use axum::response::IntoResponse;
+    let d = st.registry.defaults()?;
+    let body = serde_json::to_string_pretty(&json!({ "kind": "gr-console.defaults", "schema": 1, "exported_at": crate::util::now_str(), "defaults": d }))?;
+    let mut resp = body.into_response();
+    let h = resp.headers_mut();
+    h.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json; charset=utf-8"));
+    h.insert(header::CONTENT_DISPOSITION, HeaderValue::from_static("attachment; filename=\"gr-console-defaults.json\""));
+    Ok(resp)
+}
+
+#[derive(Deserialize)]
+struct ImportQuery {
+    dry_run: Option<String>,
+}
+
+/// 가져오기 — 내보낸 파일(또는 `Defaults` 그 자체). `dry_run=1` 이면 검사·차이만. 저장은 이력에 "import" 로 남는다.
+async fn defaults_import(State(st): State<AppState>, Query(q): Query<ImportQuery>, axum::Json(body): axum::Json<Json>) -> ApiResult<Json> {
+    let inner = match body.get("kind").and_then(Json::as_str) {
+        Some("gr-console.defaults") => body.get("defaults").cloned().unwrap_or(Json::Null),
+        Some(other) => return Err(ApiError::BadRequest(format!("기본값 파일이 아닙니다(kind = {other})"))),
+        None => body,
+    };
+    let (mut incoming, dropped) = super::defaults_io::load_lenient(&inner.to_string());
+    let problems = super::defaults_io::validate(&incoming);
+    let cur = st.registry.defaults()?;
+    let changes = super::defaults_io::diff(&cur, &incoming);
+    let dry = flag(q.dry_run.as_deref());
+    if dry || !problems.is_empty() || !dropped.is_empty() {
+        // 버린 키가 있으면 저장하지 않는다 — 파일을 고쳐 다시 가져오게(몰래 일부만 들어가지 않게).
+        return Ok(axum::Json(json!({ "saved": false, "changes": changes, "problems": problems, "dropped": dropped })));
+    }
+    incoming.version = cur.version;
+    let saved = st.registry.save_defaults_checked(incoming, "import")?;
+    Ok(axum::Json(json!({ "saved": true, "changes": changes, "problems": [], "dropped": [], "version": saved.version })))
 }
 
 // ---- compose preview (issue slice; registered here because `routes.rs` is lead-owned)
@@ -681,6 +778,8 @@ pub fn router() -> Router<AppState> {
         .route("/api/stations/import", post(stations_import))
         .route("/api/stations/push", post(stations_push))
         .route("/api/stations/offsets", get(station_offsets))
+        .route("/api/stations/live", get(station_live))
+        .route("/api/stations/live/stream", get(station_live_stream))
         .route("/api/stations/diff", get(stations_diff))
         .route("/api/stations/export.xlsx", get(stations_export))
         .route("/api/stations/import-file", post(stations_import_file))
@@ -689,6 +788,11 @@ pub fn router() -> Router<AppState> {
         .route("/api/registry/import-file", post(registry_import_file))
         .route("/api/registry/diff", get(registry_diff))
         .route("/api/defaults", get(defaults).put(defaults_save))
+        .route("/api/defaults/grip-ref", axum::routing::put(defaults_grip_ref))
+        .route("/api/defaults/history", get(defaults_history))
+        .route("/api/defaults/history/{id}/restore", post(defaults_restore))
+        .route("/api/defaults/export.json", get(defaults_export))
+        .route("/api/defaults/import", post(defaults_import))
         .route("/api/issue/compose", post(compose_preview))
 }
 

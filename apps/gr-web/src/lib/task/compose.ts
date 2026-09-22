@@ -233,7 +233,10 @@ export function applyDefaultsEdit(
   const next: Defaults = {
     ...d,
     base: { ...d.base },
+    // 표가 다루는 PICK/DROP 만 새로 복사하고 **나머지 종류(MOVE 등)는 그대로 둔다** — 예전에는 by 를 PICK/DROP 으로만
+    // 다시 만들어, 칸 하나만 고쳐도 저장이 by.MOVE(move_mode·move_clearance)를 지웠다.
     by: {
+      ...d.by,
       PICK: { cell: { ...d.by.PICK?.cell }, station: { ...d.by.PICK?.station } },
       DROP: { cell: { ...d.by.DROP?.cell }, station: { ...d.by.DROP?.station } },
     },

@@ -11,6 +11,8 @@ import { cellInfoRows, toPlcCell } from '../../lib/gr/plcShape'
 import type { Registry } from '../../lib/registry'
 import { robotColor, robots } from '../../lib/robots'
 import { stock as stockStore } from '../../lib/stock'
+import { stationLive } from '../../lib/task/stationLiveStore'
+import { stationAsCell } from '../../lib/task/stationCell'
 import { useStore } from '../../lib/store'
 import { tasks } from '../../lib/tasks'
 import type { Shape } from '../../lib/task/layoutModel'
@@ -26,6 +28,7 @@ import { PlcStructView } from '../shared/PlcStructView'
 import { CellMap, type RobotMarker, type WorkMark } from './CellMap'
 import { OverflowMenu } from '../../lib/ui/OverflowMenu'
 import { StockEditDialog, type StockEdit } from './StockRegistry'
+import { QuickStockDialog, type QuickStockTarget } from './QuickStockDialog'
 
 export type MapMode = 'plan' | 'monitor' | 'edit'
 export const MAP_MODES: readonly MapMode[] = ['plan', 'monitor', 'edit']
@@ -87,7 +90,8 @@ export function LayoutTab({
 }: LayoutTabProps) {
   const cellList = mapCells ?? cells.items
   const stationList = mapStations ?? stations.items
-  useStore(stockStore, tasks, robots, allStatus)
+  useStore(stockStore, tasks, robots, allStatus, stationLive)
+  useEffect(() => stationLive.start(), [])
   useEffect(() => allStatus.start(), [])
   useEffect(() => tasks.start(), [])
   const [info, setInfo] = useState<Shape | null>(null)
@@ -104,6 +108,7 @@ export function LayoutTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stockVer 가 재고 변경을 대표한다
   }, [highlightItem, cellList, stockVer])
   const [stockEdit, setStockEdit] = useState<StockEdit | null>(null)
+  const [quick, setQuick] = useState<QuickStockTarget | null>(null)
   const next = nextType(plan)
 
   // 로봇 작업 테두리 — 진행 중(running)은 실선, 제출~대기는 점선.
@@ -154,6 +159,10 @@ export function LayoutTab({
   const infoStation =
     info?.kind === 'station' ? (stationList.find((s) => s.id === info.id) ?? null) : null
   const infoStock = infoCell ? stockStore.get(infoCell.id) : null
+  const infoStationStock = infoStation ? stockStore.get(infoStation.id) : null
+  const infoStationItem = infoStationStock?.item_code
+    ? items.find((i) => i.code === infoStationStock.item_code)
+    : undefined
   const infoItem = infoStock?.item_code
     ? items.find((i) => i.code === infoStock.item_code)
     : undefined
@@ -164,7 +173,14 @@ export function LayoutTab({
    * (두 자리에서 항목이 갈라지면 "오른쪽 클릭으로만 되는 것"이 생긴다.)
    */
   function taskMenu(t: Target, shape: Shape, from: 'palette' | 'info' = 'palette'): MenuItem[] {
-    const cell = t.kind === 'cell' ? cellList.find((c) => c.id === t.id) : undefined
+    const station = t.kind === 'station' ? stationList.find((s) => s.id === t.id) : undefined
+    // 스테이션은 재고 편집 창이 쓰는 Cell 모양으로(편집 창은 id 만 쓴다) — 컨베이어에 손으로 올린 화물의 코드 지정.
+    const cell =
+      t.kind === 'cell'
+        ? cellList.find((c) => c.id === t.id)
+        : station
+          ? stationAsCell(station)
+          : undefined
     const st = cell ? stockStore.get(cell.id) : null
     const name = `${t.kind === 'cell' ? 'Cell' : 'Station'} #${t.id}`
     const menu: MenuItem[] = [
@@ -192,12 +208,18 @@ export function LayoutTab({
       { label: `계획에 추가 (${next})`, run: () => onPlanAdd(t, shape) },
       { label: '계획에 PICK 추가', run: () => onPlanAdd(t, shape, 'PICK') },
       { label: '계획에 DROP 추가', run: () => onPlanAdd(t, shape, 'DROP') },
+      {
+        label: '계획에 MEASURE 추가',
+        hint: '재고 1 = Item · 2+ = SKU',
+        run: () => onPlanAdd(t, shape, 'MEASURE'),
+        disabled: t.kind === 'station' ? 'MEASURE 는 셀만' : undefined,
+      },
     ]
     // 정보 카드에서 연 메뉴에는 재고 편집·정보 보기를 넣지 않는다 — 그 둘은 이미 카드가 하고 있다.
     if (from === 'palette') {
       if (cell)
         menu.push({
-          label: '재고 편집…',
+          label: station ? '화물 코드 지정…' : '재고 편집…',
           run: () => setStockEdit({ cell, item: st?.item_code || null, count: st?.count ?? 0 }),
         })
       menu.push({ label: '정보 보기', run: () => setInfo(shape) })
@@ -255,6 +277,7 @@ export function LayoutTab({
         stations={stationList}
         selected={mode === 'monitor' && info ? { kind: info.kind, id: info.id } : selected}
         stock={stockStore.map}
+        stationLive={stationLive.map}
         items={items}
         showDirty={mode === 'edit'}
         highlight={highlight}
@@ -273,6 +296,10 @@ export function LayoutTab({
           } else onEditSelect?.(t)
         }}
         onContext={palette}
+        // 더블 클릭 = 빠른 재고 팝업(셀·스테이션 공통): 비어 있으면 품목·개수(1), 있으면 수량·비우기.
+        // 단일 클릭은 잠시(`CellMap`) 미뤄 두 번 눌러도 계획이 두 번 쌓이지 않는다.
+        deferClick={() => true}
+        onDouble={(t) => setQuick({ kind: t.kind, id: t.id, stock: stockStore.get(t.id) ?? null })}
       >
         {mode === 'monitor' && info ? (
           <div
@@ -360,10 +387,46 @@ export function LayoutTab({
                 </>
               ) : null}
               {infoStation ? (
-                <div className="text-content-muted">
-                  CV{infoStation.conv_no} · G{infoStation.group}-{infoStation.group_index} ·
-                  TaskType {infoStation.task_type}
-                </div>
+                <>
+                  <div className="text-content-muted">
+                    CV{infoStation.conv_no} · G{infoStation.group}-{infoStation.group_index} ·
+                    TaskType {infoStation.task_type}
+                  </div>
+                  {/* 컨베이어 화물 코드 — 손으로 올린 화물은 여기서 코드를 지정하면 다음 스테이션으로 따라간다. */}
+                  <InfoRows
+                    rows={[
+                      {
+                        label: 'ItemCode',
+                        value: infoStationStock?.count
+                          ? `${infoStationStock.item_code || '?'} ${infoStationItem?.name ?? ''}`
+                          : '-',
+                      },
+                      { label: 'Count', value: String(infoStationStock?.count ?? 0) },
+                    ]}
+                  />
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      intent="primary"
+                      className="flex-1"
+                      onClick={() =>
+                        setStockEdit({
+                          cell: stationAsCell(infoStation),
+                          item: infoStationStock?.item_code || null,
+                          count: infoStationStock?.count ?? 0,
+                        })
+                      }
+                      data-testid="info-station-stock-edit"
+                    >
+                      화물 코드 지정
+                    </Button>
+                    <OverflowMenu
+                      items={taskMenu({ kind: 'station', id: infoStation.id }, info, 'info')}
+                      title="명령 — 계획에 추가 · PICK/DROP/MOVE 작성"
+                      testid="info-station-more"
+                    />
+                  </div>
+                </>
               ) : null}
               {infoCell || infoStation ? (
                 <details>
@@ -379,6 +442,23 @@ export function LayoutTab({
           </div>
         ) : null}
       </CellMap>
+      <QuickStockDialog
+        target={quick}
+        items={items}
+        onClose={() => setQuick(null)}
+        onDetail={(q) => {
+          const c =
+            q.kind === 'cell'
+              ? cellList.find((x) => x.id === q.id)
+              : (() => {
+                  const stn = stationList.find((x) => x.id === q.id)
+                  return stn ? stationAsCell(stn) : undefined
+                })()
+          setQuick(null)
+          if (c)
+            setStockEdit({ cell: c, item: q.stock?.item_code || null, count: q.stock?.count ?? 0 })
+        }}
+      />
       <StockEditDialog
         edit={stockEdit}
         items={items}

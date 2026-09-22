@@ -9,6 +9,7 @@ import type {
   FileImportResult,
   PlcTarget,
   PushResult,
+  StationLive,
   StationOffsetRow,
 } from './types'
 
@@ -31,6 +32,7 @@ function fileForm(file: File): FormData {
 export const taskApi = {
   /** 스테이션마다 지금 GRM 트래킹으로 계산한 보정. */
   stationOffsets: () => getJson<StationOffsetRow[]>('/api/stations/offsets'),
+  stationLive: () => getJson<StationLive[]>('/api/stations/live'),
   // 셀
   cellsImport: (plc: PlcTarget) => postJson<FileImportResult>(`/api/cells/import${q({ plc })}`),
   cellsPush: (plc: PlcTarget, force = false) =>
@@ -62,6 +64,13 @@ export const taskApi = {
 
   // 레지스트리 전체(품목 시트 포함)
   registryExportUrl: '/api/registry/export.xlsx',
+  /** 재고만(`Stock` 시트, 셀·스테이션). 통합 파일에도 같은 시트가 있다. */
+  stockExportUrl: '/api/stock/export.xlsx',
+  stockImportFile: (file: File, dryRun: boolean, mode: 'merge' | 'replace') =>
+    postForm<FileImportResult>(
+      `/api/stock/import-file${q({ dry_run: dryRun, mode })}`,
+      fileForm(file),
+    ),
   registryImportFile: (file: File, dryRun: boolean) =>
     postForm<FileImportResult>(
       `/api/registry/import-file${q({ dry_run: dryRun })}`,

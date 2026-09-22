@@ -1,4 +1,9 @@
-// 셀/스테이션 레이아웃 맵 — PLC 좌표계(mm) 위에 셀은 원, 스테이션은 정사각형(중심 = Position X/Y).
+// 셀/스테이션 레이아웃 맵 — PLC 좌표계(mm) 위에 셀은 원(중심 = Position X/Y), 스테이션은 정사각형.
+// 스테이션 Position 은 정렬 벽이다 — 굵은 변(벽)을 Position 에 두고 몸체·타이어를 RotateType 방향으로 민다
+// (`layoutModel.stationAlign`). RotateType 0/정의 밖만 예전처럼 Position 이 가운데.
+// 스테이션 몸체는 슬롯 실제 크기(L × W). 몸체 테두리 = 정합(초록/빨강), 안쪽 테두리 = 인터록(파랑·주황·보라),
+// 화물 원 = 트래킹 OD·TaskOffset(없으면 품목 외경) — 규칙은 `lib/task/stationLiveModel`. 호버에 IN/OUT 인디케이터.
+// 화물 코드가 없는 스테이션은 더블 클릭으로 바로 입력(`onDouble`).
 //
 // 플롯 밖에는 아무것도 두지 않는다. 모드 토글은 왼쪽 위(`topLeft` 슬롯), 오른쪽 위에는 **자주 쓰는 넷**
 // (맞춤·확대·축소·로봇 위치)만 세우고 회전·보기 설정·범례는 그 아래 ⋯ 하나로 접었다 — 회전은 이미
@@ -24,7 +29,9 @@ import {
   panBy,
   resolveView,
   sameTarget,
+  shapeCentre,
   shapesFrom,
+  stationHalf,
   toScreen,
   toWorld,
   zoomAt,
@@ -43,6 +50,21 @@ import {
 import type { PlanStep } from '../../lib/task/plan'
 import { overlay as planOverlay } from '../../lib/task/plan'
 import { f1 } from '../../lib/meas/format'
+import { rotateLabel } from '../../lib/task/stationOffsetModel'
+import {
+  interlockLamps,
+  MATCH_LABEL,
+  RING_LABEL,
+  stateLabel,
+  stationFill,
+  stationMatch,
+  stationRing,
+  tireOf,
+  type Lamp,
+  type StationFill,
+  type StationRing,
+} from '../../lib/task/stationLiveModel'
+import type { StationLive } from '../../lib/task/types'
 import { EmptyState } from '../../lib/ui/EmptyState'
 import { IconPopover, MapIconButton } from '../../lib/ui/IconPopover'
 import { Input } from '../../lib/ui/Input'
@@ -104,6 +126,17 @@ const TEXT_CLS: Record<FillState, string> = {
   full: 'fill-content-on-accent',
   disabled: 'fill-content-faint',
 }
+/** 스테이션 몸체 채움 — 상태를 싣지 않는 바탕(모름 = 진한 슬레이트, Use=false = 빗금). */
+const STATION_FILL_CLS: Record<StationFill, string> = {
+  disabled: 'fill-surface-active',
+  unknown: 'fill-content-secondary',
+  normal: 'fill-surface-inset',
+}
+const STATION_TEXT_CLS: Record<StationFill, string> = {
+  disabled: 'fill-content-faint',
+  unknown: 'fill-surface-panel',
+  normal: 'fill-content-muted',
+}
 /** 윤곽 한 줄의 모양(로봇 작업은 로봇 색을 따로 싣는다). */
 type ShapeProps = React.SVGAttributes<SVGElement>
 const OUTLINE_PROPS: Record<OutlineKind, ShapeProps> = {
@@ -114,6 +147,31 @@ const OUTLINE_PROPS: Record<OutlineKind, ShapeProps> = {
   unusable: { className: 'stroke-warn', strokeWidth: 1.5 },
   dirty: { className: 'stroke-content-muted', strokeWidth: 1.5, strokeDasharray: '4 3' },
   hover: { className: 'stroke-content-faint', strokeWidth: 1.5 },
+}
+/** 스테이션 몸체 테두리 — 정합(`stationMatch`): 초록 = 맞음, 빨강 = 어긋남, 그 밖 = 기본 선. */
+const MATCH_PROPS: Record<'ok' | 'mismatch' | 'none', { cls: string; w: number }> = {
+  ok: { cls: 'stroke-ok', w: 3 },
+  mismatch: { cls: 'stroke-fault', w: 3 },
+  none: { cls: 'stroke-line-strong', w: 1 },
+}
+/** 스테이션 테두리의 CV 인터록 색(`stationRing`) — 몸체 테두리 한 줄에 싣는다. 초록·빨강은 정합이 쓰므로 쓰지 않는다. */
+const RING_PROPS: Record<StationRing, ShapeProps> = {
+  cv_not_ready: { className: 'stroke-content-muted', strokeDasharray: '4 3' },
+  robot_in: { className: 'stroke-warn' },
+  comp: { className: 'stroke-pending-fg' },
+  req: { className: 'stroke-info' },
+  meas_req: { className: 'stroke-info', strokeDasharray: '4 3' },
+}
+/** 인디케이터 켜짐 색 — 테두리 색과 같은 뜻. */
+const LAMP_ON: Record<string, string> = {
+  cvok: 'bg-ok',
+  req: 'bg-info',
+  meas_req: 'bg-info',
+  item_exist: 'bg-ok',
+  cvno: 'bg-warn',
+  comp: 'bg-pending-fg',
+  meas_comp: 'bg-ok',
+  meas_err: 'bg-fault',
 }
 const TYPE_SHORT: Record<TaskType, string> = {
   UP: 'U',
@@ -150,8 +208,13 @@ export interface CellMapProps {
   onPick: (t: Target, shape: Shape) => void
   /** 도형 우클릭(명령 팔레트). */
   onContext?: (t: Target, shape: Shape, e: React.MouseEvent) => void
+  /** 더블 클릭(스테이션 화물 코드 입력 등). `deferClick` 이 참인 도형은 단일 클릭을 잠시 미뤄 겹치지 않게 한다. */
+  onDouble?: (t: Target, shape: Shape) => void
+  deferClick?: (shape: Shape) => boolean
   /** 셀 재고 — 원 안의 개수. */
   stock?: ReadonlyMap<number, StockEntry>
+  /** GRM 스테이션 실시간 상태 — 채움(트래킹·화물·오류)과 안쪽 테두리(CV 인터록). 없으면 예전 모양. */
+  stationLive?: ReadonlyMap<number, StationLive>
   /** 호버 카드의 재고 줄에 화물 규격을 붙일 품목 목록(선택). */
   items?: readonly Item[]
   /** 로컬 수정(PLC 미반영) 윤곽 점선을 그린다 — 레이아웃 편집 모드에서만 켠다. */
@@ -182,7 +245,10 @@ export function CellMap({
   selected,
   onPick,
   onContext,
+  onDouble,
+  deferClick,
   stock,
+  stationLive,
   items,
   showDirty = false,
   highlight,
@@ -206,6 +272,8 @@ export function CellMap({
   const [hover, setHover] = useState<Shape | null>(null)
   const [cursor, setCursor] = useState<[number, number] | null>(null)
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => void (clickTimer.current && clearTimeout(clickTimer.current)), [])
 
   const changeRot = (r: Rotation) => {
     setRot(r)
@@ -229,6 +297,8 @@ export function CellMap({
         use: c.use,
         dirty: true,
         label: `생성 예정 셀 #${c.id}`,
+        align: null,
+        rotate: 0,
       })),
     [preview],
   )
@@ -270,7 +340,7 @@ export function CellMap({
       (x) => x.kind === focus.target.kind && x.id === focus.target.id,
     )
     if (!s) return
-    const [sx, sy] = toScreen(v, s.x, s.y)
+    const [sx, sy] = toScreen(v, ...shapeCentre(s, size / 2))
     setView(panBy(v, dim.w / 2 - sx, dim.h / 2 - sy))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nonce 가 바뀔 때만
   }, [focus?.nonce])
@@ -317,7 +387,13 @@ export function CellMap({
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     return [e.clientX - rect.left, e.clientY - rect.top]
   }
-  const centre = (s: Shape) => toScreen(v, s.x, s.y)
+  /** 도형을 그리는 화면 중심 — 정렬 스테이션은 벽(Position)에서 타이어 쪽으로 반지름만큼 민 자리. */
+  const centre = (s: Shape) => toScreen(v, ...shapeCentre(s, size / 2))
+  /** 스테이션 몸체의 화면 반폭(px) — 슬롯 실제 크기, 90°/270° 에서는 가로세로가 바뀐다. */
+  const stationHalfPx = (s: Shape): [number, number] => {
+    const [hx, hy] = stationHalf(s, size / 2)
+    return [Math.max((sideways ? hy : hx) * v.k, 3), Math.max((sideways ? hx : hy) * v.k, 3)]
+  }
   // 구역 영역 — 같은 Section 셀들의 화면 외곽(+여백). 회전해도 화면 좌표로 모으니 늘 축 정렬 사각이다.
   // 스테이션은 넣지 않는다(셀과 멀리 떨어져 있어 영역이 레이아웃 전체로 번진다).
   const zones = (() => {
@@ -355,7 +431,7 @@ export function CellMap({
   const hoverCard = (() => {
     if (!hover || drag.current?.moved) return null
     const [hx, hy] = centre(hover)
-    const W = 248
+    const W = hover.kind === 'station' ? 300 : 248
     const left = hx + rr + 10 + W > dim.w ? Math.max(4, hx - rr - 10 - W) : hx + rr + 10
     // 높이는 내용마다 다르다 — 그린 뒤 잰 값(`cardH`)으로 아래가 넘치면 위로 올린다.
     const top = Math.max(4, Math.min(hy - rr, dim.h - cardH - 4))
@@ -370,7 +446,8 @@ export function CellMap({
           s={hover}
           cell={hover.kind === 'cell' ? cells.find((c) => c.id === hover.id) : undefined}
           station={hover.kind === 'station' ? stations.find((c) => c.id === hover.id) : undefined}
-          st={hover.kind === 'cell' ? (stock?.get(hover.id) ?? null) : null}
+          live={hover.kind === 'station' ? stationLive?.get(hover.id) : undefined}
+          st={stock?.get(hover.id) ?? null}
           items={items}
           work={work?.get(`${hover.kind}-${hover.id}`)}
         />
@@ -485,7 +562,8 @@ export function CellMap({
         {/* 슬롯 실제 크기 (length × width) — 90°/270° 에서는 화면 가로세로가 바뀐다 */}
         {footprint
           ? shapes
-              .filter((s) => s.length > 0 && s.width > 0)
+              // 스테이션 몸체는 이미 실제 크기다 — 셀만.
+              .filter((s) => s.kind === 'cell' && s.length > 0 && s.width > 0)
               .map((s) => {
                 const [sx, sy] = centre(s)
                 const w = (sideways ? s.width : s.length) * v.k
@@ -625,10 +703,16 @@ export function CellMap({
         {shapes.map((s) => {
           const [sx, sy] = centre(s)
           const key = `${s.kind}-${s.id}`
-          const st = s.kind === 'cell' ? stock?.get(s.id) : undefined
+          // 스테이션 재고 = 컨베이어가 옮겨 온 화물(백엔드 `stock::conveyor`) — 품목 코드를 도형 안에 적는다.
+          const st = stock?.get(s.id)
           const n = st?.count ?? 0
           const stackMax =
             (st?.item_code ? items?.find((i) => i.code === st.item_code)?.spec?.stack_max : 0) ?? 0
+          const sl = s.kind === 'station' ? stationLive?.get(s.id) : undefined
+          const sf = s.kind === 'station' ? stationFill(s.use, sl) : null
+          const ring = s.kind === 'station' && s.use ? stationRing(sl) : null
+          const match = s.kind === 'station' && s.use ? stationMatch(sl, st).state : null
+          const mp = MATCH_PROPS[match ?? 'none']
           const fs: FillState =
             s.kind === 'station'
               ? s.use
@@ -646,13 +730,19 @@ export function CellMap({
             dirty: s.dirty && showDirty,
             hover: hover === s,
           })
+          // 스테이션 몸체 테두리는 **한 줄** — 어긋남(빨강) > CV 인터록 > 정합(초록) > 기본 선.
+          // 인터록을 안쪽에 한 줄 더 그리면 테두리가 이중으로 보였다(2026-09-22).
+          const body: { cls: string; w: number; dash?: string } =
+            match === 'mismatch' || !ring
+              ? mp
+              : {
+                  cls: RING_PROPS[ring].className ?? mp.cls,
+                  w: 2.5,
+                  dash: RING_PROPS[ring].strokeDasharray as string | undefined,
+                }
           const shapeCls = cn(
             'cursor-pointer',
-            s.kind === 'station'
-              ? fs === 'disabled'
-                ? 'fill-surface-active stroke-line-default'
-                : 'fill-content-secondary stroke-content-primary'
-              : FILL_CLS[fs],
+            sf ? cn(STATION_FILL_CLS[sf], body.cls) : FILL_CLS[fs],
           )
           const handlers = {
             onMouseEnter: () => setHover(s),
@@ -660,7 +750,25 @@ export function CellMap({
             onClick: (e: React.MouseEvent) => {
               if (drag.current?.moved) return
               e.stopPropagation()
+              if (clickTimer.current) clearTimeout(clickTimer.current)
+              clickTimer.current = null
+              if (onDouble && deferClick?.(s)) {
+                // 더블 클릭이 올 수 있는 도형 — 단일 클릭은 잠시 뒤에(두 번째 클릭이 오면 취소).
+                if (e.detail > 1) return
+                clickTimer.current = setTimeout(() => {
+                  clickTimer.current = null
+                  onPick({ kind: s.kind, id: s.id }, s)
+                }, 220)
+                return
+              }
               onPick({ kind: s.kind, id: s.id }, s)
+            },
+            onDoubleClick: (e: React.MouseEvent) => {
+              if (!onDouble || drag.current?.moved) return
+              e.stopPropagation()
+              if (clickTimer.current) clearTimeout(clickTimer.current)
+              clickTimer.current = null
+              onDouble({ kind: s.kind, id: s.id }, s)
             },
             onContextMenu: (e: React.MouseEvent) => {
               e.preventDefault()
@@ -668,20 +776,43 @@ export function CellMap({
               onContext?.({ kind: s.kind, id: s.id }, s, e)
             },
           }
-          // 셀 = 원, 스테이션 = 사각 — 채움·빗금·윤곽이 같은 모양을 쓴다.
-          const shapeEl = (props: ShapeProps, r: number, children?: ReactNode) =>
+          // 셀 = 원(지름 = 도형 크기), 스테이션 = 실제 크기 사각 — 채움·빗금·윤곽이 같은 모양을 쓴다.
+          // `pad` = 바깥(+)·안쪽(−)으로 넓히는 픽셀.
+          const [hw, hh] = s.kind === 'station' ? stationHalfPx(s) : [rr, rr]
+          const shapeEl = (props: ShapeProps, pad: number, children?: ReactNode) =>
             s.kind === 'cell' ? (
-              <circle cx={sx} cy={sy} r={r} {...props}>
+              <circle cx={sx} cy={sy} r={Math.max(rr + pad, 1)} {...props}>
                 {children}
               </circle>
             ) : (
-              <rect x={sx - r} y={sy - r} width={r * 2} height={r * 2} rx={3} {...props}>
+              <rect
+                x={sx - hw - pad}
+                y={sy - hh - pad}
+                width={Math.max((hw + pad) * 2, 2)}
+                height={Math.max((hh + pad) * 2, 2)}
+                rx={3}
+                {...props}
+              >
                 {children}
               </rect>
             )
           return (
-            <g key={key} data-testid={`map-${key}`} data-fill={fs}>
-              {shapeEl({ className: shapeCls, strokeWidth: 1, ...handlers }, rr)}
+            <g
+              key={key}
+              data-testid={`map-${key}`}
+              data-fill={sf ?? fs}
+              data-ring={ring ?? undefined}
+              data-match={match ?? undefined}
+            >
+              {shapeEl(
+                {
+                  className: shapeCls,
+                  strokeWidth: sf ? body.w : 1,
+                  strokeDasharray: sf ? body.dash : undefined,
+                  ...handlers,
+                },
+                0,
+              )}
               {fs === 'disabled'
                 ? shapeEl(
                     {
@@ -689,9 +820,21 @@ export function CellMap({
                       className: 'pointer-events-none',
                       opacity: 0.6,
                     },
-                    rr,
+                    0,
                   )
                 : null}
+              {s.kind === 'station' ? (
+                <StationMarks
+                  s={s}
+                  v={v}
+                  size={size}
+                  half={[hw, hh]}
+                  live={sl}
+                  st={st ?? null}
+                  item={st?.item_code ? items?.find((i) => i.code === st.item_code) : undefined}
+                  fill={sf ?? 'unknown'}
+                />
+              ) : null}
               {outline ? (
                 <g
                   className="pointer-events-none"
@@ -701,7 +844,7 @@ export function CellMap({
                   {outline === 'selected'
                     ? shapeEl(
                         { fill: 'none', className: 'stroke-surface-panel', strokeWidth: 5 },
-                        rr + 3,
+                        3,
                       )
                     : null}
                   {shapeEl(
@@ -716,7 +859,7 @@ export function CellMap({
                           }
                         : {}),
                     },
-                    rr + 3,
+                    3,
                     outline === 'selected' ? (
                       // 흐르는 점선 — 점선 한 주기(6+4)씩 밀어 끊김 없이 돈다.
                       <animate
@@ -741,21 +884,6 @@ export function CellMap({
                   data-testid={`map-stock-${s.id}`}
                 >
                   {n}
-                </text>
-              ) : null}
-              {s.kind === 'station' && rr >= 12 ? (
-                <text
-                  x={sx}
-                  y={sy}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fontSize={Math.min(rr * 0.42, 12)}
-                  className={cn(
-                    'pointer-events-none font-semibold',
-                    fs === 'disabled' ? 'fill-content-faint' : 'fill-surface-panel',
-                  )}
-                >
-                  {s.id}
                 </text>
               ) : null}
             </g>
@@ -1039,6 +1167,74 @@ export function CellMap({
               />
               <LegendRow
                 swatch={
+                  <span className="relative h-4 w-4 rounded-sm bg-content-secondary">
+                    <span className="absolute inset-y-0 left-0 w-1 bg-content-primary" />
+                  </span>
+                }
+                text="스테이션 굵은 변 = 정렬 벽(Position) — RotateType 방향으로 타이어가 닿는 쪽"
+              />
+              <li className="mt-1 text-3xs font-semibold text-content-muted">
+                스테이션 테두리 — 정합(화물 유무 · 트래킹 · 화물 코드)
+              </li>
+              {(['ok', 'mismatch'] as const).map((k) => (
+                <LegendRow
+                  key={k}
+                  swatch={
+                    <svg width={16} height={16} aria-hidden>
+                      <rect
+                        x={2}
+                        y={2}
+                        width={12}
+                        height={12}
+                        rx={2}
+                        strokeWidth={2.5}
+                        className={cn('fill-surface-inset', MATCH_PROPS[k].cls)}
+                      />
+                    </svg>
+                  }
+                  text={k === 'ok' ? MATCH_LABEL.ok : '불일치 · GRM 오류 — 호버에 이유'}
+                />
+              ))}
+              <LegendRow
+                swatch={
+                  <svg width={16} height={16} aria-hidden>
+                    <circle
+                      cx={8}
+                      cy={8}
+                      r={6}
+                      className="fill-content-primary stroke-content-primary"
+                      fillOpacity={0.14}
+                      strokeWidth={1.5}
+                    />
+                  </svg>
+                }
+                text="화물 — 트래킹 OD·위치(없으면 품목 외경, 점선 = 크기 모름) · 코드 없으면 더블 클릭으로 입력"
+              />
+              <li className="mt-1 text-3xs font-semibold text-content-muted">
+                스테이션 안쪽 테두리 — CV 인터록, 위가 우선
+              </li>
+              {(['cv_not_ready', 'robot_in', 'comp', 'req', 'meas_req'] as const).map((k) => (
+                <LegendRow
+                  key={k}
+                  swatch={
+                    <svg width={16} height={16} aria-hidden>
+                      <rect
+                        x={2}
+                        y={2}
+                        width={12}
+                        height={12}
+                        rx={2}
+                        fill="none"
+                        strokeWidth={2}
+                        {...RING_PROPS[k]}
+                      />
+                    </svg>
+                  }
+                  text={RING_LABEL[k]}
+                />
+              ))}
+              <LegendRow
+                swatch={
                   <span className="h-4 w-6 rounded border border-line-default bg-content-muted/10" />
                 }
                 text="구역(Section) — 바탕 영역 + 이름"
@@ -1162,6 +1358,7 @@ function HoverBody({
   s,
   cell,
   station,
+  live,
   st,
   items,
   work,
@@ -1169,6 +1366,7 @@ function HoverBody({
   s: Shape
   cell?: Cell
   station?: Station
+  live?: StationLive
   st: StockEntry | null
   items?: readonly Item[]
   work?: WorkMark
@@ -1224,8 +1422,17 @@ function HoverBody({
         rows={[
           ['ConvNo', String(station.conv_no)],
           ['Group', `${station.group}-${station.group_index}`],
-          ['RotateType', String(station.rotate_type)],
+          ['RotateType', rotateLabel(station.rotate_type)],
           ['TaskType', String(station.task_type)],
+          ...(n > 0
+            ? ([
+                [
+                  'ItemCode',
+                  `${st?.item_code || '?'}${it?.name ? ` · ${it.name}` : ''}${n > 1 ? ` ×${n}` : ''}`,
+                ],
+              ] as [string, ReactNode][])
+            : []),
+          ...stationLiveRows(live, st),
         ]}
       />
     ) : null
@@ -1245,6 +1452,7 @@ function HoverBody({
         </span>
         {top}
       </section>
+      {s.kind === 'station' && live?.live ? <InterlockLamps l={live} /> : null}
       <section
         className="flex flex-col gap-1 border-t border-line-default bg-surface-inset px-2.5 py-2"
         data-testid="hover-place"
@@ -1262,6 +1470,226 @@ function HoverBody({
         </ul>
       ) : null}
     </>
+  )
+}
+
+/**
+ * 스테이션 표식 — 정렬 벽(Position 을 지나는 굵은 변), 화물 원(트래킹 OD·TaskOffset 또는 품목 외경, 내경 점선),
+ * 화물 코드, 스테이션 번호. 월드 좌표로 계산해 `toScreen` 하므로 화면 회전·반전을 따른다.
+ * 화물 원은 GRM 이 화물을 감지할 때(모르면 콘솔 재고가 있을 때)만 그린다.
+ */
+function StationMarks({
+  s,
+  v,
+  size,
+  half,
+  live,
+  st,
+  item,
+  fill,
+}: {
+  s: Shape
+  v: View
+  size: number
+  /** 몸체 화면 반폭(px). */
+  half: [number, number]
+  live?: StationLive
+  st: StockEntry | null
+  item?: Item
+  fill: StationFill
+}) {
+  const [hx, hy] = stationHalf(s, size / 2)
+  const [sx, sy] = toScreen(v, ...shapeCentre(s, size / 2))
+  const [hw, hh] = half
+  const n = st?.count ?? 0
+  const known = !!live?.live && !live.stale
+  const present = known ? !!live?.pi.item_exist : n > 0
+
+  let wall: ReactNode = null
+  if (s.align) {
+    const [ax, ay] = s.align
+    // 벽은 흐름에 수직 — 흐름이 X 축이면 Y 반폭, Y 축이면 X 반폭만큼 뻗는다.
+    const w = ax !== 0 ? hy : hx
+    // 스토퍼는 타이어 **반대쪽**(−align)에 그린다 — 닿는 선(Position) 위에 얹으면 화물 원 가장자리를 가린다.
+    // 가는 막대 + 양 끝 짧은 꺾임(⊐)으로, 두께만큼 바깥으로 비켜 놓는다.
+    const px = 1 / v.k
+    const bar = 2
+    const tick = 5
+    const off = (bar / 2 + 0.5) * px
+    const at = (u: number, back: number) =>
+      toScreen(v, s.x - ay * u - ax * back, s.y + ax * u - ay * back)
+    const [x1, y1] = at(-w, off)
+    const [x2, y2] = at(w, off)
+    const [t1x, t1y] = at(-w, off + tick * px)
+    const [t2x, t2y] = at(w, off + tick * px)
+    wall = (
+      <path
+        d={`M${t1x},${t1y} L${x1},${y1} L${x2},${y2} L${t2x},${t2y}`}
+        fill="none"
+        className="stroke-content-secondary"
+        strokeWidth={bar}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        data-testid={`map-station-wall-${s.id}`}
+      />
+    )
+  }
+
+  let tire: ReactNode = null
+  if (present) {
+    const t = tireOf(
+      known && live ? live.rotate_type : s.rotate,
+      known && live ? live.od : 0,
+      live?.tx ?? 0,
+      live?.ty ?? 0,
+      item?.outer_diameter ?? 0,
+      Math.min(hx, hy) * 2 * 0.8,
+    )
+    const [cx, cy] = toScreen(v, s.x + t.dx, s.y + t.dy)
+    const r = Math.max((t.d / 2) * v.k, 2)
+    const ri = item?.inner_diameter ? (item.inner_diameter / 2) * v.k : 0
+    const noCode = !(n > 0 && st?.item_code)
+    tire = (
+      <g data-testid={`map-station-tire-${s.id}`} data-source={t.source}>
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          className="fill-content-primary stroke-content-primary"
+          fillOpacity={0.14}
+          strokeWidth={1.5}
+          strokeDasharray={t.source === 'nominal' ? '4 3' : undefined}
+        />
+        {ri > 3 && ri < r ? (
+          <circle
+            cx={cx}
+            cy={cy}
+            r={ri}
+            fill="none"
+            className="stroke-content-muted"
+            strokeDasharray="2 2"
+          />
+        ) : null}
+        {r >= 10 ? (
+          <text
+            x={cx}
+            y={cy}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize={Math.min(Math.max(r * 0.32, 9), 14)}
+            fontWeight={600}
+            className={cn('tabular-nums', noCode ? 'fill-fault-fg' : 'fill-content-primary')}
+            data-testid={`map-station-item-${s.id}`}
+          >
+            {noCode ? '코드?' : `${st?.item_code}${n > 1 ? ` ×${n}` : ''}`}
+          </text>
+        ) : null}
+      </g>
+    )
+  } else if (n > 0 && Math.min(hw, hh) >= 14) {
+    // 화물은 떠났고 코드만 남음 — 다음 스테이션 도착을 기다린다(`stock::conveyor`).
+    tire = (
+      <text
+        x={sx}
+        y={sy}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={10}
+        className={cn('tabular-nums', STATION_TEXT_CLS[fill])}
+        data-testid={`map-station-item-${s.id}`}
+      >
+        → {st?.item_code || '?'}
+      </text>
+    )
+  }
+
+  return (
+    <g className="pointer-events-none">
+      {tire}
+      {wall}
+      {Math.min(hw, hh) >= 12 ? (
+        <text
+          x={sx - hw + 5}
+          y={sy - hh + 5}
+          dominantBaseline="hanging"
+          fontSize={10}
+          fontWeight={600}
+          className={STATION_TEXT_CLS[fill]}
+        >
+          {s.id}
+        </text>
+      ) : null}
+    </g>
+  )
+}
+
+/** 호버 카드의 GRM 줄 — 정합 · 인터록 판정 + State · 트래킹. 비트는 `InterlockLamps`. */
+function stationLiveRows(l: StationLive | undefined, st: StockEntry | null): [string, ReactNode][] {
+  if (!l || !l.live) return [['GRM', l?.why ?? 'GRM 상태 없음']]
+  const m = stationMatch(l, st)
+  const ring = stationRing(l)
+  const rows: [string, ReactNode][] = [
+    [
+      '정합',
+      <span
+        key="m"
+        className={cn(
+          'whitespace-normal',
+          m.state === 'ok' ? 'text-ok-fg' : m.state === 'mismatch' ? 'text-fault-fg' : '',
+        )}
+      >
+        {m.state === 'ok' ? '정합 — ' : m.state === 'mismatch' ? '불일치 — ' : ''}
+        {m.reasons.join(' · ') || '-'}
+      </span>,
+    ],
+    ['인터록', ring ? RING_LABEL[ring] : '-'],
+    ['State', `${stateLabel(l.state)}${l.error_code ? ` · Err ${l.error_code}` : ''}`],
+  ]
+  if (l.has_tracking || l.od > 0)
+    rows.push(['OD / TX / TY', `${f1(l.od)} / ${f1(l.tx)} / ${f1(l.ty)}`])
+  rows.push(['GRM', `${l.source}${l.stale ? ' · 오래됨 / 끊김' : ''}`])
+  return rows
+}
+
+/** IN(PI, CV → GRM) / OUT(PO, GRM → CV) 인디케이터 — 켜진 비트는 테두리와 같은 색, 한 줄 설명. */
+function InterlockLamps({ l }: { l: StationLive }) {
+  const { pi, po } = interlockLamps(l)
+  const col = (title: string, lamps: Lamp[]) => (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="text-3xs font-semibold tracking-wide text-content-muted">{title}</span>
+      {lamps.map((x) => (
+        <div
+          key={x.key}
+          className="flex items-start gap-1.5"
+          data-testid={`lamp-${x.key}`}
+          data-on={x.on ? '1' : '0'}
+        >
+          <span
+            className={cn(
+              'mt-1 h-2 w-2 flex-none rounded-full',
+              x.on ? LAMP_ON[x.key] : 'bg-line-strong',
+            )}
+          />
+          <span className="min-w-0 leading-tight">
+            <span
+              className={cn('font-semibold', x.on ? 'text-content-primary' : 'text-content-faint')}
+            >
+              {x.name}
+            </span>
+            <span className="block text-3xs text-content-muted">{x.desc}</span>
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+  return (
+    <section
+      className="grid grid-cols-2 gap-2 border-t border-line-default px-2.5 py-2"
+      data-testid="hover-interlock"
+    >
+      {col('IN · CV → GRM (PI)', pi)}
+      {col('OUT · GRM → CV (PO)', po)}
+    </section>
   )
 }
 

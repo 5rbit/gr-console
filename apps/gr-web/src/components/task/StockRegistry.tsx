@@ -18,10 +18,21 @@ import { toast } from '../../lib/ui/toast'
 import { Toolbar } from '../../lib/ui/Toolbar'
 import { OverflowMenu } from '../../lib/ui/OverflowMenu'
 import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
-import type { Cell, Item, StockEntry } from '../../lib/types'
+import type { Cell, Item, Station, StockEntry } from '../../lib/types'
+import { stationAsCell } from '../../lib/task/stationCell'
+import { taskApi } from '../../lib/task/api'
+import { SHEET_ACCEPT, importOutcome, outcomeSummary } from '../../lib/task/importPreview'
+import type { FileImportResult } from '../../lib/task/types'
+import { Segmented } from '../../lib/ui/Segmented'
+import { ImportDialog } from './ImportDialog'
 import { ItemPicker } from '../shared/ItemPicker'
 import { EMPTY_ITEM, FormErrors, ItemFields, validateItem } from './forms'
 import type { ItemUpsert } from '../../lib/types'
+
+/** 재고 자리 이름 — 스테이션(Id > 2000)도 재고를 가진다(컨베이어 화물 코드). */
+function placeName(id: number): string {
+  return `${id > 2000 ? '스테이션' : '셀'} #${id}`
+}
 
 export interface StockEdit {
   cell: Cell
@@ -92,7 +103,7 @@ export function StockEditDialog({
         item_code: v.item ?? 0,
         count: Math.max(0, Math.floor(v.count)),
       })
-      toast.ok(`셀 #${v.cell.id} 재고 ${v.count}`)
+      toast.ok(`${placeName(v.cell.id)} 재고 ${v.count}`)
       onClose()
     } catch (e) {
       toast.error(`재고 저장 실패 — ${e instanceof Error ? e.message : String(e)}`)
@@ -107,7 +118,7 @@ export function StockEditDialog({
     <FormDialog
       open={!!edit}
       onOpenChange={(o) => !o && onClose()}
-      title={edit ? `셀 #${edit.cell.id} 재고` : ''}
+      title={edit ? `${placeName(edit.cell.id)} 재고` : ''}
       meta={step === 'item' ? '새 품목' : undefined}
       // 품목 칸은 2~3 열 격자라 좁은 상자에서는 라벨이 값보다 길어진다.
       size={step === 'item' ? 'lg' : 'sm'}
@@ -179,10 +190,14 @@ export function StockEditDialog({
 interface Row {
   cell: Cell
   stock: StockEntry | null
+  /** 스테이션 행 — ConvNo(셀이면 없음). */
+  conv?: number
 }
 
 export interface StockRegistryProps {
   cells: readonly Cell[]
+  /** 스테이션 — 컨베이어 화물 코드도 재고라 셀 뒤에 같은 표로 싣는다(코드 지정 = 재고 편집). */
+  stations?: readonly Station[]
   items: readonly Item[]
   q: string
   onItemsChanged?: () => void
@@ -196,6 +211,7 @@ export interface StockRegistryProps {
 
 export function StockRegistry({
   cells,
+  stations = [],
   items,
   q,
   onItemsChanged,
@@ -222,20 +238,72 @@ export function StockRegistry({
   }, [selected])
   const [edit, setEdit] = useState<StockEdit | null>(null)
   const [clearAll, setClearAll] = useState(false)
+  // Excel 가져오기 — 파일 → 미리보기(dry-run) → 적용. 방식(병합/교체)을 바꾸면 같은 파일로 미리보기를 다시 한다.
+  const fileRef = useRef<HTMLInputElement>(null)
+  const exportRef = useRef<HTMLAnchorElement>(null)
+  const [mode, setMode] = useState<'merge' | 'replace'>('merge')
+  const [imp, setImp] = useState<{
+    open: boolean
+    file: File | null
+    preview: FileImportResult | null
+    error: string | null
+    applying: boolean
+  }>({ open: false, file: null, preview: null, error: null, applying: false })
+  async function previewFile(file: File, m = mode) {
+    setImp({ open: true, file, preview: null, error: null, applying: false })
+    try {
+      const preview = await taskApi.stockImportFile(file, true, m)
+      setImp((s) => (s.file === file ? { ...s, preview } : s))
+    } catch (e) {
+      setImp((s) => ({ ...s, error: e instanceof Error ? e.message : String(e) }))
+    }
+  }
+  async function applyFile() {
+    if (!imp.file) return
+    setImp((s) => ({ ...s, applying: true }))
+    try {
+      const r = await taskApi.stockImportFile(imp.file, false, mode)
+      const head = outcomeSummary('재고', importOutcome(r))
+      if (r.errors.length) toast.warn(`${head} · 오류 ${r.errors.length} (${r.errors[0].message})`)
+      else toast.ok(head)
+      setImp({ open: false, file: null, preview: null, error: null, applying: false })
+    } catch (e) {
+      setImp((s) => ({ ...s, applying: false, error: e instanceof Error ? e.message : String(e) }))
+    }
+  }
+  const menu: MenuEntry[] = [
+    { label: 'Excel' },
+    {
+      label: 'Excel 가져오기…',
+      testid: 'stock-import',
+      run: () => {
+        setImp({ open: true, file: null, preview: null, error: null, applying: false })
+        fileRef.current?.click()
+      },
+    },
+    { label: 'Excel 내보내기', testid: 'stock-export', run: () => exportRef.current?.click() },
+    ...menuExtra,
+  ]
   const version = stockStore.getSnapshot()
   const rows = useMemo<Row[]>(() => {
     const needle = q.toLowerCase()
-    return cells
-      .filter(
-        (c) =>
-          !needle ||
-          `${c.id} s${c.section} r${c.row} c${c.col} ${stockStore.get(c.id)?.item_code ?? ''}`
-            .toLowerCase()
-            .includes(needle),
-      )
-      .map((c) => ({ cell: c, stock: stockStore.get(c.id) }))
+    const all: Row[] = [
+      ...cells.map((c) => ({ cell: c, stock: stockStore.get(c.id) })),
+      ...stations.map((s) => ({
+        cell: stationAsCell(s),
+        stock: stockStore.get(s.id),
+        conv: s.conv_no,
+      })),
+    ]
+    return all.filter(
+      (r) =>
+        !needle ||
+        `${r.cell.id} s${r.cell.section} r${r.cell.row} c${r.cell.col} ${r.conv ? `cv${r.conv} station` : ''} ${r.stock?.item_code ?? ''}`
+          .toLowerCase()
+          .includes(needle),
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps -- version 이 스토어 변경을 대표한다
-  }, [cells, q, version])
+  }, [cells, stations, q, version])
   const total = rows.reduce((a, r) => a + (r.stock?.count ?? 0), 0)
   const itemOf = (code?: number) => (code ? items.find((i) => i.code === code) : undefined)
   const openEdit = (r: Row) =>
@@ -255,7 +323,10 @@ export function StockRegistry({
     {
       key: 'pos',
       label: 'Section/Row/Col',
-      get: (r) => `S${r.cell.section} R${r.cell.row} C${r.cell.col}`,
+      get: (r) =>
+        r.conv !== undefined
+          ? `Station · CV ${r.conv}`
+          : `S${r.cell.section} R${r.cell.row} C${r.cell.col}`,
       priority: 3,
     },
     {
@@ -336,9 +407,26 @@ export function StockRegistry({
         >
           전체 비우기
         </Button>
-        {menuExtra.length ? (
-          <OverflowMenu items={menuItems(menuExtra)} title="보기" testid="stock-more" />
-        ) : null}
+        <OverflowMenu items={menuItems(menu)} title="Excel · 보기" testid="stock-more" />
+        <input
+          ref={fileRef}
+          type="file"
+          accept={SHEET_ACCEPT}
+          className="hidden"
+          aria-hidden="true"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) void previewFile(f)
+          }}
+        />
+        <a
+          ref={exportRef}
+          href={taskApi.stockExportUrl}
+          download
+          className="hidden"
+          aria-hidden="true"
+        />
       </Toolbar>
       <div className="min-h-0 flex-1 overflow-auto" ref={box}>
         <DataTable
@@ -364,6 +452,53 @@ export function StockRegistry({
           )}
         />
       </div>
+      <ImportDialog
+        open={imp.open}
+        onOpenChange={(o) => !o && setImp((s) => ({ ...s, open: false }))}
+        what="재고"
+        file={imp.file}
+        preview={imp.preview}
+        error={imp.error}
+        applying={imp.applying}
+        onPick={() => fileRef.current?.click()}
+        onFile={(f) => void previewFile(f)}
+        onApply={() => void applyFile()}
+        scopeLabel="콘솔 재고에 적용"
+        help={[
+          {
+            title: '파일',
+            body: 'Stock 시트(없으면 첫 시트)의 CellId · ItemCode · Count · Note 열. Excel 내보내기 파일을 그대로 고쳐 올리면 됩니다. 셀과 스테이션(컨베이어 화물 코드) 모두 받습니다. Count 0 = 그 자리 비움.',
+          },
+          {
+            title: '병합 / 교체',
+            body: '병합 = 파일에 있는 자리만 바꿉니다. 교체 = 파일이 재고 전체라고 보고 파일에 없는 자리는 비웁니다(오류 난 줄의 자리는 남김).',
+          },
+          {
+            title: '검사',
+            body: '등록된 셀·스테이션인지, 파일 안 중복, 등록된 품목인지, 품목 StackMax 를 넘는지. 오류 줄은 건너뛰고 나머지만 적용합니다. PLC 에는 쓰지 않습니다.',
+          },
+        ]}
+        extra={
+          <div className="flex items-center gap-2">
+            <span className="text-content-muted">적용 방식</span>
+            <Segmented<'merge' | 'replace'>
+              ariaLabel="적용 방식"
+              value={mode}
+              onChange={(m) => {
+                setMode(m)
+                if (imp.file) void previewFile(imp.file, m)
+              }}
+              options={[
+                { id: 'merge', label: '병합', testid: 'stock-mode-merge' },
+                { id: 'replace', label: '교체', testid: 'stock-mode-replace' },
+              ]}
+            />
+            <span className="text-2xs text-content-faint">
+              {mode === 'merge' ? '파일에 있는 자리만 바꿈' : '파일에 없는 자리는 비움'}
+            </span>
+          </div>
+        }
+      />
       <StockEditDialog
         edit={edit}
         items={items}

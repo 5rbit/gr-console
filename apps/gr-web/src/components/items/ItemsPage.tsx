@@ -10,7 +10,7 @@
 // 재고 사용: 셀 재고 스트림(`lib/stock`)에서 코드별로 몇 칸이 그 코드를 들고 있는지 센다 — 지우기 전에
 // "지금 쓰는 코드인가"가 보여야 한다. StackMax 를 넘은 칸이 있으면 그 칸 수를 경고색으로.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Copy, FileSpreadsheet, Gauge, Plus, Ruler } from 'lucide-react'
+import { Check, CheckCheck, Copy, FileSpreadsheet, Gauge, Plus, Ruler, Undo2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
   DEFAULT_PICK_BEAD_OFFSET,
@@ -37,6 +37,7 @@ import { Input } from '../../lib/ui/Input'
 import { ScreenHeader } from '../../lib/ui/ScreenHeader'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
+import { Switch } from '../../lib/ui/Switch'
 import type { Item, ItemUpsert } from '../../lib/types'
 import { EMPTY_ITEM, ItemForm } from '../task/forms'
 import { toItemUpsert } from '../task/ItemRegistry'
@@ -45,6 +46,17 @@ import { Splitter } from '../workspace/Splitter'
 
 import { ItemDetail } from './ItemDetail'
 import { DimsReviewDialog } from './DimsReviewDialog'
+import { DimsSummary, MeasuredCell, confirmLine, dimKey, useDimsOverlay } from './DimsInline'
+import {
+  TONE_LABEL,
+  WINDOWS,
+  dimTone,
+  dimsApi,
+  safeTone,
+  type DimChange,
+  type DimField,
+  type DimSuggestion,
+} from '../../lib/items/dims'
 
 // 양식이 있으면 툴바의 `추가`가 두 쪽 버튼(폼 · Excel 메뉴)이 된다 — 규격은 폼보다 Excel 로 수십 개씩 들어온다.
 const IO: RegistryIo<Item> = {
@@ -62,10 +74,37 @@ const DETAIL_DEFAULT = 620
 const f1 = (n: number) => (Math.round(n * 10) / 10).toString()
 const when = (s: string) => s.slice(0, 19).replace('T', ' ')
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e))
+/** 좁은 숫자 열 — 머리글 · 칸 여백을 줄인다(DataTable 기본 px-2). */
+const NARROW = 'px-1.5!'
+/** 약어 머리글 — 전체 이름 · 단위는 툴팁과 읽어 주는 이름으로. */
+const hdr = (short: string, full: string) => ({
+  label: (
+    <span title={full} className="cursor-help">
+      {short}
+    </span>
+  ),
+  name: full,
+})
 const faint = (s = '—') => <span className="text-content-faint">{s}</span>
 /** 1단 타이어를 혼자(위에 아무것도 없이) 집는 높이 — UpperBidHeight − PickBeadOffset. 비드가 없으면 null. */
 const pickZAtL1 = (i: Item): number | null =>
   i.upper_bead_height > 0 ? Math.max(i.upper_bead_height - pickBeadOffset(specOf(i)), 0) : null
+
+const DIMS_KEY = 'gr-items-dims'
+function readDimsOn(): boolean {
+  try {
+    return localStorage.getItem(DIMS_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+
+/** 한 번의 측정 반영 묶음 — "방금 적용 되돌리기" 가 통째로 되돌린다. */
+interface DimBatch {
+  code: number
+  field: string
+  id: number
+}
 
 function readWidth(): number {
   try {
@@ -108,13 +147,37 @@ export default function ItemsPage() {
   /** 저장 안 한 상세를 두고 다른 행을 고르려 할 때 — `undefined` = 묻는 중 아님. */
   const [pendingPick, setPendingPick] = useState<number | null | undefined>(undefined)
   const [dimsOpen, setDimsOpen] = useState(false)
+  // ── 표 안의 측정 제안(DimsInline) ──
+  const [dimsOn, setDimsOnState] = useState(readDimsOn)
+  const [dimWin, setDimWin] = useState(5)
+  const [dimOnly, setDimOnly] = useState(false)
+  const [dimPick, setDimPick] = useState<ReadonlySet<string>>(() => new Set())
+  const [dimBusy, setDimBusy] = useState(false)
+  const [dimFlash, setDimFlash] = useState<ReadonlySet<string>>(() => new Set())
+  const [dimConfirm, setDimConfirm] = useState<{
+    title: string
+    rows: { code: number; s: DimSuggestion }[]
+  } | null>(null)
+  const [lastBatch, setLastBatch] = useState<DimBatch[]>([])
+  /** 칩에서 온 상세 요청 — 옆 패널을 Measured 탭으로 열고 그 필드 줄을 강조한다. */
+  const [dimFocus, setDimFocus] = useState<{ code: number; field: DimField; n: number } | null>(
+    null,
+  )
   const [bulkStack, setBulkStack] = useState('')
   const [bulkPallet, setBulkPallet] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
   /** 툴바의 가져오기 창을 빈 표 버튼에서도 연다. */
   const toolbar = useRef<RegistryActions | null>(null)
 
-  const rows = useMemo(() => reg.items.filter((i) => matchesItem(i, q)), [reg.items, q])
+  const dims = useDimsOverlay(dimsOn, dimWin, reg.items)
+  const rows = useMemo(
+    () =>
+      reg.items.filter(
+        (i) =>
+          matchesItem(i, q) && (!dimsOn || !dimOnly || dims.all.some((a) => a.code === i.code)),
+      ),
+    [reg.items, q, dimsOn, dimOnly, dims.all],
+  )
   const sel = reg.items.find((i) => i.code === selected) ?? null
   // 목록이 갈리면(삭제·가져오기) 사라진 코드의 체크는 버린다.
   const picked = useMemo(
@@ -166,13 +229,153 @@ export default function ItemsPage() {
     else setSelected(code)
   }
 
+  // ── 측정 제안 ──
+  function setDimsOn(on: boolean) {
+    setDimsOnState(on)
+    try {
+      localStorage.setItem(DIMS_KEY, on ? '1' : '0')
+    } catch {
+      /* 저장 못 해도 동작 */
+    }
+  }
+  useEffect(() => {
+    if (!dimFlash.size) return
+    const t = setTimeout(() => setDimFlash(new Set()), 1400)
+    return () => clearTimeout(t)
+  }, [dimFlash])
+  /** 칩 누름 — 그냥 = 옆 패널에 자세히(Measured 탭 · 그 필드 강조), Ctrl = 여러 개 선택. */
+  function chipPick(code: number, field: DimField, multi: boolean) {
+    if (multi) {
+      setDimPick((p) => {
+        const n = new Set(p)
+        const k = dimKey(code, field)
+        if (n.has(k)) n.delete(k)
+        else n.add(k)
+        return n
+      })
+      return
+    }
+    setDimFocus({ code, field, n: Date.now() })
+    if (code !== selected) pick(code)
+  }
+  const dimSelected = dims.all.filter((a) => dimPick.has(dimKey(a.code, a.s.field)))
+  const dimSafe = dims.all.filter((a) => safeTone(dimTone(a.s)))
+  const dimRisky = (list: { s: DimSuggestion }[]) => list.filter((a) => !safeTone(dimTone(a.s)))
+  /** 저장하지 않은 상세가 그 품목이면 막는다 — 적용 뒤 상세가 새 값으로 다시 열리며 편집이 사라진다. */
+  const dimBlocked = (codes: number[]) =>
+    detailDirty && selected !== null && codes.includes(selected)
+      ? `품목 ${selected} 상세에 저장하지 않은 편집이 있습니다 — 먼저 저장하거나 되돌리세요`
+      : null
+
+  async function dimApply(list: { code: number; s: DimSuggestion }[]) {
+    const block = dimBlocked(list.map((a) => a.code))
+    if (block) {
+      toast.warn(block)
+      return
+    }
+    const by = new Map<number, DimField[]>()
+    for (const a of list) by.set(a.code, [...(by.get(a.code) ?? []), a.s.field])
+    setDimBusy(true)
+    try {
+      const res = await dimsApi.applyBulk(
+        [...by].map(([code, fields]) => ({ code, fields })),
+        dimWin,
+      )
+      const batch: DimBatch[] = res.results.flatMap((r) =>
+        (r.applied ?? []).map((a) => ({ code: r.code, field: a.field, id: a.id })),
+      )
+      setLastBatch(batch)
+      setDimFlash(new Set(batch.map((b) => dimKey(b.code, b.field))))
+      setDimPick(
+        (p) => new Set([...p].filter((k) => !batch.some((b) => dimKey(b.code, b.field) === k))),
+      )
+      if (res.failed) {
+        const first = res.results.find((r) => !r.ok)
+        toast.error(
+          `측정 반영 ${batch.length}건 · ${res.failed}개 품목 실패 (#${first?.code} ${first?.error ?? ''})`,
+        )
+      } else
+        toast.ok(
+          `측정 반영 ${batch.length}건 (${by.size}개 품목) — 띠의 "방금 적용 되돌리기" 로 되돌릴 수 있습니다`,
+        )
+      await reg.reload()
+    } catch (e) {
+      toast.error(`측정 반영 실패 — ${errMsg(e)}`)
+    } finally {
+      setDimBusy(false)
+    }
+  }
+  /** 적용 요청 — 한 줄이고 바로 적용해도 되면 곧장, 아니면 확인 창. */
+  function dimRequest(title: string, list: { code: number; s: DimSuggestion }[]) {
+    if (!list.length) return
+    if (list.length === 1 && safeTone(dimTone(list[0].s))) void dimApply(list)
+    else setDimConfirm({ title, rows: list })
+  }
+  async function dimRevert(list: { code: number; id: number; field: string }[]) {
+    const block = dimBlocked(list.map((b) => b.code))
+    if (block) {
+      toast.warn(block)
+      return
+    }
+    setDimBusy(true)
+    let ok = 0
+    const failed: string[] = []
+    // 나중에 적용한 것부터 — 같은 필드가 두 번 들었어도 원래 값으로 돌아간다
+    for (const b of [...list].reverse()) {
+      try {
+        await dimsApi.revert(b.code, b.id)
+        ok++
+      } catch (e) {
+        failed.push(`#${b.code} ${b.field}: ${errMsg(e)}`)
+      }
+    }
+    setDimFlash(new Set(list.map((b) => dimKey(b.code, b.field))))
+    setLastBatch((prev) => prev.filter((p) => !list.some((b) => b.id === p.id)))
+    if (failed.length) toast.error(`되돌림 ${ok}건 · 실패 ${failed.length}건 — ${failed[0]}`)
+    else toast.ok(`측정 반영 ${ok}건 되돌림`)
+    setDimBusy(false)
+    await reg.reload()
+  }
+  /** 측정 열(머리글 "측정") — 등록값 열 바로 옆, 색 글자 하나(`MeasuredCell`). 측정 제안을 켰을 때만. */
+  const measCol = (after: string, field: DimField, full: string): Column<Item>[] =>
+    dimsOn
+      ? [
+          {
+            key: `m_${after}`,
+            ...hdr('측정', `${full} 측정 제안 (mm) — 글자색 = 결정, 누르면 옆 패널에 자세히`),
+            numeric: true,
+            class: NARROW,
+            priority: 2,
+            get: (i) => dims.sugOf(i.code, field)?.suggested ?? -1,
+            cell: (i) => (
+              <MeasuredCell
+                code={i.code}
+                s={dims.sugOf(i.code, field)}
+                live={dims.liveOf(i.code, field)}
+                window={dimWin}
+                picked={dimPick.has(dimKey(i.code, field))}
+                flash={dimFlash.has(dimKey(i.code, field))}
+                disabled={dimBusy}
+                onPick={(multi) => chipPick(i.code, field, multi)}
+                onRevert={(c: DimChange) =>
+                  void dimRevert([{ code: i.code, id: c.id, field: c.field }])
+                }
+              />
+            ),
+          },
+        ]
+      : []
+
   // `priority` — 코드·이름·StackMax·재고 사용이 1(지울 수 있나·한도를 보는 열), 명령에 직접 쓰는 치수가 2, 나머지가 3.
+  // 머리글은 줄인 이름(InnerDia · UpperBead …) — 전체 이름 · 단위는 머리글 툴팁(`hdr`). 숫자 열은 좁은 여백(`NARROW`).
   const columns: Column<Item>[] = [
     {
       key: 'pick',
-      label: '선택',
+      label: '',
+      name: '선택',
       sortable: false,
       priority: 1,
+      class: NARROW,
       cell: (i) => (
         <input
           type="checkbox"
@@ -189,63 +392,138 @@ export default function ItemsPage() {
       label: 'Code',
       get: (i) => i.code,
       numeric: true,
-      class: 'font-mono',
+      class: `font-mono ${NARROW}`,
       priority: 1,
     },
-    { key: 'name', label: 'Name', get: (i) => i.name, priority: 1 },
-    { key: 'count', label: 'Count', get: (i) => i.count, numeric: true, priority: 2 },
+    { key: 'name', label: 'Name', get: (i) => i.name, class: NARROW, priority: 1 },
+    ...(dimsOn
+      ? [
+          {
+            key: 'dims',
+            ...hdr(
+              '측정',
+              '측정 제안 — 결정별 개수(빨강 차이 큼 · 주황 흔들림 · 회색 표본 부족 · 파랑 새 값 · 초록 적용 가능), 체크 단추 = 이 품목 바로 적용, 되돌리기 단추 = 방금 적용 되돌리기',
+            ),
+            priority: 1 as const,
+            sortable: false,
+            class: NARROW,
+            cell: (i: Item) => {
+              const d = dims.byCode.get(i.code)
+              const safe = dimSafe.filter((a) => a.code === i.code)
+              const live = lastBatch.filter((b) => b.code === i.code)
+              if (!d && !live.length) return null
+              return (
+                <span className="inline-flex items-center gap-1">
+                  <DimsSummary d={d} />
+                  {safe.length ? (
+                    <button
+                      type="button"
+                      className="rounded-sm p-0.5 text-accent-text hover:bg-surface-hover disabled:opacity-50"
+                      disabled={dimBusy}
+                      title={`이 품목의 ${TONE_LABEL.ok} · ${TONE_LABEL.info} 제안 ${safe.length}건 적용`}
+                      aria-label={`${i.code} 바로 적용`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        dimRequest(`#${i.code} 바로 적용`, safe)
+                      }}
+                      data-testid={`dims-row-apply-${i.code}`}
+                    >
+                      <Check className="h-3 w-3" />
+                    </button>
+                  ) : null}
+                  {live.length ? (
+                    <button
+                      type="button"
+                      className="rounded-sm p-0.5 text-content-muted hover:bg-surface-hover disabled:opacity-50"
+                      disabled={dimBusy}
+                      title={`이 품목에 방금 적용한 ${live.length}건 되돌리기`}
+                      aria-label={`${i.code} 되돌리기`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void dimRevert(live)
+                      }}
+                      data-testid={`dims-row-revert-${i.code}`}
+                    >
+                      <Undo2 className="h-3 w-3" />
+                    </button>
+                  ) : null}
+                </span>
+              )
+            },
+          },
+        ]
+      : []),
     {
-      key: 'id',
-      label: 'InnerDiameter (mm)',
-      get: (i) => i.inner_diameter,
+      key: 'count',
+      ...hdr('Count', 'Count'),
+      get: (i) => i.count,
       numeric: true,
-      cell: (i) => f1(i.inner_diameter),
+      class: NARROW,
       priority: 2,
     },
     {
+      key: 'id',
+      ...hdr('InnerDia', 'InnerDiameter (mm)'),
+      get: (i) => i.inner_diameter,
+      numeric: true,
+      class: NARROW,
+      cell: (i) => f1(i.inner_diameter),
+      priority: 2,
+    },
+    ...measCol('id', 'inner_diameter', 'InnerDiameter'),
+    {
       key: 'od',
-      label: 'OuterDiameter (mm)',
+      ...hdr('OuterDia', 'OuterDiameter (mm)'),
       get: (i) => i.outer_diameter,
       numeric: true,
+      class: NARROW,
       cell: (i) => f1(i.outer_diameter),
       priority: 2,
     },
     {
       key: 'h',
-      label: 'Height (mm)',
+      ...hdr('Height', 'Height (mm)'),
       get: (i) => i.height,
       numeric: true,
+      class: NARROW,
       cell: (i) => f1(i.height),
       priority: 2,
     },
+    ...measCol('h', 'height', 'Height'),
     {
       key: 'lb',
-      label: 'LowerBidHeight (mm)',
+      ...hdr('LowerBead', 'LowerBidHeight (mm)'),
       get: (i) => i.lower_bead_height,
       numeric: true,
+      class: NARROW,
       cell: (i) => f1(i.lower_bead_height),
       priority: 3,
     },
     {
       key: 'ub',
-      label: 'UpperBidHeight (mm)',
+      ...hdr('UpperBead', 'UpperBidHeight (mm)'),
       get: (i) => i.upper_bead_height,
       numeric: true,
+      class: NARROW,
       cell: (i) => f1(i.upper_bead_height),
-      priority: 3,
+      // 측정 제안을 켜면 좁은 폭에서도 남긴다(옆에 mUB 가 붙는다)
+      priority: dimsOn ? 2 : 3,
     },
+    ...measCol('ub', 'upper_bead_height', 'UpperBidHeight'),
     {
       key: 'df',
-      label: 'DeflectionFactor',
+      ...hdr('Deflection', 'DeflectionFactor'),
       get: (i) => i.deflection_factor,
       numeric: true,
+      class: NARROW,
       priority: 3,
     },
     {
       key: 'stack_max',
-      label: 'StackMax',
+      ...hdr('StackMax', 'StackMax — 셀 최대 단수(0 = 제한 없음)'),
       get: (i) => specOf(i).stack_max,
       numeric: true,
+      class: NARROW,
       priority: 1,
       cell: (i) => {
         const v = specOf(i).stack_max
@@ -254,9 +532,10 @@ export default function ItemsPage() {
     },
     {
       key: 'pallet_max',
-      label: 'PalletMax',
+      ...hdr('PalletMax', 'PalletMax — 팔레트당 최대 개수(0 = 제한 없음)'),
       get: (i) => specOf(i).pallet_max,
       numeric: true,
+      class: NARROW,
       priority: 2,
       cell: (i) => {
         const v = specOf(i).pallet_max
@@ -265,9 +544,10 @@ export default function ItemsPage() {
     },
     {
       key: 'weight',
-      label: 'WeightKg',
+      ...hdr('Weight', 'WeightKg (kg)'),
       get: (i) => specOf(i).weight_kg ?? -1,
       numeric: true,
+      class: NARROW,
       priority: 3,
       cell: (i) => {
         const v = specOf(i).weight_kg
@@ -276,9 +556,10 @@ export default function ItemsPage() {
     },
     {
       key: 'pick_bead_offset',
-      label: 'PickBeadOffset (mm)',
+      ...hdr('PickOffset', 'PickBeadOffset (mm)'),
       get: (i) => specOf(i).pick_bead_offset ?? DEFAULT_PICK_BEAD_OFFSET,
       numeric: true,
+      class: NARROW,
       priority: 2,
       cell: (i) => {
         const s = specOf(i)
@@ -293,9 +574,10 @@ export default function ItemsPage() {
     },
     {
       key: 'compression',
-      label: 'Compression (mm)',
+      ...hdr('Compress', 'Compression (mm) — 위 타이어 1개당 눌림'),
       get: (i) => compressionOf(specOf(i)),
       numeric: true,
+      class: NARROW,
       priority: 2,
       cell: (i) => {
         const s = specOf(i)
@@ -312,9 +594,10 @@ export default function ItemsPage() {
     },
     {
       key: 'pick_z1',
-      label: 'PickZ@L1 (mm)',
+      ...hdr('PickZ L1', 'PickZ@L1 (mm) — 1단 혼자 집는 높이 = UpperBidHeight − PickBeadOffset'),
       get: (i) => pickZAtL1(i) ?? -1,
       numeric: true,
+      class: NARROW,
       priority: 2,
       cell: (i) => {
         const v = pickZAtL1(i)
@@ -331,9 +614,10 @@ export default function ItemsPage() {
     },
     {
       key: 'use',
-      label: 'StockCells',
+      ...hdr('StockCells', 'StockCells — 이 코드를 쓰는 재고 칸 수'),
       get: (i) => usage.get(i.code)?.cells ?? 0,
       numeric: true,
+      class: NARROW,
       priority: 1,
       cell: (i) => {
         const u = usage.get(i.code)
@@ -351,11 +635,18 @@ export default function ItemsPage() {
         )
       },
     },
-    { key: 'note', label: 'Note', get: (i) => i.note, class: 'text-content-muted', priority: 3 },
+    {
+      key: 'note',
+      label: 'Note',
+      get: (i) => i.note,
+      class: `text-content-muted ${NARROW}`,
+      priority: 3,
+    },
     {
       key: 'updated',
-      label: 'UpdatedAt',
+      ...hdr('Updated', 'UpdatedAt'),
       get: (i) => i.updated_at,
+      class: NARROW,
       cell: (i) => <span className="font-mono text-content-muted">{when(i.updated_at)}</span>,
       priority: 3,
     },
@@ -520,7 +811,98 @@ export default function ItemsPage() {
         <span className="text-2xs text-content-muted tabular-nums">
           {q ? `${rows.length} / ${reg.items.length}건` : `${reg.items.length}건`}
         </span>
+        <span className="flex-1" />
+        <Switch
+          inline
+          label="측정 제안"
+          checked={dimsOn}
+          onCheckedChange={setDimsOn}
+          data-testid="items-dims-on"
+        />
       </div>
+      {dimsOn && (dims.all.length > 0 || lastBatch.length > 0) ? (
+        <div
+          className="flex flex-none flex-wrap items-center gap-2 border-b border-line-default bg-surface-inset px-2 py-1"
+          data-testid="items-dims-bar"
+        >
+          <span className="text-xs text-content-secondary tabular-nums">
+            측정 제안 {dims.all.length}건
+          </span>
+          <span className="text-2xs text-content-muted tabular-nums">
+            {`바로 적용 ${dimSafe.length} · 확인 필요 ${dims.all.length - dimSafe.length}`}
+            {dimPick.size ? ` · 선택 ${dimSelected.length}` : ''}
+          </span>
+          <label className="flex items-center gap-1 text-2xs text-content-tertiary">
+            <input
+              type="checkbox"
+              checked={dimOnly}
+              onChange={(e) => setDimOnly(e.target.checked)}
+              data-testid="items-dims-only"
+            />
+            제안 있는 행만
+          </label>
+          <select
+            className="h-control-sm rounded-md border border-line-default bg-transparent px-1 text-2xs"
+            value={String(dimWin)}
+            onChange={(e) => setDimWin(Number(e.target.value))}
+            aria-label="측정 창"
+            title="제안 = 최근 N 개 측정의 중앙값"
+          >
+            {WINDOWS.map((w) => (
+              <option key={w} value={String(w)}>
+                최근 {w}개
+              </option>
+            ))}
+          </select>
+          <span className="flex-1" />
+          {dimPick.size ? (
+            <>
+              <Button
+                size="sm"
+                intent="ghost"
+                disabled={dimBusy}
+                onClick={() => setDimPick(new Set())}
+              >
+                선택 해제
+              </Button>
+              <Button
+                size="sm"
+                intent={dimRisky(dimSelected).length ? 'outline' : 'primary'}
+                icon={<Check className="h-3.5 w-3.5" />}
+                disabled={dimBusy || dimSelected.length === 0}
+                onClick={() => dimRequest('선택한 측정 제안 적용', dimSelected)}
+                data-testid="items-dims-apply-picked"
+              >
+                선택 {dimSelected.length}건 적용
+              </Button>
+            </>
+          ) : null}
+          <Button
+            size="sm"
+            intent="primary"
+            icon={<CheckCheck className="h-3.5 w-3.5" />}
+            disabled={dimBusy || dimSafe.length === 0}
+            title={`${TONE_LABEL.ok} · ${TONE_LABEL.info} 제안 전부(확인 필요 ${dims.all.length - dimSafe.length}건은 빼고)`}
+            onClick={() => dimRequest('바로 적용 전체', dimSafe)}
+            data-testid="items-dims-apply-safe"
+          >
+            바로 적용 전체 ({dimSafe.length})
+          </Button>
+          {lastBatch.length ? (
+            <Button
+              size="sm"
+              intent="outline"
+              icon={<Undo2 className="h-3.5 w-3.5" />}
+              disabled={dimBusy}
+              title={`방금 적용한 ${lastBatch.length}건을 모두 원래 값으로`}
+              onClick={() => void dimRevert(lastBatch)}
+              data-testid="items-dims-undo"
+            >
+              방금 적용 되돌리기 ({lastBatch.length})
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       {picked.length > 0 ? (
         <div
           className="flex flex-none flex-wrap items-end gap-2 border-b border-line-default bg-surface-inset px-2 py-1.5"
@@ -654,6 +1036,11 @@ export default function ItemsPage() {
                   }}
                   onClose={() => pick(null)}
                   onDirtyChange={onDirtyChange}
+                  focus={
+                    dimFocus && dimFocus.code === sel.code
+                      ? { field: dimFocus.field, n: dimFocus.n }
+                      : null
+                  }
                 />
               </ErrorBoundary>
             </aside>
@@ -672,6 +1059,32 @@ export default function ItemsPage() {
         />
       ) : null}
       <DimsReviewDialog open={dimsOpen} onOpenChange={setDimsOpen} onApplied={reg.reload} />
+      <ConfirmDialog
+        open={dimConfirm !== null}
+        onOpenChange={(o) => {
+          if (!o) setDimConfirm(null)
+        }}
+        scope={dimConfirm && dimConfirm.rows.length > 1 ? 'selection' : 'single'}
+        title={dimConfirm?.title ?? ''}
+        confirmLabel={`${dimConfirm?.rows.length ?? 0}건 적용`}
+        danger={!!dimConfirm && dimRisky(dimConfirm.rows).length > 0}
+        onConfirm={() => dimConfirm && void dimApply(dimConfirm.rows)}
+      >
+        <div className="flex max-h-72 flex-col gap-0.5 overflow-y-auto text-xs tabular-nums">
+          {(dimConfirm?.rows ?? []).map((a) => (
+            <div
+              key={dimKey(a.code, a.s.field)}
+              className={safeTone(dimTone(a.s)) ? undefined : 'text-warn-fg'}
+            >
+              {confirmLine(a.code, a.s)}
+            </div>
+          ))}
+          <div className="mt-1 text-content-muted">
+            PLC 로 보내는 품목 값이라 다음 명령부터 G · Z 가 바뀝니다. 띠의 "방금 적용 되돌리기" 로
+            한 번에 되돌릴 수 있습니다.
+          </div>
+        </div>
+      </ConfirmDialog>
       <ConfirmDialog
         open={pendingPick !== undefined}
         onOpenChange={(o) => {

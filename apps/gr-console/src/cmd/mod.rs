@@ -56,6 +56,9 @@ pub struct CmdStatus {
     pub last_ok_at: Option<String>,
     pub last_header: Option<Header>,
     pub endpoints: Vec<String>,
+    /// OPC UA 쓰기·읽기 통계와 세션 튜닝(등록 노드 수·서버 한도) — 데모는 없음.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub io: Option<opcua_cmd::IoStats>,
 }
 
 pub enum CommandPort {
@@ -77,6 +80,71 @@ pub(crate) fn opcua_array_bases(grm: &plc_layout::Contract, db: &str, root: &str
     };
     let prefix = format!("{root}.");
     opcua_cmd::array_bases_from_paths(layout.members.iter().filter_map(|m| m.path.strip_prefix(&prefix)))
+}
+
+/// 통째로 쓸 구조체 멤버의 OPC UA 바이너리 배치를 GRM 계약에서 만든다 — 선언 순서, 배열 길이, 리프 종류.
+/// 지금은 `TaskData` 하나. 못 만들면(계약 없음·지원 안 하는 타입) 그 멤버는 빼고 경고 — 리프 쓰기 그대로.
+pub(crate) fn opcua_struct_specs(grm: &plc_layout::Contract, db: &str, root: &str) -> Vec<opcua_cmd::structs::StructSpec> {
+    let mut out = Vec::new();
+    for member in ["TaskData"] {
+        let ty = match grm.db(db).and_then(|d| grm.locate(&d.fields, &format!("{root}.{member}"))) {
+            Ok((ty, _)) => ty,
+            Err(e) => {
+                tracing::warn!(db, root, member, error = %e, "struct spec: member not in GRM contract");
+                continue;
+            }
+        };
+        let mut slots = Vec::new();
+        match struct_slots(grm, &ty, member, &mut slots) {
+            Ok(()) => out.push(opcua_cmd::structs::StructSpec { member: member.into(), slots }),
+            Err(why) => tracing::warn!(member, reason = %why, "struct spec: unsupported layout — leaf writes"),
+        }
+    }
+    out
+}
+
+fn prim_kind(p: plc_layout::Prim) -> Option<opcua_cmd::PlcKind> {
+    use opcua_cmd::PlcKind as K;
+    use plc_layout::Prim as P;
+    Some(match p {
+        P::Bool => K::Bool,
+        P::Byte | P::USInt | P::Char => K::U8,
+        P::SInt => K::I8,
+        P::Word | P::UInt => K::U16,
+        P::Int => K::I16,
+        P::DWord | P::UDInt => K::U32,
+        P::DInt => K::I32,
+        P::Real => K::F32,
+        P::LReal => K::F64,
+        _ => return None,
+    })
+}
+
+fn struct_slots(c: &plc_layout::Contract, ty: &plc_layout::TypeRef, path: &str, out: &mut Vec<opcua_cmd::structs::StructSlot>) -> Result<(), String> {
+    use opcua_cmd::structs::StructSlot;
+    use plc_layout::TypeRef;
+    match ty {
+        TypeRef::Prim(p) => out.push(StructSlot::Leaf { path: path.to_string(), kind: prim_kind(*p).ok_or_else(|| format!("{path}: {} not supported", p.name()))? }),
+        TypeRef::Udt(u) => {
+            for f in &c.udt(u).map_err(|e| e.to_string())?.fields {
+                struct_slots(c, &f.ty, &format!("{path}.{}", f.name), out)?;
+            }
+        }
+        TypeRef::Struct(fields) => {
+            for f in fields {
+                struct_slots(c, &f.ty, &format!("{path}.{}", f.name), out)?;
+            }
+        }
+        TypeRef::Array { dims, elem } => {
+            let [(lo, hi)] = dims.as_slice() else { return Err(format!("{path}: multi-dimensional array")) };
+            let (lo, hi) = (c.bound(lo).map_err(|e| e.to_string())?, c.bound(hi).map_err(|e| e.to_string())?);
+            out.push(StructSlot::ArrayLen(i32::try_from(hi - lo + 1).map_err(|_| format!("{path}: bad bounds"))?));
+            for i in lo..=hi {
+                struct_slots(c, elem, &format!("{path}[{i}]"), out)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn to_opc(m: &MemberValue) -> opcua_cmd::MemberValue {
@@ -153,6 +221,7 @@ impl CommandPort {
                     last_ok_at: None,
                     last_header: last.lock().unwrap_or_else(PoisonError::into_inner).clone(),
                     endpoints: writer.endpoints(),
+                    io: Some(writer.stats()),
                 }
             }
             CommandPort::Demo { last, .. } => CmdStatus {
@@ -165,6 +234,7 @@ impl CommandPort {
                 last_ok_at: Some(crate::util::now_str()),
                 last_header: last.lock().unwrap_or_else(PoisonError::into_inner).clone(),
                 endpoints: vec![],
+                io: None,
             },
         }
     }
@@ -182,8 +252,9 @@ impl CommandPort {
         }
     }
 
-    /// Writes TaskData (+ zeroed Command/Data) then the Header. Returns the header used.
-    pub async fn write_task(&self, task: &TaskData) -> Result<Header, ApiError> {
+    /// Writes TaskData (+ zeroed Command/Data) then the Header. Returns the header used and, when the header write got
+    /// no answer, why (`Some`) — the command may have reached the PLC, so the caller must not report a plain failure.
+    pub async fn write_task(&self, task: &TaskData) -> Result<(Header, Option<String>), ApiError> {
         let cmd_code = task.task_type;
         let cfg = self.cfg();
         // `Command.*` and `Data[]` zeros come from the browsed node map inside `CmdWriter::write_task`: on the PLC the
@@ -192,13 +263,17 @@ impl CommandPort {
         let h = match self {
             CommandPort::Opc { writer, .. } => {
                 let m: Vec<opcua_cmd::MemberValue> = members.iter().map(to_opc).collect();
-                let hw = writer.write_task(&m, cmd_code, cfg.src, cfg.dst, cfg.protocol).await.map_err(|e| ApiError::OpcNotReady(e.to_string()))?;
-                Header { protocol: hw.protocol, cmd_id: hw.cmd_id, cmd: hw.cmd, src: hw.src, dst: hw.dst, seq: hw.seq }
+                let (hw, uncertain) = match writer.write_task(&m, cmd_code, cfg.src, cfg.dst, cfg.protocol).await {
+                    Ok(hw) => (hw, None),
+                    Err(opcua_cmd::OpcError::HeaderUncertain { header, detail }) => (header, Some(detail)),
+                    Err(e) => return Err(ApiError::OpcNotReady(e.to_string())),
+                };
+                (Header { protocol: hw.protocol, cmd_id: hw.cmd_id, cmd: hw.cmd, src: hw.src, dst: hw.dst, seq: hw.seq }, uncertain)
             }
-            CommandPort::Demo { world, .. } => world.submit(task.clone(), cmd_code, cfg.src, cfg.dst, cfg.protocol),
+            CommandPort::Demo { world, .. } => (world.submit(task.clone(), cmd_code, cfg.src, cfg.dst, cfg.protocol), None),
         };
         match self {
-            CommandPort::Opc { last, .. } | CommandPort::Demo { last, .. } => *last.lock().unwrap_or_else(PoisonError::into_inner) = Some(h.clone()),
+            CommandPort::Opc { last, .. } | CommandPort::Demo { last, .. } => *last.lock().unwrap_or_else(PoisonError::into_inner) = Some(h.0.clone()),
         }
         Ok(h)
     }
@@ -271,6 +346,44 @@ mod opc_path_tests {
         assert_eq!(b.get("TaskData.Position"), Some(&1), "Array[\"X\"..\"G\"] of Real");
         assert_eq!(b.get("TaskData.Cell.Position"), Some(&1), "Array[\"X\"..\"Z\"] of Real");
         assert_eq!(b.get("Data"), Some(&0));
+    }
+
+    /// 계약에서 만든 TaskData 구조체 배치 = 실기 GRM 덤프(2026-09-21, 모든 리프 0 → 129 B, 배열 길이 4 · 3 만 0 아님),
+    /// 그리고 `TaskData::to_members` 의 리프가 빠짐없이 들어 있어야 구조체 한 번으로 묶인다.
+    #[test]
+    fn contract_struct_spec_matches_device_dump() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../plc/contract/GRM_PLC");
+        let grm = plc_layout::Contract::load_dir(&root).expect("GRM contract");
+        let specs = super::opcua_struct_specs(&grm, "OPCUA", "GR[2].CMD");
+        let spec = specs.iter().find(|s| s.member == "TaskData").expect("TaskData spec");
+        assert_eq!(spec.leaves().count(), 51);
+        // 고정본(opcua-cmd struct_verify 예제가 쓴다)과 같아야 한다 — UDT 가 바뀌면 여기서 걸린다. 갱신: UPDATE_STRUCT_SPEC=1.
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../crates/opcua-cmd/examples/taskdata.spec.json");
+        let json = serde_json::to_string_pretty(spec).expect("spec json");
+        if std::env::var_os("UPDATE_STRUCT_SPEC").is_some() {
+            std::fs::write(&fixture, &json).expect("write fixture");
+        }
+        assert_eq!(std::fs::read_to_string(&fixture).unwrap_or_default().replace("
+", "
+"), json, "struct spec fixture out of date");
+        let mut dump = vec![0u8; 129];
+        dump[9] = 4;
+        dump[76] = 3;
+        assert_eq!(opcua_cmd::structs::encode(spec, &Default::default()).expect("encode"), dump);
+        let leaves: std::collections::BTreeSet<&str> = spec.leaves().map(|(p, _)| p).collect();
+        let task = TaskData { task_type: 5, work_id: 7, task_id: 9, ..TaskData::default() };
+        let mut vals = std::collections::HashMap::new();
+        for m in task.to_members() {
+            assert!(leaves.contains(m.path.as_str()), "{} not in struct spec", m.path);
+            vals.insert(m.path.clone(), super::to_opc(&m).value);
+        }
+        assert_eq!(vals.len(), 51);
+        let b = opcua_cmd::structs::encode(spec, &vals).expect("encode task");
+        assert_eq!((b.len(), b[0], b[4], b[8]), (129, 7, 9, 5));
+        // 실기 노드 캐시에서 구조체 노드 ID 를 얻는다.
+        let (m, _) = opcua_cmd::rebase_array_keys(&real_members(), &grm_bases());
+        let node = opcua_cmd::structs::struct_node(spec, |p| m.get(p).and_then(|s| s.parse().ok())).expect("struct node");
+        assert_eq!(node.to_string(), "ns=3;s=\"OPCUA\".\"GR\"[2].\"CMD\".\"TaskData\"");
     }
 
     #[test]

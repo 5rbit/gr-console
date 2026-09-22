@@ -1,0 +1,317 @@
+{
+  "member": "TaskData",
+  "slots": [
+    {
+      "Leaf": {
+        "path": "TaskData.WorkId",
+        "kind": "U32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.TaskId",
+        "kind": "U32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.TaskType",
+        "kind": "U8"
+      }
+    },
+    {
+      "ArrayLen": 4
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Position[1]",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Position[2]",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Position[3]",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Position[4]",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Item.Code",
+        "kind": "U32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Item.Count",
+        "kind": "U8"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Item.InnerDiameter",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Item.OuterDiameter",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Item.LowerBidHeight",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Item.UpperBidHeight",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Item.Height",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Item.DeflectionFactor",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Cell.Use",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Cell.BlendUse",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Cell.Id",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Cell.Section",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Cell.Row",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Cell.Col",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Cell.Lenth",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Cell.Width",
+        "kind": "F32"
+      }
+    },
+    {
+      "ArrayLen": 3
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Cell.Position[1]",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Cell.Position[2]",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Cell.Position[3]",
+        "kind": "F32"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.BlendUpDistance",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.BlendDownDistance",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.DragOutHeight",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.DragOutDist",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.DragOutDir",
+        "kind": "U8"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.DragInHeight",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.DragInDist",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.DragInDir",
+        "kind": "U8"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.LiftUpCreepDistance",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.LiftDownCreepDistance",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.LiftUpHeight",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.PreGripDelta",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.GripBackDelta",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.GripHeight",
+        "kind": "U16"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.UseDragOut",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.UseDragIn",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.LiftUpAfterComplete",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.LiftUpPartial",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.MeasureFloor",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.MeasureItem",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.MeasureSku",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.AdjustCenter",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.FindStationItem",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Avoid",
+        "kind": "Bool"
+      }
+    },
+    {
+      "Leaf": {
+        "path": "TaskData.Outbound",
+        "kind": "Bool"
+      }
+    }
+  ]
+}

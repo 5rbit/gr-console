@@ -43,6 +43,24 @@ pub fn submit_refusal(robot: &str, reasons: &[String]) -> String {
     label_reasons(robot, reasons.to_vec()).join("; ")
 }
 
+/// 하트비트(2 Hz)가 이만큼 안 바뀌면 PLC 프로그램이 멈춘 것으로 본다.
+pub const HEARTBEAT_STALE_MS: u64 = 3000;
+
+/// 스냅샷이 이보다 오래되면 "지금 상태"로 믿지 않는다 — 폴링이 멈추거나 밀려도 옛 Accept·큐 값으로 제출되지 않게.
+/// 주기의 여러 배 + 바닥값(PLC 가 잠깐 느려도 막히지 않게).
+pub fn stale_limit(poll_ms: u64, times: u64, floor_ms: u64) -> std::time::Duration {
+    std::time::Duration::from_millis((poll_ms * times).max(floor_ms))
+}
+
+/// 스냅샷 나이 사유(오래됐거나 모르면 Some).
+fn stale_reason(label: &str, age: Option<std::time::Duration>, limit: std::time::Duration) -> Option<String> {
+    match age {
+        None => Some(format!("{label} 상태를 아직 못 읽음")),
+        Some(a) if a > limit => Some(format!("{label} 상태가 {} ms 동안 갱신되지 않음(한도 {} ms)", a.as_millis(), limit.as_millis())),
+        Some(_) => None,
+    }
+}
+
 pub fn gate(st: &AppState, r: &RobotCtx) -> Gate {
     let mut reasons = Vec::new();
     if let Some(why) = r.cmd.not_ready_reason() {
@@ -55,6 +73,13 @@ pub fn gate(st: &AppState, r: &RobotCtx) -> Gate {
                 reasons.push(format!("{} S7 연결 없음", h.name()));
             } else if !hl.db_ok("OPCUA") {
                 reasons.push(format!("{} OPCUA DB 레이아웃 불일치", h.name()));
+            } else if !st.cfg.demo
+                && let Some(age) = hl.heartbeat_age_ms.filter(|a| *a > HEARTBEAT_STALE_MS)
+            {
+                // CPU STOP·프로그램 정지는 S7 읽기가 성공해 연결만으로는 안 보인다 — 2 Hz 하트비트가 멈춘 것으로 안다.
+                reasons.push(format!("{} PLC 하트비트가 {:.1} s 동안 멈춤 (CPU STOP·프로그램 정지?)", h.name(), age as f64 / 1000.0));
+            } else if let Some(why) = stale_reason(&format!("{} OPCUA", h.name()), h.snap().db("OPCUA").and_then(|d| d.age()), stale_limit(st.cfg.poll.fast_ms, 8, 1500)) {
+                reasons.push(why);
             } else if let Some(stat) = h.decode_path("OPCUA", "STAT")
                 && let Ok(v) = gr_proto::StatusView::from_json(&stat)
             {
@@ -67,6 +92,9 @@ pub fn gate(st: &AppState, r: &RobotCtx) -> Gate {
                 if !v.mode.auto && !v.mode.auto_ready && !st.cfg.demo {
                     reasons.push("AUTO 모드가 아님".into());
                 }
+            } else {
+                // 예전에는 STAT 를 못 풀면 조용히 통과했다.
+                reasons.push(format!("{} OPCUA.STAT 을 읽지 못함", h.name()));
             }
         }
         Err(_) => reasons.push("상태 PLC 미설정".into()),
@@ -75,12 +103,17 @@ pub fn gate(st: &AppState, r: &RobotCtx) -> Gate {
         reasons.push("에코 대기 중인 제출이 있음".into());
     }
     if let Some(grm) = st.grm_plc() {
-        let path = format!("{}.Header.CMD", r.opcua_root);
-        for (path, label) in [(path.as_str(), "GRM CMD 헤더가 비어 있지 않음 (이전 명령 미소진)")] {
-            if let Some(v) = grm.decode_path("OPCUA", path)
-                && v.as_u64().unwrap_or(0) != 0
-            {
-                reasons.push(label.into());
+        // GRM 이 끊겼거나 스냅샷이 오래됐으면 "이전 명령이 소진됐나"를 모른다 — 예전에는 검사를 조용히 건너뛰었다.
+        if !grm.health_now().connected {
+            reasons.push(format!("{} S7 연결 없음 — 이전 명령 소진 여부를 볼 수 없음", grm.name()));
+        } else if let Some(why) = stale_reason(&format!("{} OPCUA", grm.name()), grm.snap().db("OPCUA").and_then(|d| d.age()), stale_limit(st.cfg.poll.grm_fast_ms, 6, 3000)) {
+            reasons.push(why);
+        } else {
+            let path = format!("{}.Header.CMD", r.opcua_root);
+            match grm.decode_path("OPCUA", &path) {
+                Some(v) if v.as_u64().unwrap_or(0) != 0 => reasons.push("GRM CMD 헤더가 비어 있지 않음 (이전 명령 미소진)".into()),
+                Some(_) => {}
+                None => reasons.push(format!("GRM {path} 을 읽지 못함")),
             }
         }
     }
@@ -117,11 +150,17 @@ async fn submit_prepared(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Res
     if !g.can_submit {
         return Err(ApiError::Conflict(submit_refusal(&r.name, &g.reasons)));
     }
-    let header = r.cmd.write_task(&entry.plc_task).await?;
+    let (header, uncertain) = r.cmd.write_task(&entry.plc_task).await?;
     let mut e = entry;
     e.header = Some(header);
     e.submitted_at = Some(crate::util::now_str());
-    r.ledger.transition(e, TaskState::Submitted, Actor::Ui, None)
+    // 헤더 응답을 못 받았어도 PLC 에 갔을 수 있다 — 실패로 돌려 재제출(중복)을 부르지 않고, 제출됨으로 적어 에코·큐
+    // 위치가 판정하게 한다(에코가 없으면 에코 한도 뒤 실패/유실).
+    let note = uncertain.map(|d| {
+        tracing::warn!(robot = %r.name, detail = %d, "task header write unanswered — recorded as submitted, echo decides");
+        format!("헤더 쓰기 응답 없음({d}) — PLC 에코로 판정")
+    });
+    r.ledger.transition(e, TaskState::Submitted, Actor::Ui, note)
 }
 
 /// Creates + submits in one go (used by the task-issue slice and the scenario runner).
@@ -139,6 +178,14 @@ pub async fn create_and_submit(
 ) -> Result<LedgerEntry, ApiError> {
     // 스테이션 보정은 호출자(작성 라우트·시나리오 게이트 대기·재제출)가 들고 온 위치가 아니라 지금 스냅샷으로.
     // 바로 제출이면 거부 사유가 있을 때 원장에 초안을 남기지 않고 여기서 멈춘다.
+    // 바로 제출인데 게이트가 닫혀 있으면 원장에 초안을 만들기 **전에** 멈춘다 — 예전에는 초안을 만든 뒤
+    // `submit_prepared` 의 게이트에서 409 가 나 빈 초안이 원장에 쌓였다(계획 "다음 1건 제출"·자동 제출).
+    if submit_now {
+        let g = gate(st, r);
+        if !g.can_submit {
+            return Err(ApiError::Conflict(submit_refusal(&r.name, &g.reasons)));
+        }
+    }
     let mut task = task;
     // 요청이 든 로봇을 원장 로봇으로 고정한다 — 재제출·옛 원장(robot 없음)이 기본 로봇 기준으로 계산되지 않게.
     let request = request.map(|mut q| {
@@ -309,6 +356,22 @@ pub fn mark_failed(st: &AppState, id: &str, note: Option<String>) -> Result<Ledg
 pub fn remove(st: &AppState, id: &str) -> Result<(), ApiError> {
     let (r, _) = st.find_task(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
     r.ledger.remove(id)
+}
+
+#[cfg(test)]
+mod stale_tests {
+    use super::*;
+
+    #[test]
+    fn stale_limit_and_reason() {
+        assert_eq!(stale_limit(100, 8, 1500).as_millis(), 1500);
+        assert_eq!(stale_limit(500, 6, 3000).as_millis(), 3000);
+        assert_eq!(stale_limit(1000, 6, 3000).as_millis(), 6000);
+        let lim = std::time::Duration::from_millis(1500);
+        assert!(stale_reason("GR2 OPCUA", Some(std::time::Duration::from_millis(200)), lim).is_none());
+        assert!(stale_reason("GR2 OPCUA", Some(std::time::Duration::from_millis(4000)), lim).unwrap().contains("4000 ms"));
+        assert!(stale_reason("GR2 OPCUA", None, lim).unwrap().contains("못 읽음"));
+    }
 }
 
 #[cfg(test)]

@@ -327,3 +327,17 @@ describe('defaults inheritance display and cleanup', () => {
     }
   })
 })
+
+describe('applyDefaultsEdit keeps layers the grid does not show', () => {
+  it('does not drop by.MOVE when a PICK/DROP cell is edited', () => {
+    const withMove = {
+      ...defaults,
+      by: { ...defaults.by, MOVE: { cell: { move_mode: 'top', move_clearance: 300 } } },
+    } as unknown as Defaults
+    const next = applyDefaultsEdit(withMove, 'grip_height', 'PICK.cell', '60')!
+    expect((next.by as Record<string, unknown>).MOVE).toEqual({
+      cell: { move_mode: 'top', move_clearance: 300 },
+    })
+    expect(next.by.PICK.cell.grip_height).toBe(60)
+  })
+})

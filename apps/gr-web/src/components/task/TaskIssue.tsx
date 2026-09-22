@@ -10,7 +10,7 @@
 // 재고(적재 수)·스테이션 보정·품목(`railSplitModel.TABLES_BY_MODE`).
 // 레일의 레이아웃+표(나눠 보기)에서 표 행을 고르면 맵이 그 대상으로 이동·강조하고, 맵에서 고르면
 // 표가 그 행으로 따라간다(`tableSel` + `reveal`).
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Send, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useRegistry } from '../../lib/registry'
@@ -25,8 +25,10 @@ import { parseRailTab } from '../../lib/task/railSplitModel'
 import {
   EMPTY_HISTORY,
   commit,
+  dropMismatch,
   redo,
   stepForClick,
+  type DropMismatch,
   undo,
   type History,
   type PlanStep,
@@ -46,6 +48,7 @@ import type {
   TaskType,
 } from '../../lib/types'
 import { ComposeCard } from './ComposeCard'
+import { DropMismatchDialog } from './DropMismatchDialog'
 import { DefaultsDialog } from './DefaultsDialog'
 import { useGate } from './GateBanner'
 import { LayoutSidePanel, type SideTab } from './LayoutSidePanel'
@@ -90,7 +93,15 @@ function persist(key: string, v: string) {
  * 밀어냈다. 게이트는 **제출 버튼을 누를 수 있나**를 말하는 한 비트라 색 하나면 충분하다 —
  * 막힌 사유는 손이 멈췄을 때(툴팁) 읽고, 제출 버튼 자신도 같은 이유로 잠긴다.
  */
-function GateChip({ gate, error, robot }: { gate: Gate | null; error: string | null; robot: string }) {
+function GateChip({
+  gate,
+  error,
+  robot,
+}: {
+  gate: Gate | null
+  error: string | null
+  robot: string
+}) {
   const tone = error
     ? 'border-warn bg-warn-soft text-warn-fg'
     : !gate
@@ -212,7 +223,8 @@ export default function TaskIssue() {
     async (g: GripRef) => {
       if (!defaults) return
       try {
-        setDefaults(await api.defaultsSave({ ...defaults, grip_ref: g }))
+        // 그립 기준만 보낸다 — 옛 스냅샷 전체를 다시 보내 대화상자·다른 탭의 변경을 되돌리지 않게.
+        setDefaults(await api.defaultsGripRef(g))
         toast.ok(
           g === 'pick_bead'
             ? '그립 기준: bead+offset — 잰 상부 비드 − PickBeadOffset (못 잰 품목은 타이어 중간)'
@@ -268,18 +280,19 @@ export default function TaskIssue() {
     return () => window.removeEventListener('keydown', onKey)
   }, [doUndo, doRedo])
 
-  const planAdd = useCallback(
-    (target: Target, shape: Shape, type?: TaskType) => {
+  // 계획 추가 — PICK/DROP 짝에서 놓을 자리에 **다른 품목**이 있으면 바로 넣지 않고 확인 창(양쪽 화물 규격 + 셀 Id)을
+  // 띄운다(2026-09-22 운전자 요청: 재고가 다른 셀에 잘못 옮기는 것을 막는다). 같은 품목·빈 자리는 묻지 않는다.
+  const presentRef = useRef(hist.present)
+  presentRef.current = hist.present
+  const [dropAsk, setDropAsk] = useState<{
+    step: PlanStep
+    shape: Shape
+    target: Target
+    mismatch: DropMismatch
+  } | null>(null)
+  const addStep = useCallback(
+    (step: PlanStep, shape: Shape, target: Target) => {
       setHist((h) => {
-        const step = stepForClick(
-          h.present,
-          target,
-          stockStore.map,
-          type,
-          // 재고가 빈 대상의 품목은 레일에서 **고른 품목** — 목록의 첫 품목으로 짐작하지 않는다.
-          itemSel,
-          robots.selected,
-        )
         // 스텝은 지금 고른 로봇을 싣는다(`stepForClick`) — 토스트도 그 이름을 말한다.
         toast.info(
           withRobot(
@@ -292,7 +305,28 @@ export default function TaskIssue() {
       setSide('plan')
       pickTarget(target)
     },
-    [itemSel, pickTarget],
+    [pickTarget],
+  )
+  const planAdd = useCallback(
+    (target: Target, shape: Shape, type?: TaskType) => {
+      const steps = presentRef.current
+      const step = stepForClick(
+        steps,
+        target,
+        stockStore.map,
+        type,
+        // 재고가 빈 대상의 품목은 레일에서 **고른 품목** — 목록의 첫 품목으로 짐작하지 않는다.
+        itemSel,
+        robots.selected,
+      )
+      const mismatch = dropMismatch(steps, step, stockStore.map)
+      if (mismatch) {
+        setDropAsk({ step, shape, target, mismatch })
+        return
+      }
+      addStep(step, shape, target)
+    },
+    [itemSel, addStep],
   )
 
   const compose = useCallback(
@@ -440,51 +474,60 @@ export default function TaskIssue() {
             />
           ) : (
             <>
-            <PlanCard
-              steps={plan}
-              onChange={setPlan}
-              canUndo={hist.past.length > 0}
-              canRedo={hist.future.length > 0}
-              onUndo={doUndo}
-              onRedo={doRedo}
-              cells={cells.items}
-              stations={stations.items}
-              items={items.items}
-              stockNow={stockStore.map}
-              gate={gate}
-              robot={chip}
-              onFocus={(s) => {
-                setFocusStep(s)
-                if (s) {
-                  setFocus({ target: s.target, nonce: Date.now() })
-                  pickTarget(s.target)
+              <PlanCard
+                steps={plan}
+                onChange={setPlan}
+                canUndo={hist.past.length > 0}
+                canRedo={hist.future.length > 0}
+                onUndo={doUndo}
+                onRedo={doRedo}
+                cells={cells.items}
+                stations={stations.items}
+                items={items.items}
+                stockNow={stockStore.map}
+                gate={gate}
+                robot={chip}
+                onFocus={(s) => {
+                  setFocusStep(s)
+                  if (s) {
+                    setFocus({ target: s.target, nonce: Date.now() })
+                    pickTarget(s.target)
+                  }
+                }}
+                gripRef={gripRef}
+                onGripRefChange={(g) => void setGripRef(g)}
+                mode={side}
+                onModeChange={setSide}
+                single={
+                  <ComposeCard
+                    chrome={false}
+                    items={items.items}
+                    cells={cells.items}
+                    stations={stations.items}
+                    defaults={defaults}
+                    gate={gate}
+                    robot={chip}
+                    onOpenDefaults={() => setDefaultsOpen(true)}
+                    pickedTarget={picked}
+                    onTargetChange={onComposeTarget}
+                  />
                 }
-              }}
-              gripRef={gripRef}
-              onGripRefChange={(g) => void setGripRef(g)}
-              mode={side}
-              onModeChange={setSide}
-              single={
-                <ComposeCard
-                  chrome={false}
-                  items={items.items}
-                  cells={cells.items}
-                  stations={stations.items}
-                  defaults={defaults}
-                  gate={gate}
-                  robot={chip}
-                  onOpenDefaults={() => setDefaultsOpen(true)}
-                  pickedTarget={picked}
-                  onTargetChange={onComposeTarget}
-                />
-              }
-            />
-            {/* 작업 카드 아래 — Task Manager 원장(진행 · 히스토리), 고른 로봇 것만. */}
-            <TaskManagerCard />
+              />
+              {/* 작업 카드 아래 — Task Manager 원장(진행 · 히스토리), 고른 로봇 것만. */}
+              <TaskManagerCard />
             </>
           )}
         </section>
       </div>
+      <DropMismatchDialog
+        mismatch={dropAsk?.mismatch ?? null}
+        items={items.items}
+        onCancel={() => setDropAsk(null)}
+        onConfirm={() => {
+          if (dropAsk) addStep(dropAsk.step, dropAsk.shape, dropAsk.target)
+          setDropAsk(null)
+        }}
+      />
       <DefaultsDialog
         open={defaultsOpen}
         onOpenChange={setDefaultsOpen}

@@ -784,7 +784,7 @@ impl Side {
                           "OutBusy": step == 600, "OutDone": false, "OutValid": false, "OutInnerDia": 0.0 },
                 "Sku": { "Enable": false, "Busy": false, "Done": false, "WorkCell": 0, "StackCount": 0, "StackHeight": 0.0, "EachHeight": 0.0, "BeadPos": vec![0.0f32; 20] },
                 "Floor": { "Enable": false, "Busy": false, "Done": false, "Height": 1500.3 },
-                "LastBead": { "Enable": step == 400, "Busy": step == 400, "Done": step > 400, "LastBidPos": 24.6, "PickZTarget": 0.0 }
+                "LastBead": { "Enable": step == 400, "Busy": step == 400, "Done": step > 400, "LastBeadPos": 24.6, "PickZTarget": 0.0 }
             })
         };
         // laser distances over the running task's tire; the gripper stalls on the tire while gripping (step 500)

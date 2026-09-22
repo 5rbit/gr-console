@@ -106,7 +106,7 @@ export function summary(r: MeasRow): string {
     case 3:
       return `Floor ${f1(d[1])} (Z ${f1(d[2])}, FLD ${f1(d[3])})`
     case 4:
-      return `LastBidPos−Target ${f1(d[1])}  PickZTarget ${d[2] ? f1(d[2]) : '-'}  InnerDia ${d[3] ? f1(d[5]) : '-'}`
+      return `LastBeadPos−Target ${f1(d[1])}  PickZTarget ${d[2] ? f1(d[2]) : '-'}  InnerDia ${d[3] ? f1(d[5]) : '-'}`
     case 5:
       return `LaserInnerDia ${f1(d[1])}  TorqueInnerDia ${f1(d[2])}  Height ${f1(d[3])}`
     default:

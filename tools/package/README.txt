@@ -41,9 +41,24 @@ gr-console — 겐트리 로봇(GR2) 엔지니어링 콘솔
    그 PC 브라우저에서 http://<이 PC IP>:8090/ 을 엽니다.
    끄기는 콘솔이 떠 있는 PC 에서만 됩니다(--stop 은 같은 PC · 같은 사용자 계정에서만 받습니다).
 
+6. 옮기기 · 백업 · 새 버전으로 바꾸기 (포터블)
+   이 폴더를 통째로 복사·이동하면 설정과 자료가 함께 갑니다(경로는 모두 이 폴더 기준).
+   옮기기 전에 콘솔을 끄세요(stop.cmd) — 켜진 채 복사하면 최근 기록이 빠질 수 있습니다.
+   - 백업:  gr-console --backup
+            → backup\gr-console-backup-<시각>\ 에 설정 · DB(일관 사본) · 인증서 · 측정 기록 · 트레이스.
+            켜져 있어도 됩니다(실행 중인 콘솔이 만듭니다). 복원은 그 폴더 내용을 이 폴더에 복사.
+   - 새 버전: 새 폴더를 풀고, 옛 콘솔을 끈 뒤 새 폴더에서
+            gr-console --import-from <옛 폴더>      (이미 data 가 있으면 --force, 기존 DB 는 data\backup 으로)
+            처음 켤 때 DB 를 data\backup 에 백업한 뒤 필요한 변환을 합니다.
+   - 옛 실행 파일로 새 DB 를 열면 시작을 거부합니다 — 새 실행 파일을 쓰거나 data\backup 의 백업으로 되돌리세요.
+   - 데모(run-demo)는 data-demo\ 를 따로 씁니다 — 실데이터와 섞이지 않습니다.
+   - 로그: data\logs\ (30 일 지난 것은 자동 정리).
+
 옵션
    gr-console --demo                가짜 PLC 로 실행
    gr-console --stop                실행 중인 콘솔을 안전하게 끄기 (--stop --force 는 강제 종료)
+   gr-console --backup              설정 · 자료 백업(위 6)
+   gr-console --import-from <폴더>  옛 콘솔 폴더에서 설정 · 자료 가져오기(위 6)
    gr-console --bind 0.0.0.0:8090   주소 덮어쓰기
    gr-console --config <파일>       다른 설정 파일
    gr-console --example-config      기본 설정을 출력

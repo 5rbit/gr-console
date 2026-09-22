@@ -57,7 +57,26 @@ pub async fn run(st: &AppState, r: &RobotCtx, action: RobotAction) -> Result<Jso
     }
     r.cmd.write_command_bit(bit, true).await?;
     tokio::time::sleep(std::time::Duration::from_millis(PULSE_MS)).await;
-    r.cmd.write_command_bit(bit, false).await?;
+    // 해제는 꼭 들어가야 한다 — 실패하면 Start/Stop/Reset 비트가 TRUE 로 남아 연결이 돌아온 순간 다시 걸린다.
+    // 짧게 기다리며 몇 번 더 쓰고, 끝내 안 되면 오류로 알린다(화면 토스트 + 로그).
+    let mut last = None;
+    for (i, wait_ms) in [0u64, 300, 1000, 3000].into_iter().enumerate() {
+        tokio::time::sleep(std::time::Duration::from_millis(wait_ms)).await;
+        match r.cmd.write_command_bit(bit, false).await {
+            Ok(()) => {
+                last = None;
+                if i > 0 {
+                    tracing::warn!(robot = %r.name, path = bit.path(), attempt = i + 1, "command bit release needed a retry");
+                }
+                break;
+            }
+            Err(e) => last = Some(e),
+        }
+    }
+    if let Some(e) = last {
+        tracing::error!(robot = %r.name, path = bit.path(), error = %e, "command bit could not be released — it may still be TRUE on GRM");
+        return Err(ApiError::OpcNotReady(with_robot(&r.name, &format!("{} 을 켠 뒤 끄지 못했습니다 — GRM 에서 비트가 켜진 채일 수 있습니다: {e}", bit.path()))));
+    }
     tracing::info!(robot = %r.name, path = bit.path(), "robot command pulse");
     Ok(json!({ "robot": r.name, "action": action_name(action), "path": bit.path() }))
 }

@@ -42,6 +42,7 @@ import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
 import { Segmented } from '../../lib/ui/Segmented'
 import { cn } from '../../lib/utils'
 import type { Cell, Item, Station, Target } from '../../lib/types'
+import { isStationId } from '../../lib/task/state'
 import { Splitter } from '../workspace/Splitter'
 import { CellRegistry } from './CellRegistry'
 import { ItemRegistry } from './ItemRegistry'
@@ -280,11 +281,17 @@ export function RegistryRail({
     return (
       <StockRegistry
         cells={cells.items}
+        stations={stations.items}
         items={items.items}
         q={needle}
         onItemsChanged={() => void items.reload()}
-        selectedId={cellSel}
-        onSelect={pick('cell')}
+        selectedId={selected === undefined ? undefined : (selected?.id ?? null)}
+        onSelect={
+          onSelect
+            ? (id) =>
+                onSelect(id === null ? null : { kind: isStationId(id) ? 'station' : 'cell', id })
+            : undefined
+        }
         {...rail}
       />
     )

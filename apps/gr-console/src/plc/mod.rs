@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use plc_layout::{Contract, Layout};
-use s7::{S7Client, S7Config, S7Error};
+use s7::{DbRead, S7Client, S7Config, S7Error};
 use serde::Serialize;
 use serde_json::Value as Json;
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
@@ -36,6 +36,16 @@ pub struct DbSnap {
     pub at: String,
     pub seq: u64,
     pub tier: Tier,
+    /// 읽은 순간(단조 시계) — 게이트가 "이 값이 얼마나 오래됐나"를 본다(`at` 문자열은 벽시계라 못 쓴다).
+    #[serde(skip)]
+    pub read_at: Option<Instant>,
+}
+
+impl DbSnap {
+    /// 읽은 지 얼마나 됐나(모르면 None — 게이트는 오래된 것으로 본다).
+    pub fn age(&self) -> Option<Duration> {
+        self.read_at.map(|t| t.elapsed())
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -75,6 +85,104 @@ pub struct PlcHealth {
     pub verified_at: Option<String>,
     /// None = not verified yet; Some(true) = every DB passed.
     pub layout_ok: Option<bool>,
+    /// 폴링 실패(연결 끊김·timeout) 누적 — 통신 품질을 숫자로 본다.
+    pub error_count: u64,
+    /// 다시 연결한 횟수(첫 연결 제외).
+    pub reconnect_count: u64,
+    /// 주기별 마지막 한 바퀴 시간(ms) — `fast` · `webmon` · `slow`.
+    pub cycle_ms: std::collections::BTreeMap<String, u64>,
+    /// 주기별 최대 한 바퀴 시간(ms, 연결 뒤).
+    pub cycle_max_ms: std::collections::BTreeMap<String, u64>,
+    /// 하트비트 비트가 마지막으로 바뀐 뒤 지난 시간(ms) — 설정에 경로가 있고 읽혔을 때만. 오래되면 PLC 프로그램 정지.
+    pub heartbeat_age_ms: Option<u64>,
+    /// 느린 주기 작업이 다음 주기까지 끝나지 않아 한 번 건너뛴 횟수(조각 읽기가 밀린다는 뜻).
+    pub slow_overruns: u64,
+}
+
+/// 느린 주기를 쪼개 읽는 단위(PDU 수) — 한 조각 ≈ 수십 ms. 빠른 주기·WEBMON·명령이 조각 사이에 끼어든다.
+const SLICE_PDUS: usize = 3;
+
+/// 읽은 바이트를 JSON 으로 — 스냅샷의 값과 같으면 다시 풀지 않고 그 Arc 를 쓴다(매 tick 디코드가 CPU 의 대부분).
+fn decode_or_reuse(name: &str, snap_tx: &watch::Sender<Arc<PlcSnapshot>>, contract: &Contract, db: &str, raw: &[u8]) -> Option<Arc<Json>> {
+    if let Some(j) = snap_tx.borrow().db(db).filter(|p| p.raw.as_slice() == raw).map(|p| p.json.clone()) {
+        return Some(j);
+    }
+    match contract.decode_db(db, raw) {
+        Ok(j) => Some(Arc::new(j)),
+        Err(e) => {
+            tracing::error!(plc = %name, db, "decode failed: {e}");
+            None
+        }
+    }
+}
+
+/// 읽은 DB 들을 스냅샷에 넣고 이벤트를 낸다. 게시 시각 문자열을 돌려준다.
+fn publish_dbs(name: &str, snap_tx: &watch::Sender<Arc<PlcSnapshot>>, ev_tx: &broadcast::Sender<PlcEvent>, seq: &mut u64, tier: Tier, updated: Vec<(String, Vec<u8>, Arc<Json>)>) -> String {
+    *seq += 1;
+    let seq = *seq;
+    let at = now_str();
+    let read_at = Some(Instant::now());
+    let names: Vec<String> = updated.iter().map(|(n, _, _)| n.clone()).collect();
+    snap_tx.send_modify(|s| {
+        let mut next = (**s).clone();
+        next.seq = seq;
+        next.at = at.clone();
+        for (n, raw, json) in updated {
+            next.dbs.insert(n, DbSnap { raw: Arc::new(raw), json, at: at.clone(), seq, tier, read_at });
+        }
+        *s = Arc::new(next);
+    });
+    let _ = ev_tx.send(PlcEvent { plc: name.to_string(), tier, seq, dbs: names, at: at.clone() });
+    at
+}
+
+/// 바이트 구간을 정렬하고 겹치거나 맞닿은 것을 합친다.
+fn merge_ranges(mut r: Vec<(u32, u32)>) -> Vec<(u32, u32)> {
+    r.sort();
+    let mut out: Vec<(u32, u32)> = Vec::with_capacity(r.len());
+    for (a, b) in r {
+        match out.last_mut() {
+            Some(last) if a <= last.1 => last.1 = last.1.max(b),
+            _ => out.push((a, b)),
+        }
+    }
+    out
+}
+
+/// `fast_ranges`(멤버 경로) → DB 별 바이트 구간. 찾지 못한 경로는 경고하고 뺀다.
+fn resolve_fast_ranges(cfg: &PlcCfg, layouts: &HashMap<String, Layout>) -> HashMap<String, Vec<(u32, u32)>> {
+    let mut out = HashMap::new();
+    for (db, paths) in &cfg.fast_ranges {
+        let Some(layout) = layouts.get(db) else { continue };
+        let mut r = Vec::new();
+        for p in paths {
+            match layout.range_of(p) {
+                Some(x) => r.push(x),
+                None => tracing::warn!(plc = %cfg.name, db, path = %p, "fast_ranges: path not in layout — ignored"),
+            }
+        }
+        if !r.is_empty() {
+            let r = merge_ranges(r);
+            let bytes: u32 = r.iter().map(|(a, b)| b - a).sum();
+            tracing::info!(plc = %cfg.name, db, ranges = r.len(), bytes, of = layout.size, "fast tier reads ranges only");
+            out.insert(db.clone(), r);
+        }
+    }
+    out
+}
+
+/// `DB.a.b.c` 의 bool 을 스냅샷 JSON 에서.
+fn json_bool(json: &Json, path: &str) -> Option<bool> {
+    path.split('.').try_fold(json, |v, k| v.get(k)).and_then(Json::as_bool)
+}
+
+fn tier_name(t: Tier) -> &'static str {
+    match t {
+        Tier::Fast => "fast",
+        Tier::Webmon => "webmon",
+        Tier::Slow => "slow",
+        Tier::OnDemand => "on_demand",
+    }
 }
 
 impl PlcHealth {
@@ -261,6 +369,11 @@ async fn run(
             tracing::warn!(plc = %cfg.name, db = %c.db, "layout check failed: {}", c.result.text());
         }
         health_tx.send_modify(|h| {
+            // 한 번이라도 붙었다가 다시 붙은 것 = 재연결(첫 연결은 세지 않는다).
+            if h.verified_at.is_some() {
+                h.reconnect_count += 1;
+            }
+            h.cycle_max_ms.clear();
             h.connected = true;
             h.connecting = false;
             h.pdu = pdu;
@@ -279,11 +392,29 @@ async fn run(
         slow.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         let ok_db = |db: &str| checks.iter().any(|c| c.db == db && matches!(c.result, CheckResult::Ok));
 
+        // 느린 주기 작업(조각 읽기): 주기가 오면 DB 목록을 걸고, 한가할 때마다 SLICE_PDUS 씩 읽는다. DB 하나가 다 모이면
+        // 바로 게시한다. 예전에는 느린 주기 ~60 PDU(≈0.7 s)를 한 번에 읽어 그동안 빠른 주기·쓰기가 섰다.
+        let mut slow_queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
+        let mut slow_cur: Option<(String, u16, usize, Vec<u8>)> = None;
+        let mut slow_t0 = Instant::now();
+        let mut hb: Option<(bool, Instant)> = None;
+        let slice_bytes = client.max_read_chunk() * SLICE_PDUS;
+        // 빠른 주기 부분 읽기 구간 — 이 DB 들은 느린 주기 작업에서 전체를 새로 읽는다(범위 밖을 채운다).
+        let partial = resolve_fast_ranges(&cfg, &layouts);
         let result: Result<(), S7Error> = loop {
             let (tier, dbs): (Tier, Vec<String>) = tokio::select! {
+                biased;
                 _ = fast.tick() => (Tier::Fast, cfg.fast.clone()),
                 _ = webmon.tick(), if !cfg.webmon.is_empty() => (Tier::Webmon, cfg.webmon.clone()),
-                _ = slow.tick() => (Tier::Slow, cfg.slow.clone()),
+                _ = slow.tick() => {
+                    if slow_queue.is_empty() && slow_cur.is_none() {
+                        slow_queue = cfg.slow.iter().chain(partial.keys().filter(|k| !cfg.slow.contains(k))).filter(|d| ok_db(d)).cloned().collect();
+                        slow_t0 = Instant::now();
+                    } else {
+                        health_tx.send_modify(|h| h.slow_overruns += 1);
+                    }
+                    continue;
+                }
                 cmd = cmd_rx.recv() => {
                     match cmd {
                         None => return,
@@ -322,6 +453,38 @@ async fn run(
                         }
                     }
                 }
+                // 느린 조각 — 위 가지가 모두 대기 중일 때만(biased) 돈다.
+                _ = std::future::ready(()), if slow_cur.is_some() || !slow_queue.is_empty() => {
+                    if slow_cur.is_none() {
+                        let Some(db) = slow_queue.pop_front() else { continue };
+                        let (Some(n), Some(layout)) = (contract.db_number(&db), layouts.get(&db)) else { continue };
+                        slow_cur = Some((db, n, layout.size as usize, Vec::with_capacity(layout.size as usize)));
+                    }
+                    let Some((_, n, size, buf)) = slow_cur.as_mut() else { continue };
+                    let take = slice_bytes.min(*size - buf.len());
+                    match client.read_db(*n, buf.len() as u32, take).await {
+                        Ok(b) => buf.extend_from_slice(&b),
+                        Err(e) => break Err(e),
+                    }
+                    if buf.len() >= *size {
+                        let (db, _, _, raw) = slow_cur.take().expect("current slow DB");
+                        if let Some(json) = decode_or_reuse(&cfg.name, &snap_tx, &contract, &db, &raw) {
+                            let at = publish_dbs(&cfg.name, &snap_tx, &ev_tx, &mut seq, Tier::Slow, vec![(db, raw, json)]);
+                            if cfg.fast.is_empty() {
+                                health_tx.send_modify(|h| h.last_ok_at = Some(at));
+                            }
+                        }
+                        if slow_queue.is_empty() {
+                            let ms = slow_t0.elapsed().as_millis() as u64;
+                            health_tx.send_modify(|h| {
+                                h.cycle_ms.insert("slow".into(), ms);
+                                let m = h.cycle_max_ms.entry("slow".into()).or_insert(0);
+                                *m = (*m).max(ms);
+                            });
+                        }
+                    }
+                    continue;
+                }
             };
             let dbs: Vec<String> = dbs.into_iter().filter(|d| ok_db(d)).collect();
             if dbs.is_empty() {
@@ -332,11 +495,37 @@ async fn run(
             let mut err = None;
             for db in &dbs {
                 let (Some(n), Some(layout)) = (contract.db_number(db), layouts.get(db)) else { continue };
-                match client.read_db(n, 0, layout.size as usize).await {
-                    Ok(raw) => match contract.decode_db(db, &raw) {
-                        Ok(json) => updated.push((db.clone(), raw, json)),
-                        Err(e) => tracing::error!(plc = %cfg.name, db, "decode failed: {e}"),
-                    },
+                // 부분 읽기: 범위가 있고 전체 사본이 있으면 범위만 읽어 사본에 덧씌운다(첫 읽기는 전체).
+                let prev = partial.get(db.as_str()).and_then(|r| snap_tx.borrow().db(db).filter(|p| p.raw.len() == layout.size as usize).map(|p| (r.clone(), p.raw.clone())));
+                let read = match prev {
+                    Some((ranges, prev)) => {
+                        let reads: Vec<DbRead> = ranges.iter().map(|(a, b)| DbRead { db: n, start: *a, len: (b - a) as usize }).collect();
+                        match client.read_many(&reads).await {
+                            Ok(parts) => {
+                                let mut buf = (*prev).clone();
+                                let mut bad = None;
+                                for ((a, _), part) in ranges.iter().zip(parts) {
+                                    match part {
+                                        Ok(bytes) => buf[*a as usize..*a as usize + bytes.len()].copy_from_slice(&bytes),
+                                        Err(e) => bad = Some(e),
+                                    }
+                                }
+                                match bad {
+                                    Some(e) => Err(e),
+                                    None => Ok(buf),
+                                }
+                            }
+                            Err(e) => Err(e),
+                        }
+                    }
+                    None => client.read_db(n, 0, layout.size as usize).await,
+                };
+                match read {
+                    Ok(raw) => {
+                        if let Some(json) = decode_or_reuse(&cfg.name, &snap_tx, &contract, db, &raw) {
+                            updated.push((db.clone(), raw, json));
+                        }
+                    }
                     Err(e) => {
                         err = Some(e);
                         break;
@@ -347,31 +536,38 @@ async fn run(
                 break Err(e);
             }
             let rtt = t0.elapsed().as_millis() as u64;
-            seq += 1;
-            let at = now_str();
-            let names: Vec<String> = updated.iter().map(|(n, _, _)| n.clone()).collect();
-            snap_tx.send_modify(|s| {
-                let mut next = (**s).clone();
-                next.seq = seq;
-                next.at = at.clone();
-                for (name, raw, json) in updated {
-                    next.dbs.insert(name, DbSnap { raw: Arc::new(raw), json: Arc::new(json), at: at.clone(), seq, tier });
-                }
-                *s = Arc::new(next);
+            // 하트비트 — 이 주기에 읽은 DB 에 경로가 있으면 값이 바뀐 시각을 잡는다.
+            let beat = cfg.heartbeat.as_deref().and_then(|p| {
+                let (db, rest) = p.split_once('.')?;
+                let (_, _, json) = updated.iter().find(|(n, _, _)| n == db)?;
+                json_bool(json, rest)
             });
-            if tier == Tier::Fast || cfg.fast.is_empty() {
-                health_tx.send_modify(|h| {
+            if let Some(v) = beat
+                && hb.is_none_or(|(last, _)| last != v)
+            {
+                hb = Some((v, Instant::now()));
+            }
+            let at = publish_dbs(&cfg.name, &snap_tx, &ev_tx, &mut seq, tier, updated);
+            let tn = tier_name(tier);
+            health_tx.send_modify(|h| {
+                if tier == Tier::Fast || cfg.fast.is_empty() {
                     h.rtt_ms = Some(rtt);
                     h.last_ok_at = Some(at.clone());
-                });
-            }
-            let _ = ev_tx.send(PlcEvent { plc: cfg.name.clone(), tier, seq, dbs: names, at });
+                }
+                if let Some((_, t)) = hb {
+                    h.heartbeat_age_ms = Some(t.elapsed().as_millis() as u64);
+                }
+                h.cycle_ms.insert(tn.into(), rtt);
+                let m = h.cycle_max_ms.entry(tn.into()).or_insert(0);
+                *m = (*m).max(rtt);
+            });
         };
         match result {
             Ok(()) => tracing::info!(plc = %cfg.name, "reconnect / reverify requested"),
             Err(e) => {
                 tracing::warn!(plc = %cfg.name, error = %e, "S7 poll failed; reconnecting");
                 health_tx.send_modify(|h| {
+                    h.error_count += 1;
                     h.connected = false;
                     h.last_error = Some(e.to_string());
                 });
@@ -379,5 +575,14 @@ async fn run(
             }
         }
         drop(client);
+    }
+}
+
+#[cfg(test)]
+mod range_tests {
+    #[test]
+    fn merge_ranges_joins_overlaps_and_neighbours() {
+        assert_eq!(super::merge_ranges(vec![(10, 20), (0, 4), (20, 30), (25, 28), (40, 42)]), vec![(0, 4), (10, 30), (40, 42)]);
+        assert!(super::merge_ranges(vec![]).is_empty());
     }
 }

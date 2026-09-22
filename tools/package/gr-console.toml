@@ -24,10 +24,10 @@ host = "192.168.1.102"
 port = 102
 rack = 0
 slot = 1
-fast = ["OPCUA", "TASK"]
+fast = ["OPCUA"]
 webmon = ["WEBMON"]
-slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG", "LASERDIAG"]
-on_demand = ["MEASLOG_HIST"]
+slow = ["PARA", "CELL", "STATION", "MEASLOG", "LASERDIAG"]
+on_demand = ["MEASLOG_HIST", "TASK", "ALARM", "Interface_GRM"]
 # OPCUA.STAT.ComponentID 는 PLC 프로그램이 쓰지 않아 실기에서 항상 0 (2026-09-14 실기 확인) → 검사하지 않음
 checks = [
   { db = "PARA", path = "Machine.ID", equals = 2 },
@@ -43,8 +43,8 @@ rack = 0
 slot = 1
 fast = ["OPCUA"]
 webmon = []
-slow = ["STATION", "CELL", "MACHINE"]
-on_demand = []
+slow = ["STATION", "CELL"]
+on_demand = ["MACHINE"]
 checks = []   # GR[n].STAT.ComponentID 는 실기에서 0 — DB 크기 검사만
 
 [opcua]
@@ -55,9 +55,12 @@ user = ""
 ns_hint = 3
 db_name = "OPCUA"
 root_path = "GR[2].CMD"
+# TaskData 를 리프 51 개 대신 구조체 노드 하나로 쓴다(세션마다 읽기로 배치를 검증한 뒤에만, 거절되면 리프로 복귀).
+# 실기 쓰기 확인 전이라 기본 false — 검증 결과는 사이드바 OPC UA 행 툴팁 "구조체 검증됨" 으로 보인다.
+# struct_write = true
 
 [poll]
-fast_ms = 200
+fast_ms = 100
 webmon_ms = 500
 slow_ms = 5000
 grm_fast_ms = 500
@@ -67,6 +70,11 @@ grm_fast_ms = 500
 [link]
 enabled = true
 bind = "0.0.0.0:2000"
+
+# 컨베이어 화물 코드 트래킹 — GRM ConnectionPrev/Next 밖의 추가 연결 [from, to] (스테이션 Id).
+# 품목 코드만 넘기고 PLC 에는 쓰지 않는다(GRM 측정·OD 트래킹은 그대로). 테스트 베드: 2003(CV 2103) → 2102.
+[conveyor]
+# extra_links = [[2003, 2102]]
 
 [cmd]
 protocol = 1
@@ -103,10 +111,10 @@ grm_plc = "GRM"
 # port = 102
 # rack = 0
 # slot = 1
-# fast = ["OPCUA", "TASK"]
+# fast = ["OPCUA"]
 # webmon = ["WEBMON"]
 # # LASERDIAG 는 GR1 계약에 .xml(DB 번호)이 없어 제외
-# slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG"]
-# on_demand = ["MEASLOG_HIST"]
+# slow = ["PARA", "CELL", "STATION", "MEASLOG"]
+# on_demand = ["MEASLOG_HIST", "TASK", "ALARM", "Interface_GRM"]
 # # OPCUA.STAT.ComponentID 는 실기에서 0 → Machine.ID 만
 # checks = [{ db = "PARA", path = "Machine.ID", equals = 1 }]

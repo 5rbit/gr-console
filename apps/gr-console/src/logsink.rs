@@ -57,6 +57,24 @@ pub fn open_file_dir(dir: &Path) {
             return;
         }
         *s.dir.lock().unwrap_or_else(PoisonError::into_inner) = Some(dir.to_path_buf());
+        prune_old_logs(dir, KEEP_DAYS);
+    }
+}
+
+/// 로그 보존 일수 — USB·작은 드라이브에서 data/logs 가 끝없이 쌓이지 않게.
+const KEEP_DAYS: u64 = 30;
+
+/// `gr-console-*.log` 중 수정 시각이 `days` 일보다 오래된 것을 지운다(시작할 때 한 번).
+fn prune_old_logs(dir: &Path, days: u64) {
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    let cutoff = std::time::Duration::from_secs(days * 86_400);
+    for e in rd.filter_map(Result::ok) {
+        let p = e.path();
+        let is_log = p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("gr-console-") && n.ends_with(".log"));
+        let old = e.metadata().ok().and_then(|m| m.modified().ok()).and_then(|t| t.elapsed().ok()).is_some_and(|age| age > cutoff);
+        if is_log && old {
+            let _ = std::fs::remove_file(&p);
+        }
     }
 }
 

@@ -28,7 +28,7 @@ export interface RecSample {
   Gripper?: { ItemDetect: boolean; GID: number[]; FLD: number; State?: GripperState }
   Measure?: {
     Item?: Record<string, number | boolean>
-    LastBead?: { Enable: boolean; Busy: boolean; Done: boolean; LastBidPos: number; PickZTarget: number }
+    LastBead?: { Enable: boolean; Busy: boolean; Done: boolean; LastBeadPos: number; PickZTarget: number }
   }
   MeasLog?: { Total: number; Count: number }
 }
@@ -97,7 +97,7 @@ export interface TaskSpec {
   od: number
   height: number
   cellZ: number
-  /** 작업 목표 Z (Task.Position[Z]) — LastBidPos 기준 */
+  /** 작업 목표 Z (Task.Position[Z]) — LastBeadPos 기준 */
   targetZ: number
 }
 

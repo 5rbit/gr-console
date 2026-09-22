@@ -29,6 +29,7 @@ export function sheetCountsText(c: FileImportResult['counts']): string {
   if (c.stations) parts.push(`스테이션 ${c.stations}`)
   if (c.items) parts.push(`품목 ${c.items}`)
   if (c.item_profiles) parts.push(`비드 ${c.item_profiles}줄`)
+  if (c.stock) parts.push(`재고 ${c.stock}줄`)
   return parts.join(' · ')
 }
 
@@ -61,6 +62,8 @@ export interface ImportOutcome {
   unchanged: number
   /** 적용하지 못한 줄(오류와 1:1). */
   skipped: number
+  /** 파일에 없어 지워질 자리(재고 교체 가져오기). 다른 가져오기는 0. */
+  removed: number
   /** 실제로 쓰이는 줄 — 이 수가 0 이면 적용할 것이 없다. */
   applicable: number
   problems: number
@@ -77,12 +80,13 @@ export function importOutcome(r: FileImportResult): ImportOutcome {
     updated: r.updated,
     unchanged,
     skipped,
-    applicable: added + r.updated,
+    removed: r.removed ?? 0,
+    applicable: added + r.updated + (r.removed ?? 0),
     problems: r.errors.length,
   }
 }
 
-export type OutcomeKey = 'added' | 'updated' | 'unchanged' | 'skipped'
+export type OutcomeKey = 'added' | 'updated' | 'unchanged' | 'skipped' | 'removed'
 
 /** 미리보기 머리줄의 라벨+값 짝(`lib/ui/StatRow`). 0 도 보인다 — 없는 칸은 "안 셌다"로 읽힌다. */
 export function outcomeStats(
@@ -93,6 +97,8 @@ export function outcomeStats(
     { key: 'updated', label: '갱신', value: o.updated },
     { key: 'unchanged', label: '동일', value: o.unchanged },
     { key: 'skipped', label: '건너뜀', value: o.skipped },
+    // 지울 것이 있을 때만(재고 교체) — 다른 가져오기에는 이 칸이 없다.
+    ...(o.removed > 0 ? [{ key: 'removed' as const, label: '삭제', value: o.removed }] : []),
   ]
 }
 

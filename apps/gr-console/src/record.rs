@@ -506,7 +506,7 @@ fn csv_row(s: &Json) -> String {
         b(&s["Measure"]["Item"]["InBusy"]),
         b(&s["Measure"]["Item"]["OutBusy"]),
         b(&s["Measure"]["LastBead"]["Busy"]),
-        n(&s["Measure"]["LastBead"]["LastBidPos"]),
+        n(&s["Measure"]["LastBead"]["LastBeadPos"]),
         n(&s["Alarm"]["FaultCode"][0]),
         n(&s["Alarm"]["WarnCode"][0]),
     ];
@@ -644,7 +644,7 @@ mod tests {
             "Task": { "TaskType": 65, "Item": { "Code": 7, "InnerDiameter": 406.0, "OuterDiameter": 632.0, "Height": 205.0 }, "Cell": { "Position": [1.0, 2.0, 1500.0] } },
             "Axis": [{}, {}, { "Position": 1710.5, "Target": 1700.0, "Speed": -30.0 }, { "Position": 371.0, "Target": 376.0, "Torque": 48.5 }],
             "Gripper": { "GID": [15.0, 16.0, 14.0, 0.0], "FLD": 210.0, "ItemDetect": true, "State": { "TorqueStop": true, "StallTime": 0.4 } },
-            "Measure": { "Item": { "Busy": true }, "LastBead": { "Busy": false, "LastBidPos": 24.5 } },
+            "Measure": { "Item": { "Busy": true }, "LastBead": { "Busy": false, "LastBeadPos": 24.5 } },
             "Alarm": { "FaultCode": [4025], "WarnCode": [0] }
         });
         let row = csv_row(&s);

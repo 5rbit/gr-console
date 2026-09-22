@@ -11,11 +11,14 @@ mod browse;
 mod connect;
 mod nodemap;
 mod path;
+pub mod structs;
 mod value;
 mod writer;
 
 use std::path::PathBuf;
 
+/// 탐색 도구·시험용 — 콘솔과 같은 연결 절차(보안·인증·타임아웃)로 세션을 연다.
+pub use connect::{Connection, connect};
 pub use nodemap::{NodeMapInfo, array_bases_from_paths, rebase_array_keys, server_root_path};
 pub use path::normalize_path;
 pub use value::PlcKind;
@@ -85,6 +88,42 @@ pub struct OpcUaConfig {
     /// The S7-1500 server exposes arrays of elementary types 0-based; such browsed/cached keys are
     /// rebased to PLC indices so writes by PLC index resolve. Empty → no rebasing.
     pub array_bases: std::collections::BTreeMap<String, i64>,
+    /// 세션마다 명령 노드를 `RegisterNodes` 로 등록하고 등록 ID 로 읽고 쓴다 — Siemens S7-1500 서버는 등록 노드의
+    /// 반복 접근을 최적화한다(Siemens 109737901 "optimized access"). 등록이 실패하면 원래 ID 로 계속 쓴다.
+    pub register_nodes: bool,
+    /// 통째로 쓸 수 있는 구조체 멤버의 바이너리 배치(보통 계약에서 `TaskData`). 세션마다 읽기로 검증만 한다.
+    pub struct_specs: Vec<structs::StructSpec>,
+    /// 검증된 구조체를 실제로 노드 하나로 쓴다(끄면 검증 결과만 보고하고 리프 그룹 쓰기).
+    pub struct_write: bool,
+}
+
+/// 쓰기·읽기 통계(세션을 넘어 누적, 등록·한도는 지금 세션).
+#[derive(Clone, Debug, Default, serde::Serialize)]
+pub struct IoStats {
+    /// Write 서비스 호출 수(한도로 나눈 조각 포함).
+    pub write_calls: u64,
+    /// 쓴 노드 수 합.
+    pub write_nodes: u64,
+    /// 실패한 쓰기(서비스 오류·거부 상태·응답 없음).
+    pub write_failures: u64,
+    /// 마지막 / 최대 쓰기 한 번(요청 하나 = 조각 전체) 시간(ms).
+    pub write_last_ms: u64,
+    pub write_max_ms: u64,
+    /// 세션을 다시 연 횟수(첫 연결 제외).
+    pub reconnects: u64,
+    /// 지금 세션에서 등록된 노드 수(0 = 등록 안 씀·실패).
+    pub registered: usize,
+    /// 서버 한도(0 = 제한 없음 · 모름).
+    pub max_nodes_per_write: u32,
+    pub max_nodes_per_read: u32,
+    /// 이 세션에서 읽기 검증을 통과한 구조체 멤버(`TaskData`).
+    pub struct_verified: Vec<String>,
+    /// 구조체 쓰기가 켜져 실제로 쓰는 멤버.
+    pub struct_active: Vec<String>,
+    /// 검증 실패·쓰기 거부 사유(마지막 것).
+    pub struct_note: Option<String>,
+    /// 구조체 노드 하나로 보낸 쓰기 수.
+    pub struct_writes: u64,
 }
 
 impl Default for OpcUaConfig {
@@ -107,6 +146,9 @@ impl Default for OpcUaConfig {
             pki_dir: None,
             trust_server_cert: true,
             array_bases: std::collections::BTreeMap::new(),
+            register_nodes: true,
+            struct_specs: Vec::new(),
+            struct_write: false,
         }
     }
 }
@@ -217,6 +259,11 @@ pub enum OpcError {
     /// Configuration problem (policy not offered, auth rejected, bad path, bad value type).
     #[error("OPC UA configuration error: {0}")]
     Config(String),
+    /// Task header write got no answer (timeout / transport) after the task data went through — the server may or
+    /// may not have applied it. The caller records the task as submitted and lets the PLC echo decide, instead of
+    /// reporting a failure that invites a second (duplicate) submission.
+    #[error("header write unanswered ({detail}) — the command may have been applied")]
+    HeaderUncertain { header: HeaderWire, detail: String },
 }
 
 impl OpcError {

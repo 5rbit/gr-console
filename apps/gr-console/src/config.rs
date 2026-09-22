@@ -16,7 +16,18 @@ pub struct Config {
     pub link: LinkCfg,
     /// Robots reachable through GRM (up to 2). Empty = one robot derived from `cmd` + `opcua`.
     pub robots: Vec<RobotCfg>,
+    pub conveyor: ConveyorCfg,
     pub demo: bool,
+}
+
+/// 컨베이어 화물 코드 트래킹(`stock::conveyor`).
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ConveyorCfg {
+    /// GRM `ConnectionPrev/Next` 밖의 추가 연결 `[from, to]`(스테이션 Id). **품목 코드만** 넘기고 PLC 에는
+    /// 쓰지 않는다 — GRM 트래킹(측정 OD)은 그대로. 예: 테스트 베드 `[[2003, 2102]]`(2003 은 GRM 에 연결이
+    /// 없지만 화물이 2102 로 흘러간다). GRM 연결과 겹치면 이 값이 이긴다.
+    pub extra_links: Vec<[u16; 2]>,
 }
 
 /// PLC socket link listener (`docs/link/wire-spec.md`). A PLC slot configured as Active connects here and
@@ -116,6 +127,12 @@ pub struct PlcCfg {
     pub slow: Vec<String>,
     /// DBs verified but read on demand only (e.g. MEASLOG_HIST).
     pub on_demand: Vec<String>,
+    /// 하트비트 비트(`DB.경로`) — 값이 일정 시간 안 바뀌면 PLC 프로그램이 멈춘 것(CPU STOP 에도 S7 읽기는 성공한다).
+    /// GR 은 `OPCUA.STAT.Status.HeartBeat`(= MACHINE.Status.HeartBeat = Clock_2Hz). 경로가 없으면 감시하지 않는다.
+    pub heartbeat: Option<String>,
+    /// 빠른 주기에서 **이 범위만** 읽는 DB(`DB 이름 → 멤버 경로들`) — 나머지는 느린 주기에 전체를 새로 읽어 채운다.
+    /// 큰 DB 에서 쓰는 곳이 일부뿐일 때(GRM OPCUA 18.5 KB 중 CMD 헤더 · STATION). GRM 은 비어 있으면 로봇 설정에서 채운다.
+    pub fast_ranges: std::collections::BTreeMap<String, Vec<String>>,
     /// Semantic checks: `db.path == value`.
     pub checks: Vec<SemanticCheck>,
 }
@@ -131,12 +148,16 @@ impl Default for PlcCfg {
             slot: 1,
             connection_type: 1,
             timeout_ms: 3000,
-            fast: vec!["OPCUA".into(), "TASK".into()],
+            // 주기 폴링은 쓰는 것만(2026-09-21 통신 점검): TASK(빠른 주기 트래픽의 63 %)·ALARM·Interface_GRM 은 백엔드도
+            // 화면도 읽지 않아 요청 시 읽기로 옮겼다 — 레이아웃 검사는 계속 받는다(`all_dbs`).
+            fast: vec!["OPCUA".into()],
             webmon: vec!["WEBMON".into()],
-            slow: vec!["PARA".into(), "ALARM".into(), "Interface_GRM".into(), "CELL".into(), "STATION".into(), "MEASLOG".into(), "LASERDIAG".into()],
-            on_demand: vec!["MEASLOG_HIST".into()],
+            slow: vec!["PARA".into(), "CELL".into(), "STATION".into(), "MEASLOG".into(), "LASERDIAG".into()],
+            on_demand: vec!["MEASLOG_HIST".into(), "TASK".into(), "ALARM".into(), "Interface_GRM".into()],
             // OPCUA.STAT.ComponentID 는 PLC 프로그램이 쓰지 않아 실기에서 항상 0 이다(2026-09-14) — 검사하면 layout_ok=false 로 제출이 막힌다.
             checks: vec![SemanticCheck { db: "PARA".into(), path: "Machine.ID".into(), equals: 2 }],
+            heartbeat: Some("OPCUA.STAT.Status.HeartBeat".into()),
+            fast_ranges: Default::default(),
         }
     }
 }
@@ -150,10 +171,13 @@ impl PlcCfg {
             host: "192.168.1.10".into(),
             fast: vec!["OPCUA".into()],
             webmon: vec![],
-            slow: vec!["STATION".into(), "CELL".into(), "MACHINE".into()],
-            on_demand: vec![],
+            // MACHINE(16 KB) 은 쓰는 곳이 없어 요청 시 읽기로.
+            slow: vec!["STATION".into(), "CELL".into()],
+            on_demand: vec!["MACHINE".into()],
             // GR[n].STAT.ComponentID 도 실기에서 0 — GRM 은 DB 크기 검사만 한다.
             checks: vec![],
+            // GRM 의 하트비트는 MACHINE(요청 시 읽기)에만 있다 — 감시하지 않는다.
+            heartbeat: None,
             ..Self::default()
         }
     }
@@ -199,6 +223,11 @@ pub struct OpcUaCfg {
     pub node_cache: Option<PathBuf>,
     pub pki_dir: Option<PathBuf>,
     pub trust_server_cert: bool,
+    /// 명령 노드를 세션마다 RegisterNodes 로 등록해 등록 ID 로 쓴다(S7-1500 권장, 기본 켬).
+    pub register_nodes: bool,
+    /// `TaskData` 를 리프 51 개 대신 구조체 노드 하나로 쓴다. 세션마다 읽기로 배치를 검증한 뒤에만 쓰고, 서버가 거절하면
+    /// 그 세션은 리프 쓰기로 돌아간다. 실기 쓰기 확인 전이라 기본 끔(검증 결과는 끈 채로도 통신 툴팁에 나온다).
+    pub struct_write: bool,
 }
 impl Default for OpcUaCfg {
     fn default() -> Self {
@@ -215,11 +244,14 @@ impl Default for OpcUaCfg {
             write_timeout_ms: 3000,
             session_timeout_ms: 60_000,
             channel_lifetime_ms: 60_000,
-            keepalive_interval_ms: 5_000,
+            // 2 s × 실패 2 회 ≈ 5 s 안에 죽은 세션을 안다(예전 5 s → 10~15 s).
+            keepalive_interval_ms: 2_000,
             keepalive_fail_limit: 2,
             node_cache: Some("data/opcua-nodes.json".into()),
             pki_dir: Some("data/pki".into()),
             trust_server_cert: true,
+            register_nodes: true,
+            struct_write: false,
         }
     }
 }
@@ -235,7 +267,8 @@ pub struct PollCfg {
 }
 impl Default for PollCfg {
     fn default() -> Self {
-        Self { fast_ms: 200, webmon_ms: 500, slow_ms: 5000, grm_fast_ms: 500, reconnect_ms: 3000 }
+        // GR 빠른 주기 100 ms — 안 쓰는 DB 를 뺀 뒤라 요청 수는 예전 200 ms 때보다 적고, 에코·상태 반영은 두 배 빠르다.
+        Self { fast_ms: 100, webmon_ms: 500, slow_ms: 5000, grm_fast_ms: 500, reconnect_ms: 3000 }
     }
 }
 
@@ -267,6 +300,7 @@ impl Default for Config {
             cmd: CmdCfg::default(),
             link: LinkCfg::default(),
             robots: vec![],
+            conveyor: ConveyorCfg::default(),
             demo: false,
         }
     }
@@ -291,8 +325,8 @@ impl Config {
             c.paths.web_dir = Some(v.into());
         }
         if let Some(v) = env("GR_CONSOLE_DATA_DIR") {
+            // DB·노드 캐시·인증서는 `anchor` 가 data_dir 을 따라 옮긴다(기본값일 때).
             c.paths.data_dir = PathBuf::from(&v);
-            c.paths.sqlite = c.paths.data_dir.join("gr-console.db");
         }
         if let Some(v) = env("GR_CONSOLE_OPCUA_ENDPOINT") {
             c.opcua.endpoint = v;
@@ -322,6 +356,23 @@ impl Config {
     /// 상대 경로를 `base`에 붙인다. 개발 체크아웃은 CWD가 기준이었지만, 배포된 실행 파일은 어디서
     /// 실행되든(더블클릭 · 바로 가기 · 서비스) **실행 파일 옆**을 기준으로 잡아야 `data/`가 한 곳에 쌓인다.
     pub fn anchor(&mut self, base: &Path) {
+        // data 아래 기본값(`data/gr-console.db` · `data/opcua-nodes.json` · `data/pki`)은 data_dir 을 따른다 — 설정에서
+        // data_dir 만 바꿔도 DB·노드 캐시·인증서가 함께 옮겨 간다(포터블). 명시한 값은 그대로 둔다.
+        let default_data = PathBuf::from("data");
+        if self.paths.data_dir != default_data {
+            let rebase = |p: &mut PathBuf| {
+                if let Ok(rest) = p.strip_prefix(&default_data) {
+                    *p = self.paths.data_dir.join(rest);
+                }
+            };
+            rebase(&mut self.paths.sqlite);
+            if let Some(n) = self.opcua.node_cache.as_mut() {
+                rebase(n);
+            }
+            if let Some(k) = self.opcua.pki_dir.as_mut() {
+                rebase(k);
+            }
+        }
         let fix = |p: &mut PathBuf| {
             if p.is_relative() {
                 *p = base.join(&*p);
@@ -341,6 +392,31 @@ impl Config {
         }
     }
 
+    /// 데모는 운영 데이터와 섞이지 않게 `<data_dir>-demo` 를 쓴다(`anchor` 뒤에 부른다). 데모 시드가 가짜 PLC 의
+    /// CELL/STATION 을 레지스트리에 덮어쓰고, 데모 Task 가 원장·발번을 소모하던 것을 막는다. data_dir 아래에 있던
+    /// DB·노드 캐시·인증서 경로도 같이 옮긴다. 이름이 이미 `-demo` 로 끝나면 그대로.
+    pub fn isolate_demo_data(&mut self) {
+        let old = self.paths.data_dir.clone();
+        let Some(name) = old.file_name().and_then(|n| n.to_str()).map(str::to_string) else { return };
+        if name.ends_with("-demo") {
+            return;
+        }
+        let new = old.with_file_name(format!("{name}-demo"));
+        let move_under = |p: &mut PathBuf| {
+            if let Ok(rest) = p.strip_prefix(&old) {
+                *p = new.join(rest);
+            }
+        };
+        move_under(&mut self.paths.sqlite);
+        if let Some(n) = self.opcua.node_cache.as_mut() {
+            move_under(n);
+        }
+        if let Some(k) = self.opcua.pki_dir.as_mut() {
+            move_under(k);
+        }
+        self.paths.data_dir = new;
+    }
+
     #[allow(dead_code)]
     pub fn plc(&self, name: &str) -> Option<&PlcCfg> {
         self.plcs.iter().find(|p| p.name.eq_ignore_ascii_case(name))
@@ -348,5 +424,42 @@ impl Config {
 
     pub fn example_toml() -> String {
         toml::to_string_pretty(&Config::default()).unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod portable_tests {
+    use super::*;
+
+    /// data_dir 만 바꾸면 기본 DB·노드 캐시·인증서가 따라간다. 명시한 값은 그대로.
+    #[test]
+    fn data_dir_carries_default_paths() {
+        let mut c = Config::default();
+        c.paths.data_dir = "store".into();
+        c.anchor(Path::new("/app"));
+        assert_eq!(c.paths.sqlite, Path::new("/app/store/gr-console.db"));
+        assert_eq!(c.opcua.node_cache.as_deref(), Some(Path::new("/app/store/opcua-nodes.json")));
+        assert_eq!(c.opcua.pki_dir.as_deref(), Some(Path::new("/app/store/pki")));
+        let mut c = Config::default();
+        c.paths.data_dir = "store".into();
+        c.paths.sqlite = "elsewhere/x.db".into();
+        c.anchor(Path::new("/app"));
+        assert_eq!(c.paths.sqlite, Path::new("/app/elsewhere/x.db"));
+        // 기본 data 는 그대로
+        let mut c = Config::default();
+        c.anchor(Path::new("/app"));
+        assert_eq!(c.paths.sqlite, Path::new("/app/data/gr-console.db"));
+    }
+
+    #[test]
+    fn demo_uses_its_own_data_folder() {
+        let mut c = Config::default();
+        c.anchor(Path::new("/app"));
+        c.isolate_demo_data();
+        assert_eq!(c.paths.data_dir, Path::new("/app/data-demo"));
+        assert_eq!(c.paths.sqlite, Path::new("/app/data-demo/gr-console.db"));
+        assert_eq!(c.opcua.pki_dir.as_deref(), Some(Path::new("/app/data-demo/pki")));
+        c.isolate_demo_data();
+        assert_eq!(c.paths.data_dir, Path::new("/app/data-demo"), "두 번 불러도 그대로");
     }
 }

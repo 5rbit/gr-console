@@ -53,7 +53,7 @@ export const DATA_LABEL: Record<number, readonly string[]> = {
   3: ['Status', 'FloorHeight', 'Z.Position', 'FLD.Distance'],
   4: [
     'Status',
-    'LastBidPos − PickZTarget',
+    'LastBeadPos − PickZTarget',
     'PickZTarget',
     'Valid',
     'FitError',
@@ -101,7 +101,7 @@ export const METRICS: readonly Metric[] = [
   { k: 2, id: 's19', label: '[Sku] StackHeight', fn: (r) => r.data[19] ?? null },
   { k: 2, id: 's17', label: '[Sku] StackCount', fn: (r) => r.data[17] ?? null },
   { k: 3, id: 'f1', label: '[Floor] FloorHeight', fn: (r) => r.data[1] ?? null },
-  { k: 4, id: 'p1', label: '[Pick] LastBidPos − PickZTarget', fn: (r) => r.data[1] ?? null },
+  { k: 4, id: 'p1', label: '[Pick] LastBeadPos − PickZTarget', fn: (r) => r.data[1] ?? null },
   {
     k: 4,
     id: 'p5',

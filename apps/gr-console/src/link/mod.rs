@@ -211,8 +211,22 @@ async fn drive(mut events: mpsc::UnboundedReceiver<SessionEvent>, cmds: mpsc::Un
         let _ = tx.send(Err("the PLC link closed".to_string()));
     }
     if let Some(name) = plc {
-        sessions.lock().await.remove(&name);
-        trace.on_link_down(&name).await;
+        // PLC 가 다시 붙으면 새 연결이 같은 이름으로 먼저 등록된다 — 옛 연결이 늦게 닫히면서 그 등록을 지우고
+        // 트레이스를 down 으로 만들던 경합(2026-09-21 통신 점검). 등록이 **내 것**일 때만 지운다.
+        let mine = {
+            let mut s = sessions.lock().await;
+            if s.get(&name).is_some_and(|tx| tx.same_channel(&app_tx)) {
+                s.remove(&name);
+                true
+            } else {
+                false
+            }
+        };
+        if mine {
+            trace.on_link_down(&name).await;
+        } else {
+            tracing::info!(plc = %name, peer = %peer, "PLC link: old connection closed after a newer one took over");
+        }
     }
 }
 

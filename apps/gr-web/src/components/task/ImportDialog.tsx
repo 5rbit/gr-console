@@ -6,7 +6,7 @@
 // 파일 없이도 열린다: 메뉴의 "Excel 가져오기"는 이 창과 파일 고르기 창을 같이 연다 — 고르기를 취소해도
 // 창은 남아서 탐색기에서 끌어다 놓을 자리가 된다. 예전에는 파일을 골라야만 창이 떴고, 그래서 끌어다
 // 놓을 곳이 없었다.
-import { useState, type DragEvent } from 'react'
+import { useState, type DragEvent, type ReactNode } from 'react'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { Button } from '../../lib/ui/Button'
 import { DataTable } from '../../lib/ui/DataTable'
@@ -46,6 +46,10 @@ export interface ImportDialogProps {
   templateUrl?: string
   /** `?` 본문 — 없으면 적용 범위 설명만. */
   help?: readonly HelpSection[]
+  /** 파일 칸 아래에 서는 추가 조작(재고의 병합/교체 고르기 등). */
+  extra?: ReactNode
+  /** 바닥 띠 왼쪽 문구(기본 `로컬에만 적용`). */
+  scopeLabel?: string
 }
 
 const PROBLEM_COLS: Column<ProblemRow>[] = [
@@ -69,6 +73,8 @@ export function ImportDialog({
   onApply,
   templateUrl,
   help = IMPORT_SCOPE_HELP,
+  extra,
+  scopeLabel = '로컬에만 적용',
 }: ImportDialogProps) {
   const [over, setOver] = useState(false)
   const [dropError, setDropError] = useState<string | null>(null)
@@ -105,7 +111,7 @@ export function ImportDialog({
       footer={
         <>
           <span className="mr-auto flex items-center gap-1 text-2xs text-content-muted">
-            로컬에만 적용
+            {scopeLabel}
             <HelpTip title="Excel 가져오기" sections={help} align="right" />
           </span>
           <Button size="sm" intent="ghost" onClick={() => onOpenChange(false)}>
@@ -180,6 +186,8 @@ export function ImportDialog({
             </a>
           ) : null}
         </div>
+
+        {extra}
 
         {dropError || error ? (
           <span role="alert" className="text-fault-fg" data-testid="import-error">

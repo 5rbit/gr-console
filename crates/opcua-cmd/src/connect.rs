@@ -193,6 +193,8 @@ pub async fn connect(cfg: &OpcUaConfig) -> Result<Connection, OpcError> {
         ok = session.wait_for_connection() => Ok(ok),
         r = &mut handle => Err(r),
         _ = tokio::time::sleep(timeout) => {
+            // 서버에 반쯤 만든 세션이 남지 않게 짧게 닫아 보고 버린다(GRM 세션 수 한도).
+            let _ = with_timeout(Duration::from_secs(1), session.disconnect()).await;
             handle.abort();
             return Err(OpcError::Timeout);
         }

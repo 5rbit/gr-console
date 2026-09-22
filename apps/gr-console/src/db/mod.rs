@@ -1,6 +1,6 @@
 //! SQLite (rusqlite, WAL) behind a single mutex; blocking work runs on the blocking pool.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use rusqlite::Connection;
@@ -17,6 +17,8 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ("0007_pallet_by_item", include_str!("migrations/0007_pallet_by_item.sql")),
     // 측정 반영으로 바꾼 화물 규격 치수의 이력(되돌리기용, 2026-09-21).
     ("0008_item_dim_changes", include_str!("migrations/0008_item_dim_changes.sql")),
+    // 설정 변경 이력(기본값 저장마다 이전/이후) — 2026-09-21
+    ("0009_settings_history", include_str!("migrations/0009_settings_history.sql")),
 ];
 
 /// `ALTER TABLE … ADD COLUMN …` 중 **이미 있는 열**을 주석으로 지운 사본.
@@ -88,6 +90,17 @@ impl Db {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;")?;
         let db = Db { conn: Arc::new(Mutex::new(conn)) };
+        // 옛 실행 파일이 새 DB 를 열면 조용히 오동작한다(0007 이 표를 지웠다 등) — 모르는 마이그레이션이면 멈춘다.
+        db.refuse_newer_schema(MIGRATIONS)?;
+        // 적용할 마이그레이션이 있는 **기존** DB 는 먼저 통째로 떠 둔다(data/backup) — 업그레이드 되돌리기용.
+        let pending = db.pending(MIGRATIONS)?;
+        if !pending.is_empty() && db.applied_count()? > 0 {
+            let dir = path.parent().map(|p| p.join("backup")).unwrap_or_else(|| PathBuf::from("backup"));
+            let stamp: String = crate::util::now_str().chars().filter(char::is_ascii_digit).take(14).collect();
+            let dest = dir.join(format!("gr-console-{stamp}-before-{}.db", pending[0]));
+            db.backup_into(&dest)?;
+            tracing::info!(to = %dest.display(), pending = ?pending, "DB backed up before migration");
+        }
         db.migrate()?;
         Ok(db)
     }
@@ -116,11 +129,71 @@ impl Db {
         for (name, sql) in list {
             let done: bool = conn.query_row("SELECT COUNT(*) FROM schema_migrations WHERE name = ?1", [name], |r| r.get::<_, i64>(0))? > 0;
             if !done {
-                conn.execute_batch(&skip_existing_columns(&conn, sql)?)?;
-                conn.execute("INSERT INTO schema_migrations (name, applied_at) VALUES (?1, ?2)", (name, crate::util::now_str()))?;
+                // 마이그레이션 하나 = 트랜잭션 하나(기록 포함). 중간에 죽으면 통째로 되돌아가 다음 기동에서 처음부터 —
+                // 예전에는 0006 의 DROP 과 RENAME 사이에서 죽으면 유일한 사본을 다음 기동이 지웠다.
+                let tx = conn.unchecked_transaction()?;
+                tx.execute_batch(&skip_existing_columns(&tx, sql)?)?;
+                tx.execute("INSERT INTO schema_migrations (name, applied_at) VALUES (?1, ?2)", (name, crate::util::now_str()))?;
+                tx.commit()?;
                 tracing::info!(migration = name, "applied");
             }
         }
+        Ok(())
+    }
+
+    /// 이 실행 파일이 모르는 마이그레이션이 DB 에 있으면 오류 — 더 새 버전이 만든 DB 다.
+    fn refuse_newer_schema(&self, known: &[(&str, &str)]) -> anyhow::Result<()> {
+        let conn = self.conn.lock().unwrap_or_else(PoisonError::into_inner);
+        let has_table: i64 = conn.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'", [], |r| r.get(0))?;
+        if has_table == 0 {
+            return Ok(());
+        }
+        let mut q = conn.prepare("SELECT name FROM schema_migrations ORDER BY name")?;
+        let names: Vec<String> = q.query_map([], |r| r.get(0))?.collect::<Result<_, _>>()?;
+        let unknown: Vec<String> = names.into_iter().filter(|n| !known.iter().any(|(k, _)| k == n)).collect();
+        if !unknown.is_empty() {
+            anyhow::bail!("이 DB 는 더 새 버전의 gr-console 이 만든 것입니다(모르는 마이그레이션: {}). 새 실행 파일을 쓰거나, data/backup 의 이전 백업으로 되돌리세요.", unknown.join(", "));
+        }
+        Ok(())
+    }
+
+    /// 아직 적용 안 된 마이그레이션 이름(순서대로).
+    fn pending(&self, list: &[(&'static str, &str)]) -> anyhow::Result<Vec<&'static str>> {
+        let conn = self.conn.lock().unwrap_or_else(PoisonError::into_inner);
+        let has_table: i64 = conn.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'", [], |r| r.get(0))?;
+        if has_table == 0 {
+            return Ok(list.iter().map(|(n, _)| *n).collect());
+        }
+        let mut out = Vec::new();
+        for (name, _) in list {
+            let done: i64 = conn.query_row("SELECT COUNT(*) FROM schema_migrations WHERE name = ?1", [name], |r| r.get(0))?;
+            if done == 0 {
+                out.push(*name);
+            }
+        }
+        Ok(out)
+    }
+
+    fn applied_count(&self) -> anyhow::Result<i64> {
+        let conn = self.conn.lock().unwrap_or_else(PoisonError::into_inner);
+        let has_table: i64 = conn.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'", [], |r| r.get(0))?;
+        if has_table == 0 {
+            return Ok(0);
+        }
+        Ok(conn.query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r.get(0))?)
+    }
+
+    /// 일관된 사본 한 파일(`VACUUM INTO`) — 실행 중에도 WAL 까지 합친 스냅샷이 된다. 대상이 있으면 오류.
+    pub fn backup_into(&self, dest: &Path) -> anyhow::Result<()> {
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        if dest.exists() {
+            anyhow::bail!("백업 대상이 이미 있습니다: {}", dest.display());
+        }
+        let p = dest.to_string_lossy().replace('\'', "''");
+        let conn = self.conn.lock().unwrap_or_else(PoisonError::into_inner);
+        conn.execute_batch(&format!("VACUUM INTO '{p}'"))?;
         Ok(())
     }
 
@@ -189,7 +262,10 @@ mod tests {
     #[test]
     fn a_fresh_db_runs_the_single_v2_migration() {
         let db = Db::open_memory().unwrap();
-        assert_eq!(applied(&db), vec!["0001_init", "0002_registry", "0003_ledger", "0004_scenario", "0005_stock", "0006_console_v2", "0007_pallet_by_item", "0008_item_dim_changes"]);
+        assert_eq!(
+            applied(&db),
+            vec!["0001_init", "0002_registry", "0003_ledger", "0004_scenario", "0005_stock", "0006_console_v2", "0007_pallet_by_item", "0008_item_dim_changes", "0009_settings_history"]
+        );
         // 합친 마이그레이션이 만든 것들이 다 있다
         let names: Vec<String> = schema(&db).into_iter().map(|(_, n, _)| n).collect();
         for t in ["pallet_item", "pallet_robot", "pallet_station", "pallet_flow", "pallet_pattern", "item_bead_samples", "meas_entries", "item_dim_changes"] {
@@ -298,5 +374,46 @@ mod tests {
             })
             .unwrap();
         assert_eq!(grips, vec![("t1".into(), Some("pick_bead".to_string())), ("t2".into(), Some("mid".into())), ("t3".into(), None)]);
+    }
+
+    /// 적용 전 백업 · 트랜잭션 · 다운그레이드 차단(포터블/업그레이드 안전).
+    #[test]
+    fn upgrade_backs_up_and_refuses_newer_schema() {
+        let dir = std::env::temp_dir().join(format!("grc-db-{}", uuid::Uuid::new_v4()));
+        let path = dir.join("gr-console.db");
+        std::fs::create_dir_all(&dir).unwrap();
+        {
+            // "옛 버전" DB: 앞 5 개만
+            let conn = Connection::open(&path).unwrap();
+            let db = Db { conn: Arc::new(Mutex::new(conn)) };
+            db.migrate_list(&MIGRATIONS[..5]).unwrap();
+        }
+        let db = Db::open(&path).unwrap();
+        let backups: Vec<_> = std::fs::read_dir(dir.join("backup")).unwrap().collect();
+        assert_eq!(backups.len(), 1, "업그레이드 전 백업 한 개");
+        drop(db);
+        // 새 버전이 붙인 모르는 마이그레이션 → 이 실행 파일은 열지 않는다
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute("INSERT INTO schema_migrations (name, applied_at) VALUES ('9999_future', 'x')", []).unwrap();
+        }
+        let err = Db::open(&path).err().expect("newer schema refused").to_string();
+        assert!(err.contains("9999_future"), "{err}");
+        // 이미 최신이면 백업을 또 만들지 않는다
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn backup_into_writes_a_consistent_copy() {
+        let dir = std::env::temp_dir().join(format!("grc-bk-{}", uuid::Uuid::new_v4()));
+        let db = Db::open(&dir.join("a.db")).unwrap();
+        db.set_setting("k", "v").unwrap();
+        let dest = dir.join("copy").join("b.db");
+        db.backup_into(&dest).unwrap();
+        let copy = Db::open(&dest).unwrap();
+        assert_eq!(copy.setting("k").unwrap().as_deref(), Some("v"));
+        assert!(db.backup_into(&dest).is_err(), "덮어쓰지 않는다");
+        drop((db, copy));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

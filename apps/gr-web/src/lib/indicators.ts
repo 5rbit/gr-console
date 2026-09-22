@@ -38,21 +38,61 @@ export function toneStatus(t: Tone): Status {
 }
 
 /** 범례 — `?` 말풍선이 그대로 그린다(어휘의 정본이 이 표 하나). */
-export const TONE_LEGEND: readonly { tone: Tone; name: string; words: string; meaning: string }[] = [
-  { tone: 'ok', name: '정상', words: '연결 · 준비 · 제출 가능 · AUTO', meaning: '쓸 수 있음' },
-  {
-    tone: 'degraded',
-    name: '막힘',
-    words: '제출 불가 · 레이아웃 불일치',
-    meaning: '통신은 되지만 막힘 — 툴팁의 사유 확인',
-  },
-  { tone: 'danger', name: '끊김', words: '끊김', meaning: '통신 없음 — 값이 낡음' },
-  { tone: 'idle', name: '대기', words: '연결 중 · 미검사 · MANUAL', meaning: '아직 모름 / 판정 대상 아님' },
-]
+export const TONE_LEGEND: readonly { tone: Tone; name: string; words: string; meaning: string }[] =
+  [
+    { tone: 'ok', name: '정상', words: '연결 · 준비 · 제출 가능 · AUTO', meaning: '쓸 수 있음' },
+    {
+      tone: 'degraded',
+      name: '막힘',
+      words: '제출 불가 · 레이아웃 불일치',
+      meaning: '통신은 되지만 막힘 — 툴팁의 사유 확인',
+    },
+    { tone: 'danger', name: '끊김', words: '끊김', meaning: '통신 없음 — 값이 낡음' },
+    {
+      tone: 'idle',
+      name: '대기',
+      words: '연결 중 · 미검사 · MANUAL',
+      meaning: '아직 모름 / 판정 대상 아님',
+    },
+  ]
 
 const SEP = ' · '
 
 // ── 연결(S7 · OPC UA · 스트림) ────────────────────────────────────────────────
+
+/** 통신 품질 한 줄 — `주기 fast 40/120 · slow 310/900 ms · 실패 2 · 재연결 1`(마지막/최대). 없으면 빈 문자열. */
+export function commText(p: PlcStatus): string {
+  const c = p.comm
+  if (!c) return ''
+  const tiers = ['fast', 'webmon', 'slow', 'write']
+    .filter((t) => c.cycle_ms[t] !== undefined)
+    .map((t) => `${t} ${c.cycle_ms[t]}/${c.cycle_max_ms[t] ?? c.cycle_ms[t]}`)
+  const hb =
+    c.heartbeat_age_ms == null
+      ? ''
+      : c.heartbeat_age_ms > 3000
+        ? `하트비트 멈춤 ${(c.heartbeat_age_ms / 1000).toFixed(1)} s`
+        : '하트비트 정상'
+  return [
+    tiers.length ? `주기 ${tiers.join(' · ')} ms` : '',
+    hb,
+    `실패 ${c.errors}`,
+    `재연결 ${c.reconnects}`,
+    c.slow_overruns ? `느린 주기 밀림 ${c.slow_overruns}` : '',
+    c.registered != null ? (c.registered > 0 ? `등록 노드 ${c.registered}` : '등록 노드 없음') : '',
+    c.max_nodes_per_write ? `서버 한도 쓰기 ${c.max_nodes_per_write}` : '',
+    structText(c),
+  ]
+    .filter(Boolean)
+    .join(SEP)
+}
+
+/** 구조체 쓰기 — `구조체 쓰기 TaskData` / `구조체 검증됨(쓰기 꺼짐)` / `구조체 불일치: 사유`. OPC UA 행만. */
+function structText(c: NonNullable<PlcStatus['comm']>): string {
+  if (c.struct_active?.length) return `구조체 쓰기 ${c.struct_active.join(', ')}${c.struct_writes ? ` ${c.struct_writes}회` : ''}`
+  if (c.struct_verified?.length) return `구조체 검증됨 ${c.struct_verified.join(', ')}(쓰기 꺼짐)`
+  return c.struct_note ? `구조체 쓰기 안 씀: ${c.struct_note}` : ''
+}
 
 /** PLC 한 줄의 연결 상태. S7 은 `연결 4ms`/`끊김`, OPC UA 는 `준비`/`끊김`, 한 번도 붙지 않았으면 `연결 중`. */
 export function plcConnection(p: PlcStatus): Indicator {
@@ -63,7 +103,7 @@ export function plcConnection(p: PlcStatus): Indicator {
     return {
       label: opc ? '준비' : rtt ? `연결 ${rtt}` : '연결',
       tone: 'ok',
-      tooltip: [opc ? 'OPC UA 명령 경로 준비' : 'S7 연결', rtt && `RTT ${rtt}`, where]
+      tooltip: [opc ? 'OPC UA 명령 경로 준비' : 'S7 연결', rtt && `RTT ${rtt}`, commText(p), where]
         .filter(Boolean)
         .join(SEP),
     }
@@ -150,7 +190,11 @@ export function layoutSummary(list: readonly PlcStatus[], loaded: boolean): Indi
 }
 
 /** SSE 스트림(상태바) — `상태 GR2 연결` / `끊김` / `연결 중`. */
-export function feedIndicator(subject: string, connected: boolean, error: string | null): Indicator {
+export function feedIndicator(
+  subject: string,
+  connected: boolean,
+  error: string | null,
+): Indicator {
   if (connected) return { label: `${subject} 연결`, tone: 'ok', tooltip: `${subject} 스트림 연결` }
   if (error) return { label: `${subject} 끊김`, tone: 'danger', tooltip: error }
   return { label: `${subject} 연결 중`, tone: 'idle', tooltip: `${subject} 스트림 연결 중` }

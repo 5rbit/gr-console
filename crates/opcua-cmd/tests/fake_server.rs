@@ -264,6 +264,9 @@ fn config(server: &FakeServer, cache: Option<PathBuf>) -> OpcUaConfig {
         pki_dir: Some(temp_dir("client-pki")),
         trust_server_cert: true,
         array_bases: Default::default(),
+        register_nodes: true,
+        struct_specs: Vec::new(),
+        struct_write: false,
     }
 }
 

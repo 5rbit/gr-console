@@ -235,8 +235,14 @@ pub fn validate_shape(s: &Scenario) -> Vec<Issue> {
         }
         if !st.params.is_object() {
             out.push(issue(i, "params", "params는 객체여야 함"));
-        } else if let Err(e) = base.overlay(&st.params) {
-            out.push(issue(i, "params", format!("params 오류: {e}")));
+        } else {
+            // 오타·종류·범위를 키마다(`PARAM_SPECS`) — overlay 는 모르는 키를 조용히 버린다. MOVE 옵션은 따로 읽는 키.
+            for p in gr_proto::check_partial(&st.params, &["move_mode", "move_clearance"]) {
+                out.push(issue(i, "params", format!("params {p}")));
+            }
+            if let Err(e) = base.overlay(&st.params) {
+                out.push(issue(i, "params", format!("params 오류: {e}")));
+            }
         }
     }
     out

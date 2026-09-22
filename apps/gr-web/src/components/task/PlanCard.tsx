@@ -6,12 +6,13 @@
 // 전에는 카드 밖에 모드 토글이 한 줄 따로 서고 카드가 둘이었다 — 같은 자리에서 같은 일을 하는데
 // 껍데기가 둘이면 머리띠도 둘이다. 모드를 카드 머리줄로 들여 한 줄을 없앴다.
 // 그립 기준·되돌리기·다시실행·비우기는 ⋯ 로, 시나리오 이름은 저장 팝업으로 내렸다.
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
   ListOrdered,
+  Pause,
   Pencil,
   Play,
   Save,
@@ -19,6 +20,7 @@ import {
   X,
 } from 'lucide-react'
 import { api } from '../../lib/api'
+import { visibleInterval } from '../../lib/poll'
 import { taskDataRows } from '../../lib/gr/plcShape'
 import { nav } from '../../lib/nav'
 import { taskApi } from '../../lib/task/api'
@@ -33,6 +35,7 @@ import {
   planRows,
   remove,
   retype,
+  autoMeasureMode,
   toRequest,
   toScenario,
   type PlanRow,
@@ -62,7 +65,36 @@ import { RobotChip, robotField } from '../shared/RobotChip'
 import { MOVE_MODES, moveOf, moveUsesItem, sentItem } from '../../lib/task/moveMode'
 import { PlanStepDialog } from './PlanStepDialog'
 import { useStore } from '../../lib/store'
-import type { Cell, Gate, GripRef, Item, Station, StockEntry, TaskType } from '../../lib/types'
+import { tasks } from '../../lib/tasks'
+import {
+  AUTO_LIMIT_DEFAULT,
+  AUTO_LIMIT_MAX,
+  AUTO_LIMIT_MIN,
+  autoDecision,
+  awaitingEcho,
+  clampLimit,
+  robotQueueCount,
+} from '../../lib/task/autoSubmitModel'
+
+const AUTO_LIMIT_KEY = 'gr-plan-auto-limit'
+function loadLimit(): number {
+  try {
+    const v = localStorage.getItem(AUTO_LIMIT_KEY)
+    return v === null ? AUTO_LIMIT_DEFAULT : clampLimit(Number(v))
+  } catch {
+    return AUTO_LIMIT_DEFAULT
+  }
+}
+import type {
+  MeasureMode,
+  Cell,
+  Gate,
+  GripRef,
+  Item,
+  Station,
+  StockEntry,
+  TaskType,
+} from '../../lib/types'
 import { cn } from '../../lib/utils'
 
 const TYPES: TaskType[] = ['PICK', 'DROP', 'MEASURE', 'MOVE']
@@ -113,6 +145,10 @@ function StepPreview({ row }: { row: PlanRow }) {
 }
 
 /** MOVE 방식의 짧은 이름(Top · Avoid · Stack). */
+function measureLabel(m: MeasureMode): string {
+  return m === 'sku' ? 'SKU' : 'Item'
+}
+
 function moveLabel(s: PlanStep): string {
   const m = moveOf(s).mode
   return MOVE_MODES.find((x) => x.id === m)?.label ?? m
@@ -212,7 +248,8 @@ export function PlanCard({
   robot,
   single,
 }: PlanCardProps) {
-  useStore(robots)
+  useStore(robots, tasks)
+  useEffect(() => tasks.start(), [])
   const rows = useMemo(
     () => planRows(steps, { cells, stations, items, stockNow, gripRef }),
     [steps, cells, stations, items, stockNow, gripRef],
@@ -230,6 +267,69 @@ export function PlanCard({
   // 스텝이 제 로봇을 들고 있으면 그 호기로 간다 — 확인 창은 **실제로 갈 곳**을 말해야 한다.
   const nextRobot =
     first && first.robot !== null && first.robot !== undefined ? robots.chipOf(first.robot) : robot
+
+  // ── 자동 제출: 로봇 큐(원장: 제출됨·수락·대기·실행 중)가 N 개 이하이면 다음 스텝을 한 건씩 보낸다.
+  // 큐는 **다음 스텝이 갈 로봇** 것이다(스텝이 로봇을 들고 있으면 그 호기). 판단은 `autoSubmitModel`.
+  const [auto, setAuto] = useState(false)
+  const [autoLimit, setAutoLimitState] = useState(loadLimit)
+  const [confirmAuto, setConfirmAuto] = useState(false)
+  /** 직전에 자동으로 보낸 Task — 원장(SSE)에 보일 때까지 다음을 보내지 않는다(큐 수가 낡았다). */
+  const [echoId, setEchoId] = useState<string | null>(null)
+  const inFlight = useRef(false)
+  const setAutoLimit = (v: number) => {
+    const n = clampLimit(v)
+    setAutoLimitState(n)
+    try {
+      localStorage.setItem(AUTO_LIMIT_KEY, String(n))
+    } catch {
+      /* 기억 못 해도 동작 */
+    }
+  }
+  const nextRobotId = first?.robot ?? robots.selected
+  // 게이트는 **다음 스텝이 갈 로봇** 것 — 카드의 `gate` 는 사이드바 선택 로봇이라, 선택이 GR1(닫힘)이고 스텝이
+  // GR2 면 GR2 가 열려 있어도 제출·자동 제출이 서 있었다(2026-09-21). 다르면 그 로봇 게이트를 따로 읽는다.
+  const [stepGate, setStepGate] = useState<Gate | null>(null)
+  const otherRobot =
+    nextRobotId !== null && nextRobotId !== undefined && nextRobotId !== robots.selected
+  useEffect(() => {
+    setStepGate(null)
+    if (!otherRobot) return
+    let alive = true
+    const load = () =>
+      void api
+        .taskGate(nextRobotId)
+        .then((g) => alive && setStepGate(g))
+        .catch(() => alive && setStepGate(null))
+    load()
+    const t = visibleInterval(load, 1000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [otherRobot, nextRobotId])
+  const nextGate = otherRobot ? stepGate : gate
+  const nextPlc = robots.byId(nextRobotId)?.plc ?? null
+  const queue = robotQueueCount(tasks.list, nextPlc)
+  const decision = autoDecision({
+    on: auto,
+    busy,
+    remaining: steps.length,
+    queue,
+    limit: autoLimit,
+    gateOk: !!nextGate?.can_submit,
+    gateReason: nextGate?.reasons.join(' · '),
+    awaitingEcho: awaitingEcho(tasks.list, echoId, nextPlc),
+  })
+  const decisionKey = JSON.stringify(decision) + (first?.id ?? '')
+  useEffect(() => {
+    if ('done' in decision && auto) {
+      setAuto(false)
+      toast.ok(withRobotChip(nextRobot, '자동 제출 완료 — 계획의 스텝을 모두 보냈습니다'))
+      return
+    }
+    if (decision.go && !inFlight.current) void submitNext(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 판단이 바뀔 때만 움직인다(매 렌더 새 객체)
+  }, [decisionKey])
 
   function pick(id: string | null) {
     setFocus(id)
@@ -280,6 +380,24 @@ export function PlanCard({
             <span className="text-3xs text-content-muted" data-testid={`plan-move-${r.no}`}>
               {moveLabel(r)}
             </span>
+          ) : null}
+          {r.type === 'MEASURE' ? (
+            // 비우면 자동 — 그 시점 셀 재고 1개 = Item, 2개 이상 = SKU. 자동이 고른 값을 옵션 글자로 보인다.
+            <Select
+              dense
+              className="w-auto"
+              value={r.measure ?? ''}
+              onValueChange={(v) =>
+                onChange(patch(steps, r.id, { measure: v === '' ? null : (v as MeasureMode) }))
+              }
+              aria-label="Measure"
+              title="MEASURE 종류 — auto: 셀 재고 1개 = Item, 2개 이상 = SKU"
+              data-testid={`plan-measure-${r.no}`}
+            >
+              <option value="">{`auto(${measureLabel(autoMeasureMode(r.stockBefore))})`}</option>
+              <option value="item">Item</option>
+              <option value="sku">SKU</option>
+            </Select>
           ) : null}
         </span>
       ),
@@ -443,11 +561,13 @@ export function PlanCard({
     }
   }
 
-  async function submitNext() {
-    if (!first) return
+  async function submitNext(isAuto = false) {
+    if (!first || inFlight.current) return
+    inFlight.current = true
     setBusy(true)
     try {
       const t = await api.taskCreate(toRequest(first, robots.selected, first.multiPick), true)
+      if (isAuto) setEchoId(t.id)
       // 스텝이 제 로봇을 들고 있으면(계획 표의 Robot 열) 그쪽, 아니면 카드 대상.
       const who =
         first.robot === null || first.robot === undefined ? robot : robots.chipOf(first.robot)
@@ -459,10 +579,17 @@ export function PlanCard({
       )
       onChange(remove(steps, first.id))
     } catch (e) {
+      // 자동 제출은 실패하면 멈춘다 — 같은 스텝을 계속 두드리지 않는다.
+      if (isAuto) setAuto(false)
       toast.error(
-        robotFailure(nextRobot.name, '제출 실패', e instanceof Error ? e.message : String(e)),
+        robotFailure(
+          nextRobot.name,
+          isAuto ? '자동 제출 멈춤 — 제출 실패' : '제출 실패',
+          e instanceof Error ? e.message : String(e),
+        ),
       )
     } finally {
+      inFlight.current = false
       setBusy(false)
     }
   }
@@ -622,15 +749,54 @@ export function PlanCard({
             시나리오로 저장…
           </Button>
           <span className="flex-1" />
+          {auto ? (
+            <span
+              className="truncate text-2xs text-content-muted tabular-nums"
+              data-testid="plan-auto-status"
+              title="로봇 큐 = 원장의 제출됨·수락·대기·실행 중 Task 수"
+            >
+              자동 · 큐 {queue}/{autoLimit}
+              {'wait' in decision && decision.wait !== '꺼짐' ? ` · ${decision.wait}` : ''}
+            </span>
+          ) : null}
+          <Input
+            dense
+            type="number"
+            mono
+            min={AUTO_LIMIT_MIN}
+            max={AUTO_LIMIT_MAX}
+            step="1"
+            className="w-12"
+            value={String(autoLimit)}
+            onValueChange={(v) => setAutoLimit(Number(v))}
+            title={`자동 제출 — 로봇 큐가 이 개수 이하일 때 다음 스텝을 보냅니다(${AUTO_LIMIT_MIN}~${AUTO_LIMIT_MAX})`}
+            aria-label="자동 제출 큐 한도"
+            data-testid="plan-auto-limit"
+          />
+          <Button
+            size="sm"
+            intent={auto ? 'primary' : 'outline'}
+            icon={auto ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            disabled={!auto && (!first || busy)}
+            title={
+              auto
+                ? '자동 제출 멈춤(보낸 Task 는 그대로)'
+                : `로봇 큐가 ${autoLimit}개 이하일 때마다 다음 스텝을 자동으로 보냅니다`
+            }
+            onClick={() => (auto ? setAuto(false) : setConfirmAuto(true))}
+            data-testid="plan-auto"
+          >
+            {auto ? '자동 멈춤' : '자동 제출'}
+          </Button>
           <Button
             size="sm"
             intent="primary"
             icon={<Send className="h-3.5 w-3.5" />}
-            disabled={!first || busy || !gate?.can_submit}
+            disabled={!first || busy || auto || !nextGate?.can_submit}
             title={
-              !gate?.can_submit
+              !nextGate?.can_submit
                 ? // 비활성은 침묵하지 않고 **누가 왜** 막았는지 말한다.
-                  (gate?.reasons.join(' · ') ?? withRobotChip(robot, '게이트 확인 중'))
+                  (nextGate?.reasons.join(' · ') ?? withRobotChip(nextRobot, '게이트 확인 중'))
                 : `첫 스텝만 지금 ${robotLabel(nextRobot)} 로 제출`
             }
             onClick={() => setConfirmNext(true)}
@@ -699,6 +865,25 @@ export function PlanCard({
       ) : null}
 
       <ConfirmDialog
+        open={confirmAuto}
+        onOpenChange={setConfirmAuto}
+        scope="single-robot"
+        danger
+        title={`자동 제출 — ${nextRobot.name}`}
+        confirmLabel="자동 제출 시작"
+        onConfirm={() => {
+          setEchoId(null)
+          setAuto(true)
+        }}
+      >
+        <div className="text-xs">
+          남은 {steps.length}스텝을 로봇 큐가 <b>{autoLimit}개 이하</b>일 때마다 한 건씩
+          보냅니다(스텝의 로봇, 없으면 {robotLabel(robot)}). 제출이 실패하면 멈추고, 게이트가 닫히면
+          열릴 때까지 기다립니다.
+        </div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
         open={confirmNext}
         onOpenChange={setConfirmNext}
         scope="single-robot"
@@ -719,7 +904,12 @@ export function PlanCard({
                 robotField(nextRobot, '대상 로봇'),
                 {
                   label: '종류',
-                  value: first.type === 'MOVE' ? `MOVE · ${moveLabel(first)}` : first.type,
+                  value:
+                    first.type === 'MOVE'
+                      ? `MOVE · ${moveLabel(first)}`
+                      : first.type === 'MEASURE' && first.measureMode
+                        ? `MEASURE · ${first.measure ? measureLabel(first.measureMode) : `auto(${measureLabel(first.measureMode)})`}`
+                        : first.type,
                 },
                 {
                   label: '대상',
