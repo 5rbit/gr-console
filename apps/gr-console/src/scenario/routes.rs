@@ -163,6 +163,16 @@ async fn run_stop(State(st): State<AppState>) -> ApiResult<RunState> {
 }
 
 #[derive(Deserialize)]
+struct SkipBody {
+    step_index: u32,
+}
+
+/// `POST /api/scenarios/run/skip` — 예정(아직 안 보낸) 스텝 지우기. 짝(PICK/DROP)은 같이 지운다.
+async fn run_skip(State(st): State<AppState>, axum::Json(b): axum::Json<SkipBody>) -> ApiResult<RunState> {
+    Ok(axum::Json(st.scenario.skip(b.step_index)?))
+}
+
+#[derive(Deserialize)]
 struct RunsQuery {
     limit: Option<usize>,
 }
@@ -181,6 +191,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/scenarios/run/pause", post(run_pause))
         .route("/api/scenarios/run/resume", post(run_resume))
         .route("/api/scenarios/run/stop", post(run_stop))
+        .route("/api/scenarios/run/skip", post(run_skip))
         .route("/api/scenarios/runs", get(runs))
         .route("/api/scenarios/runs/stream", get(runs_stream))
         .route("/api/scenarios/{id}", get(one).put(update).delete(delete))

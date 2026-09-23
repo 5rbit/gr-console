@@ -7,6 +7,7 @@ import { TASK_TYPE_OF_CODE } from '../gr/const'
 import type { PlcTask, Task, TaskState, WebMon } from '../types'
 
 export { STATE_LABEL, STATE_TONE } from '../gr/const'
+import { STATE_LABEL } from '../gr/const'
 
 /** PLC TaskType 코드 → 이름. 표에 없는 코드는 16진수 그대로(모르는 값을 이름으로 꾸미지 않는다). */
 export function typeName(code: number | undefined | null): string {
@@ -106,6 +107,44 @@ export function allowedActions(state: TaskState): TaskAction[] {
  * 같은 규칙). 한 작업(WorkId)은 TaskId 순서로 도는 조각들이라, 가운데를 취소하고 뒤를 두면 앞이
  * 만들지 않은 상태 위에서 뒤가 돈다. 확인 대화상자가 이 목록을 보여 준 뒤 묻는다.
  */
+/** Task 의 종류(PICK/DROP/…) — PLC 코드가 없으면 요청 종류. */
+function kindOf(t: Pick<Task, 'plc_task' | 'request'>): string {
+  const n = typeName(t.plc_task?.TaskType)
+  return n !== '-' ? n : (t.request?.type ?? '').toUpperCase()
+}
+
+/**
+ * 짝 취소(백엔드 `ledger::ops::pair_cancel` 과 같은 규칙) — 같은 이송 지시의 다른 Task 를 어떻게 하는지.
+ * PICK 취소는 짝 DROP 도, 시작 전 PICK 의 DROP 취소는 PICK 도 같이 지운다. PICK 이 돌거나 끝났으면 DROP 만 지우고
+ * 타이어가 그리퍼(Hand)에 남는다고 경고한다.
+ */
+export function pairCancel(
+  list: readonly Task[],
+  task: Task,
+): { with: Task[]; warning: string | null } {
+  const to = task.transfer_order_id
+  if (!to) return { with: [], warning: null }
+  const mates = list.filter((t) => t.id !== task.id && t.transfer_order_id === to)
+  const open = mates.filter((t) => !TERMINAL.includes(t.state)).sort((a, b) => b.seq - a.seq)[0]
+  const kind = kindOf(task)
+  if (kind === 'PICK') return { with: open ? [open] : [], warning: null }
+  if (kind === 'DROP') {
+    if (open && ['draft', 'submitted', 'accepted', 'queued'].includes(open.state))
+      return { with: [open], warning: null }
+    if (open)
+      return {
+        with: [],
+        warning: `짝 PICK #${open.seq} 이 ${STATE_LABEL[open.state]} — DROP 만 취소하면 타이어가 그리퍼(Hand)에 남습니다 (이송 지시 ${to})`,
+      }
+    if (mates.some((t) => t.state === 'completed'))
+      return {
+        with: [],
+        warning: `짝 PICK 은 이미 완료 — PLC 가 DROP 삭제와 함께 그리퍼 화물 데이터를 지우므로 콘솔 Hand 도 비우고 이송 지시 ${to} 를 중단합니다`,
+      }
+  }
+  return { with: [], warning: null }
+}
+
 export function cascadeAfter(
   tasks: readonly Pick<Task, 'id' | 'seq' | 'work_id' | 'task_id' | 'state'>[],
   task: Pick<Task, 'id' | 'work_id' | 'task_id'>,

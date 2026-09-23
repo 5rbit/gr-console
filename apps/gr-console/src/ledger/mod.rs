@@ -164,6 +164,9 @@ pub struct TaskRequest {
     /// (시나리오 실행기는 다음 스텝이 같은 스테이션 그룹이면 스스로 `Some(true)` 로 채운다).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub multi_pick: Option<bool>,
+    /// 이송 지시(PICK/DROP 한 짝, `stock::transfer`) — 실행기가 짝의 두 Task 에 같은 값을 단다.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transfer_order_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -208,6 +211,9 @@ pub struct LedgerEntry {
     /// 팔렛 슬롯 근거(`pallet::compose::PalletAudit`) — auto 로 고른 seq/단도 여기서 고정된다. doc_json 에 같이 저장.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pallet: Option<crate::pallet::compose::PalletAudit>,
+    /// 이송 지시 id(요청에서 옮겨 온다). `tasks.transfer_order_id` 열에도 같이 저장.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transfer_order_id: Option<String>,
 }
 
 impl LedgerEntry {
@@ -259,6 +265,11 @@ impl Ledger {
         Ok(())
     }
 
+    /// 파라미터(`params`)를 읽는 동기화 루프용.
+    pub fn db(&self) -> &Db {
+        &self.db
+    }
+
     /// Kept for the other slices (scenario / issue); the ledger itself does not need it.
     #[allow(dead_code)]
     pub fn plc_name(&self) -> &str {
@@ -288,8 +299,8 @@ impl Ledger {
         let doc = serde_json::to_string(&entry)?;
         self.db.with(|c| {
             c.execute(
-                "INSERT INTO tasks (id, seq, work_id, task_id, origin, plc, state, doc_json, created_at, updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
-                 ON CONFLICT(id) DO UPDATE SET state = excluded.state, doc_json = excluded.doc_json, updated_at = excluded.updated_at, work_id = excluded.work_id, task_id = excluded.task_id",
+                "INSERT INTO tasks (id, seq, work_id, task_id, origin, plc, state, doc_json, created_at, updated_at, transfer_order_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)
+                 ON CONFLICT(id) DO UPDATE SET state = excluded.state, doc_json = excluded.doc_json, updated_at = excluded.updated_at, work_id = excluded.work_id, task_id = excluded.task_id, transfer_order_id = excluded.transfer_order_id",
                 (
                     &entry.id,
                     entry.seq,
@@ -301,6 +312,7 @@ impl Ledger {
                     &doc,
                     &entry.created_at,
                     now_str(),
+                    &entry.transfer_order_id,
                 ),
             )
         })?;
@@ -362,7 +374,6 @@ impl Ledger {
             task_id: key.task_id,
             origin,
             plc_name: self.plc.clone(),
-            request,
             resolved,
             position: task.position,
             plc_task: task,
@@ -378,6 +389,8 @@ impl Ledger {
             history: vec![Transition { from: None, to: TaskState::Draft, at: now, by: Actor::Ui, note: None }],
             station_offset: None,
             pallet: None,
+            transfer_order_id: request.as_ref().and_then(|r| r.transfer_order_id.clone()),
+            request,
         };
         self.upsert(e)
     }
@@ -408,6 +421,7 @@ impl Ledger {
             history: vec![Transition { from: None, to: state, at: now, by: Actor::Plc, note: Some("seen on PLC".into()) }],
             station_offset: None,
             pallet: None,
+            transfer_order_id: None,
         };
         self.upsert(e)
     }

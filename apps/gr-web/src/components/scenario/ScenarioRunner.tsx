@@ -5,7 +5,7 @@
 // **고치는 동안**에는 그 대부분이 빈칸이었고(실행이 없으니까), 실행 중에는 편집기가 그만큼 좁아졌다.
 // 그래서 늘 보이는 것은 한 줄로 줄이고 — 상태 점 · 회차 · 스텝 · 지금 Task — 나머지(실행 로그 ·
 // 실행 이력)는 `⋯`로 옮겼다. 멈춤/재개/정지는 **실행 중일 때만** 선다(돌지 않을 때 멈출 것이 없다).
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ExternalLink, Pause, Play, Square } from 'lucide-react'
 import { runsFeed } from '../../lib/feeds'
 import { nav } from '../../lib/nav'
@@ -14,6 +14,7 @@ import { robotChip, robotFailure, withRobot } from '../../lib/robotContext'
 import { robotField } from '../shared/RobotChip'
 import { useSse } from '../../lib/sse'
 import { useStore } from '../../lib/store'
+import { tasks as taskStore } from '../../lib/tasks'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
@@ -32,11 +33,15 @@ import { scenarioApi, type RunOptions } from '../../lib/scenario/api'
 import {
   RUN_ACTIVE,
   RUN_STATE_LABEL,
+  phaseSummary,
+  stepPhases,
   type ScenarioRunView,
   type StepResultView,
   stepSummary,
 } from '../../lib/scenario/model'
 import { RunDialog } from './RunDialog'
+import { TaskActions } from '../taskmgr/TaskActions'
+import { ScheduledStepsDialog } from './ScheduledStepsDialog'
 
 export interface ScenarioRunnerProps {
   /** 편집 중인(저장된) 시나리오 — 실행 대상. */
@@ -79,7 +84,8 @@ async function act(
 }
 
 export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunnerProps) {
-  useStore(robots)
+  useStore(robots, taskStore)
+  useEffect(() => taskStore.start(), [])
   const feed = useSse(runsFeed)
   const run = feed.data as ScenarioRunView | null
   const state = run?.state ?? 'idle'
@@ -87,7 +93,10 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
   // 도는 실행이 있으면 그 실행의 로봇, 없으면 다음 실행이 갈 사이드바 선택.
   const runChip =
     run && state !== 'idle' && (run.robot_name || run.robot)
-      ? robotChip(robots.byId(run.robot ?? null), { name: run.robot_name ?? null, id: run.robot ?? null })
+      ? robotChip(robots.byId(run.robot ?? null), {
+          name: run.robot_name ?? null,
+          id: run.robot ?? null,
+        })
       : robots.chip
   const [runOpen, setRunOpen] = useState(false)
   const [stopOpen, setStopOpen] = useState(false)
@@ -107,7 +116,8 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
   const start = async (opts: RunOptions) => {
     if (!scenario) return
     setRunOpen(false)
-    const who = opts.robot !== null && opts.robot !== undefined ? robots.nameOf(opts.robot) : robots.chip.name
+    const who =
+      opts.robot !== null && opts.robot !== undefined ? robots.nameOf(opts.robot) : robots.chip.name
     await act(who, '실행 시작', () => scenarioApi.run(scenario.id, opts))
   }
   const openHistory = async () => {
@@ -119,6 +129,20 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
     }
   }
 
+  // 결과는 도달 때(접수) 상태로 남는다 — 미리 넣은 Task 는 그 뒤에도 움직이므로 원장의 **지금** 상태로 본다.
+  const live = (id: string) => taskStore.get(id)
+  const phases = run
+    ? stepPhases(
+        run.step_count,
+        run.iteration,
+        run.results,
+        (id) => live(id)?.state,
+        (run as { skipped?: [number, number][] }).skipped ?? [],
+      )
+    : []
+  const [schedOpen, setSchedOpen] = useState(false)
+  const sameScenario = !!(run && scenario && run.scenario_id === scenario.id)
+  const scheduled = phases.filter((p) => p === '예정').length
   const results = (run?.results ?? []).slice().reverse()
   const last = run?.results.length ? run.results[run.results.length - 1] : null
   const lastAck = last?.ack
@@ -145,11 +169,28 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
       key: 'state',
       label: 'State',
       sortable: false,
-      cell: (r) => (
-        <StatusBadge status={STATE_TONE[r.state]} dot={false}>
-          {STATE_LABEL[r.state]}
-        </StatusBadge>
-      ),
+      cell: (r) => {
+        const s = (r.task_id ? live(r.task_id)?.state : null) ?? r.state
+        return (
+          <StatusBadge status={STATE_TONE[s]} dot={false}>
+            {STATE_LABEL[s]}
+          </StatusBadge>
+        )
+      },
+    },
+    {
+      key: 'to',
+      label: 'TransferOrder',
+      sortable: false,
+      priority: 3,
+      cell: (r) => {
+        const to = r.task_id ? live(r.task_id)?.transfer_order_id : null
+        return to ? (
+          <span className="font-mono text-2xs">{to}</span>
+        ) : (
+          <span className="text-content-faint">—</span>
+        )
+      },
     },
     {
       key: 'task',
@@ -338,6 +379,15 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
             ) : null}
           </>
         ) : null}
+        {showRun && phases.length ? (
+          <span
+            className="text-2xs text-content-muted"
+            title={phases.map((p, i) => `${i + 1} ${p}`).join(' · ')}
+            data-testid="run-phases"
+          >
+            {phaseSummary(phases)}
+          </span>
+        ) : null}
         {note ? (
           <span className="max-w-72 truncate text-2xs text-warn-fg" title={note}>
             {note}
@@ -355,11 +405,29 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
                 run: () => setLogOpen(true),
               },
               { label: '실행 이력 (최근 50)', run: () => void openHistory() },
+              {
+                label: `예정 스텝 (${scheduled})…`,
+                disabled: !active
+                  ? '실행 중이 아닙니다'
+                  : !sameScenario
+                    ? '실행 중인 시나리오를 열어야 합니다'
+                    : undefined,
+                run: () => setSchedOpen(true),
+              },
             ]}
           />
         </span>
       </div>
 
+      {run && scenario && sameScenario ? (
+        <ScheduledStepsDialog
+          open={schedOpen}
+          onOpenChange={setSchedOpen}
+          run={run as unknown as ScenarioRun}
+          scenario={scenario}
+          phases={phases}
+        />
+      ) : null}
       <RunDialog
         open={runOpen}
         scenario={scenario}
@@ -458,6 +526,11 @@ export function ScenarioRunner({ scenario, dirty, onOpenScenario }: ScenarioRunn
           empty="기록 없음"
           emptyHint="이번 실행에서 끝난 스텝이 아직 없습니다."
           testid="run-log"
+          // 스텝별 취소 — 이미 로봇 대기열에 들어간(미리 넣은) Task 를 여기서 지운다. 짝(PICK/DROP)은 확인 창이 말한다.
+          actions={(r) => {
+            const t = r.task_id ? live(r.task_id) : null
+            return t ? <TaskActions task={t} row only={['cancel']} testid="run-row-action" /> : null
+          }}
         />
       </Dialog>
 

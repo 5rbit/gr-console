@@ -12,9 +12,11 @@ import type {
   Station,
   StepResult,
   TaskParams,
+  TaskState,
   TaskType,
 } from '../types'
 import { PARAM_LABELS, TASK_TYPES } from '../gr/const'
+import { pairIssuesOf } from '../task/plan'
 
 export interface ValidationIssue {
   /** `null` = 시나리오 수준(이름·스텝 없음). */
@@ -123,7 +125,11 @@ export function toUpsert(s: Scenario): ScenarioUpsert {
     name: s.name,
     description: s.description,
     repeat: s.repeat,
-    steps: s.steps.map((st) => ({ ...st, target: st.target ? { ...st.target } : null, params: { ...st.params } })),
+    steps: s.steps.map((st) => ({
+      ...st,
+      target: st.target ? { ...st.target } : null,
+      params: { ...st.params },
+    })),
   }
 }
 
@@ -145,7 +151,8 @@ export function paramCount(step: ScenarioStep): number {
 /** 한 줄 요약 — "PICK Cell#101 ×2 · 1001". */
 export function stepSummary(step: ScenarioStep): string {
   const parts: string[] = [step.type]
-  if (step.target) parts.push(`${TARGET_KIND_LABEL[step.target.kind] ?? step.target.kind}#${step.target.id}`)
+  if (step.target)
+    parts.push(`${TARGET_KIND_LABEL[step.target.kind] ?? step.target.kind}#${step.target.id}`)
   if (step.count > 1) parts.push(`×${step.count}`)
   if (step.item_code !== null) parts.push(`· ${step.item_code}`)
   return parts.join(' ')
@@ -158,7 +165,10 @@ export interface RegistryLists {
 }
 
 /** 로컬 검증 — 백엔드 `validate`와 같은 규칙. 레지스트리 목록이 비어 있으면(아직 안 받음) 참조 검사는 건너뛴다. */
-export function validateScenario(s: ScenarioUpsert, reg?: Partial<RegistryLists>): ValidationIssue[] {
+export function validateScenario(
+  s: ScenarioUpsert,
+  reg?: Partial<RegistryLists>,
+): ValidationIssue[] {
   const out: ValidationIssue[] = []
   if (!s.name.trim()) out.push({ step_index: null, field: 'name', message: '이름이 비어 있음' })
   if (s.steps.length === 0) out.push({ step_index: null, field: 'steps', message: '스텝이 없음' })
@@ -170,7 +180,8 @@ export function validateScenario(s: ScenarioUpsert, reg?: Partial<RegistryLists>
     if (!TASK_TYPES.includes(st.type)) push('type', `알 수 없는 작업 종류 '${st.type}'`)
     if (!Number.isInteger(st.count) || st.count < 1) push('count', '수량은 1 이상')
     else if (st.count > 255) push('count', '수량은 255 이하')
-    if (NEEDS_ITEM.has(st.type) && st.item_code === null) push('item_code', `${st.type}에는 품목이 필요`)
+    if (NEEDS_ITEM.has(st.type) && st.item_code === null)
+      push('item_code', `${st.type}에는 품목이 필요`)
     if (st.item_code !== null && items && !items.has(st.item_code))
       push('item_code', `품목 ${st.item_code} 이(가) 레지스트리에 없음`)
     if (!st.target) {
@@ -184,14 +195,110 @@ export function validateScenario(s: ScenarioUpsert, reg?: Partial<RegistryLists>
       else if (st.target.kind === 'station' && stations && !stations.has(st.target.id))
         push('target', `스테이션 ${st.target.id} 이(가) 레지스트리에 없음`)
     }
-    if (!Number.isInteger(st.wait_after_ms) || st.wait_after_ms < 0) push('wait_after_ms', '대기 시간은 0 이상')
+    if (!Number.isInteger(st.wait_after_ms) || st.wait_after_ms < 0)
+      push('wait_after_ms', '대기 시간은 0 이상')
     for (const [k, v] of Object.entries(st.params)) {
       if (!PARAM_KEYS.has(k)) push('params', `알 수 없는 파라미터 '${k}'`)
-      else if (BOOL_PARAM_KEYS.has(k as keyof TaskParams) ? typeof v !== 'boolean' : typeof v !== 'number')
+      else if (
+        BOOL_PARAM_KEYS.has(k as keyof TaskParams) ? typeof v !== 'boolean' : typeof v !== 'number'
+      )
         push('params', `'${k}' 값 형식 오류`)
     }
   })
+  // PICK/DROP 짝(백엔드 `validate_pairs`) — 같은 로봇의 다음 스텝이 짝 DROP. 다른 로봇 스텝은 사이에 와도 된다.
+  for (const p of pairIssuesOf(s.steps))
+    out.push({ step_index: p.index, field: 'type', message: p.message })
   return out
+}
+
+/** 실행 화면의 스텝 상태 — 아직 안 보낸 스텝은 **예정**. */
+export type StepPhase = '예정' | '제출됨' | '실행 중' | '완료' | '실패' | '삭제'
+
+export function phaseOf(state: TaskState | null | undefined): StepPhase {
+  switch (state) {
+    case 'submitted':
+    case 'accepted':
+    case 'queued':
+      return '제출됨'
+    case 'running':
+      return '실행 중'
+    case 'completed':
+      return '완료'
+    case 'rejected':
+    case 'failed':
+    case 'canceled':
+    case 'lost':
+      return '실패'
+    default:
+      return '예정'
+  }
+}
+
+/**
+ * 이번 회차 스텝별 상태 — 각 스텝의 마지막 결과가 가리키는 Task 의 **지금** 상태(`live`, 없으면 결과 때 상태).
+ * 결과가 없으면 예정, Task 없이 끝난 결과(작성·제출 실패)는 실패.
+ */
+export function stepPhases(
+  stepCount: number,
+  iteration: number,
+  results: readonly StepResultView[],
+  live: (taskId: string) => TaskState | null | undefined,
+  skipped: readonly [number, number][] = [],
+): StepPhase[] {
+  const out: StepPhase[] = Array.from({ length: stepCount }, () => '예정')
+  for (const r of results) {
+    if (r.iteration !== iteration || r.step_index < 0 || r.step_index >= stepCount) continue
+    out[r.step_index] = r.task_id ? phaseOf(live(r.task_id) ?? r.state) : '실패'
+  }
+  for (const [it, i] of skipped) if (it === iteration && i >= 0 && i < stepCount) out[i] = '삭제'
+  return out
+}
+
+/**
+ * 예정 스텝 지우기(백엔드 `runner::skip_set` 과 같은 규칙) — 짝까지 묶은 스텝 목록, 또는 지울 수 없는 사유.
+ * 보낸 스텝(지난 스텝 · 지금 보낸 스텝 · 결과에 Task 가 있는 스텝)은 Task 취소로. PICK 을 지우면 같은 로봇의 짝 DROP 도,
+ * 아직 안 나간 PICK 의 DROP 을 지우면 그 PICK 도.
+ */
+export function skipSet(
+  steps: readonly { type: TaskType; robot?: number | null }[],
+  runRobot: number | null,
+  cur: { iteration: number; step_index: number; sent: boolean },
+  results: readonly StepResultView[],
+  idx: number,
+): { steps: number[] } | { error: string } {
+  const robotOf = (i: number) => steps[i].robot ?? runRobot
+  const sent = (i: number) =>
+    i < cur.step_index ||
+    (i === cur.step_index && cur.sent) ||
+    results.some((r) => r.iteration === cur.iteration && r.step_index === i && !!r.task_id)
+  if (idx < 0 || idx >= steps.length) return { error: `스텝 ${idx + 1} 없음` }
+  if (sent(idx)) return { error: `스텝 ${idx + 1} 은 이미 로봇에 보냄 — Task 취소로 지우세요` }
+  const out = [idx]
+  if (steps[idx].type === 'PICK') {
+    const j = steps.findIndex((_, k) => k > idx && robotOf(k) === robotOf(idx))
+    if (j >= 0 && steps[j].type === 'DROP') out.push(j)
+  } else if (steps[idx].type === 'DROP') {
+    let p = idx - 1
+    while (p >= 0 && robotOf(p) !== robotOf(idx)) p--
+    if (p >= 0 && steps[p].type === 'PICK') {
+      if (sent(p))
+        return {
+          error: `짝 PICK(스텝 ${p + 1}) 이 이미 나감 — DROP 만 지우면 타이어가 그리퍼에 남습니다. Task 취소로 처리하세요`,
+        }
+      out.push(p)
+    }
+  }
+  return { steps: out.sort((a, b) => a - b) }
+}
+
+/** "완료 3 · 실행 중 1 · 예정 4" — 0 인 것은 뺀다. */
+export function phaseSummary(phases: readonly StepPhase[]): string {
+  const order: StepPhase[] = ['완료', '실행 중', '제출됨', '예정', '실패']
+  return order
+    .map((p) => [p, phases.filter((x) => x === p).length] as const)
+    .filter(([, n]) => n > 0)
+    .map(([p, n]) => `${p} ${n}`)
+    .join(' · ')
 }
 
 /** 검증 결과를 (스텝, 필드) → 메시지로 — 그리드가 칸을 붉게 칠할 때 쓴다. */

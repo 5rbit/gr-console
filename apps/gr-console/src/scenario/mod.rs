@@ -242,6 +242,8 @@ pub struct RunState {
     pub note: Option<String>,
     /// Last `MAX_RESULTS` step results (oldest first).
     pub results: Vec<StepResult>,
+    /// 사람이 지운 예정 스텝 `(회차, 스텝)` — 실행기는 차례가 와도 보내지 않는다.
+    pub skipped: Vec<(u32, u32)>,
 }
 
 pub const MAX_RESULTS: usize = 200;
@@ -278,6 +280,8 @@ pub struct Runner {
     active: Mutex<Option<Active>>,
     /// 콘솔 종료로 멈춘 실행인가 — 원장에 그렇게 남기고, 새 실행은 받지 않는다.
     shutting_down: std::sync::atomic::AtomicBool,
+    /// 지금 실행의 스텝·계획(예정 스텝 지우기가 짝을 찾는다).
+    plan: Mutex<Option<(Vec<Step>, runner::Plan)>>,
 }
 
 /// 종료로 멈춘 실행에 남기는 사유.
@@ -288,7 +292,7 @@ impl Runner {
         let (tx, _) = broadcast::channel(64);
         // Runs left open by a previous process can never finish — mark them lost.
         let _ = db.with(|c| c.execute("UPDATE scenario_runs SET status = 'lost', ended_at = COALESCE(ended_at, ?1) WHERE status IN ('running','paused','stopping')", [now_str()]));
-        Arc::new(Runner { db, run: Mutex::new(RunState::idle()), events: tx, active: Mutex::new(None), shutting_down: std::sync::atomic::AtomicBool::new(false) })
+        Arc::new(Runner { db, run: Mutex::new(RunState::idle()), events: tx, active: Mutex::new(None), shutting_down: std::sync::atomic::AtomicBool::new(false), plan: Mutex::new(None) })
     }
 
     pub fn current(&self) -> RunState {
@@ -399,6 +403,12 @@ impl Runner {
             active.take();
         }
         let plan = runner::Plan::new(&scenario, &opts)?;
+        // PICK/DROP 은 늘 한 짝 — 어긋난 계획은 시작하지 않는다(스텝별 사유).
+        let pairs = io::validate_pairs(&scenario.steps, plan.robot, plan.start_step);
+        if !pairs.is_empty() {
+            let why: Vec<String> = pairs.iter().map(|i| format!("스텝 {}: {}", i.step_index.map(|n| n + 1).unwrap_or(0), i.message)).collect();
+            return Err(ApiError::BadRequest(format!("PICK/DROP 짝이 맞지 않아 실행하지 않음 — {}", why.join("; "))));
+        }
         // 없는 로봇으로 달리면 첫 스텝에서야 실패한다 — 시작 전에 막는다.
         // 로봇을 안 든 스텝이 가는 곳 — 둘 이상이면 반드시 받는다(빠지면 첫 로봇으로 가던 계획 카드 "저장 후 실행").
         let run_robot = st.robot_required(plan.robot, "시나리오 실행")?;
@@ -427,7 +437,9 @@ impl Runner {
             error: None,
             note: None,
             results: vec![],
+            skipped: vec![],
         };
+        *self.plan.lock().unwrap_or_else(PoisonError::into_inner) = Some((scenario.steps.clone(), plan));
         let snap = self.update(|g| *g = rs);
         let _ = self.persist_run(&snap);
         let (ctl_tx, ctl_rx) = watch::channel(Ctl::default());
@@ -504,6 +516,27 @@ impl Runner {
             }
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         }
+    }
+
+    /// 예정 스텝 지우기(이번 회차) — 콘솔만 들고 있는 스텝이라 PLC 와 무관, 어느 모드에서나 된다. 짝은 같이 지운다.
+    pub fn skip(&self, step_index: u32) -> Result<RunState, ApiError> {
+        let cur = self.current();
+        if !matches!(cur.state, Phase::Running | Phase::Paused) {
+            return Err(ApiError::Conflict(format!("run is {}", cur.state.as_str())));
+        }
+        let guard = self.plan.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some((steps, plan)) = guard.as_ref() else { return Err(ApiError::Conflict("실행 계획 없음".into())) };
+        let at = runner::Cursor { iteration: cur.iteration.max(1), step_index: cur.step_index };
+        let set = runner::skip_set(steps, plan, at, cur.current_task_id.is_some(), &cur.results, step_index).map_err(ApiError::Conflict)?;
+        drop(guard);
+        Ok(self.update(|g| {
+            for i in set {
+                let k = (at.iteration, i);
+                if !g.skipped.contains(&k) {
+                    g.skipped.push(k);
+                }
+            }
+        }))
     }
 
     pub fn stop(&self) -> Result<RunState, ApiError> {

@@ -1,3 +1,4 @@
+mod area;
 mod backup;
 mod bundle;
 mod cmd;
@@ -15,6 +16,7 @@ mod logsink;
 mod measure;
 mod pallet;
 mod para;
+mod params;
 mod plc;
 mod record;
 mod registry;
@@ -27,6 +29,7 @@ mod sse;
 mod state;
 mod status;
 mod stock;
+mod taskgen;
 mod trace;
 mod util;
 
@@ -331,6 +334,19 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!("trace disabled: {}", trace_why.join("; "));
     }
     let st = AppState { cfg: cfg.clone(), plcs, cmd, robots, task_events, db, ledger, registry, scenario, stock, recorder, trace, events, shutdown: sd.clone() };
+    // 로봇 실제 상태(HoldItem · 링)와 Hand · 이송 지시를 상시 맞춘다 — 콘솔 DB 만 고친다.
+    stock::sync::spawn(st.clone());
+    // Task 생성 엔진 — 자동 생성은 기본 꺼짐(설정 auto), 후보·점수는 늘 계산해 보여 준다.
+    taskgen::run::spawn(st.clone());
+    // 콘솔이 꺼진 동안 끝난(원장 완료, 재고 미반영) Task 를 원장 순서로 반영 — 손 정정 가드는 같다.
+    {
+        let all: Vec<_> = st.robots.iter().flat_map(|r| r.ledger.list()).collect();
+        match st.stock.catch_up(&all) {
+            Ok(n) if n > 0 => tracing::info!(applied = n, "stock: caught up completions while offline"),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("stock: catch-up failed: {e}"),
+        }
+    }
 
     stock::conveyor::spawn(st.clone());
 

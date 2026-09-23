@@ -573,6 +573,8 @@ export interface TaskRequest {
   pallet?: PalletRef | null
   /** Multi-Picking 상황(스테이션 PICK/DROP) — 기본값 `situations.multi_pick` 층을 얹는다. */
   multi_pick?: boolean | null
+  /** 이송 지시(PICK/DROP 한 짝) — 실행기가 단다. */
+  transfer_order_id?: string | null
 }
 
 /** `{seq, level}`(1-based) 또는 `{auto: true}`(스테이션 재고로 다음 슬롯). */
@@ -603,6 +605,8 @@ export interface Task {
   plc: { step: number; queue_index: number | null; last_seen_at: string } | null
   error: string | null
   history: TaskTransition[]
+  /** 이송 지시(PICK/DROP 한 짝, `TO-YYMMDD-NNNN`) */
+  transfer_order_id?: string | null
 }
 
 export interface TaskPage {
@@ -699,6 +703,8 @@ export interface ScenarioRun {
   ended_at: string | null
   error: string | null
   results: StepResult[]
+  /** 사람이 지운 예정 스텝 `[회차, 스텝]` */
+  skipped?: [number, number][]
 }
 
 // ── PLC 미러 페이로드 — PLC PascalCase 그대로 ─────────────────────────────────
@@ -968,6 +974,91 @@ export type StockEvent =
   | { kind: 'snapshot'; stock: StockEntry[] }
   | { kind: 'upsert'; entry: StockEntry; reason: string }
   | { kind: 'remove'; cell_id: number }
+  | { kind: 'hand'; hand: HandEntry; reason: string }
+  | { kind: 'sync'; plc: string; issues: SyncIssue[] }
+
+/** 로봇 실제 상태(PLC HoldItem · 링)와 콘솔 Hand · 이송 지시의 불일치(`stock/sync.rs`). */
+export interface SyncIssue {
+  code: 'hand_stale' | 'plc_holds' | 'sensor_mismatch' | 'task_lost' | string
+  message: string
+  transfer_order_id: string | null
+  /** 한 번에 고치는 동작 — `clear_hand` · `adopt_plc`(콘솔 DB 만 고친다) */
+  actions: string[]
+  /** `apply_task`/`ignore_task` 대상 Task */
+  task_id?: string | null
+  candidate?: [number, number]
+  since: string
+}
+
+/** 로봇 그리퍼에 든 화물(PICK 완료로 들어오고 DROP 완료로 나간다). `plc` = 로봇 상태 PLC. */
+export interface HandEntry {
+  plc: string
+  item_code: number
+  count: number
+  transfer_order_id?: string | null
+  updated_at: string
+}
+
+/** `GET /api/stock/hands` 한 줄 — 표 값 + 진행 중 PICK/DROP 을 반영한 예상 값. */
+export interface HandView extends HandEntry {
+  robot: number
+  robot_name: string
+  projected: { item_code: number; count: number }
+  pending: number
+  lost: number
+}
+
+/** `GET /api/stock/projected` — 셀 재고 + Hand 에 진행 중 PICK/DROP 을 접은 값(계획 표의 출발점). */
+export interface StockProjected {
+  cells: StockEntry[]
+  hands: { plc: string; robot: number | null; item_code: number; count: number }[]
+}
+
+export type TransferOrderState =
+  'planned' | 'picking' | 'in_hand' | 'dropping' | 'done' | 'failed' | 'aborted'
+
+/** 이송 지시 — PICK/DROP 한 짝(`stock::transfer`). */
+export interface TransferOrder {
+  id: string
+  seq: number
+  robot: number | null
+  plc: string
+  item_code: number
+  count: number
+  from: Target | null
+  to: Target | null
+  pick_task: string | null
+  drop_task: string | null
+  pick_state: TaskState | null
+  drop_state: TaskState | null
+  state: TransferOrderState
+  source: string
+  note: string
+  created_at: string
+  updated_at: string
+  ended_at: string | null
+  history: { at: string; from: TransferOrderState | null; to: TransferOrderState; note: string }[]
+}
+
+export interface StockChange {
+  id: number
+  at: string
+  kind: 'cell' | 'hand'
+  key: string
+  item_before: number
+  count_before: number
+  item_after: number
+  count_after: number
+  reason: string
+  task_id: string | null
+  transfer_order_id: string | null
+}
+
+export interface TransferOrderDetail {
+  order: TransferOrder
+  tasks: Task[]
+  stock_changes: StockChange[]
+}
 
 /** `GET /api/stock/snapshots` 한 줄 — 한꺼번에 바꾸기 직전의 재고 표 전체(되돌리기용). */
 export interface StockSnapshotInfo {

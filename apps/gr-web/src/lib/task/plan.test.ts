@@ -22,6 +22,9 @@ import {
   toRequest,
   redo,
   simulateStock,
+  foldStock,
+  pairIssues,
+  removeWithPair,
   stackZ,
   stepForClick,
   stepErrors,
@@ -215,6 +218,134 @@ describe('plan', () => {
     expect(sim.get(102)?.count).toBe(0)
   })
 
+  it('pairIssues: PICK must be followed by its DROP (same robot, item, count)', () => {
+    const st = (
+      id: string,
+      type: PlanStep['type'],
+      item: number | null,
+      count = 1,
+      robot?: number,
+    ): PlanStep => ({
+      id,
+      type,
+      target: { kind: 'cell', id: 101 },
+      item_code: item,
+      count,
+      note: '',
+      robot,
+    })
+    expect(
+      pairIssues([
+        st('m', 'MOVE', null),
+        st('a', 'PICK', 7, 2),
+        st('b', 'DROP', 7, 2),
+        st('c', 'MEASURE', 7),
+      ]),
+    ).toEqual([])
+    const gap = pairIssues([st('a', 'PICK', 7), st('m', 'MOVE', null), st('b', 'DROP', 7)])
+    expect(gap.map((p) => p.no)).toEqual([1, 3])
+    // 다른 로봇의 스텝(회피 MOVE · 다른 짝)은 사이에 와도 된다
+    expect(
+      pairIssues([
+        st('a', 'PICK', 7, 1, 1),
+        st('m', 'MOVE', null, 1, 2),
+        st('c', 'PICK', 8, 1, 2),
+        st('b', 'DROP', 7, 1, 1),
+        st('d', 'DROP', 8, 1, 2),
+      ]),
+    ).toEqual([])
+    expect(pairIssues([st('a', 'PICK', 7), st('b', 'DROP', 8)])[0].message).toContain('품목 8')
+    expect(pairIssues([st('a', 'PICK', 7, 2), st('b', 'DROP', 7, 1)])[0].message).toContain('수량')
+    expect(pairIssues([st('a', 'PICK', 7), st('b', 'DROP', 7, 1, 2)], 1).map((p) => p.no)).toEqual([
+      1, 2,
+    ])
+    expect(pairIssues([st('a', 'PICK', 7), st('b', 'DROP', 7, 1, 2)], 2)).toEqual([])
+    expect(pairIssues([st('a', 'PICK', 7)])[0].message).toContain('짝 DROP')
+    // 짝 위반은 행 경고로도 선다
+    const rows = planRows([st('a', 'PICK', 1001), st('m', 'MOVE', null)], ctx)
+    expect(rows[0].warnings.some((w) => w.includes('짝 DROP'))).toBe(true)
+  })
+
+  it('removeWithPair deletes the pair together (same robot)', () => {
+    const st = (id: string, type: PlanStep['type'], robot?: number): PlanStep => ({
+      id,
+      type,
+      target: { kind: 'cell', id: 101 },
+      item_code: 1,
+      count: 1,
+      note: '',
+      robot,
+    })
+    const steps = [st('a', 'PICK', 1), st('m', 'MOVE', 2), st('b', 'DROP', 1), st('c', 'MOVE', 1)]
+    expect(removeWithPair(steps, 'a').next.map((s) => s.id)).toEqual(['m', 'c'])
+    expect(removeWithPair(steps, 'b').removed.map((s) => s.id)).toEqual(['a', 'b'])
+    expect(removeWithPair(steps, 'm').next.map((s) => s.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('planRows warns when neighbouring steps of two robots are closer than the separation', () => {
+    const cellsX = [
+      { ...ctx.cells[0], id: 501, position: [4000, 0, 1500] },
+      { ...ctx.cells[0], id: 502, position: [5500, 0, 1500] },
+      { ...ctx.cells[0], id: 503, position: [9000, 0, 1500] },
+    ] as typeof ctx.cells
+    const mv = (id: string, cell: number, robot: number): PlanStep => ({
+      id,
+      type: 'MOVE',
+      target: { kind: 'cell', id: cell },
+      item_code: null,
+      count: 1,
+      note: '',
+      robot,
+    })
+    const rows = planRows([mv('a', 501, 1), mv('b', 502, 2), mv('c', 503, 1)], {
+      ...ctx,
+      cells: cellsX,
+      anticolSep: 2403,
+      robotName: (id) => `GR${id}`,
+    })
+    expect(rows[1].warnings.some((w) => w.includes('GR1 X 4000') && w.includes('2403'))).toBe(true)
+    expect(rows[2].warnings.some((w) => w.includes('영역'))).toBe(false)
+  })
+
+  it('planRows starts from the robot hand (tires already on the gripper)', () => {
+    const drop: PlanStep = {
+      id: 'd',
+      type: 'DROP',
+      target: { kind: 'cell', id: 102 },
+      item_code: 1001,
+      count: 1,
+      note: '',
+    }
+    const pick: PlanStep = {
+      id: 'p',
+      type: 'PICK',
+      target: { kind: 'cell', id: 101 },
+      item_code: 1001,
+      count: 1,
+      note: '',
+    }
+    expect(
+      planRows([pick, drop], { ...ctx, hand: { item_code: 1001, count: 1 } })[0].warnings,
+    ).toContain('이미 들고 있음 (앞의 PICK 미완)')
+    expect(planRows([pick, drop], { ...ctx, hand: null })[0].warnings).not.toContain(
+      '이미 들고 있음 (앞의 PICK 미완)',
+    )
+  })
+
+  it('foldStock mirrors the backend stock fold (completion and pre-queue projection)', () => {
+    const cur = { item_code: 1001, count: 3 }
+    expect(foldStock(cur, 'DROP', 1001, 1)).toEqual({ item_code: 1001, count: 4 })
+    expect(foldStock(cur, 'PICK', 1001, 2)).toEqual({ item_code: 1001, count: 1 })
+    expect(foldStock(cur, 'PICK', 1001, 5)).toEqual({ item_code: 0, count: 0 })
+    // 품목 모르는 재고에서 일부 PICK → 스텝 품목으로 채운다(백엔드와 같음)
+    expect(foldStock({ item_code: 0, count: 3 }, 'PICK', 2002, 1)).toEqual({
+      item_code: 2002,
+      count: 2,
+    })
+    expect(foldStock(cur, 'MOVE', null, 1)).toBe(cur)
+    expect(foldStock(cur, 'MEASURE', 1001, 1)).toBe(cur)
+  })
+
   it('planRows computes Z from simulated stock and flags problems', () => {
     const steps: PlanStep[] = [
       {
@@ -325,6 +456,10 @@ describe('plan', () => {
     expect(sc.steps.length).toBe(3)
     expect(sc.steps[1].label).toBe('2. DROP Station #2101')
     expect(sc.steps[0].wait_for).toBe('completed')
+    // Pre-queue: 모든 스텝이 접수(accepted)까지만 기다린다
+    const pq = toScenario(steps, 'plan', '', { preQueue: true })
+    expect(pq.steps.every((s) => s.wait_for === 'accepted')).toBe(true)
+    expect(toScenario(steps, 'plan', '', { preQueue: false }).steps[2].wait_for).toBe('completed')
     const o = overlay(steps)
     expect(o.badges.get('cell-101')).toEqual([
       { no: 1, type: 'PICK' },

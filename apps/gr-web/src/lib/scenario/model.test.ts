@@ -6,13 +6,30 @@ import {
   moveStep,
   newStep,
   paramCount,
+  phaseSummary,
+  skipSet,
+  stepPhases,
   stepSummary,
   validateScenario,
+  type StepResultView,
 } from './model'
-import type { Cell, Item, ScenarioUpsert, Station } from '../types'
+import type { Cell, Item, ScenarioUpsert, Station, TaskState } from '../types'
 
 const cell = (id: number): Cell =>
-  ({ id, use: true, blend_use: false, section: 1, row: 1, col: 1, length: 0, width: 0, position: [0, 0, 0], source: 'plc', dirty: false, updated_at: '' }) as Cell
+  ({
+    id,
+    use: true,
+    blend_use: false,
+    section: 1,
+    row: 1,
+    col: 1,
+    length: 0,
+    width: 0,
+    position: [0, 0, 0],
+    source: 'plc',
+    dirty: false,
+    updated_at: '',
+  }) as Cell
 const station = (id: number): Station => ({ id }) as Station
 const item = (code: number): Item => ({ code, name: `i${code}` }) as Item
 const reg = { cells: [cell(101), cell(102)], stations: [station(2101)], items: [item(1001)] }
@@ -23,9 +40,30 @@ function sample(): ScenarioUpsert {
     description: '',
     repeat: 2,
     steps: [
-      newStep({ id: 'a', label: 'pick', type: 'PICK', target: { kind: 'cell', id: 101 }, item_code: 1001, count: 2 }),
-      newStep({ id: 'b', label: 'drop', type: 'DROP', target: { kind: 'station', id: 2101 }, item_code: 1001 }),
-      newStep({ id: 'c', label: 'meas', type: 'MEASURE', target: { kind: 'cell', id: 102 }, item_code: 1001, params: { measure_item: true } }),
+      newStep({
+        id: 'a',
+        label: 'pick',
+        type: 'PICK',
+        target: { kind: 'cell', id: 101 },
+        item_code: 1001,
+        count: 2,
+      }),
+      newStep({
+        id: 'b',
+        label: 'drop',
+        type: 'DROP',
+        target: { kind: 'station', id: 2101 },
+        item_code: 1001,
+        count: 2,
+      }),
+      newStep({
+        id: 'c',
+        label: 'meas',
+        type: 'MEASURE',
+        target: { kind: 'cell', id: 102 },
+        item_code: 1001,
+        params: { measure_item: true },
+      }),
     ],
   }
 }
@@ -35,7 +73,13 @@ describe('newStep / cloneStep / duplicateScenario', () => {
     const a = newStep()
     const b = newStep()
     expect(a.id).not.toBe(b.id)
-    expect(a).toMatchObject({ type: 'PICK', count: 1, wait_for: 'completed', on_failure: 'stop', params: {} })
+    expect(a).toMatchObject({
+      type: 'PICK',
+      count: 1,
+      wait_for: 'completed',
+      on_failure: 'stop',
+      params: {},
+    })
   })
   it('복제는 id만 새로, 나머지는 깊은 복사', () => {
     const s = sample().steps[0]
@@ -50,6 +94,65 @@ describe('newStep / cloneStep / duplicateScenario', () => {
     expect(d.id).toBeUndefined()
     expect(d.name).toBe('삼단 (복사)')
     expect(d.steps.map((s) => s.id)).not.toContain('a')
+  })
+})
+
+describe('PICK/DROP 짝 · 스텝 상태', () => {
+  it('짝이 어긋나면 스텝별 이슈', () => {
+    const s = sample()
+    s.steps[1] = { ...s.steps[1], count: 1 }
+    expect(validateScenario(s).map((i) => [i.step_index, i.message])).toEqual([
+      [0, '짝 DROP(스텝 2) 수량 1 ≠ 2'],
+    ])
+    const t = sample()
+    t.steps = [t.steps[1], t.steps[0]]
+    expect(validateScenario(t).map((i) => i.step_index)).toEqual([0, 1])
+  })
+  it('스텝 상태: 지금 Task 상태, 결과 없으면 예정', () => {
+    const r = (
+      step_index: number,
+      task_id: string | null,
+      state: 'accepted' | 'failed' = 'accepted',
+    ) =>
+      ({
+        iteration: 1,
+        step_index,
+        task_id,
+        state,
+        ack: null,
+        started_at: '',
+        ended_at: null,
+      }) as StepResultView
+    const live: Record<string, TaskState> = { t0: 'completed', t1: 'running', t2: 'queued' }
+    const p = stepPhases(
+      5,
+      1,
+      [r(0, 't0'), r(1, 't1'), r(2, 't2'), r(3, null, 'failed')],
+      (id) => live[id],
+    )
+    expect(p).toEqual(['완료', '실행 중', '제출됨', '실패', '예정'])
+    expect(phaseSummary(p)).toBe('완료 1 · 실행 중 1 · 제출됨 1 · 예정 1 · 실패 1')
+    // 다른 회차의 결과는 보지 않는다
+    expect(stepPhases(2, 2, [r(0, 't0')], (id) => live[id])).toEqual(['예정', '예정'])
+  })
+})
+
+describe('skipSet (예정 스텝 지우기)', () => {
+  const s = (type: 'PICK' | 'DROP' | 'MOVE', robot?: number) => ({ type, robot })
+  const steps = [s('PICK', 1), s('MOVE', 2), s('DROP', 1), s('PICK', 1), s('DROP', 1)]
+  const at = (step_index: number, sent = false) => ({ iteration: 1, step_index, sent })
+  it('짝을 같이, 보낸 스텝은 거부', () => {
+    expect(skipSet(steps, null, at(0), [], 3)).toEqual({ steps: [3, 4] })
+    expect(skipSet(steps, null, at(0), [], 2)).toEqual({ steps: [0, 2] })
+    expect(skipSet(steps, null, at(0, true), [], 2)).toMatchObject({
+      error: expect.stringContaining('짝 PICK'),
+    })
+    expect(skipSet(steps, null, at(2), [], 1)).toMatchObject({
+      error: expect.stringContaining('이미'),
+    })
+  })
+  it('지운 스텝은 상태가 삭제', () => {
+    expect(stepPhases(3, 1, [], () => null, [[1, 2]])).toEqual(['예정', '예정', '삭제'])
   })
 })
 
@@ -95,7 +198,12 @@ describe('validateScenario', () => {
     expect(validateScenario(s, { cells: [] })).toEqual([])
   })
   it('UP은 대상·품목 없이 통과, MOVE는 대상만 필요', () => {
-    const s: ScenarioUpsert = { name: 'x', description: '', repeat: 1, steps: [newStep({ type: 'UP' }), newStep({ type: 'MOVE' })] }
+    const s: ScenarioUpsert = {
+      name: 'x',
+      description: '',
+      repeat: 1,
+      steps: [newStep({ type: 'UP' }), newStep({ type: 'MOVE' })],
+    }
     const v = validateScenario(s, reg)
     expect(v).toEqual([{ step_index: 1, field: 'target', message: 'MOVE에는 대상이 필요' }])
   })

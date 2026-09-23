@@ -209,6 +209,13 @@ export default function TaskDetail({ id, ids = [], onNavigate }: TaskDetailProps
     { label: 'Origin', value: ORIGIN_LABEL[t.origin] },
     { label: 'WorkId', value: t.work_id, mono: true },
     { label: 'TaskId', value: t.task_id, mono: true },
+    {
+      label: 'TransferOrder',
+      value: t.transfer_order_id ?? null,
+      mono: true,
+      missing:
+        '이송 지시 없음(PICK/DROP 이 아니거나 외부 Task — 완료 때 재고 기록에 자동 지시가 붙는다)',
+    },
     { label: 'TaskType', value: typeName(t.plc_task?.TaskType) },
     {
       label: 'Target',

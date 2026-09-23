@@ -250,9 +250,63 @@ pub fn validate_shape(s: &Scenario) -> Vec<Issue> {
     out
 }
 
+/// PICK/DROP 짝 — 한 로봇의 PICK 다음 **그 로봇의 다음 스텝**은 같은 품목·수량의 DROP 이어야 하고, DROP 앞의 그 로봇
+/// 스텝은 짝 PICK 이어야 한다. 다른 로봇의 스텝(충돌 회피 MOVE · 대기 등)은 짝 사이에 끼어도 된다.
+/// `run_robot` = 로봇 없는 스텝이 갈 로봇(실행 옵션). `start_step` 이 짝의 PICK 을 건너뛰고 DROP 부터 돌게 되면 막는다.
+pub fn validate_pairs(steps: &[Step], run_robot: Option<u8>, start_step: u32) -> Vec<Issue> {
+    let mut out = Vec::new();
+    let robot = |s: &Step| s.robot.or(run_robot);
+    let next_same = |i: usize| steps.iter().enumerate().skip(i + 1).find(|(_, n)| robot(n) == robot(&steps[i]));
+    let prev_same = |i: usize| steps[..i].iter().enumerate().rev().find(|(_, p)| robot(p) == robot(&steps[i]));
+    for (i, s) in steps.iter().enumerate() {
+        match s.task_type {
+            TaskType::Pick => {
+                let why = match next_same(i) {
+                    None => Some("PICK 뒤에 같은 로봇의 짝 DROP 이 없음".to_string()),
+                    Some((j, n)) if n.task_type != TaskType::Drop => Some(format!("PICK 다음 같은 로봇 스텝은 짝 DROP 이어야 함 — 스텝 {} 이 {}", j + 1, n.task_type.name())),
+                    Some((j, n)) if matches!((s.item_code, n.item_code), (Some(a), Some(b)) if a != b) => {
+                        Some(format!("짝 DROP(스텝 {}) 품목 {} ≠ PICK 품목 {}", j + 1, n.item_code.unwrap_or(0), s.item_code.unwrap_or(0)))
+                    }
+                    Some((j, n)) if n.count != s.count => Some(format!("짝 DROP(스텝 {}) 수량 {} ≠ PICK 수량 {}", j + 1, n.count, s.count)),
+                    Some(_) => None,
+                };
+                if let Some(w) = why {
+                    out.push(issue(i, "type", w));
+                }
+            }
+            TaskType::Drop => match prev_same(i) {
+                Some((p, ps)) if ps.task_type == TaskType::Pick => {
+                    if (p as u32) < start_step && i as u32 >= start_step {
+                        out.push(issue(i, "start_step", format!("짝 PICK(스텝 {}) 을 건너뛰고 DROP 부터 시작할 수 없음", p + 1)));
+                    }
+                }
+                _ => out.push(issue(i, "type", "DROP 앞의 같은 로봇 스텝이 짝 PICK 이 아님")),
+            },
+            _ => {}
+        }
+    }
+    out
+}
+
 /// Shape checks + registry lookups (unknown cell / station / item).
 pub fn validate(st: &AppState, s: &Scenario) -> Result<Vec<Issue>, ApiError> {
     let mut out = validate_shape(s);
+    out.extend(validate_pairs(&s.steps, None, 0));
+    // 두 로봇 영역(정적) — 이웃한 두 스텝이 다른 로봇이고 목표 X 가 간격 안이면 알린다(실행 때는 영역 대기).
+    let cfg = crate::area::load(&st.db);
+    if cfg.enabled && st.robots.len() > 1 {
+        for (i, w) in s.steps.windows(2).enumerate() {
+            let (a, b) = (&w[0], &w[1]);
+            let (Ok(ra), Ok(rb)) = (st.robot(a.robot), st.robot(b.robot)) else { continue };
+            if ra.id == rb.id {
+                continue;
+            }
+            let (Some(xa), Some(xb)) = (a.target.as_ref().and_then(|t| crate::area::target_x(st, t)), b.target.as_ref().and_then(|t| crate::area::target_x(st, t))) else { continue };
+            if let Some(w) = crate::area::static_warning(&ra.name, xa, &rb.name, xb, cfg.separation_mm) {
+                out.push(issue(i + 1, "area", w));
+            }
+        }
+    }
     for (i, step) in s.steps.iter().enumerate() {
         if let Some(t) = &step.target {
             let known = match t.kind.as_str() {
@@ -325,6 +379,41 @@ mod tests {
         };
         s.normalize();
         s
+    }
+
+    #[test]
+    fn pairs_follow_the_same_robot() {
+        let st = |tt: TaskType, item: u32, count: u32, robot: Option<u8>| Step {
+            task_type: tt,
+            item_code: Some(item),
+            count,
+            robot,
+            target: Some(Target { kind: "cell".into(), id: 101 }),
+            ..Default::default()
+        };
+        use TaskType::*;
+        let ok = vec![st(Move, 0, 1, None), st(Pick, 7, 2, None), st(Drop, 7, 2, None), st(Measure, 7, 1, None), st(Pick, 7, 1, None), st(Drop, 7, 1, None)];
+        assert!(validate_pairs(&ok, None, 0).is_empty(), "{:?}", validate_pairs(&ok, None, 0));
+        // 다른 로봇의 스텝(회피 MOVE, 다른 짝)은 짝 사이에 끼어도 된다
+        let inter = vec![st(Pick, 7, 1, Some(1)), st(Move, 0, 1, Some(2)), st(Pick, 8, 1, Some(2)), st(Drop, 7, 1, Some(1)), st(Drop, 8, 1, Some(2))];
+        assert!(validate_pairs(&inter, None, 0).is_empty(), "{:?}", validate_pairs(&inter, None, 0));
+        // 같은 로봇의 MOVE 가 끼면 PICK 과 DROP 둘 다 걸린다
+        let v = validate_pairs(&[st(Pick, 7, 1, None), st(Move, 0, 1, None), st(Drop, 7, 1, None)], None, 0);
+        assert_eq!(v.iter().map(|i| i.step_index.unwrap()).collect::<Vec<_>>(), vec![0, 2]);
+        assert!(v[0].message.contains("짝 DROP"), "{v:?}");
+        assert!(validate_pairs(&[st(Pick, 7, 1, None), st(Drop, 8, 1, None)], None, 0)[0].message.contains("품목 8"));
+        assert!(validate_pairs(&[st(Pick, 7, 2, None), st(Drop, 7, 1, None)], None, 0)[0].message.contains("수량 1"));
+        // 로봇이 다른 DROP 은 짝이 아니다 — PICK 도 DROP 도 걸린다. 실행 로봇이 2 면 로봇 없는 PICK 도 2 로 간다
+        let pair = [st(Pick, 7, 1, None), st(Drop, 7, 1, Some(2))];
+        assert_eq!(validate_pairs(&pair, Some(1), 0).len(), 2);
+        assert!(validate_pairs(&pair, Some(2), 0).is_empty());
+        assert!(validate_pairs(&[st(Pick, 7, 1, None)], None, 0)[0].message.contains("짝 DROP"));
+        assert!(validate_pairs(&[st(Drop, 7, 1, None)], None, 0)[0].message.contains("짝 PICK"));
+        // 짝 PICK 을 건너뛰고 시작
+        let v = validate_pairs(&ok, None, 2);
+        assert_eq!((v.len(), v[0].field.as_str()), (1, "start_step"));
+        let v = validate_pairs(&inter, None, 1);
+        assert_eq!(v.iter().map(|i| i.step_index.unwrap()).collect::<Vec<_>>(), vec![3], "robot 1 DROP whose PICK is skipped");
     }
 
     fn strip(mut s: Scenario) -> Scenario {

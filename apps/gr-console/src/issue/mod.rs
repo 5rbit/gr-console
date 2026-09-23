@@ -107,7 +107,12 @@ pub fn enforce_stack_limit(st: &AppState, req: &TaskRequest, task: &TaskData) ->
     }
     let Some(t) = req.target.as_ref().filter(|t| t.kind == "cell") else { return Ok(()) };
     let Some(entry) = st.registry.item(task.item.code)? else { return Ok(()) };
-    let n = st.stock.get(t.id)?.map(|s| s.count);
+    // 미리 넣은(아직 안 끝난) 작업까지 친 예상 재고로 본다.
+    let n = projected_stock(st, t.id)?.projected.map(|s| s.count);
+    // 파라미터로 끄면 경고만(작성 경고는 그대로 선다).
+    if !crate::params::current(&st.db).stack_max_enforce {
+        return Ok(());
+    }
     match stack_limit(TaskType::Drop, "cell", Some(&entry.spec), n, task.item.count as u32, false).and_then(|l| l.blocked) {
         Some(b) => Err(ApiError::Conflict(crate::ledger::ops::with_robot(&robot_name(st, req), &format!("셀 {} StackMax: {b} — 품목 {} (무시하려면 ignore_stack_max)", t.id, task.item.code)))),
         None => Ok(()),
@@ -241,7 +246,30 @@ pub fn parse_task_type(s: &str) -> Result<TaskType, ApiError> {
     })
 }
 
-/// Full path: resolve target + item from the registry, then compose (stock from the console inventory).
+/// 셀·스테이션 `id` 의 예상 재고 — 재고 표 + 모든 로봇 원장의 진행 중 PICK/DROP(`stock::Stock::projected`).
+pub fn projected_stock(st: &AppState, id: u16) -> Result<crate::stock::Projection, ApiError> {
+    st.stock.projected(id, || st.robots.iter().flat_map(|r| r.ledger.list()).collect())
+}
+
+/// 로봇의 예상 Hand — Hand 표 + 그 로봇 원장의 진행 중 PICK/DROP(`stock::Stock::projected_hand`).
+pub fn projected_hand(st: &AppState, robot: Option<u8>) -> Result<crate::stock::HandProjection, ApiError> {
+    let r = st.robot(robot)?;
+    st.stock.projected_hand(&r.plc, || r.ledger.list())
+}
+
+/// 제출 직전 PICK/DROP 짝 검사(`stock::hand_check`) — 어긋나면 409. PICK: 예상 Hand 가 비어 있어야,
+/// DROP: 예상 Hand(짝 PICK 반영)와 품목·수량이 같아야 한다.
+pub fn enforce_hand(st: &AppState, req: &TaskRequest, task: &TaskData) -> Result<(), ApiError> {
+    let Some(tt) = TaskType::from_code(task.task_type).filter(|t| matches!(t, TaskType::Pick | TaskType::Drop)) else { return Ok(()) };
+    if task.cell.id == 0 {
+        return Ok(());
+    }
+    let hand = projected_hand(st, req.robot)?.projected;
+    crate::stock::hand_check(tt, &hand, task.item.code, task.item.count as u32).map_err(|why| ApiError::Conflict(crate::ledger::ops::with_robot(&robot_name(st, req), &format!("PICK/DROP 짝: {why}"))))
+}
+
+/// Full path: resolve target + item from the registry, then compose (stock from the console inventory
+/// plus tasks still in flight — see `projected_stock`).
 pub fn compose(st: &AppState, req: &TaskRequest) -> Result<Composed, ApiError> {
     compose_with(st, req, None)
 }
@@ -262,7 +290,14 @@ pub fn compose_with(st: &AppState, req: &TaskRequest, stock_hint: Option<u32>) -
     };
     // stock of the target (console-owned inventory, cells and stations share the id space) — Z stacking +
     // item code fallback. Stations too: multi PICK/DROP on a station stacks on the tires already there (2026-09-22).
+    // 가정 재고(`stock_hint`, 계획 미리보기)가 없으면 진행 중 작업을 반영한 예상 재고를 쓴다(미리 넣기).
+    let mut projection_note = None;
     let stock = match &req.target {
+        Some(t) if (t.kind == "cell" || t.kind == "station") && stock_hint.is_none() => {
+            let p = projected_stock(st, t.id)?;
+            projection_note = p.note(if t.kind == "cell" { "셀" } else { "스테이션" });
+            p.projected
+        }
         Some(t) if t.kind == "cell" || t.kind == "station" => st.stock.get(t.id)?,
         _ => None,
     };
@@ -298,7 +333,11 @@ pub fn compose_with(st: &AppState, req: &TaskRequest, stock_hint: Option<u32>) -
             let station_stock = if pref.auto {
                 match stock_hint {
                     Some(n) => Some(n),
-                    None => st.stock.get(id)?.map(|s| s.count),
+                    None => {
+                        let p = projected_stock(st, id)?;
+                        projection_note = p.note("스테이션");
+                        p.projected.map(|s| s.count)
+                    }
                 }
             } else {
                 None
@@ -319,6 +358,17 @@ pub fn compose_with(st: &AppState, req: &TaskRequest, stock_hint: Option<u32>) -
         (None, None, None) => None,
     };
     let mut c = compose_from(&st.registry.defaults()?, req, cell, item, stock_pair, spec.as_ref())?;
+    c.warnings.extend(projection_note);
+    // PICK/DROP 짝 — 계획 미리보기(가정 재고)는 계획 표가 따로 본다.
+    if stock_hint.is_none()
+        && let Some(tt) = TaskType::from_code(c.task.task_type).filter(|t| matches!(t, TaskType::Pick | TaskType::Drop))
+        && c.task.cell.id != 0
+    {
+        let hand = projected_hand(st, req.robot)?.projected;
+        if let Err(why) = crate::stock::hand_check(tt, &hand, c.task.item.code, c.task.item.count as u32) {
+            c.warnings.push(format!("제출 거부 예정 — PICK/DROP 짝: {why}"));
+        }
+    }
     // 대상 로봇을 응답에 박는다 — 화면이 `robots.selected` 로 되짚으면 선택이 바뀐 뒤의 미리보기가
     // 엉뚱한 호기 이름을 달게 된다.
     if let Ok(r) = st.robot(req.robot) {
@@ -1038,6 +1088,37 @@ mod tests {
         // 바닥이 양수면 이 경고는 없다
         let c = compose_from(&d, &req("PICK", "cell"), Some(cell()), Some(item()), Some((1001, 5)), None).unwrap();
         assert!(!c.warnings.iter().any(|w| w.contains("INVALID_CELL_POSZ")), "{:?}", c.warnings);
+    }
+
+    /// 미리 넣기: 셀 101 에 DROP 1 이 아직 진행 중이면 뒤이은 PICK 은 재고 5 가 아니라 6 을 보고 Z 를 잡는다.
+    #[test]
+    fn pick_after_queued_drop_uses_projected_stock() {
+        use crate::ledger::{LedgerEntry, TaskState};
+        let d = defaults();
+        let mut drop = compose_from(&d, &req("DROP", "cell"), Some(cell()), Some(item()), Some((1001, 5)), None).unwrap().task;
+        drop.item.count = 1;
+        let queued: LedgerEntry = serde_json::from_value(json!({
+            "id": "q", "seq": 1, "work_id": 1, "task_id": 1, "origin": "scenario", "plc_name": "GR2", "request": null, "resolved": null,
+            "position": [0.0, 0.0, 0.0, 0.0], "plc_task": drop, "state": "queued", "state_at": "", "created_at": "", "submitted_at": null,
+            "ended_at": null, "ack": null, "header": null, "plc": null, "error": null, "history": []
+        }))
+        .unwrap();
+        let base = Some(crate::stock::StockEntry { cell_id: 101, item_code: 1001, count: 5, ..Default::default() });
+        let p = crate::stock::project(101, base, std::slice::from_ref(&queued));
+        assert_eq!(p.count(), 6);
+        let s = p.projected.as_ref().unwrap();
+        let mut r = req("PICK", "cell");
+        r.count = 1;
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((s.item_code, s.count)), None).unwrap();
+        assert_eq!(c.task.position[2], 1500.0 + 5.0 * 240.0 + 120.0, "top tire of 6");
+        // 표만 봤다면 5 개 중 맨 위 → 한 단 낮게 내려가 앞서 놓은 타이어에 부딪친다
+        let stale = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 5)), None).unwrap();
+        assert_eq!(c.task.position[2] - stale.task.position[2], 240.0);
+        // 끝나서 표에 접힌 뒤에는 대기 목록에서 빠진다 — 같은 6
+        let mut done = queued;
+        done.state = TaskState::Completed;
+        let folded = Some(crate::stock::StockEntry { cell_id: 101, item_code: 1001, count: 6, ..Default::default() });
+        assert_eq!(crate::stock::project(101, folded, &[done]).count(), 6);
     }
 
     #[test]

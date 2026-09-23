@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  pairCancel,
   cascadeAfter,
   ALL_STATES,
   EMPTY_FILTER,
@@ -261,5 +262,36 @@ describe('autoBlock', () => {
     expect(autoBlock('cancel', 'draft', 'AUTO')).toBeUndefined()
     expect(autoBlock('delete', 'completed', 'AUTO')).toBeUndefined()
     expect(autoBlock('fail', 'running', 'AUTO')).toBeUndefined()
+  })
+})
+
+describe('pairCancel', () => {
+  const t = (id: string, seq: number, code: number, state: TaskState, to = 'TO-1') =>
+    ({
+      id,
+      seq,
+      state,
+      transfer_order_id: to,
+      plc_task: { TaskType: code },
+      request: null,
+    }) as unknown as Task
+  it('PICK 취소는 짝 DROP 도, 시작 전 PICK 의 DROP 취소는 PICK 도', () => {
+    const pick = t('p', 1, 0x41, 'queued')
+    const drop = t('d', 2, 0x42, 'queued')
+    expect(pairCancel([pick, drop], pick).with.map((x) => x.id)).toEqual(['d'])
+    expect(pairCancel([pick, drop], drop).with.map((x) => x.id)).toEqual(['p'])
+  })
+  it('PICK 이 돌거나 끝났으면 DROP 만 + Hand 경고', () => {
+    const drop = t('d', 2, 0x42, 'queued')
+    const r = pairCancel([t('p', 1, 0x41, 'running'), drop], drop)
+    expect(r.with).toEqual([])
+    expect(r.warning).toContain('Hand')
+    expect(pairCancel([t('p', 1, 0x41, 'completed'), drop], drop).warning).toContain(
+      'Hand 도 비우고',
+    )
+    expect(pairCancel([drop, t('x', 3, 0x41, 'queued', 'TO-2')], drop)).toEqual({
+      with: [],
+      warning: null,
+    })
   })
 })

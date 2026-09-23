@@ -23,6 +23,7 @@ import {
   autoBlock,
   cascadeAfter,
   isTerminal,
+  pairCancel,
   dimsLabel,
   isRobotAction,
   targetOf,
@@ -186,13 +187,10 @@ export function TaskActions({
       : []
   if (actions.length === 0 && rest.length === 0) return null
   // 연쇄 취소는 **이 로봇의** 같은 WorkId 만(서버 `cascade_after` 도 로봇 원장 안에서만 본다).
-  const tail =
-    pending === 'cancel' && task.state !== 'draft'
-      ? cascadeAfter(
-          tasks.list.filter((x) => x.plc_name === task.plc_name),
-          task,
-        )
-      : []
+  const mine = tasks.list.filter((x) => x.plc_name === task.plc_name)
+  const tail = pending === 'cancel' && task.state !== 'draft' ? cascadeAfter(mine, task) : []
+  // 짝(PICK/DROP) 취소도 같은 로봇 안에서만 — 이송 지시 하나가 한 로봇의 두 Task 다.
+  const pair = pending === 'cancel' ? pairCancel(mine, task) : null
 
   const run = async (a: TaskAction) => {
     setBusy(a)
@@ -261,6 +259,17 @@ export function TaskActions({
               같은 WorkId의 뒤 Task {tail.length}건도 함께 취소됩니다 —{' '}
               {tail.map((t) => `#${t.seq}(TaskId ${t.task_id})`).join(' · ')}
             </p>
+          ) : null}
+          {pair && pair.with.length > 0 ? (
+            <span className="mt-3 block text-warn-fg" data-testid="pair-cancel-note">
+              PICK/DROP 짝 — {pair.with.map((t) => `#${t.seq}`).join(' · ')} 도 함께 취소됩니다
+              (이송 지시 {task.transfer_order_id} 중단)
+            </span>
+          ) : null}
+          {pair?.warning ? (
+            <span className="mt-3 block text-warn-fg" data-testid="pair-cancel-warning">
+              {pair.warning}
+            </span>
           ) : null}
           {pending === 'fail' ? (
             <Input

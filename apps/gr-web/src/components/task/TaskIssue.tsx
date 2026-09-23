@@ -22,6 +22,7 @@ import { Button } from '../../lib/ui/Button'
 import { gateFor, robotLabel, withRobot } from '../../lib/robotContext'
 import { RobotChip } from '../shared/RobotChip'
 import { stock as stockStore } from '../../lib/stock'
+import { tasks as taskStore } from '../../lib/tasks'
 import { useStore } from '../../lib/store'
 import type { PreviewCell } from '../../lib/task/layoutGen'
 import type { Shape } from '../../lib/task/layoutModel'
@@ -61,6 +62,8 @@ import type {
   GripRef,
   Item,
   Station,
+  StockEntry,
+  StockProjected,
   Target,
   TaskType,
 } from '../../lib/types'
@@ -206,9 +209,46 @@ export default function TaskIssue() {
   const items = useRegistry<Item>(api.items)
   const cells = useRegistry<Cell>(api.cells)
   const stations = useRegistry<Station>(api.stations)
-  useStore(stockStore, robots)
+  useStore(stockStore, robots, taskStore)
   useEffect(() => stockStore.start(), [])
   useEffect(() => robots.start(), [])
+  useEffect(() => taskStore.start(), [])
+  // 계획 표의 출발점 = **예상** 재고(진행 중 PICK/DROP 반영, Hand 포함) — 제출 때 백엔드가 쓰는 값과 같다.
+  // 재고가 바뀌거나 진행 중 Task 의 상태가 바뀌면 다시 읽는다.
+  const activeKey = taskStore.active.map((t) => `${t.id}:${t.state}`).join(',')
+  const [projected, setProjected] = useState<StockProjected | null>(null)
+  useEffect(() => {
+    let live = true
+    api
+      .stockProjected()
+      .then((p) => {
+        if (live) setProjected(p)
+      })
+      .catch(() => {
+        if (live) setProjected(null)
+      })
+    return () => {
+      live = false
+    }
+  }, [stockStore.map, stockStore.hands, activeKey])
+  // 두 로봇 영역 간격(백엔드 파라미터, 기본 안전값 5000 mm) — 계획 표의 정적 경고.
+  const [anticolSep, setAnticolSep] = useState<number | null>(null)
+  useEffect(() => {
+    let live = true
+    api
+      .anticol()
+      .then((a) => {
+        if (live) setAnticolSep(a.enabled && robots.list.length > 1 ? a.separation_mm : null)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [robots.list.length])
+  const stockPlan = useMemo<ReadonlyMap<number, StockEntry>>(
+    () => (projected ? new Map(projected.cells.map((c) => [c.cell_id, c])) : stockStore.map),
+    [projected, stockStore.map],
+  )
   // 게이트·제출·계획 스텝이 모두 **이 하나**를 본다. 화면 어디도 다른 호기를 겨냥하지 않는다.
   const robot = robots.selected
   const chip = robots.chip
@@ -607,7 +647,11 @@ export default function TaskIssue() {
                 cells={cells.items}
                 stations={stations.items}
                 items={items.items}
-                stockNow={stockStore.map}
+                stockNow={stockPlan}
+                hand={projected?.hands.find((h) => h.robot === robots.selected) ?? null}
+                handNow={robots.current ? stockStore.hand(robots.current.plc) : null}
+                sync={robots.current ? stockStore.syncIssues(robots.current.plc) : []}
+                anticolSep={anticolSep}
                 gate={gate}
                 robot={chip}
                 onFocus={(s) => {

@@ -36,10 +36,15 @@ import type {
   Station,
   StationUpsert,
   StatusEvent,
+  HandView,
+  SyncIssue,
   StockEntry,
   StockRestored,
   StockSnapshot,
   StockSnapshotInfo,
+  StockProjected,
+  TransferOrder,
+  TransferOrderDetail,
   StockZ,
   Task,
   TaskPage,
@@ -367,6 +372,32 @@ export const api = {
     getJson<StockSnapshotInfo[]>(`/api/stock/snapshots${qs({ limit })}`),
   stockSnapshot: (id: number) => getJson<StockSnapshot>(`/api/stock/snapshots/${id}`),
   stockRestore: (id: number) => postJson<StockRestored>(`/api/stock/snapshots/${id}/restore`),
+  /** 로봇별 Hand(표 + 예상) */
+  stockHands: () => getJson<HandView[]>('/api/stock/hands'),
+  /** 진행 중 PICK/DROP 을 반영한 셀 재고·Hand */
+  stockProjected: () => getJson<StockProjected>('/api/stock/projected'),
+  /** 로봇별 동기화 경고 */
+  stockSync: () =>
+    getJson<{ robot: number; robot_name: string; plc: string; issues: SyncIssue[] }[]>(
+      '/api/stock/sync',
+    ),
+  /** 동기화 경고를 한 번에 고친다(콘솔 DB 만) */
+  stockSyncResolve: (robot: number, action: string, task_id?: string | null) =>
+    postJson<unknown>(`/api/stock/sync/${robot}/resolve`, {
+      action,
+      task_id: task_id ?? undefined,
+    }),
+  /** 두 로봇 영역 간격(기본 안전값 5000 mm, 하한 = PLC PARA 합) */
+  anticol: () => getJson<{ separation_mm: number; enabled: boolean }>('/api/anticol'),
+  /** 이송 지시 목록(최신 먼저) */
+  transferOrders: (
+    q: { robot?: number | null; state?: string; cell?: number; limit?: number } = {},
+  ) =>
+    getJson<{ items: TransferOrder[]; total: number }>(
+      `/api/transfer-orders${qs({ robot: q.robot ?? undefined, state: q.state, cell: q.cell, limit: q.limit })}`,
+    ),
+  transferOrder: (id: string) =>
+    getJson<TransferOrderDetail>(`/api/transfer-orders/${encodeURIComponent(id)}`),
   stockZ: (type: TaskType, cell: number, item?: number | null, count = 1) =>
     getJson<StockZ>(`/api/stock/z${qs({ type, cell, item: item ?? undefined, count })}`),
 

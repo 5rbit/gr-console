@@ -31,6 +31,8 @@ import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
 import {
   GRIP_REFS,
   move,
+  pairIssues,
+  removeWithPair,
   patch,
   planRows,
   remove,
@@ -52,6 +54,8 @@ import { f1 } from '../../lib/meas/format'
 import { itemLabel } from '../../lib/items/model'
 import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
+import { Switch } from '../../lib/ui/Switch'
+import { preQueueLabel, readPreQueue, writePreQueue } from '../../lib/task/preQueue'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
 import { robots } from '../../lib/robots'
@@ -90,11 +94,14 @@ import type {
   Cell,
   Gate,
   GripRef,
+  HandEntry,
   Item,
   Station,
   StockEntry,
+  SyncIssue,
   TaskType,
 } from '../../lib/types'
+import { SyncIssuesDialog } from './SyncIssuesDialog'
 import { cn } from '../../lib/utils'
 
 const TYPES: TaskType[] = ['PICK', 'DROP', 'MEASURE', 'MOVE']
@@ -226,6 +233,14 @@ export interface PlanCardProps {
   robot: RobotChipModel
   /** 단일 명령 모드의 내용(작성 카드). */
   single?: ReactNode
+  /** 계획 시작 때의 예상 Hand(진행 중 PICK/DROP 반영) — 표의 "들고 있음" 출발점. */
+  hand?: { item_code: number; count: number } | null
+  /** 지금 Hand(표 값) — 머리줄에 품목 × 개수와 이송 지시를 보인다. */
+  handNow?: HandEntry | null
+  /** 이 로봇의 동기화 경고(PLC 실제 상태 vs Hand · 이송 지시). */
+  sync?: readonly SyncIssue[]
+  /** 두 로봇 영역 간격(mm) — 이웃한 다른 로봇 스텝의 X 거리 경고. */
+  anticolSep?: number | null
 }
 
 export function PlanCard({
@@ -247,17 +262,50 @@ export function PlanCard({
   onModeChange,
   robot,
   single,
+  hand = null,
+  handNow = null,
+  sync = [],
+  anticolSep = null,
 }: PlanCardProps) {
+  const [syncOpen, setSyncOpen] = useState(false)
+  // 지울 스텝(짝은 같이) — 확인 창이 로봇과 짝을 말한다.
+  const [deleting, setDeleting] = useState<string | null>(null)
   useStore(robots, tasks)
   useEffect(() => tasks.start(), [])
+  const runRobot = robots.selected
   const rows = useMemo(
-    () => planRows(steps, { cells, stations, items, stockNow, gripRef }),
-    [steps, cells, stations, items, stockNow, gripRef],
+    () =>
+      planRows(steps, {
+        cells,
+        stations,
+        items,
+        stockNow,
+        gripRef,
+        robot: runRobot,
+        hand,
+        anticolSep,
+        robotName: (id) => (id === null ? robot.name : robots.nameOf(id)),
+      }),
+    [steps, cells, stations, items, stockNow, gripRef, runRobot, hand, anticolSep, robot.name],
   )
+  // PICK/DROP 짝이 어긋난 계획은 실행하지 않는다(백엔드도 시작 때 거부) — 저장은 된다.
+  const pairs = useMemo(() => pairIssues(steps, runRobot), [steps, runRobot])
+  const pairBlock = pairs.length
+    ? `PICK/DROP 짝 — ${pairs
+        .slice(0, 3)
+        .map((p) => `스텝 ${p.no}: ${p.message}`)
+        .join(' · ')}${pairs.length > 3 ? ` 외 ${pairs.length - 3}건` : ''}`
+    : undefined
   const [name, setName] = useState('')
   const [saveOpen, setSaveOpen] = useState(false)
   const [confirmNext, setConfirmNext] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  // 실행 방식 — 켜면 스텝마다 접수까지만 기다리고 다음 스텝을 GR 버퍼에 미리 넣는다(브라우저별 기억, 기본 끔).
+  const [preQueue, setPreQueueState] = useState(readPreQueue)
+  function setPreQueue(on: boolean) {
+    setPreQueueState(on)
+    writePreQueue(on)
+  }
   const [busy, setBusy] = useState(false)
   const [focus, setFocus] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -545,14 +593,19 @@ export function PlanCard({
     setBusy(true)
     try {
       const sc = await api.scenarioSave(
-        toScenario(steps, name.trim() || `계획 ${new Date().toLocaleString()}`),
+        toScenario(steps, name.trim() || `계획 ${new Date().toLocaleString()}`, '', { preQueue }),
       )
       toast.ok(`시나리오 "${sc.name}" 저장 (${sc.steps.length}스텝)`)
       if (run) {
         // 로봇을 안 든("기본") 스텝은 카드 대상 로봇으로 — "다음 1건 제출"과 같은 곳으로 간다.
         await api.scenarioRun(sc.id, { repeat: 1, robot: robots.selected })
         // 실행은 로봇이 움직이는 일이다 — 어느 호기인지 토스트가 말한다.
-        toast.info(withRobotChip(robot, '시나리오 실행 시작 — 진행은 시나리오 탭에서'))
+        toast.info(
+          withRobotChip(
+            robot,
+            `시나리오 실행 시작${preQueue ? ' (Pre-queue)' : ''} — 진행은 시나리오 탭에서`,
+          ),
+        )
       }
       nav.goScenario(sc.id)
     } catch (e) {
@@ -652,6 +705,33 @@ export function PlanCard({
             : '한 건 작성 → 제출'}
         </span>
         <span className="flex-1" />
+        {/* 그리퍼에 든 화물 — PICK/DROP 짝 사이(또는 DROP 이 취소돼 남은) 타이어. */}
+        <span
+          className={cn(
+            'text-2xs whitespace-nowrap',
+            handNow && handNow.count > 0 ? 'text-content-secondary' : 'text-content-faint',
+          )}
+          title={
+            handNow && handNow.count > 0
+              ? `그리퍼에 든 화물${handNow.transfer_order_id ? ` — 이송 지시 ${handNow.transfer_order_id}` : ''}`
+              : '그리퍼 비어 있음'
+          }
+          data-testid="plan-hand"
+        >
+          Hand: {handNow && handNow.count > 0 ? `${handNow.item_code} ×${handNow.count}` : '–'}
+        </span>
+        {sync.length ? (
+          <Button
+            size="sm"
+            intent="outline"
+            className="text-warn-fg"
+            title={sync.map((i) => i.message).join(' · ')}
+            onClick={() => setSyncOpen(true)}
+            data-testid="plan-sync"
+          >
+            동기화 {sync.length}
+          </Button>
+        ) : null}
         {/* 이 카드가 만드는 명령은 전부 이 호기로 간다 — 놓칠 수 없는 자리(머리줄 오른쪽)에 늘 선다. */}
         <RobotChip
           chip={robot}
@@ -729,7 +809,9 @@ export function PlanCard({
                   title="삭제"
                   onClick={(e) => {
                     e.stopPropagation()
-                    onChange(remove(steps, r.id))
+                    // 짝이 없는 스텝은 바로, PICK/DROP 은 짝을 같이 지우므로 한 번 묻는다.
+                    if (r.type === 'PICK' || r.type === 'DROP') setDeleting(r.id)
+                    else onChange(remove(steps, r.id))
                   }}
                   data-testid={`plan-del-${r.no}`}
                 />
@@ -749,6 +831,18 @@ export function PlanCard({
           >
             시나리오로 저장…
           </Button>
+          <Switch
+            inline
+            label="Pre-queue"
+            checked={preQueue}
+            onCheckedChange={setPreQueue}
+            title={
+              '켜면 시나리오 실행 때 앞 Task 가 실행에 들어가면 다음 1건을 미리 넣습니다(실행 중 + 다음 1건, 나머지는 예정). ' +
+              'Z 는 진행 중 Task 를 반영한 예상 재고로 작성되고, 앞 Task 가 실패·취소되면 실행이 멈춥니다. ' +
+              'PICK/DROP 짝 사이에서는 멈추지 않고, 마지막 Task 가 완료돼야 실행이 끝납니다. 끄면 스텝마다 완료를 기다립니다.'
+            }
+            testid="plan-prequeue"
+          />
           <span className="flex-1" />
           {auto ? (
             <span
@@ -793,12 +887,14 @@ export function PlanCard({
             size="sm"
             intent="primary"
             icon={<Send className="h-3.5 w-3.5" />}
-            disabled={!first || busy || auto || !nextGate?.can_submit}
+            disabled={!first || busy || auto || !nextGate?.can_submit || first.type === 'PICK'}
             title={
-              !nextGate?.can_submit
-                ? // 비활성은 침묵하지 않고 **누가 왜** 막았는지 말한다.
-                  (nextGate?.reasons.join(' · ') ?? withRobotChip(nextRobot, '게이트 확인 중'))
-                : `첫 스텝만 지금 ${robotLabel(nextRobot)} 로 제출`
+              first?.type === 'PICK'
+                ? 'PICK 은 DROP 과 짝으로만 보냅니다 — 시나리오로 저장 → 저장 후 실행'
+                : !nextGate?.can_submit
+                  ? // 비활성은 침묵하지 않고 **누가 왜** 막았는지 말한다.
+                    (nextGate?.reasons.join(' · ') ?? withRobotChip(nextRobot, '게이트 확인 중'))
+                  : `첫 스텝만 지금 ${robotLabel(nextRobot)} 로 제출`
             }
             onClick={() => setConfirmNext(true)}
             data-testid="plan-next"
@@ -829,8 +925,10 @@ export function PlanCard({
             size="sm"
             intent="outline"
             icon={<Play className="h-3.5 w-3.5" />}
-            disabled={!steps.length || busy}
-            title={steps.length ? '저장한 뒤 바로 실행합니다' : '계획이 비어 있습니다'}
+            disabled={!steps.length || busy || pairs.length > 0}
+            title={
+              pairBlock ?? (steps.length ? '저장한 뒤 바로 실행합니다' : '계획이 비어 있습니다')
+            }
             onClick={() => {
               setSaveOpen(false)
               void saveScenario(true)
@@ -849,6 +947,15 @@ export function PlanCard({
           placeholder="비우면 날짜로"
           data-testid="plan-name"
         />
+        <FieldList
+          columns={1}
+          dense
+          labelWidth={72}
+          items={[
+            { label: '실행 방식', value: preQueueLabel(preQueue) },
+            ...(pairBlock ? [{ label: '실행 불가', value: pairBlock }] : []),
+          ]}
+        />
       </FormDialog>
 
       {editRow ? (
@@ -865,6 +972,51 @@ export function PlanCard({
         />
       ) : null}
 
+      {deleting
+        ? (() => {
+            const plan = removeWithPair(steps, deleting, runRobot)
+            const s = steps.find((x) => x.id === deleting)
+            const chip =
+              s?.robot !== null && s?.robot !== undefined ? robots.chipOf(s.robot) : robot
+            return (
+              <ConfirmDialog
+                open
+                onOpenChange={(o) => {
+                  if (!o) setDeleting(null)
+                }}
+                scope="single"
+                title={`스텝 삭제 — ${chip.name}`}
+                confirmLabel="삭제"
+                onConfirm={() => {
+                  onChange(plan.next)
+                  setDeleting(null)
+                }}
+              >
+                <div className="flex flex-col gap-2 text-xs">
+                  <span className="flex items-center gap-2">
+                    <RobotChip chip={chip} title={robotLabel(chip)} />
+                    {plan.removed
+                      .map(
+                        (x) =>
+                          `${steps.indexOf(x) + 1}. ${x.type} ${x.target.kind === 'cell' ? 'Cell' : 'Station'} #${x.target.id}`,
+                      )
+                      .join(' · ')}
+                  </span>
+                  {plan.removed.length > 1 ? (
+                    <span className="text-warn-fg">PICK/DROP 짝이라 같이 지웁니다</span>
+                  ) : null}
+                </div>
+              </ConfirmDialog>
+            )
+          })()
+        : null}
+      <SyncIssuesDialog
+        open={syncOpen}
+        onOpenChange={setSyncOpen}
+        robot={robot}
+        robotId={runRobot}
+        issues={sync}
+      />
       <ConfirmDialog
         open={confirmAuto}
         onOpenChange={setConfirmAuto}

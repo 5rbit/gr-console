@@ -324,6 +324,13 @@ impl DemoWorld {
             // 스테이션 보정 미리보기용 트래킹(슬롯 1 = 2101, RotateType 1 → TY = -OD/2, TX = 측정 오프셋)
             set(db, "/Station/0/Tracking/Now", json!({ "OutterDiameter": 640.0, "TaskOffset": [35.0, 0.0] }));
         }
+        // GCS 가 읽는 스테이션 인터록(OPCUA.STATION[n]) — 생성 엔진의 조건을 데모로 돌려 볼 수 있게(CVOK 켜짐, Req · ItemExist 는 tick 에서 켰다 껐다).
+        if let Some(db) = grm_models.get_mut("OPCUA") {
+            for (i, s) in stations.iter().enumerate() {
+                set(db, &format!("/STATION/{i}/Para"), serde_json::to_value(s)?);
+                set(db, &format!("/STATION/{i}/Interlock/PI/CVOK"), json!(true));
+            }
+        }
         let cmd_zero = grm_models["OPCUA"].pointer(&format!("/GR/{}/CMD", robots[0].gr_index)).or_else(|| grm_models["OPCUA"].pointer("/GR/0/CMD")).cloned().unwrap_or(Json::Null);
 
         let mut sides = Vec::new();
@@ -555,6 +562,11 @@ impl DemoWorld {
         let tick = g.tick;
         let ntp = now_str().replace('T', " ").chars().take(23).collect::<String>();
         let Inner { sides, grm, grm_encoded, cmd_zero, .. } = &mut *g;
+        // 스테이션 요청 흉내: 2101 Req 는 10 s 켜짐 · 5 s 꺼짐, 2102 ItemExist 는 7.5 s 마다 바뀐다(50 ms tick 기준).
+        if let Some(db) = grm.get_mut("OPCUA") {
+            set(db, "/STATION/0/Interlock/PI/Req", json!(tick % 300 < 200));
+            set(db, "/STATION/1/Interlock/PI/ItemExist", json!((tick / 150).is_multiple_of(2)));
+        }
         for s in sides.iter_mut() {
             s.tick(tick, &ntp, grm, cmd_zero);
             s.encode();
@@ -1236,6 +1248,18 @@ mod two_robot_tests {
     }
 
     /// The stand-in GCS hands each idle robot one task, which the robot accepts, runs and pushes to `Completed`.
+    /// 생성 엔진이 데모에서 돌 수 있게 GRM OPCUA.STATION 인터록을 흉내 낸다 — 엔진과 같은 해석(station_pi)으로 읽힌다.
+    #[tokio::test]
+    async fn demo_station_interlock_feeds_the_generator() {
+        let robots = vec![DemoRobot { plc_name: "GR2".into(), contract: contract("GR2_PLC"), dst: 4002, gr_index: 1, machine_id: 2 }];
+        let world = DemoWorld::start(robots, contract("GRM_PLC"), 50).await.expect("world");
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        let opcua = world.grm_opcua_get("");
+        let pi = crate::taskgen::run::station_pi(&opcua, 2101).expect("slot 1 = 2101");
+        assert!(pi.cvok && pi.req, "{pi:?}");
+        assert!(crate::taskgen::run::station_pi(&opcua, 2102).is_some_and(|p| p.cvok));
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn gcs_feed_tasks_run_to_the_completed_ring() {
         let robots = vec![DemoRobot { plc_name: "GR2".into(), contract: contract("GR2_PLC"), dst: 4002, gr_index: 1, machine_id: 2 }];

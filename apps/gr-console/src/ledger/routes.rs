@@ -120,6 +120,16 @@ struct CreateQuery {
 async fn create(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::Json(req): axum::Json<TaskRequest>) -> ApiResult<LedgerEntry> {
     // 로봇이 둘 이상이면 대상을 반드시 받는다 — 빠지면 첫 로봇으로 몰래 가던 사고(2026-09-21, GR2 선택 중 GR1 로 제출).
     let r = st.robot_required(req.robot, "작업 제출")?;
+    // PICK 은 늘 DROP 과 짝이다 — 단독 PICK 은 받지 않는다(짝은 순차 계획/시나리오 실행기가 보낸다). DROP 단독은
+    // Hand 에 든 것을 내려놓는 복구용으로 받고, 짝 검사(`enforce_hand`)가 품목·수량을 본다.
+    if crate::issue::parse_task_type(&req.task_type)? == gr_proto::TaskType::Pick && req.source.is_none() {
+        return Err(ApiError::Conflict(crate::ledger::ops::with_robot(&r.name, "PICK 단독 제출 불가 — PICK/DROP 은 짝으로 보냅니다(순차 계획 → 저장 후 실행)")));
+    }
+    // 단독 DROP(Hand 복구)은 손에 든 화물의 이송 지시를 잇는다.
+    let mut req = req;
+    if req.transfer_order_id.is_none() && crate::issue::parse_task_type(&req.task_type)? == gr_proto::TaskType::Drop {
+        req.transfer_order_id = st.stock.hand(&r.plc)?.transfer_order_id;
+    }
     let composed = crate::issue::compose(&st, &req)?;
     let origin = if req.source.is_some() { Origin::Scenario } else { Origin::Console };
     let e = super::ops::create_and_submit(&st, r, origin, Some(req), Some(composed.params), composed.task, composed.pallet, q.submit.unwrap_or(true)).await?;

@@ -140,7 +140,11 @@ export function ComposeCard({
   const previewStale = !!preview?.robot && preview.robot !== robot.name
   // 미리보기가 StackMax 초과 DROP 을 알리면 서버가 409 로 거부한다 — 무시 플래그 없이는 누르지 못하게.
   const stackBlocked = !!request && !!preview?.stack_limit?.blocked
-  const canSubmit = !!request && !!gate?.can_submit && !submitting && !stackBlocked && !previewStale
+  // PICK/DROP 은 늘 한 짝 — 단독 PICK 은 보내지 않는다(서버도 409). 짝은 순차 계획의 시나리오 실행이 보낸다.
+  // DROP 단독은 그리퍼에 남은 화물을 내려놓는 복구용으로 남긴다(서버가 Hand 와 품목·수량을 맞춰 본다).
+  const pickAlone = draft.type === 'PICK'
+  const canSubmit =
+    !!request && !!gate?.can_submit && !submitting && !stackBlocked && !previewStale && !pickAlone
 
   // 종류가 바뀌면 그 종류에 맞지 않는 대상은 비운다(MEASURE → 스테이션).
   useEffect(() => {
@@ -425,16 +429,18 @@ export function ComposeCard({
             onClick={() => setConfirm(true)}
             data-testid="compose-submit"
             title={
-              !gate?.can_submit
-                ? // 막힌 사유는 백엔드가 `GR1: …` 으로 낸다 — 여기서 다시 꾸미지 않고 그대로 보인다.
-                  (gate?.reasons.join(' · ') ?? withRobotChip(robot, '게이트 확인 중'))
-                : previewStale
-                  ? '로봇을 바꿔 미리보기를 다시 읽는 중'
-                  : stackBlocked
-                    ? `StackMax 초과 — ${preview?.stack_limit?.blocked ?? ''}`
-                    : request
-                      ? ''
-                      : '초안이 완성되지 않았습니다'
+              pickAlone
+                ? 'PICK 은 DROP 과 짝으로만 보냅니다 — 순차 계획에서 PICK → DROP 을 만들고 저장 후 실행'
+                : !gate?.can_submit
+                  ? // 막힌 사유는 백엔드가 `GR1: …` 으로 낸다 — 여기서 다시 꾸미지 않고 그대로 보인다.
+                    (gate?.reasons.join(' · ') ?? withRobotChip(robot, '게이트 확인 중'))
+                  : previewStale
+                    ? '로봇을 바꿔 미리보기를 다시 읽는 중'
+                    : stackBlocked
+                      ? `StackMax 초과 — ${preview?.stack_limit?.blocked ?? ''}`
+                      : request
+                        ? ''
+                        : '초안이 완성되지 않았습니다'
             }
           >
             제출
