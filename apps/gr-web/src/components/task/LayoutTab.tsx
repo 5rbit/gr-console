@@ -1,5 +1,5 @@
 // 레이아웃 탭 — 맵과 세 동작 모드. 모드 토글과 보기 조작은 모두 플롯 안(아이콘·팝업)에 둔다.
-//   명령 생성:     좌클릭마다 PICK → DROP → … 순으로 계획에 쌓인다
+//   명령 생성:     좌클릭마다 PICK → DROP → … 순으로 계획에 쌓인다 (드롭다운 Cell Teaching = 셀마다 MEASURE Floor)
 //   모니터링:      좌클릭 = 셀·화물 정보 카드(플롯 안), 우클릭 = 명령 팔레트
 //   레이아웃 편집: 좌클릭 = 우측 사이드바 셀/스테이션 리스트에서 선택, 생성 예정 셀 표시
 // 로봇이 작업 중인 셀은 그 로봇 색 테두리(대기 = 점선), 로봇 위치는 같은 색 십자.
@@ -17,12 +17,13 @@ import { useStore } from '../../lib/store'
 import { tasks } from '../../lib/tasks'
 import type { Shape } from '../../lib/task/layoutModel'
 import type { PreviewCell } from '../../lib/task/layoutGen'
-import { gripOffset, nextType, type PlanStep } from '../../lib/task/plan'
+import { PLAN_KINDS, gripOffset, nextType, type PlanKind, type PlanStep } from '../../lib/task/plan'
 import { Button } from '../../lib/ui/Button'
 import { InfoRows } from '../../lib/ui/Pair'
 import { f1 } from '../../lib/meas/format'
 import { ctxMenu, type MenuItem } from '../../lib/ui/menu'
 import { Segmented } from '../../lib/ui/Segmented'
+import { Select } from '../../lib/ui/Select'
 import type { Cell, GripRef, Item, Station, Target, TaskType } from '../../lib/types'
 import { PlcStructView } from '../shared/PlcStructView'
 import { CellMap, type RobotMarker, type WorkMark } from './CellMap'
@@ -55,7 +56,12 @@ export interface LayoutTabProps {
   focus?: { target: Target; nonce: number } | null
   gripRef?: GripRef
   /** 명령 생성 모드 좌클릭 / 팔레트 "계획에 추가". */
-  onPlanAdd: (target: Target, shape: Shape, type?: TaskType) => void
+  onPlanAdd: (target: Target, shape: Shape, type?: TaskType | 'TEACH') => void
+  /** 명령 생성 모드의 생성 방식 — PICK/DROP 교대 · Cell Teaching(맵 왼쪽 위 드롭다운). */
+  planKind: PlanKind
+  onPlanKindChange: (k: PlanKind) => void
+  /** Cell Teaching — 모든 셀을 한 번씩 도는 경로를 계획에 넣는다. */
+  onTeachAll: () => void
   /** 팔레트 "명령 작성" — 작성 카드에 종류+대상. */
   onCompose: (target: Target, shape: Shape, type: TaskType) => void
   /** 편집 모드 좌클릭. */
@@ -81,6 +87,9 @@ export function LayoutTab({
   focus,
   gripRef = 'mid',
   onPlanAdd,
+  planKind,
+  onPlanKindChange,
+  onTeachAll,
   onCompose,
   onEditSelect,
   onTargetPick,
@@ -109,7 +118,7 @@ export function LayoutTab({
   }, [highlightItem, cellList, stockVer])
   const [stockEdit, setStockEdit] = useState<StockEdit | null>(null)
   const [quick, setQuick] = useState<QuickStockTarget | null>(null)
-  const next = nextType(plan)
+  const next = planKind === 'teach' ? 'TEACH' : nextType(plan)
 
   // 로봇 작업 테두리 — 진행 중(running)은 실선, 제출~대기는 점선.
   const taskVer = tasks.getSnapshot()
@@ -214,6 +223,11 @@ export function LayoutTab({
         run: () => onPlanAdd(t, shape, 'MEASURE'),
         disabled: t.kind === 'station' ? 'MEASURE 는 셀만' : undefined,
       },
+      {
+        label: '계획에 Cell Teaching 추가',
+        hint: 'MEASURE Floor',
+        run: () => onPlanAdd(t, shape, 'TEACH'),
+      },
     ]
     // 정보 카드에서 연 메뉴에는 재고 편집·정보 보기를 넣지 않는다 — 그 둘은 이미 카드가 하고 있다.
     if (from === 'palette') {
@@ -247,7 +261,7 @@ export function LayoutTab({
           icon: <ListPlus size={14} />,
           label: '명령 생성',
           badge: mode === 'plan' ? next : '',
-          title: '좌클릭마다 PICK → DROP 순으로 계획에 쌓인다',
+          title: PLAN_KINDS.find((k) => k.id === planKind)?.title,
           testid: 'map-mode-plan',
         },
         {
@@ -268,6 +282,43 @@ export function LayoutTab({
     />
   )
 
+  // 명령 생성 모드에서만 — 좌클릭이 만드는 스텝 종류. 고른 값은 TaskIssue 가 기억한다.
+  const kindSelect =
+    mode === 'plan' ? (
+      <span className="rounded-md bg-surface-panel shadow-sm">
+        <Select
+          dense
+          value={planKind}
+          onValueChange={(v) => onPlanKindChange(v as PlanKind)}
+          aria-label="생성 방식"
+          title={PLAN_KINDS.find((k) => k.id === planKind)?.title}
+          data-testid="map-plan-kind"
+        >
+          {PLAN_KINDS.map((k) => (
+            <option key={k.id} value={k.id}>
+              {k.label}
+            </option>
+          ))}
+        </Select>
+      </span>
+    ) : null
+
+  // Teaching 은 보통 **모든 셀**을 돈다 — 하나씩 누르지 않게 경로를 통째로 넣는 버튼을 드롭다운 옆에.
+  const teachAllButton =
+    mode === 'plan' && planKind === 'teach' ? (
+      <Button
+        size="sm"
+        intent="outline"
+        className="bg-surface-panel shadow-sm"
+        icon={<ListPlus className="h-3.5 w-3.5" />}
+        title="등록된 모든 셀을 행 지그재그 순서로 계획에 넣는다 (이미 든 셀은 건너뜀)"
+        onClick={onTeachAll}
+        data-testid="map-teach-all"
+      >
+        전체 셀
+      </Button>
+    ) : null
+
   const g = infoItem ? gripOffset(gripRef, infoItem) : 0
 
   return (
@@ -287,7 +338,13 @@ export function LayoutTab({
         robots={markers}
         robotLegend={robotLegend}
         focus={focus}
-        topLeft={modeToggle}
+        topLeft={
+          <>
+            {modeToggle}
+            {kindSelect}
+            {teachAllButton}
+          </>
+        }
         onPick={(t, shape) => {
           if (mode === 'plan') onPlanAdd(t, shape)
           else if (mode === 'monitor') {

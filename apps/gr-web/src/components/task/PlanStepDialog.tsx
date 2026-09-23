@@ -5,7 +5,7 @@
 import { useState } from 'react'
 import { targetKindsFor, itemRequired } from '../../lib/task/compose'
 import { MOVE_CLEARANCE_DEFAULT, MOVE_MODES, moveOf, moveUsesItem } from '../../lib/task/moveMode'
-import { retype, stepErrors, type PlanStep } from '../../lib/task/plan'
+import { isTeach, retype, stepErrors, type PlanStep } from '../../lib/task/plan'
 import { FormDialog } from '../../lib/ui/Dialog'
 import { Field } from '../../lib/ui/Field'
 import { HelpTip } from '../../lib/ui/HelpTip'
@@ -157,13 +157,19 @@ export function PlanStepDialog({
                 },
                 { id: 'item', label: 'Item', testid: 'plan-step-measure-item' },
                 { id: 'sku', label: 'SKU', testid: 'plan-step-measure-sku' },
+                {
+                  id: 'floor',
+                  label: 'Floor',
+                  title: '바닥 측정(Cell Teaching) — 품목 없이, Z = 바닥 + 500',
+                  testid: 'plan-step-measure-floor',
+                },
               ]}
             />
           </Field>
           <span className="pb-2">
             <HelpTip
               title="Measure"
-              text="Item: 타이어 한 개 치수(MeasureItem). SKU: 스택 전체의 단별 비드(MeasureSku). auto 는 그 스텝 시점 셀 재고로 고릅니다 — 1개면 Item, 2개 이상이면 SKU."
+              text="Item: 타이어 한 개 치수(MeasureItem). SKU: 스택 전체의 단별 비드(MeasureSku). auto 는 그 스텝 시점 셀 재고로 고릅니다 — 1개면 Item, 2개 이상이면 SKU. Floor: 바닥 측정(Cell Teaching) — GRM 이 Teach 모드면 잰 바닥이 셀 Z 로 저장됩니다."
             />
           </span>
         </div>
@@ -186,7 +192,7 @@ export function PlanStepDialog({
             value={d.item_code}
             onChange={(item_code) => set({ item_code })}
             items={[...items]}
-            allowNone={!itemRequired(d.type)}
+            allowNone={!itemRequired(d.type) || isTeach(d)}
           />
           {!isMove ? (
             <Input

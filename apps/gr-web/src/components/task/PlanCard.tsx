@@ -146,7 +146,7 @@ function StepPreview({ row }: { row: PlanRow }) {
 
 /** MOVE 방식의 짧은 이름(Top · Avoid · Stack). */
 function measureLabel(m: MeasureMode): string {
-  return m === 'sku' ? 'SKU' : 'Item'
+  return m === 'sku' ? 'SKU' : m === 'floor' ? 'Floor (Teaching)' : 'Item'
 }
 
 function moveLabel(s: PlanStep): string {
@@ -391,12 +391,13 @@ export function PlanCard({
                 onChange(patch(steps, r.id, { measure: v === '' ? null : (v as MeasureMode) }))
               }
               aria-label="Measure"
-              title="MEASURE 종류 — auto: 셀 재고 1개 = Item, 2개 이상 = SKU"
+              title="MEASURE 종류 — auto: 셀 재고 1개 = Item, 2개 이상 = SKU · Floor = 바닥 측정(Cell Teaching)"
               data-testid={`plan-measure-${r.no}`}
             >
               <option value="">{`auto(${measureLabel(autoMeasureMode(r.stockBefore))})`}</option>
               <option value="item">Item</option>
               <option value="sku">SKU</option>
+              <option value="floor">Floor (Teaching)</option>
             </Select>
           ) : null}
         </span>

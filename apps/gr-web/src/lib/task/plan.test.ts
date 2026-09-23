@@ -24,6 +24,9 @@ import {
   simulateStock,
   stackZ,
   stepForClick,
+  stepErrors,
+  teachRoute,
+  teachStep,
   toScenario,
   toggleType,
   undo,
@@ -396,6 +399,78 @@ describe('stepForClick item matching', () => {
     expect(s2.item_code).toBe(2011)
     expect(simulateStock([s1, s2], stk).get(2101)?.count).toBe(0)
     expect(stepForClick([s1, s2], stT(2101), stk, 'PICK').item_code).toBeNull()
+  })
+})
+
+describe('Cell Teaching (MEASURE Floor)', () => {
+  const cellT = (id: number) => ({ kind: 'cell' as const, id })
+  it('needs no item, sends only measure_floor and sits floor + 500 above an empty cell', () => {
+    const t = teachStep(cellT(102), 2)
+    expect([t.type, t.measure, t.item_code, t.count, t.robot]).toEqual([
+      'MEASURE',
+      'floor',
+      null,
+      1,
+      2,
+    ])
+    const [r] = planRows([t], ctx)
+    expect(r.measureMode).toBe('floor')
+    expect(r.z).toBe(1500 + 500)
+    expect(r.warnings).toEqual([])
+    expect(stepErrors(t)).toEqual([])
+    expect(toRequest(r).params).toEqual({
+      measure_item: false,
+      measure_sku: false,
+      measure_floor: true,
+    })
+    expect(toRequest(r).item_code).toBeNull()
+  })
+  it('재고가 있어도 베이스 + N 그대로 — 재고도 안 바뀐다', () => {
+    const [r] = planRows([teachStep(cellT(101))], ctx)
+    expect(r.z).toBe(2000)
+    expect(r.warnings).toEqual([])
+    expect(r.stockAfter).toBe(3)
+  })
+  it('측정 높이 N 을 정하면 그 높이로 가고 요청에도 실린다', () => {
+    const [r] = planRows([teachStep(cellT(102), null, 250)], ctx)
+    expect(r.z).toBe(1750)
+    expect(toRequest(r).params).toMatchObject({ measure_floor: true, measure_clearance: 250 })
+  })
+})
+
+describe('Cell Teaching 경로', () => {
+  // 2행 × 3열 한 구간 — 행 = X, 열 = Y (layoutGen 규약)
+  const grid: Cell[] = [
+    [1, 1, 1, 401],
+    [1, 1, 2, 402],
+    [1, 1, 3, 403],
+    [1, 2, 1, 404],
+    [1, 2, 2, 405],
+    [1, 2, 3, 406],
+  ].map(([section, row, col, id]) => ({
+    ...cell(id),
+    section,
+    row,
+    col,
+    position: [1000 * row, 500 * col, 1500],
+  })) as Cell[]
+  const ids = (steps: { target: { id: number } }[]) => steps.map((s) => s.target.id)
+
+  it('행 지그재그는 행마다 방향을 뒤집고, 행 순서는 늘 같은 방향', () => {
+    expect(ids(teachRoute(grid, null, new Set(), 'serpentine'))).toEqual([
+      401, 402, 403, 406, 405, 404,
+    ])
+    expect(ids(teachRoute(grid, null, new Set(), 'row'))).toEqual([401, 402, 403, 404, 405, 406])
+  })
+  it('셀 번호 순은 Id 오름차순 — 행·열을 보지 않는다', () => {
+    const mixed = [grid[3], grid[0], grid[5]]
+    expect(ids(teachRoute(mixed, null, new Set(), 'id'))).toEqual([401, 404, 406])
+  })
+  it('쓰지 않는 셀과 이미 계획에 든 셀은 건너뛴다', () => {
+    const cells = [...grid.slice(0, 3), { ...grid[3], use: false }]
+    const route = teachRoute(cells, 7, new Set([402]), 'row')
+    expect(ids(route)).toEqual([401, 403])
+    expect(route.every((s) => s.robot === 7 && s.measure === 'floor')).toBe(true)
   })
 })
 

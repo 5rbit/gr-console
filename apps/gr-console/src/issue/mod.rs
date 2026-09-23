@@ -122,6 +122,22 @@ pub const MOVE_TOP_Z: f32 = 9999.0;
 /// Default G for UP / no-item tasks.
 const G_DEFAULT: f32 = 300.0;
 
+/// 바닥 측정(Cell Teaching)이 명령 Z 를 잡는 기본 높이 — 등록된 베이스 라인 위 이만큼.
+pub const TEACH_CLEARANCE: f32 = 500.0;
+
+/// MEASURE 가 바닥 측정(`measure_floor`)만 하는가 — Cell Teaching. 품목·재고와 무관하고 Z = 베이스 + N.
+pub fn measure_floor_only(tt: TaskType, p: &gr_proto::TaskParams) -> bool {
+    tt == TaskType::Measure && p.measure_floor && !p.measure_item && !p.measure_sku
+}
+
+/// 바닥 측정 Z 의 높이 — 요청 `params.measure_clearance`, 없으면 `TEACH_CLEARANCE`.
+fn teach_clearance(req: &Json) -> Result<f32, ApiError> {
+    match req.get("measure_clearance").filter(|v| !v.is_null()) {
+        Some(v) => Ok(v.as_f64().filter(|c| c.is_finite() && (0.0..=5000.0).contains(c)).ok_or_else(|| ApiError::BadRequest(format!("measure_clearance {v} — 0..5000 mm")))? as f32),
+        None => Ok(TEACH_CLEARANCE),
+    }
+}
+
 /// MOVE 작성 방식 — 요청 `params.move_mode`(없으면 `stack`, 예전 동작).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -556,7 +572,7 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
     }
     params = params.overlay(&req.params)?;
     // 모르는 키(오타)는 overlay 가 조용히 버린다 — 미리보기에 알린다(요청은 막지 않는다).
-    for p in gr_proto::check_partial(&req.params, &["move_mode", "move_clearance"]) {
+    for p in gr_proto::check_partial(&req.params, &["move_mode", "move_clearance", "measure_clearance"]) {
         warnings.push(format!("params {p}"));
     }
     if tt == TaskType::Measure && !(params.measure_floor || params.measure_item || params.measure_sku) {
@@ -565,6 +581,12 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
     }
     if tt != TaskType::Measure && (params.measure_floor || params.measure_item || params.measure_sku) {
         warnings.push("measure flags set on a non-MEASURE task".into());
+    }
+    // MEASURE Floor 만(Cell Teaching) — 품목 없이 간다(PLC `isValidTaskData` 도 Item.Code 0 허용). GRM Teach 모드면
+    // PLC 가 잰 바닥(Z − FLD 거리)을 셀 Z 로 CELL 표에 넣는다(`PL_Task_V2` 500 MeasureFloor → AddCell).
+    let floor_only = measure_floor_only(tt, &params);
+    if floor_only {
+        warnings.retain(|w| w != "item not set");
     }
     // 드래그 거리를 아무도 안 정했으면 기본 150 mm(운전자 결정 2026-09-18) — 0 으로 내보내지 않는다.
     if params.use_drag_out && params.drag_out_dist == 0 {
@@ -599,10 +621,12 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
         let c = task.item.count.max(1) as u32;
         let floor = task.cell.position[2];
         let n = stock.map(|(_, n)| n).unwrap_or(match tt {
-            TaskType::Pick | TaskType::Measure => c,
+            TaskType::Pick | TaskType::Measure if !floor_only => c,
             _ => 0,
         });
-        if let Some((code, n)) = stock {
+        // 바닥 측정은 재고를 보지 않는다 — 그리퍼를 오므리고 바닥을 재고, 잰 값(Z − FLD 거리)은 어느 높이에서
+        // 재든 같은 절대 좌표다(운전자 확인 2026-09-23). 그래서 경고도 스택 계산도 없다.
+        if !floor_only && let Some((code, n)) = stock {
             let taking = matches!(tt, TaskType::Pick | TaskType::Measure);
             if taking && n == 0 {
                 warnings.push(format!("cell {} stock is empty", task.cell.id));
@@ -612,11 +636,16 @@ pub fn compose_from(defaults: &Defaults, req: &TaskRequest, cell: Option<CellInf
             if (taking || tt == TaskType::Drop) && n > 0 && code != 0 && task.item.code != 0 && code != task.item.code {
                 warnings.push(format!("cell {} holds item {code}, task item is {}", task.cell.id, task.item.code));
             }
-        } else if matches!(tt, TaskType::Pick | TaskType::Drop | TaskType::Measure) {
+        } else if !floor_only && matches!(tt, TaskType::Pick | TaskType::Drop | TaskType::Measure) {
             warnings.push(format!("cell {} stock unknown — Z assumes {}", task.cell.id, if tt == TaskType::Drop { "an empty cell" } else { "the task count on the floor" }));
         }
         let grip_ref = if sku { "mid" } else { req.grip_ref.as_deref().unwrap_or(&defaults.grip_ref) };
         task.position[2] = match tt {
+            TaskType::Measure if floor_only => {
+                // 등록된 베이스 라인(셀·스테이션 모두 `LGR_Cell_Info.Position[Z]`) 위 N — 재고와 무관.
+                // PLC 는 이 Z 에 멈춰(Inpos 여유 0) 바닥 레이저로 재고, 잰 절대 바닥을 그 대상 Z 로 저장한다.
+                floor + teach_clearance(&req.params)?
+            }
             TaskType::Pick | TaskType::Measure | TaskType::Drop => {
                 let z = stack_z_with(tt, floor, &task.item, spec, grip_ref, n, c);
                 let v = z.z;
@@ -789,6 +818,34 @@ mod tests {
         r.grip_ref = None;
         let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 3)), None).unwrap();
         assert_eq!((c.task.item.count, c.task.position[2]), (1, 2100.0));
+    }
+
+    /// Cell Teaching = MEASURE Floor 만: 품목·재고 없이, Z = 등록된 베이스 + N(기본 500, 요청 measure_clearance).
+    #[test]
+    fn measure_floor_only_needs_no_item_and_stays_above_the_floor() {
+        let d = defaults();
+        let mut r = req("MEASURE", "cell");
+        r.item_code = None;
+        r.count = 1;
+        r.params = json!({ "measure_floor": true });
+        let c = compose_from(&d, &r, Some(cell()), None, Some((0, 0)), None).unwrap();
+        assert!(c.params.measure_floor && !c.params.measure_item && !c.params.measure_sku);
+        assert!(c.measure_auto.is_none() && c.situations.is_empty());
+        assert_eq!(c.task.position[2], 2000.0);
+        assert_eq!(c.task.item.code, 0);
+        assert!(c.warnings.is_empty(), "{:?}", c.warnings);
+        r.params = json!({ "measure_floor": true, "measure_clearance": 300 });
+        assert_eq!(compose_from(&d, &r, Some(cell()), None, None, None).unwrap().task.position[2], 1800.0);
+        // 재고가 있어도 같다 — 잰 값은 절대 바닥이라 어디서 재든 같고, 명령 Z 는 늘 베이스 + N
+        r.params = json!({ "measure_floor": true });
+        let c = compose_from(&d, &r, Some(cell()), Some(item()), Some((1001, 2)), None).unwrap();
+        assert_eq!(c.task.position[2], 2000.0);
+        assert!(c.warnings.is_empty(), "{:?}", c.warnings);
+        // 스테이션도 같은 베이스 라인(Station.Info = LGR_Cell_Info)
+        let mut st = req("MEASURE", "station");
+        st.item_code = None;
+        st.params = json!({ "measure_floor": true, "measure_clearance": 250 });
+        assert_eq!(compose_from(&d, &st, Some(cell()), None, None, None).unwrap().task.position[2], 1750.0);
     }
 
     /// Multi-Picking 은 스테이션 PICK/DROP 에만 — 기본 층이 부분 리프트를 켠다. 셀이면 경고만.

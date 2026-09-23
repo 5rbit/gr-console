@@ -28,17 +28,30 @@ import type { Shape } from '../../lib/task/layoutModel'
 import { parseRailTab } from '../../lib/task/railSplitModel'
 import {
   EMPTY_HISTORY,
+  PLAN_KINDS,
   commit,
+  isTeach,
   dropMismatch,
   redo,
   stepForClick,
+  TEACH_CLEARANCE_DEFAULT,
+  TEACH_CLEARANCE_MAX,
+  TEACH_ORDERS,
+  teachRoute,
+  teachStep,
+  type TeachOrder,
   type DropMismatch,
+  type PlanKind,
   undo,
   type History,
   type PlanStep,
 } from '../../lib/task/plan'
 import { planInbox } from '../../lib/task/planInbox'
+import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
+import { FieldList } from '../../lib/ui/FieldList'
+import { Input } from '../../lib/ui/Input'
 import { ScreenHeader } from '../../lib/ui/ScreenHeader'
+import { Segmented } from '../../lib/ui/Segmented'
 import { toast } from '../../lib/ui/toast'
 import { cn } from '../../lib/utils'
 import type {
@@ -64,6 +77,9 @@ import { Splitter } from '../workspace/Splitter'
 
 const PLAN_KEY = 'gr-plan'
 const MODE_KEY = 'gr-cellmap-mode'
+const KIND_KEY = 'gr-plan-kind'
+const TEACH_KEY = 'gr-teach-order'
+const TEACH_H_KEY = 'gr-teach-clearance'
 type Side = PlanMode
 
 function loadPlan(): PlanStep[] {
@@ -214,6 +230,17 @@ export default function TaskIssue() {
   const [focusStep, setFocusStep] = useState<PlanStep | null>(null)
   // 맵 모드 · 레일 탭 · 편집 선택 · 생성 예정 셀 · 화면 이동
   const [mapMode, setMapMode] = useState<MapMode>(() => loadChoice(MODE_KEY, MAP_MODES, 'plan'))
+  const [planKind, setPlanKind] = useState<PlanKind>(() =>
+    loadChoice(
+      KIND_KEY,
+      PLAN_KINDS.map((k) => k.id),
+      'pickdrop',
+    ),
+  )
+  const changePlanKind = useCallback((k: PlanKind) => {
+    setPlanKind(k)
+    persist(KIND_KEY, k)
+  }, [])
   const [railTab, setRailTab] = useState<RailTab>(() => {
     try {
       return parseRailTab(localStorage.getItem(RAIL_KEY))
@@ -327,6 +354,10 @@ export default function TaskIssue() {
     return () => window.removeEventListener('keydown', onKey)
   }, [doUndo, doRedo])
 
+  const [teachH, setTeachH] = useState<number>(() => {
+    const v = Number(localStorage.getItem(TEACH_H_KEY))
+    return Number.isFinite(v) && v > 0 && v <= TEACH_CLEARANCE_MAX ? v : TEACH_CLEARANCE_DEFAULT
+  })
   // 계획 추가 — PICK/DROP 짝에서 놓을 자리에 **다른 품목**이 있으면 바로 넣지 않고 확인 창(양쪽 화물 규격 + 셀 Id)을
   // 띄운다(2026-09-22 운전자 요청: 재고가 다른 셀에 잘못 옮기는 것을 막는다). 같은 품목·빈 자리는 묻지 않는다.
   const presentRef = useRef(hist.present)
@@ -355,8 +386,14 @@ export default function TaskIssue() {
     [pickTarget],
   )
   const planAdd = useCallback(
-    (target: Target, shape: Shape, type?: TaskType) => {
+    (target: Target, shape: Shape, type?: TaskType | 'TEACH') => {
       const steps = presentRef.current
+      // Cell Teaching — 드롭다운이 Teaching 이면 좌클릭(종류 미지정)도, 팔레트 "Cell Teaching 추가" 도 MEASURE Floor.
+      // 셀·스테이션 모두 같은 베이스 라인(`LGR_Cell_Info.Position[Z]`) 위 N 으로 간다.
+      if (type === 'TEACH' || (type === undefined && planKind === 'teach')) {
+        addStep(teachStep(target, robots.selected, teachH), shape, target)
+        return
+      }
       const step = stepForClick(
         steps,
         target,
@@ -373,8 +410,36 @@ export default function TaskIssue() {
       }
       addStep(step, shape, target)
     },
-    [itemSel, addStep],
+    [itemSel, addStep, planKind, teachH],
   )
+
+  // 모든 셀 Teaching — 경로를 한 번에 넣는다(이미 계획에 있는 셀은 건너뛴다). 개수가 크니 확인 창을 거치고,
+  // 그 창에서 **차례(패턴)**를 고른다: 행 지그재그 · 행 순서 · 셀 번호 순. 고른 값은 기억한다.
+  const [teachAsk, setTeachAsk] = useState<ReadonlySet<number> | null>(null)
+  const [teachOrder, setTeachOrder] = useState<TeachOrder>(() =>
+    loadChoice(
+      TEACH_KEY,
+      TEACH_ORDERS.map((o) => o.id),
+      'serpentine',
+    ),
+  )
+  const teachRouteNow = useMemo(
+    () => (teachAsk ? teachRoute(cells.items, robots.selected, teachAsk, teachOrder, teachH) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- robots.selected 는 스토어 구독으로 갱신된다
+    [teachAsk, cells.items, teachOrder, teachH],
+  )
+  const teachAll = useCallback(() => {
+    const have = new Set(presentRef.current.filter((s) => isTeach(s)).map((s) => s.target.id))
+    if (!teachRoute(cells.items, robots.selected, have).length) {
+      toast.warn(
+        have.size
+          ? '모든 셀이 이미 계획에 있습니다'
+          : '계획에 넣을 셀이 없습니다 (레지스트리 확인)',
+      )
+      return
+    }
+    setTeachAsk(have)
+  }, [cells.items])
 
   const compose = useCallback(
     (target: Target, shape: Shape, type: TaskType) => {
@@ -419,6 +484,9 @@ export default function TaskIssue() {
         mapCells={editing ? cellDraft : null}
         mapStations={editing ? stationDraft : null}
         onPlanAdd={planAdd}
+        planKind={planKind}
+        onPlanKindChange={changePlanKind}
+        onTeachAll={teachAll}
         onCompose={compose}
         onTargetPick={pickTarget}
         onEditSelect={(t) => {
@@ -574,6 +642,78 @@ export default function TaskIssue() {
           )}
         </section>
       </div>
+      <ConfirmDialog
+        open={teachAsk !== null}
+        onOpenChange={(v) => !v && setTeachAsk(null)}
+        scope="single"
+        title="모든 셀 Cell Teaching"
+        confirmLabel={`${teachRouteNow.length}개 계획에 넣기`}
+        onConfirm={() => {
+          const route = teachRouteNow
+          setHist((h) => commit(h, [...h.present, ...route]))
+          setSide('plan')
+          toast.info(withRobot(robots.chip.name, `Cell Teaching ${route.length}개 스텝 → 계획`))
+          setTeachAsk(null)
+        }}
+      >
+        <div className="flex flex-col gap-2 text-xs">
+          <div>
+            등록된 셀을 고른 차례로 모두 넣습니다. 제출은 계획 카드에서 따로 합니다(다음 1건 · 자동
+            제출).
+          </div>
+          <Segmented<TeachOrder>
+            ariaLabel="Teaching 차례"
+            value={teachOrder}
+            onChange={(o) => {
+              setTeachOrder(o)
+              persist(TEACH_KEY, o)
+            }}
+            options={TEACH_ORDERS.map((o) => ({
+              id: o.id,
+              label: o.label,
+              title: o.title,
+              testid: `teach-order-${o.id}`,
+            }))}
+          />
+          <Input
+            dense
+            type="number"
+            mono
+            min={0}
+            max={TEACH_CLEARANCE_MAX}
+            step="10"
+            className="w-28"
+            label="측정 높이 (베이스 + mm)"
+            value={String(teachH)}
+            onValueChange={(v) => {
+              const n = Number(v)
+              if (!Number.isFinite(n) || n < 0 || n > TEACH_CLEARANCE_MAX) return
+              setTeachH(n)
+              persist(TEACH_H_KEY, String(n))
+            }}
+            title="명령 Z = 등록된 베이스 라인 + 이 값. 잰 바닥은 절대 좌표라 이 높이와 무관하게 같은 값이 나옵니다"
+            data-testid="teach-clearance"
+          />
+          <FieldList
+            columns={2}
+            dense
+            labelWidth={72}
+            items={[
+              { label: '스텝', value: `${teachRouteNow.length}개` },
+              {
+                label: '차례',
+                value: teachRouteNow.length
+                  ? `셀 ${teachRouteNow[0].target.id} → ${teachRouteNow[teachRouteNow.length - 1].target.id}`
+                  : '',
+              },
+              { label: '명령 Z', value: `베이스 + ${teachH} mm` },
+              { label: '대상 로봇', value: robots.chip.name },
+              { label: '되돌리기', value: 'Ctrl+Z 로 가능' },
+            ]}
+          />
+          <div className="text-warn-fg">GRM 이 Teach 모드여야 잰 바닥이 셀 Z 로 저장됩니다.</div>
+        </div>
+      </ConfirmDialog>
       <DropMismatchDialog
         mismatch={dropAsk?.mismatch ?? null}
         items={items.items}

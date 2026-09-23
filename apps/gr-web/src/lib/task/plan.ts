@@ -49,6 +49,8 @@ export interface PlanStep {
   move?: MoveOpts | null
   /** MEASURE 측정 종류. 없으면 자동 — 셀 재고 1개 이하 = Item, 2개 이상 = SKU(`autoMeasureMode`). */
   measure?: MeasureMode | null
+  /** 바닥 측정(Cell Teaching) 명령 Z = 베이스 라인 + 이만큼(mm). 없으면 `TEACH_CLEARANCE`. */
+  measureClearance?: number | null
 }
 
 export interface PlanRow extends PlanStep {
@@ -83,13 +85,134 @@ export function measureParams(mode: MeasureMode): {
   measure_sku: boolean
   measure_floor: boolean
 } {
-  return { measure_item: mode === 'item', measure_sku: mode === 'sku', measure_floor: false }
+  return {
+    measure_item: mode === 'item',
+    measure_sku: mode === 'sku',
+    measure_floor: mode === 'floor',
+  }
+}
+
+/**
+ * 맵 클릭이 만드는 스텝 — `pickdrop` = PICK → DROP 교대(기본), `teach` = Cell Teaching(셀마다 MEASURE Floor).
+ * Teaching 은 GRM 이 Teach 모드일 때 PLC 가 잰 바닥(Z − FLD 거리)을 그 셀 Z 로 CELL 표에 넣는다(`PL_Task_V2` 500).
+ */
+export type PlanKind = 'pickdrop' | 'teach'
+
+export const PLAN_KINDS: readonly { id: PlanKind; label: string; title: string }[] = [
+  { id: 'pickdrop', label: 'PICK/DROP', title: '좌클릭마다 PICK → DROP 순으로 계획에 쌓인다' },
+  {
+    id: 'teach',
+    label: 'Cell Teaching',
+    title:
+      '좌클릭한 셀·스테이션마다 MEASURE Floor(바닥 측정)를 쌓는다 — Z = 등록된 베이스 + N(기본 500). GRM 이 Teach 모드여야 잰 바닥이 그 대상 Z 로 저장된다',
+  },
+]
+
+/**
+ * 바닥 측정(Cell Teaching) 명령 Z 의 기본 높이 — 등록된 베이스 라인 위 이만큼. 백엔드 `TEACH_CLEARANCE`.
+ * 재는 값은 **절대 바닥 좌표**(Z 축 위치 − 바닥 레이저 거리)라 어느 높이에서 재든 같다 — 그래서 재고와도 무관하다.
+ */
+export const TEACH_CLEARANCE_DEFAULT = 500
+export const TEACH_CLEARANCE_MAX = 5000
+
+/** Cell Teaching 스텝 — 품목·재고 없이 바닥 측정(MEASURE Floor) 하나. */
+export function teachStep(
+  target: Target,
+  robot: number | null = null,
+  clearance: number | null = null,
+): PlanStep {
+  return {
+    id: stepId(),
+    type: 'MEASURE',
+    target,
+    item_code: null,
+    count: 1,
+    note: '',
+    robot,
+    measure: 'floor',
+    ...(clearance === null ? {} : { measureClearance: clearance }),
+  }
+}
+
+/** 이 스텝의 Teaching 높이 — 정한 값이 없으면 기본값. */
+export function teachClearance(s: Pick<PlanStep, 'measureClearance'>): number {
+  const c = s.measureClearance
+  return c === null || c === undefined || !Number.isFinite(c) || c < 0 || c > TEACH_CLEARANCE_MAX
+    ? TEACH_CLEARANCE_DEFAULT
+    : c
+}
+
+/** 스텝이 바닥 측정(Cell Teaching)인가. */
+export function isTeach(s: Pick<PlanStep, 'type' | 'measure'>): boolean {
+  return s.type === 'MEASURE' && s.measure === 'floor'
+}
+
+/**
+ * 모든 셀을 도는 Teaching 경로의 차례.
+ *   `id`         — 셀 번호(Id) 오름차순. 번호를 매긴 순서가 곧 순서다.
+ *   `row`        — 구간 → 행(X) → 열(Y), 행마다 같은 방향.
+ *   `serpentine` — 행 순서에 지그재그(앞 행과 반대 방향) — 행 끝에서 되돌아가지 않아 이동이 짧다.
+ */
+export type TeachOrder = 'id' | 'row' | 'serpentine'
+
+export const TEACH_ORDERS: readonly { id: TeachOrder; label: string; title: string }[] = [
+  {
+    id: 'serpentine',
+    label: '행 지그재그',
+    title: '행(X) 순서, 행마다 방향을 번갈아 — 이동이 가장 짧다',
+  },
+  { id: 'row', label: '행 순서', title: '구간 → 행(X) → 열(Y), 행마다 같은 방향' },
+  { id: 'id', label: '셀 번호 순', title: '셀 Id 오름차순 — 번호를 매긴 순서 그대로' },
+]
+
+/**
+ * 모든 셀을 한 번씩 도는 Teaching 경로. 축 규약은 `layoutGen` 과 같다(행 = X, 열 = Y).
+ * 행·열이 없는(0) 셀은 좌표로 줄을 세운다. `skip` 에 든 셀 id 는 건너뛴다(이미 계획에 있는 셀).
+ */
+export function teachRoute(
+  cells: readonly Cell[],
+  robot: number | null = null,
+  skip: ReadonlySet<number> = new Set(),
+  order: TeachOrder = 'serpentine',
+  clearance: number | null = null,
+): PlanStep[] {
+  const use = cells.filter((c) => c.use !== false && !skip.has(c.id))
+  const step = (c: Cell) => teachStep({ kind: 'cell', id: c.id }, robot, clearance)
+  if (order === 'id') return [...use].sort((a, b) => a.id - b.id).map(step)
+  // 행 = 같은 구간의 같은 행 번호(없으면 X 좌표) — 이 묶음 단위로 방향이 번갈아 바뀐다.
+  const rowKey = (c: Cell) => `${c.section}/${c.row || Math.round(c.position[0])}`
+  const rows = new Map<string, Cell[]>()
+  for (const c of use) {
+    const k = rowKey(c)
+    const list = rows.get(k) ?? []
+    list.push(c)
+    rows.set(k, list)
+  }
+  const keys = [...rows.keys()].sort((a, b) => {
+    const [ca, cb] = [rows.get(a)![0], rows.get(b)![0]]
+    return ca.section - cb.section || ca.row - cb.row || ca.position[0] - cb.position[0]
+  })
+  const out: PlanStep[] = []
+  keys.forEach((k, i) => {
+    const line = rows
+      .get(k)!
+      .sort((a, b) => a.col - b.col || a.position[1] - b.position[1] || a.id - b.id)
+    for (const c of order === 'serpentine' && i % 2 === 1 ? [...line].reverse() : line)
+      out.push(step(c))
+  })
+  return out
 }
 
 /** 스텝 요청 `params` — MOVE 방식 · MEASURE 고정 종류. auto(비움)는 플래그를 싣지 않는다 → 서버가 그때 재고로 고른다. */
 function stepParams(s: PlanStep): TaskRequest['params'] {
   if (s.type === 'MOVE') return moveParams(moveOf(s))
-  if (s.type === 'MEASURE' && s.measure) return measureParams(s.measure)
+  if (s.type === 'MEASURE' && s.measure)
+    return {
+      ...measureParams(s.measure),
+      ...(isTeach(s) && s.measureClearance !== null && s.measureClearance !== undefined
+        ? { measure_clearance: teachClearance(s) }
+        : {}),
+    }
   return {}
 }
 
@@ -373,7 +496,12 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
     if (!cell && !station) warnings.push('대상이 레지스트리에 없음')
     const item = s.item_code !== null ? ctx.items.find((it) => it.code === s.item_code) : undefined
     if (s.item_code !== null && !item) warnings.push(`품목 ${s.item_code} 미등록`)
-    if (s.item_code === null && (s.type === 'PICK' || s.type === 'DROP' || s.type === 'MEASURE'))
+    const teach = isTeach(s)
+    if (
+      s.item_code === null &&
+      !teach &&
+      (s.type === 'PICK' || s.type === 'DROP' || s.type === 'MEASURE')
+    )
       warnings.push('품목 없음')
     const h = item?.height ?? null
     // 셀·스테이션 모두 재고를 본다(같은 id 공간) — 스테이션 위 멀티 PICK/DROP 도 기존 타이어 위로 쌓는다.
@@ -383,8 +511,11 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
     const measureMode =
       s.type === 'MEASURE' ? (s.measure ?? autoMeasureMode(st ? st.count : null)) : undefined
     let z: number | null = null
-    if (s.type === 'MOVE') {
-      const mv = moveOf(s)
+    if (teach) {
+      // 베이스 라인(셀·스테이션 모두 `LGR_Cell_Info.Position[Z]`) + N — 재고를 보지 않는다.
+      if (floor !== null) z = floor + teachClearance(s)
+    } else if (s.type === 'MOVE') {
+      const mv: MoveOpts = moveOf(s)
       // 스택 높이 — 스텝 품목, 없으면 셀 재고의 품목(백엔드도 재고 품목으로 채운다)
       const stackItem =
         item ?? (st?.item_code ? ctx.items.find((it) => it.code === st.item_code) : undefined)
@@ -401,7 +532,7 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
       const sku = measureMode === 'sku' && n > 0
       z = planZ(s.type, floor, item, sku ? 'mid' : (ctx.gripRef ?? 'mid'), n, sku ? n : s.count).z
     }
-    if (st && s.type !== 'MOVE') {
+    if (st && s.type !== 'MOVE' && !teach) {
       if ((s.type === 'PICK' || s.type === 'MEASURE') && n === 0)
         warnings.push(`${cell ? '셀' : '스테이션'} 재고 없음`)
       else if (s.type === 'PICK' && n < s.count) warnings.push(`재고 ${n} < 수량 ${s.count}`)
@@ -483,7 +614,8 @@ export function stepErrors(s: PlanStep): string[] {
   const out = validateDraft({
     type: s.type,
     target: s.target,
-    item_code: s.item_code,
+    // Cell Teaching(MEASURE Floor)은 품목 없이 간다 — 품목 필수 검사를 건너뛴다.
+    item_code: isTeach(s) ? (s.item_code ?? 0) : s.item_code,
     count: s.count,
     params: {},
     note: s.note,

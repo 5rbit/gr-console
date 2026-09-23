@@ -420,13 +420,18 @@ export interface Target {
 /** MOVE 작성 방식 — 요청 `params.move_mode`(백엔드 `issue::MoveMode`). stack = 스택 윗면 + 여유까지 하강, top = Z 9999(상단 유지 XY 이동), avoid = Avoid + Z 9999(상단에서 X 만). */
 export type MoveMode = 'stack' | 'top' | 'avoid'
 
-/** MEASURE 측정 종류 — 요청 `params.measure_item` / `params.measure_sku`. 순차 계획은 비우면 재고로 고른다. */
-export type MeasureMode = 'item' | 'sku'
+/**
+ * MEASURE 측정 종류 — 요청 `params.measure_item` / `measure_sku` / `measure_floor`. 순차 계획은 비우면 재고로 고른다.
+ * `floor` = 바닥 측정(Cell Teaching) — 품목 없이, GRM Teach 모드면 PLC 가 잰 바닥을 셀 Z 로 저장한다.
+ */
+export type MeasureMode = 'item' | 'sku' | 'floor'
 
 /** 작업 요청 `params` — 튜닝 값(부분) + MOVE 옵션(`TaskParams` 밖의 키라 백엔드가 원본 JSON 에서 읽는다). */
 export type TaskRequestParams = Partial<TaskParams> & {
   move_mode?: MoveMode
   move_clearance?: number
+  /** 바닥 측정(Cell Teaching) 명령 Z = 베이스 라인 + 이만큼(mm). 백엔드 `issue::teach_clearance`. */
+  measure_clearance?: number
 }
 
 export interface TaskParams {

@@ -215,7 +215,9 @@ pub fn validate_shape(s: &Scenario) -> Vec<Issue> {
         if st.count > 255 {
             out.push(issue(i, "count", "수량은 255 이하"));
         }
-        if matches!(tt, TaskType::Pick | TaskType::Drop | TaskType::Measure) && st.item_code.is_none() {
+        // MEASURE Floor 만(Cell Teaching)은 품목 없이 간다.
+        let floor_only = base.overlay(&st.params).is_ok_and(|p| crate::issue::measure_floor_only(tt, &p));
+        if matches!(tt, TaskType::Pick | TaskType::Drop | TaskType::Measure) && st.item_code.is_none() && !floor_only {
             out.push(issue(i, "item_code", format!("{}에는 품목이 필요", tt.name())));
         }
         match &st.target {
@@ -237,7 +239,7 @@ pub fn validate_shape(s: &Scenario) -> Vec<Issue> {
             out.push(issue(i, "params", "params는 객체여야 함"));
         } else {
             // 오타·종류·범위를 키마다(`PARAM_SPECS`) — overlay 는 모르는 키를 조용히 버린다. MOVE 옵션은 따로 읽는 키.
-            for p in gr_proto::check_partial(&st.params, &["move_mode", "move_clearance"]) {
+            for p in gr_proto::check_partial(&st.params, &["move_mode", "move_clearance", "measure_clearance"]) {
                 out.push(issue(i, "params", format!("params {p}")));
             }
             if let Err(e) = base.overlay(&st.params) {
