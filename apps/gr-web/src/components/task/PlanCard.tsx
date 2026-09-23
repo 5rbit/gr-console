@@ -207,7 +207,7 @@ function ItemCodeSelect({
   )
 }
 
-export type PlanMode = 'plan' | 'single'
+export type PlanMode = 'auto' | 'plan' | 'single'
 
 export interface PlanCardProps {
   steps: PlanStep[]
@@ -226,13 +226,15 @@ export interface PlanCardProps {
   /** 그립 기준(전역 기본값) + 변경. */
   gripRef: GripRef
   onGripRefChange: (g: GripRef) => void
-  /** 지금 모드 — `single` 이면 표 대신 `single` 이 작업면을 채운다. */
+  /** 지금 모드 — `plan` 이 아니면 그 모드의 내용(`single`/`auto`)이 작업면을 채운다. */
   mode: PlanMode
   onModeChange: (m: PlanMode) => void
   /** 이 카드가 겨냥한 로봇 — 머리줄 칩·제출 확인·토스트가 모두 이것을 말한다. */
   robot: RobotChipModel
-  /** 단일 명령 모드의 내용(작성 카드). */
+  /** 단일 생성 모드의 내용(작성 카드). */
   single?: ReactNode
+  /** 자동 생성 모드의 내용(생성 규칙 · 모니터). */
+  autoGen?: ReactNode
   /** 계획 시작 때의 예상 Hand(진행 중 PICK/DROP 반영) — 표의 "들고 있음" 출발점. */
   hand?: { item_code: number; count: number } | null
   /** 지금 Hand(표 값) — 머리줄에 품목 × 개수와 이송 지시를 보인다. */
@@ -262,6 +264,7 @@ export function PlanCard({
   onModeChange,
   robot,
   single,
+  autoGen,
   hand = null,
   handNow = null,
   sync = [],
@@ -687,8 +690,9 @@ export function PlanCard({
           value={mode}
           onChange={onModeChange}
           options={[
-            { id: 'plan', label: '순차 계획', badge: steps.length || '', testid: 'side-plan' },
-            { id: 'single', label: '단일 명령', testid: 'side-single' },
+            { id: 'auto', label: '자동 생성', testid: 'side-auto' },
+            { id: 'plan', label: '순차 생성', badge: steps.length || '', testid: 'side-plan' },
+            { id: 'single', label: '단일 생성', testid: 'side-single' },
           ]}
         />
         {/* 설명 한 줄은 늘 서 있을 값이 아니다 — 손이 멈췄을 때만 읽히게 title 로 내린다. */}
@@ -697,12 +701,16 @@ export function PlanCard({
           title={
             mode === 'plan'
               ? '레이아웃 클릭 = PICK/DROP 교대 · Z = 바닥 + H×재고 + 그립'
-              : '한 건을 만들어 바로 제출한다 — 계획에 쌓지 않는다'
+              : mode === 'single'
+                ? '한 건을 만들어 바로 제출한다 — 계획에 쌓지 않는다'
+                : '규칙의 조건이 참이면 콘솔이 스스로 만들어 보낸다'
           }
         >
           {mode === 'plan'
             ? `${steps.length}스텝${warnCount ? ` · 경고 ${warnCount}` : ''}`
-            : '한 건 작성 → 제출'}
+            : mode === 'single'
+              ? '한 건 작성 → 제출'
+              : '규칙 → 조건 → 자동 제출'}
         </span>
         <span className="flex-1" />
         {/* 그리퍼에 든 화물 — PICK/DROP 짝 사이(또는 DROP 이 취소돼 남은) 타이어. */}
@@ -740,7 +748,7 @@ export function PlanCard({
         />
         <OverflowMenu
           items={menuItems(cardMenu)}
-          title={mode === 'plan' ? '계획 — 그립 기준 · 되돌리기 · 비우기' : '작성 — 그립 기준'}
+          title={mode === 'plan' ? '계획 — 그립 기준 · 되돌리기 · 비우기' : '그립 기준'}
           testid="plan-more"
         />
       </div>
@@ -752,6 +760,11 @@ export function PlanCard({
       <div className={mode === 'single' ? 'min-w-0' : 'hidden'} data-testid="plan-card-single">
         {single}
       </div>
+      {mode === 'auto' ? (
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto p-3" data-testid="plan-card-auto">
+          {autoGen}
+        </div>
+      ) : null}
       <div className={mode === 'plan' ? 'contents' : 'hidden'}>
         <div className="min-h-0 flex-1 overflow-auto border-t border-line-default">
           <DataTable

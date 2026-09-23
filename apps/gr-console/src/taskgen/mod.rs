@@ -195,6 +195,58 @@ pub fn fires(rule: &Rule, w: &World) -> bool {
     }
 }
 
+/// 조건이 보는 입력의 지금 값 — 화면이 "왜 안 참인가" 를 규칙 줄에서 말할 수 있게.
+pub fn trigger_inputs(rule: &Rule, w: &World) -> String {
+    let b = |v: bool| if v { 1 } else { 0 };
+    let pi = |s: &u16| w.stations.get(s).copied().unwrap_or_default();
+    let mut s = match &rule.trigger {
+        Trigger::Manual => format!("요청 {} 건 남음", rule.manual_requests),
+        Trigger::StationReq { station, require_cvok } => {
+            let p = pi(station);
+            format!("STATION {station}: Req={} CVOK={}{}", b(p.req), b(p.cvok), if *require_cvok { "" } else { " (CVOK 무시)" })
+        }
+        Trigger::StationItem { station, require_cvok } => {
+            let p = pi(station);
+            format!("STATION {station}: ItemExist={} CVOK={}{}", b(p.item_exist), b(p.cvok), if *require_cvok { "" } else { " (CVOK 무시)" })
+        }
+        Trigger::CellStock { cell, item, min } => match w.stock.get(cell) {
+            Some((code, n)) => format!("셀 {cell}: 재고 {n} 개(품목 {code}) / 조건 ≥ {min}{}", item.map(|i| format!(" 품목 {i}")).unwrap_or_default()),
+            None => format!("셀 {cell}: 재고 없음 / 조건 ≥ {min}"),
+        },
+    };
+    // 고정 셀 이송은 출발 재고·도착 칸도 조건이다(`fires`) — 같이 보여 준다.
+    if let Action::Transfer { from, to, count, from_auto, to_auto, .. } = &rule.action {
+        if from_auto.is_none() && from.kind == "cell" {
+            let have = w.stock.get(&from.id).map(|(_, n)| *n).unwrap_or(0);
+            s.push_str(&format!(" · 출발 셀 {} 재고 {have}/{count}", from.id));
+        }
+        if to_auto.is_none() && to.kind == "cell" {
+            match w.room.get(&to.id) {
+                Some(r) => s.push_str(&format!(" · 도착 셀 {} 남은 칸 {r}/{count}", to.id)),
+                None => s.push_str(&format!(" · 도착 셀 {} 칸 제한 없음", to.id)),
+            }
+        }
+    }
+    s
+}
+
+/// 규칙 하나의 지금 상태(모니터).
+#[derive(Clone, Debug, Serialize)]
+pub struct RuleStatus {
+    pub rule_id: String,
+    pub fires: bool,
+    pub inputs: String,
+    /// `off` 규칙 꺼짐 · `idle` 조건 거짓 · `busy` 이 규칙 작업이 아직 돈다 · `queued` 예정에 있다 ·
+    /// `skipped` 후보 못 됨 · `waiting` 후보지만 대기 · `ready` 지금 만들 수 있다(자동이 꺼져 있으면 만들지 않는다).
+    pub state: String,
+    pub reason: Option<String>,
+    /// 조건이 참이 된 뒤 지난 시간(분).
+    pub age_min: f32,
+    /// 엔진이 도는 동안의 누적.
+    pub generated: u64,
+    pub last_generated_at: Option<String>,
+}
+
 /// 자동 선택에 쓰는 셀 하나.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CellView {
@@ -610,5 +662,27 @@ mod tests {
         assert_eq!(r.trigger, Trigger::StationReq { station: 5, require_cvok: true });
         let old: GenConfig = serde_json::from_str(r#"{"version":1,"weights":{"age_per_min":1.0,"target":{"7":1.0}}}"#).unwrap();
         assert_eq!(old.weights.target.get(&7), Some(&1.0));
+    }
+
+    #[test]
+    fn trigger_inputs_say_the_live_values() {
+        let mut w = World::default();
+        w.stations.insert(2101, StationPi { cvok: true, req: false, item_exist: true });
+        w.stock.insert(401, (2011, 3));
+        w.room.insert(402, 1);
+
+        let r = Rule { trigger: Trigger::StationReq { station: 2101, require_cvok: true }, ..rule("st", 0.0, 401, 402) };
+        let s = trigger_inputs(&r, &w);
+        assert!(s.contains("Req=0") && s.contains("CVOK=1"), "{s}");
+        assert!(s.contains("출발 셀 401 재고 3/1") && s.contains("도착 셀 402 남은 칸 1/1"), "{s}");
+
+        let m = Rule { trigger: Trigger::Manual, manual_requests: 2, ..rule("man", 0.0, 401, 402) };
+        assert!(trigger_inputs(&m, &w).starts_with("요청 2 건"), "{}", trigger_inputs(&m, &w));
+
+        let c = Rule { trigger: Trigger::CellStock { cell: 409, item: None, min: 2 }, action: Action::Measure { target: cell(409), item: None }, ..rule("cs", 0.0, 0, 0) };
+        assert!(trigger_inputs(&c, &w).contains("셀 409: 재고 없음"), "{}", trigger_inputs(&c, &w));
+
+        let nocv = Rule { trigger: Trigger::StationItem { station: 2101, require_cvok: false }, ..rule("it", 0.0, 401, 402) };
+        assert!(trigger_inputs(&nocv, &w).contains("CVOK 무시"), "{}", trigger_inputs(&nocv, &w));
     }
 }

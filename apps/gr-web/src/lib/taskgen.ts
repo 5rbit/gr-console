@@ -98,8 +98,23 @@ export interface GenMetrics {
   waits: Record<string, number>
 }
 
+/** 백엔드 `taskgen::RuleStatus` — 규칙 줄의 지금 상태. */
+export interface GenRuleStatus {
+  rule_id: string
+  fires: boolean
+  /** 조건이 보는 입력의 지금 값(스테이션 비트 · 셀 재고 · 남은 요청 수) */
+  inputs: string
+  state: 'off' | 'idle' | 'busy' | 'queued' | 'skipped' | 'waiting' | 'ready'
+  reason: string | null
+  age_min: number
+  generated: number
+  last_generated_at: string | null
+}
+
 export interface GenState {
   config: GenConfig
+  /** 규칙 순서 그대로 */
+  rules: GenRuleStatus[]
   candidates: GenCandidate[]
   /** 후보조차 못 된 규칙(자동 셀 없음 · 팔렛 자리 없음 · 거리 초과) */
   skipped: { rule: string; reason: string }[]
@@ -129,6 +144,45 @@ export function metricsLine(m: GenMetrics): string {
     .map(([k, v]) => `${k} ${v}`)
     .join(' · ')
   return `생성 ${m.generated} · 발행 ${m.issued} · 끝남 ${m.completed_items} · 중단 ${m.aborted} · 제출 실패 ${m.submit_failures}${waits ? ` — 대기 ${waits}` : ''}`
+}
+
+/** 규칙 줄의 상태 칩. 색은 "지금 도는가"가 아니라 사람이 볼 일이 있나로 나눈다. */
+export function ruleState(
+  s: GenRuleStatus | undefined,
+  auto: boolean,
+): { label: string; tone: 'ok' | 'warn' | 'muted'; title: string } {
+  if (!s) return { label: '—', tone: 'muted', title: '엔진이 아직 한 번도 판정하지 않았습니다' }
+  const age = s.age_min >= 0.1 ? ` · 조건 참 ${s.age_min.toFixed(1)}분` : ''
+  const made = s.generated
+    ? ` · 만든 ${s.generated}건${s.last_generated_at ? ` (마지막 ${s.last_generated_at})` : ''}`
+    : ''
+  const tail = `${s.inputs}${age}${made}`
+  switch (s.state) {
+    case 'off':
+      return { label: '꺼짐', tone: 'muted', title: `규칙이 꺼져 있습니다 — ${tail}` }
+    case 'idle':
+      return { label: '조건 대기', tone: 'muted', title: `조건이 아직 참이 아닙니다 — ${tail}` }
+    case 'queued':
+      return { label: '예정', tone: 'ok', title: `${s.reason ?? '예정 큐에 있음'} — ${tail}` }
+    case 'busy':
+      return { label: '진행 중', tone: 'ok', title: `${s.reason ?? '진행 중'} — ${tail}` }
+    case 'waiting':
+      return { label: '대기', tone: 'warn', title: `${s.reason ?? '대기'} — ${tail}` }
+    case 'skipped':
+      return {
+        label: '못 만듦',
+        tone: 'warn',
+        title: `${s.reason ?? '후보가 되지 못함'} — ${tail}`,
+      }
+    case 'ready':
+      return auto
+        ? { label: '생성', tone: 'ok', title: `이번 판정에서 만듭니다 — ${tail}` }
+        : {
+            label: '만들 수 있음',
+            tone: 'warn',
+            title: `조건은 참이지만 자동 생성이 꺼져 있습니다 — ${tail}`,
+          }
+  }
 }
 
 const where = (t: Target) => `${t.kind === 'station' ? 'Station' : 'Cell'} ${t.id}`

@@ -67,6 +67,7 @@ import type {
   Target,
   TaskType,
 } from '../../lib/types'
+import { AutoGenPanel } from './AutoGenPanel'
 import { ComposeCard } from './ComposeCard'
 import { DropMismatchDialog } from './DropMismatchDialog'
 import { DefaultsDialog } from './DefaultsDialog'
@@ -665,6 +666,7 @@ export default function TaskIssue() {
                 onGripRefChange={(g) => void setGripRef(g)}
                 mode={side}
                 onModeChange={setSide}
+                autoGen={<AutoGenPanel />}
                 single={
                   <ComposeCard
                     chrome={false}

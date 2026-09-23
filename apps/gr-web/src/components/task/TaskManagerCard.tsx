@@ -8,7 +8,7 @@
 // 모두 늘 있다 — 행 수·보기가 바뀌어도 카드가 커졌다 줄었다 하지 않고, 칸 안 스크롤도 없다. 넘치는 행은
 // 쪽으로 넘긴다(진행 = 목록을 잘라서, 히스토리 = 서버 페이징). 카드는 오른쪽 칸 **아래에 붙는다**(`mt-auto`).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeftRight, Filter, History, ListChecks, ListPlus, RefreshCw } from 'lucide-react'
+import { ArrowLeftRight, Filter, History, ListChecks, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { panels } from '../../lib/panels'
 import { visibleInterval } from '../../lib/poll'
@@ -49,7 +49,6 @@ import TaskDetail, { TASK_DETAIL_PANEL } from '../taskmgr/TaskDetail'
 import { TaskActions } from '../taskmgr/TaskActions'
 import { StateCell } from '../taskmgr/TaskTable'
 import { TransferOrdersDialog } from './TransferOrdersDialog'
-import { TaskGenDialog } from './TaskGenDialog'
 
 const LIMIT = 20
 /** 진행 행에 서는 조작 — PLC 로 가는 둘(삭제 = Delete, 완료 = Complete). 나머지는 행을 눌러 여는 상세에. */
@@ -136,7 +135,6 @@ export function TaskManagerCard() {
   const [filter, setFilter] = useState<HistoryFilter>(EMPTY_HISTORY_FILTER)
   const [filterOpen, setFilterOpen] = useState(false)
   const [ordersOpen, setOrdersOpen] = useState(false)
-  const [genOpen, setGenOpen] = useState(false)
   const [offset, setOffset] = useState(0)
   const [page, setPage] = useState<TaskPage | null>(null)
   const [loading, setLoading] = useState(false)
@@ -243,16 +241,6 @@ export function TaskManagerCard() {
         <Button
           size="icon-sm"
           intent="ghost"
-          aria-label="생성 규칙"
-          title="Task 생성 규칙 — 조건 · 우선순위 · 영역 (콘솔이 GCS 로 생성)"
-          onClick={() => setGenOpen(true)}
-          data-testid="tm-taskgen"
-        >
-          <ListPlus size={13} />
-        </Button>
-        <Button
-          size="icon-sm"
-          intent="ghost"
           aria-label="이송 이력"
           title="이송 이력 — PICK/DROP 짝(TO-…)별 재고 이동"
           onClick={() => setOrdersOpen(true)}
@@ -328,7 +316,6 @@ export function TaskManagerCard() {
         </Button>
       </div>
 
-      <TaskGenDialog open={genOpen} onOpenChange={setGenOpen} />
       <TransferOrdersDialog
         open={ordersOpen}
         onOpenChange={setOrdersOpen}

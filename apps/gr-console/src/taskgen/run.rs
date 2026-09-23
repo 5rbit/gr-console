@@ -82,6 +82,10 @@ pub struct Engine {
     /// 지금 발행 중인 예정(지우기와 겹치지 않게).
     inflight: Mutex<BTreeSet<String>>,
     pub last: Mutex<Selection>,
+    /// 판정마다 새로 쓴다.
+    pub rules: Mutex<Vec<super::RuleStatus>>,
+    /// 규칙 id → (만든 건수, 마지막 생성 시각) — 지표와 같은 수명.
+    gen_stats: Mutex<HashMap<String, (u64, String)>>,
     pub note: Mutex<Option<String>>,
     pub metrics: Mutex<Metrics>,
     counter: std::sync::atomic::AtomicU64,
@@ -147,6 +151,8 @@ impl Engine {
             queue: Mutex::new(queue),
             inflight: Default::default(),
             last: Default::default(),
+            rules: Default::default(),
+            gen_stats: Default::default(),
             note: Default::default(),
             metrics: Mutex::new(Metrics { started_at: now_str(), ..Default::default() }),
             counter: std::sync::atomic::AtomicU64::new(next),
@@ -380,18 +386,29 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
     let mut seen = e.seen.lock().unwrap_or_else(PoisonError::into_inner);
     let mut cands = Vec::new();
     let mut skipped: Vec<(String, String)> = Vec::new();
+    // 규칙 id → (상태, 사유, 조건 참이 된 뒤 지난 분)
+    let mut status: HashMap<String, (&'static str, Option<String>, f32)> = HashMap::new();
     for rule in &cfg.rules {
         let on = fires(rule, &w);
         if !on {
             seen.remove(&rule.id);
+            status.insert(rule.id.clone(), (if rule.enabled { "idle" } else { "off" }, None, 0.0));
             continue;
         }
-        if queue.iter().any(|g| g.rule_id == rule.id) || st.robots.iter().any(|r| gen_busy(r, &rule.id)) {
+        if queue.iter().any(|g| g.rule_id == rule.id) {
+            status.insert(rule.id.clone(), ("queued", Some("이 규칙의 작업이 예정 큐에 있다".into()), 0.0));
             continue; // 이 규칙의 작업이 아직 돈다
+        }
+        if st.robots.iter().any(|r| gen_busy(r, &rule.id)) {
+            status.insert(rule.id.clone(), ("busy", Some("이 규칙으로 만든 Task 가 아직 진행 중".into()), 0.0));
+            continue;
         }
         let (since, order) = *seen.entry(rule.id.clone()).or_insert_with(|| (Instant::now(), e.counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
         let age = since.elapsed().as_secs_f32() / 60.0;
+        let mut robot_count = 0;
+        let skip_from = skipped.len();
         for rv in robots.iter().filter(|rv| rule.robots.is_empty() || rule.robots.contains(&rv.id)) {
+            robot_count += 1;
             // 자동 셀은 다른 로봇 영역 밖에서 고른다(동시 운전)
             let others: Vec<crate::area::Reservation> = robots.iter().filter(|o| o.id != rv.id).filter_map(|o| super::reserved(o, None)).collect();
             let free = |x: f32| crate::area::blocker(Interval::point(x), &others, sep + rv.margin).is_none();
@@ -429,12 +446,19 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
                 age_min: age,
             });
         }
+        // 조건은 참인데 후보가 못 나온 규칙 — 마지막 사유를 규칙 줄에 올린다.
+        let made = cands.iter().any(|c| c.rule_id == rule.id);
+        let why = if robot_count == 0 { Some("보낼 로봇이 없다 — 규칙의 Robots 를 확인".to_string()) } else { skipped[skip_from..].last().map(|(_, w)| w.clone()) };
+        status.insert(rule.id.clone(), if made { ("ready", None, age) } else { ("skipped", why, age) });
     }
     drop(seen);
     let mut sel = select(cands, &robots, sep);
     sel.skipped = skipped;
     for (c, why) in &mut sel.waiting {
         e.count_wait(why);
+        if let Some(s) = status.get_mut(&c.rule_id) {
+            *s = ("waiting", Some(why.clone()), c.age_min);
+        }
         if p.gen_blocked_penalty != 0.0 && why.starts_with("영역") {
             c.score -= p.gen_blocked_penalty;
             c.breakdown.push(("AntiCollision".into(), -p.gen_blocked_penalty));
@@ -476,10 +500,38 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
                 attempts: 0,
                 retry_at_ms: 0,
             };
+            let at = g.created_at.clone();
             e.persist_item(&g);
             q.push(g);
             e.metrics.lock().unwrap_or_else(PoisonError::into_inner).generated += 1;
+            let mut gs = e.gen_stats.lock().unwrap_or_else(PoisonError::into_inner);
+            let s = gs.entry(c.rule_id.clone()).or_insert((0, at.clone()));
+            s.0 += 1;
+            s.1 = at;
         }
+    }
+    // 규칙 줄의 상태 — 설정 순서 그대로.
+    {
+        let gs = e.gen_stats.lock().unwrap_or_else(PoisonError::into_inner);
+        let rows: Vec<super::RuleStatus> = cfg
+            .rules
+            .iter()
+            .map(|r| {
+                let (state, reason, age) = status.get(&r.id).cloned().unwrap_or(("idle", None, 0.0));
+                let (generated, last) = gs.get(&r.id).cloned().map(|(n, at)| (n, Some(at))).unwrap_or((0, None));
+                super::RuleStatus {
+                    rule_id: r.id.clone(),
+                    fires: !matches!(state, "off" | "idle"),
+                    inputs: super::trigger_inputs(r, &w),
+                    state: state.to_string(),
+                    reason,
+                    age_min: age,
+                    generated,
+                    last_generated_at: last,
+                }
+            })
+            .collect();
+        *e.rules.lock().unwrap_or_else(PoisonError::into_inner) = rows;
     }
     *e.last.lock().unwrap_or_else(PoisonError::into_inner) = sel;
 }

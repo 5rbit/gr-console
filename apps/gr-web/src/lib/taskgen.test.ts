@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { actionLabel, breakdownText, formatMap, newRule, parseMap, triggerLabel } from './taskgen'
+import {
+  actionLabel,
+  breakdownText,
+  formatMap,
+  newRule,
+  parseMap,
+  ruleState,
+  triggerLabel,
+} from './taskgen'
 
 describe('taskgen helpers', () => {
   it('weight maps round-trip and reject bad parts', () => {
@@ -45,5 +53,36 @@ describe('taskgen helpers', () => {
     const b = newRule([a])
     expect(a.id).not.toBe(b.id)
     expect(a.enabled).toBe(false)
+  })
+  it('rule state chips say what the operator should do', () => {
+    const base = {
+      rule_id: 'r1',
+      fires: true,
+      inputs: 'STATION 2101: Req=1 CVOK=1',
+      reason: null,
+      age_min: 2.5,
+      generated: 3,
+      last_generated_at: '2026-09-23 10:00:00',
+    } as const
+
+    const off = ruleState({ ...base, state: 'ready' }, false)
+    expect(off.label).toBe('만들 수 있음')
+    expect(off.tone).toBe('warn')
+    expect(off.title).toContain('자동 생성이 꺼져')
+    expect(ruleState({ ...base, state: 'ready' }, true).label).toBe('생성')
+
+    expect(ruleState({ ...base, fires: false, state: 'idle' }, true).tone).toBe('muted')
+    expect(ruleState({ ...base, state: 'off', fires: false }, true).label).toBe('꺼짐')
+    expect(ruleState({ ...base, state: 'queued' }, true).label).toBe('예정')
+    expect(ruleState({ ...base, state: 'busy' }, true).label).toBe('진행 중')
+
+    const waiting = ruleState({ ...base, state: 'waiting', reason: '영역 겹침 — GR2 대기' }, true)
+    expect(waiting.tone).toBe('warn')
+    expect(waiting.title).toContain('영역 겹침')
+    expect(waiting.title).toContain('Req=1')
+    expect(waiting.title).toContain('2.5분')
+    expect(waiting.title).toContain('만든 3건')
+
+    expect(ruleState(undefined, true).label).toBe('—')
   })
 })

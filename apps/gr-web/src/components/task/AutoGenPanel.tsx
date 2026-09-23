@@ -1,17 +1,18 @@
-// Task 생성 규칙 — 조건 · 만들 것 · 로봇 · 우선순위를 표로, 편집은 팝업. 후보마다 점수 근거(왜 이 순서)와
-// 못 만든 사유(영역 겹침 · 상대 명령 수령 대기)를 보인다. 자동 생성은 전체 스위치(기본 꺼짐)로만 켠다.
+// Task 자동 생성 — 규칙 표(조건 값과 지금 상태를 같은 줄에), 편집은 팝업, 아래는 모니터(점수 근거 · 못 만든 사유 · 예정 큐).
 import { useCallback, useEffect, useState } from 'react'
-import { Pencil, Plus, Send, Trash2 } from 'lucide-react'
+import { Plus, Send, Trash2 } from 'lucide-react'
 import {
   EMPTY_WEIGHTS,
   actionLabel,
-  metricsLine,
   breakdownText,
   formatMap,
+  metricsLine,
   newRule,
   parseMap,
+  ruleState,
   taskgenApi,
   triggerLabel,
+  type CellPick,
   type GenAction,
   type GenCandidate,
   type GenConfig,
@@ -20,18 +21,19 @@ import {
   type GenState,
   type GenTrigger,
 } from '../../lib/taskgen'
+import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
 import { Button } from '../../lib/ui/Button'
+import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
 import { Dialog, FormDialog } from '../../lib/ui/Dialog'
 import { Input } from '../../lib/ui/Input'
+import { OverflowMenu } from '../../lib/ui/OverflowMenu'
+import { Section } from '../../lib/ui/Section'
 import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
-import { Segmented } from '../../lib/ui/Segmented'
-import { ParamsPanel } from './ParamsPanel'
-import type { CellPick } from '../../lib/taskgen'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
-
+import { ParamsPanel } from './ParamsPanel'
 const num = (s: string, d = 0) => (s.trim() === '' || !Number.isFinite(Number(s)) ? d : Number(s))
 
 function RuleDialog({
@@ -373,18 +375,35 @@ function WeightsDialog({
     </FormDialog>
   )
 }
+function ParamsDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+      title="스케줄링 · 생성 파라미터"
+      size="lg"
+      closeLabel="닫기"
+      testid="taskgen-params-dialog"
+    >
+      <ParamsPanel />
+    </Dialog>
+  )
+}
 
-export function TaskGenDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
+const TONE = {
+  ok: 'text-ok-fg',
+  warn: 'text-warn-fg',
+  muted: 'text-content-faint',
+} as const
+
+export function AutoGenPanel() {
   const [state, setState] = useState<GenState | null>(null)
   const [editing, setEditing] = useState<GenRule | null>(null)
   const [weightsOpen, setWeightsOpen] = useState(false)
-  const [tab, setTab] = useState<'rules' | 'params'>('rules')
+  const [paramsOpen, setParamsOpen] = useState(false)
+  const [confirmAuto, setConfirmAuto] = useState(false)
   const load = useCallback(() => {
     taskgenApi
       .get()
@@ -392,34 +411,81 @@ export function TaskGenDialog({
       .catch((e) => toast.error(`생성 엔진 — ${e instanceof Error ? e.message : String(e)}`))
   }, [])
   useEffect(() => {
-    if (!open) return
     load()
     const t = setInterval(load, 2000)
     return () => clearInterval(t)
-  }, [open, load])
+  }, [load])
 
-  async function save(c: GenConfig) {
-    try {
-      const saved = await taskgenApi.save(c)
-      toast.ok(`생성 규칙 저장 (v${saved.version})`)
-      load()
-    } catch (e) {
-      toast.error(`저장 실패 — ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
+  const save = useCallback(
+    async (c: GenConfig) => {
+      try {
+        const saved = await taskgenApi.save(c)
+        toast.ok(`생성 규칙 저장 (v${saved.version})`)
+        load()
+      } catch (e) {
+        toast.error(`저장 실패 — ${e instanceof Error ? e.message : String(e)}`)
+      }
+    },
+    [load],
+  )
   const cfg = state?.config ?? null
+  const sepText = state ? `간격 ${state.separation_mm.toFixed(0)} mm` : ''
+  const statusOf = (id: string) => state?.rules.find((x) => x.rule_id === id)
 
   const ruleCols: Column<GenRule>[] = [
     { key: 'name', label: 'Name', get: (r) => r.name, priority: 1 },
-    { key: 'trigger', label: 'Trigger', get: (r) => triggerLabel(r.trigger), priority: 1 },
-    { key: 'action', label: 'Action', get: (r) => actionLabel(r.action), priority: 2 },
+    {
+      key: 'state',
+      label: '상태',
+      sortable: false,
+      priority: 1,
+      cell: (r) => {
+        const s = ruleState(statusOf(r.id), !!cfg?.auto)
+        return (
+          <span className={TONE[s.tone]} title={s.title}>
+            {s.label}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'inputs',
+      label: '조건 값',
+      sortable: false,
+      priority: 2,
+      cell: (r) => {
+        const s = statusOf(r.id)
+        return (
+          <span className="truncate text-2xs text-content-muted" title={s?.inputs ?? ''}>
+            {s?.inputs ?? ''}
+          </span>
+        )
+      },
+    },
+    { key: 'trigger', label: 'Trigger', get: (r) => triggerLabel(r.trigger), priority: 3 },
+    { key: 'action', label: 'Action', get: (r) => actionLabel(r.action), priority: 3 },
     {
       key: 'robots',
       label: 'Robots',
       get: (r) => (r.robots.length ? r.robots.join(',') : 'All'),
       priority: 3,
     },
-    { key: 'prio', label: 'Priority', get: (r) => r.priority, numeric: true, priority: 2 },
+    { key: 'prio', label: 'Priority', get: (r) => r.priority, numeric: true, priority: 3 },
+    {
+      key: 'made',
+      label: '만든 건',
+      get: (r) => statusOf(r.id)?.generated ?? 0,
+      numeric: true,
+      priority: 2,
+      cell: (r) => {
+        const s = statusOf(r.id)
+        return (
+          <span className="font-mono tabular-nums" title={s?.last_generated_at ?? '아직 없음'}>
+            {s?.generated ?? 0}
+          </span>
+        )
+      },
+    },
     {
       key: 'on',
       label: 'Enabled',
@@ -500,96 +566,82 @@ export function TaskGenDialog({
     },
   ]
 
+  if (!cfg) return <span className="text-content-faint">읽는 중…</span>
+
+  const tools: MenuEntry[] = [
+    { label: '우선순위 가중치…', run: () => setWeightsOpen(true), testid: 'taskgen-weights' },
+    {
+      label: '스케줄링 · 생성 파라미터…',
+      run: () => setParamsOpen(true),
+      testid: 'taskgen-params',
+    },
+  ]
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Task 생성 규칙"
-      meta={cfg ? `v${cfg.version} · 간격 ${state?.separation_mm.toFixed(0)} mm` : undefined}
-      size="lg"
-      closeLabel="닫기"
-      testid="taskgen-dialog"
-    >
-      <Segmented
-        ariaLabel="생성 설정"
-        value={tab}
-        onChange={setTab}
-        options={[
-          { id: 'rules', label: 'Rules' },
-          { id: 'params', label: 'Parameters' },
-        ]}
-        className="mb-2"
-      />
-      {tab === 'params' ? (
-        <ParamsPanel />
-      ) : cfg ? (
-        <div className="flex flex-col gap-3 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            <Switch
-              inline
-              label="Auto"
-              checked={cfg.auto}
-              title="켜면 규칙이 참이고 영역이 비는 후보를 예정으로 만들어 보냅니다 (기본 꺼짐)"
-              onCheckedChange={(v) => void save({ ...cfg, auto: v })}
-              testid="taskgen-auto"
-            />
-            {state?.note ? <span className="text-content-faint">{state.note}</span> : null}
-            <span className="flex-1" />
-            <Button size="sm" intent="outline" onClick={() => setWeightsOpen(true)}>
-              가중치…
-            </Button>
+    <div className="flex min-h-0 flex-col gap-3 text-xs" data-testid="autogen-panel">
+      <div className="flex flex-wrap items-center gap-2">
+        <Switch
+          inline
+          label="자동 생성"
+          checked={cfg.auto}
+          title="켜면 조건이 참이고 영역이 비는 후보를 예정으로 만들어 보냅니다"
+          onCheckedChange={(v) => (v ? setConfirmAuto(true) : void save({ ...cfg, auto: false }))}
+          testid="taskgen-auto"
+        />
+        <span className="text-2xs text-content-faint">
+          v{cfg.version} · {sepText}
+        </span>
+        {state?.note ? <span className="text-warn-fg">{state.note}</span> : null}
+        <span className="flex-1" />
+        <Button
+          size="sm"
+          intent="outline"
+          icon={<Plus className="h-3.5 w-3.5" />}
+          onClick={() => setEditing(newRule(cfg.rules))}
+          data-testid="taskgen-add"
+        >
+          규칙 추가
+        </Button>
+        <OverflowMenu items={menuItems(tools)} title="도구" testid="taskgen-more" />
+      </div>
+
+      <DataTable
+        rows={cfg.rules}
+        columns={ruleCols}
+        rowKey={(r) => r.id}
+        density="compact"
+        emptyDense
+        empty="규칙 없음 — 규칙 추가로 조건과 만들 것을 정합니다"
+        testid="taskgen-rules"
+        onPick={(r) => setEditing(r)}
+        actions={(r) => (
+          <>
+            {r.trigger.kind === 'manual' ? (
+              <Button
+                size="icon-sm"
+                intent="ghost"
+                icon={<Send className="h-3.5 w-3.5" />}
+                title="요청 1건 (수동 규칙)"
+                onClick={() =>
+                  void taskgenApi
+                    .request(r.id)
+                    .then((x) => toast.info(`${r.name}: 요청 ${x.requests}건`))
+                }
+              />
+            ) : null}
             <Button
-              size="sm"
-              intent="outline"
-              icon={<Plus className="h-3.5 w-3.5" />}
-              onClick={() => setEditing(newRule(cfg.rules))}
-              data-testid="taskgen-add"
-            >
-              규칙 추가
-            </Button>
-          </div>
-          <DataTable
-            rows={cfg.rules}
-            columns={ruleCols}
-            rowKey={(r) => r.id}
-            density="compact"
-            emptyDense
-            empty="규칙 없음"
-            testid="taskgen-rules"
-            actions={(r) => (
-              <>
-                {r.trigger.kind === 'manual' ? (
-                  <Button
-                    size="icon-sm"
-                    intent="ghost"
-                    icon={<Send className="h-3.5 w-3.5" />}
-                    title="요청 1건 (수동 규칙)"
-                    onClick={() =>
-                      void taskgenApi
-                        .request(r.id)
-                        .then((x) => toast.info(`${r.name}: 요청 ${x.requests}건`))
-                    }
-                  />
-                ) : null}
-                <Button
-                  size="icon-sm"
-                  intent="ghost"
-                  icon={<Pencil className="h-3.5 w-3.5" />}
-                  title="편집"
-                  onClick={() => setEditing(r)}
-                />
-                <Button
-                  size="icon-sm"
-                  intent="ghost"
-                  icon={<Trash2 className="h-3.5 w-3.5" />}
-                  title="삭제"
-                  onClick={() =>
-                    void save({ ...cfg, rules: cfg.rules.filter((x) => x.id !== r.id) })
-                  }
-                />
-              </>
-            )}
-          />
+              size="icon-sm"
+              intent="ghost"
+              icon={<Trash2 className="h-3.5 w-3.5" />}
+              title="삭제"
+              onClick={() => void save({ ...cfg, rules: cfg.rules.filter((x) => x.id !== r.id) })}
+            />
+          </>
+        )}
+      />
+
+      <Section title="모니터">
+        <div className="flex flex-col gap-2">
           {state?.metrics ? (
             <span className="text-2xs text-content-faint" data-testid="taskgen-metrics">
               {metricsLine(state.metrics)}
@@ -634,10 +686,31 @@ export function TaskGenDialog({
             }
           />
         </div>
-      ) : (
-        <span className="text-content-faint">읽는 중…</span>
-      )}
-      {editing && cfg ? (
+      </Section>
+
+      <ConfirmDialog
+        open={confirmAuto}
+        onOpenChange={setConfirmAuto}
+        scope="fleet"
+        title="자동 생성 켜기"
+        confirmLabel="켜기"
+        onConfirm={() => {
+          setConfirmAuto(false)
+          void save({ ...cfg, auto: true })
+        }}
+      >
+        <div className="flex flex-col gap-1 text-xs">
+          <div>
+            켠 규칙의 조건이 참이 되면 콘솔이 스스로 Task 를 만들어 로봇에 보냅니다. 로봇이 AUTO
+            이면 그대로 움직입니다.
+          </div>
+          <div className="text-content-faint">
+            켜진 규칙 {cfg.rules.filter((r) => r.enabled).length} / {cfg.rules.length}개 · {sepText}
+          </div>
+        </div>
+      </ConfirmDialog>
+
+      {editing ? (
         <RuleDialog
           key={editing.id}
           rule={editing}
@@ -652,7 +725,7 @@ export function TaskGenDialog({
           }}
         />
       ) : null}
-      {weightsOpen && cfg ? (
+      {weightsOpen ? (
         <WeightsDialog
           cfg={cfg}
           onClose={() => setWeightsOpen(false)}
@@ -662,6 +735,7 @@ export function TaskGenDialog({
           }}
         />
       ) : null}
-    </Dialog>
+      {paramsOpen ? <ParamsDialog onClose={() => setParamsOpen(false)} /> : null}
+    </div>
   )
 }

@@ -31,7 +31,10 @@ async fn get_all(State(st): State<AppState>) -> ApiResult<Json> {
     };
     let candidates: Vec<Json> = sel.generate.iter().map(|c| cand(c, None)).chain(sel.waiting.iter().map(|(c, w)| cand(c, Some(w)))).collect();
     let skipped: Vec<Json> = sel.skipped.iter().map(|(r, w)| json!({ "rule": r, "reason": w })).collect();
-    Ok(axum::Json(json!({ "config": e.config(), "candidates": candidates, "skipped": skipped, "queue": queue, "note": note, "metrics": metrics, "separation_mm": p.anticol_separation_mm })))
+    let rules = e.rules.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+    Ok(axum::Json(
+        json!({ "config": e.config(), "rules": rules, "candidates": candidates, "skipped": skipped, "queue": queue, "note": note, "metrics": metrics, "separation_mm": p.anticol_separation_mm }),
+    ))
 }
 
 async fn put_config(axum::Json(c): axum::Json<GenConfig>) -> ApiResult<GenConfig> {
