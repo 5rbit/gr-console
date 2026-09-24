@@ -22,8 +22,18 @@ export const ROBOT_ACTIONS: readonly RobotActionSpec[] = [
   { action: 'clear', label: 'Clear', confirm: true, danger: true },
 ]
 
+/** 그리퍼 LEARN — 사이드바 메뉴가 아니라 그리퍼 화면의 버튼이다(확인 대화상자를 거친다). */
+export const GRIPPER_LEARN_ACTION: RobotActionSpec = {
+  action: 'gripper-learn',
+  label: 'Gripper LEARN',
+  confirm: true,
+  danger: false,
+}
+
 export function robotActionSpec(action: RobotAction): RobotActionSpec {
-  return ROBOT_ACTIONS.find((s) => s.action === action) ?? ROBOT_ACTIONS[0]
+  return (
+    [...ROBOT_ACTIONS, GRIPPER_LEARN_ACTION].find((s) => s.action === action) ?? ROBOT_ACTIONS[0]
+  )
 }
 
 /** 확인 대화 본문 — 무엇이 PLC 에 가는지 그대로 말한다. */
@@ -37,6 +47,8 @@ export function describeRobotAction(action: RobotAction, name: string): string {
       return `${name} 에 Reset(Command.Common.Reset)을 보냅니다.`
     case 'buzzerstop':
       return `${name} 에 Buzzer Stop(Command.Common.BuzzerStop)을 보냅니다.`
+    case 'gripper-learn':
+      return `${name} 에 그리퍼 LEARN(Command.B3_Spare.Spare_X0)을 보냅니다. 수동/정비 모드 · 화물 없음 · 그리퍼 Ready 일 때만 PLC 가 받습니다.`
     case 'complete':
       return `${name} 가 지금 실행 중인 Task 를 강제 완료(Command.Task.Complete)합니다. 화물 상태를 먼저 확인하세요.`
     case 'clear':
@@ -64,6 +76,8 @@ export function robotActionDisabled(
   if ((action === 'complete' || action === 'clear') && mode === 'AUTO') {
     return 'AUTO 모드에서는 완료·삭제할 수 없음 — 먼저 Stop'
   }
+  if (action === 'gripper-learn' && mode !== null && mode !== 'MANUAL' && mode !== 'MAINT')
+    return `MANUAL·MAINT 에서만 LEARN (지금 ${mode})`
   return undefined
 }
 

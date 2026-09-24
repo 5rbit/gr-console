@@ -2,6 +2,7 @@
 //!
 //! - `start` / `stop` / `reset` / `buzzerstop` : `GR[n].CMD.Command.Common.Start` / `.Stop.Normal` / `.Common.Reset` /
 //!   `.Common.BuzzerStop` 펄스.
+//! - `gripper-learn` : `.B3_Spare.Spare_X0` 펄스(그리퍼 LEARN, 2026-09-25) — MANUAL/MAINT 에서만(PLC 수락 조건과 같다).
 //!   GRM 은 Command 가 바뀌면 헤더 없이 GR 로 중계하고, GR 에코 후 스스로 지운다.
 //! - `complete` : PLC 가 지금 실행 중인 Task(`STAT.Task.Now`) 강제 완료 — Task 관리의 Complete 와 같은 경로.
 //! - 운전 명령은 `Task.Status.Accept` 와 무관하게 로봇 모드만 본다: Start = READY 에서만, Stop · Reset · Buzzer Stop = 언제든,
@@ -32,6 +33,9 @@ pub enum RobotAction {
     Stop,
     Reset,
     BuzzerStop,
+    /// 그리퍼 LEARN 펄스(`gripper-learn` / `gripperlearn`) — 그리퍼 화면의 버튼.
+    #[serde(alias = "gripper-learn")]
+    GripperLearn,
     Complete,
     Clear,
 }
@@ -48,6 +52,7 @@ pub async fn run(st: &AppState, r: &RobotCtx, action: RobotAction) -> Result<Jso
         RobotAction::Stop => CommandBit::Stop,
         RobotAction::Reset => CommandBit::Reset,
         RobotAction::BuzzerStop => CommandBit::BuzzerStop,
+        RobotAction::GripperLearn => CommandBit::GripperLearn,
         RobotAction::Complete => return complete_now(st, r).await,
         RobotAction::Clear => return clear(st, r).await,
     };
@@ -61,6 +66,13 @@ pub async fn run(st: &AppState, r: &RobotCtx, action: RobotAction) -> Result<Jso
     if action == RobotAction::Start && !st.cfg.demo {
         let v = status_view(st, r).ok_or_else(|| ApiError::PlcUnavailable(with_robot(&r.name, "상태 PLC 스냅샷 없음 — 모드를 알 수 없어 Start 를 보내지 않습니다")))?;
         if let Some(why) = start_refusal(&v.mode) {
+            return Err(ApiError::Conflict(with_robot(&r.name, &why)));
+        }
+    }
+    // LEARN 은 PLC(FB_Gripper)가 MANUAL/MAINT 에서만 받는다 — 다른 모드에서 펄스를 보내면 조용히 무시되므로 여기서 미리 거절한다.
+    if action == RobotAction::GripperLearn && !st.cfg.demo {
+        let v = status_view(st, r).ok_or_else(|| ApiError::PlcUnavailable(with_robot(&r.name, "상태 PLC 스냅샷 없음 — 모드를 알 수 없어 LEARN 을 보내지 않습니다")))?;
+        if let Some(why) = learn_refusal(&v.mode) {
             return Err(ApiError::Conflict(with_robot(&r.name, &why)));
         }
     }
@@ -111,12 +123,41 @@ fn start_refusal(m: &gr_proto::status::EquipMode) -> Option<String> {
     Some(format!("READY 에서만 Start 할 수 있습니다 (지금 {now})"))
 }
 
+/// 지금 모드 이름 — 거부 문구용.
+fn mode_now(m: &gr_proto::status::EquipMode) -> &'static str {
+    if m.auto {
+        "AUTO"
+    } else if m.fault {
+        "FAULT"
+    } else if m.auto_ready {
+        "READY"
+    } else if m.manual {
+        "MANUAL"
+    } else if m.maint {
+        "MAINT"
+    } else if m.init {
+        "INIT"
+    } else {
+        "모름"
+    }
+}
+
+/// 그리퍼 LEARN 을 막는 사유 — MANUAL 또는 MAINT 가 아니면(PLC `FB_Gripper` 의 수락 조건과 같다).
+/// 그리퍼 Ready · 화물 없음은 PLC 가 판정한다(WEBMON.Gripper 로 결과를 본다).
+fn learn_refusal(m: &gr_proto::status::EquipMode) -> Option<String> {
+    if (m.manual || m.maint) && !m.auto {
+        return None;
+    }
+    Some(format!("그리퍼 LEARN 은 MANUAL 또는 MAINT 에서만 받습니다 (지금 {})", mode_now(m)))
+}
+
 fn action_name(a: RobotAction) -> &'static str {
     match a {
         RobotAction::Start => "start",
         RobotAction::Stop => "stop",
         RobotAction::Reset => "reset",
         RobotAction::BuzzerStop => "buzzerstop",
+        RobotAction::GripperLearn => "gripper-learn",
         RobotAction::Complete => "complete",
         RobotAction::Clear => "clear",
     }
@@ -222,7 +263,28 @@ fn partial(r: &RobotCtx, done: &[String], err: ApiError) -> ApiError {
 
 #[cfg(test)]
 mod tests {
-    use super::{RobotAction, start_refusal};
+    use super::{RobotAction, learn_refusal, start_refusal};
+
+    #[test]
+    fn learn_only_in_manual_or_maint() {
+        let mut m = gr_proto::status::EquipMode { manual: true, ..Default::default() };
+        assert_eq!(learn_refusal(&m), None);
+        m.manual = false;
+        m.maint = true;
+        assert_eq!(learn_refusal(&m), None);
+        m.maint = false;
+        m.auto_ready = true;
+        assert!(learn_refusal(&m).unwrap().contains("READY"));
+        m.auto_ready = false;
+        m.auto = true;
+        assert!(learn_refusal(&m).unwrap().contains("AUTO"));
+    }
+
+    #[test]
+    fn parses_gripper_learn_both_spellings() {
+        assert_eq!(RobotAction::parse("gripper-learn"), Some(RobotAction::GripperLearn));
+        assert_eq!(RobotAction::parse("GripperLearn"), Some(RobotAction::GripperLearn));
+    }
 
     #[test]
     fn start_only_in_ready_regardless_of_accept() {

@@ -521,8 +521,15 @@ export interface Robot {
   active_tasks: number
 }
 
-/** 로봇 운전 명령 (POST /api/robots/{id}/command/{action}). */
-export type RobotAction = 'start' | 'stop' | 'reset' | 'buzzerstop' | 'complete' | 'clear'
+/** 로봇 운전 명령 (POST /api/robots/{id}/command/{action}). `gripper-learn` 은 그리퍼 화면의 LEARN 펄스. */
+export type RobotAction =
+  | 'start'
+  | 'stop'
+  | 'reset'
+  | 'buzzerstop'
+  | 'gripper-learn'
+  | 'complete'
+  | 'clear'
 
 export type TaskState =
   | 'draft'
@@ -849,13 +856,7 @@ export interface WebMon {
     TaskCode: number[]
   }
   Axis: PlcAxis[]
-  Gripper: {
-    ItemDetect: boolean
-    GID: number[]
-    FLD: number
-    TorqueReachedPosition: number
-    State?: GripperState
-  }
+  Gripper: WebMonGripper
   Measure: {
     Item: Record<string, number | boolean>
     Sku: Record<string, number | boolean | number[]>
@@ -863,6 +864,40 @@ export interface WebMon {
     LastBead: Record<string, number | boolean>
   }
   MeasLog: { Total: number; Count: number }
+}
+
+/**
+ * WEBMON.Gripper — 센서·상태 요약. `Code` 부터는 GR2 `FB_Gripper`(2026-09-25) 요약이라 옛 레이아웃(GR1)에는 없다.
+ * `Code` = GRIP_ST_*, `Mode` = GRIP_* 요청, `ErrorCode` = GRIP_E_*, 토크는 % (모터 정격 대비), `Force_N` 은 타이어 힘 환산.
+ */
+export interface WebMonGripper {
+  ItemDetect: boolean
+  GID: number[]
+  FLD: number
+  TorqueReachedPosition: number
+  State?: GripperState
+  Code?: number
+  Timeout?: number
+  Mode?: number
+  Step?: number
+  ErrorCode?: number
+  Inch?: number
+  Busy?: boolean
+  Done?: boolean
+  Error?: boolean
+  GripOk?: boolean
+  ItemPresent?: boolean
+  Obstacle?: boolean
+  Thermal?: boolean
+  AtSpeed?: boolean
+  Contact?: boolean
+  LimitNow?: number
+  Mech?: number
+  Rise?: number
+  TorqPct?: number
+  Force_N?: number
+  ContactPos?: number
+  ReachedPos?: number
 }
 
 /** "MACHINE".Gripper.State (WEBMON 복사) — GripperState FC 가 매 스캔 갱신. */
@@ -1160,6 +1195,57 @@ export interface LaserSnapshot {
   sensor: LaserSensorHealth[]
   zcal: LaserZCal
   entries: LaserDiagEntry[]
+  para: Record<string, number>
+}
+
+// ── 그리퍼 (/api/robots/{id}/gripper) ───────────────────────────────────────────
+// GR2 FB_Gripper 모니터. `live` 는 WEBMON.Gripper 그대로 + G 축 위치 + 이름, `tune` 은 GRIP_TUNE.Tune(JSON 0-based:
+// Mech[0] = PLC Mech[1] 파지 속도 곡선, Mech[1] = Mech[2] 느린 측정 속도; ScaleByInch[0] = 12 인치).
+
+export interface GripperLive extends WebMonGripper {
+  /** WEBMON.Axis[G].Position (mm) */
+  GPos: number | null
+  GTarget: number | null
+  CodeName: string
+  ModeName: string
+  ErrorName: string
+  TimeoutName: string
+}
+
+/** LGR_GripperTune — 학습 · 보정값. */
+export interface GripperTune {
+  Valid: boolean[]
+  LearnedSpd: number[]
+  Mech: number[][]
+  Accel: number[]
+  TorqSign: number
+  ScaleByInch: number[]
+  DriftCount: number
+  LearnDone: boolean
+  LearnError: number
+  LearnErrorPos: number
+}
+
+/** Mech 곡선의 x 축 — RangeMin~RangeMax 를 `count` 칸. */
+export interface GripperBins {
+  range_min: number
+  range_max: number
+  count: number
+  width: number
+}
+
+export interface GripperSnapshot {
+  robot: number
+  robot_name: string
+  plc: string
+  at: string
+  live: GripperLive
+  bins: GripperBins
+  /** GRIP_TUNE 이 없는 PLC(GR1)는 null — 사유는 `tune_error`. */
+  tune: GripperTune | null
+  tune_at: string | null
+  tune_error: string | null
+  /** PARA.Machine.G_* · PARA.Task.G_* (없는 멤버는 빠진다) */
   para: Record<string, number>
 }
 

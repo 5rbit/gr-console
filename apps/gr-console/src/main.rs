@@ -7,6 +7,7 @@ mod console_info;
 mod db;
 mod demo;
 mod error;
+mod gripper;
 mod instance;
 mod issue;
 mod laser;

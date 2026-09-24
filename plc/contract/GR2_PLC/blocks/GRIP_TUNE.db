@@ -1,0 +1,13 @@
+﻿DATA_BLOCK "GRIP_TUNE"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   STRUCT 
+      Tune : "LGR_GripperTune";   //   FB_Gripper 학습 · 보정값. 표준 접근 : gr-console 이 읽고 (ScaleByInch 는) 쓴다
+   END_STRUCT;
+
+
+BEGIN
+
+END_DATA_BLOCK
+

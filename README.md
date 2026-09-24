@@ -44,6 +44,8 @@ gr-console-<버전>+<sha>-<target>/
    그 폴더 안에서는 그대로 하나만 뜬다. 포트가 이미 쓰이면 원시 OS 오류 대신 포트와 `[server] bind`를 짚어 주고 **종료 코드 4**.
 6. **실장비** — `gr-console.toml`에서 `[[plcs]]`의 `host`(GR2·GRM IP)와 `[opcua] endpoint`를 맞춘다.
    왼쪽 PLC 패널의 두 PLC가 초록(연결됨 · 레이아웃 OK)이면 된다.
+   그리퍼 화면(2026-09-25)은 GR2 `slow` 에 `"GRIP_TUNE"` 이 있어야 학습 곡선을 읽는다 — 기존 운영 toml 에는 손으로 추가한다
+   (없으면 화면이 `GRIP_TUNE 가 없습니다` 사유를 보이고 WEBMON.Gripper 만 낸다). WEBMON 레이아웃도 바뀌었으니 PLC 쪽 `WEBMON` 을 같이 갱신한다(LayoutSig 16#D137BC6F).
 7. **다른 PC에서 열기** — `bind = "0.0.0.0:8090"`, 방화벽 8090/TCP 허용, `http://<이 PC IP>:8090/`.
    끄기는 콘솔이 떠 있는 PC에서만 된다.
 8. **백업** — `data/` 폴더 하나(`gr-console.db`가 원장). 실행 파일은 언제든 새것으로 바꿔도 된다.

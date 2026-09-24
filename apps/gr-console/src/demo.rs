@@ -27,10 +27,58 @@ const RING: usize = 10;
 const QUEUE: usize = 4;
 const STEPS: [u16; 7] = [100, 200, 300, 400, 500, 600, 999];
 /// DBs modelled on a robot PLC (skipped one by one when the contract lacks them).
-const GR_DBS: [&str; 11] = ["OPCUA", "TASK", "CELL", "STATION", "PARA", "ALARM", "Interface_GRM", "WEBMON", "MEASLOG", "MEASLOG_HIST", "LASERDIAG"];
+const GR_DBS: [&str; 12] = ["OPCUA", "TASK", "CELL", "STATION", "PARA", "ALARM", "Interface_GRM", "WEBMON", "MEASLOG", "MEASLOG_HIST", "LASERDIAG", "GRIP_TUNE"];
 const GRM_DBS: [&str; 4] = ["OPCUA", "STATION", "CELL", "MACHINE"];
 /// Tables a client may write over S7: absorbed back into the model (see `encode_models`).
-const ABSORB: [&str; 3] = ["CELL", "STATION", "LASERDIAG"];
+const ABSORB: [&str; 4] = ["CELL", "STATION", "LASERDIAG", "GRIP_TUNE"];
+/// Gripper (G axis) travel modelled by the demo — `PARA.Drive.RangeMin/RangeMax["G"]` of the real machine.
+const G_RANGE: (f64, f64) = (295.0, 630.0);
+/// `LGR_GripperTune.Mech` bins per curve.
+const MECH_BINS: usize = 34;
+/// How long a demo LEARN sweep takes.
+const LEARN_MS: u64 = 5000;
+
+/// Mechanical load (% torque) of the empty gripper at bin `k`: rises with the opening (link angle + friction), the
+/// slow-speed curve sits a little lower. Same shape for the seeded `GRIP_TUNE` curve and the live `WEBMON.Gripper.Mech`.
+fn mech_curve(k: usize, slow: bool) -> f64 {
+    let t = k as f64 / (MECH_BINS - 1) as f64;
+    let base = if slow { 6.0 } else { 8.0 };
+    base + 7.0 * t + 0.4 * (k as f64 * 1.7).sin()
+}
+
+/// Bin index of a G position (clamped).
+fn mech_bin(g: f64) -> usize {
+    let (lo, hi) = G_RANGE;
+    (((g - lo) / (hi - lo) * MECH_BINS as f64).floor().max(0.0) as usize).min(MECH_BINS - 1)
+}
+
+/// Seeded `GRIP_TUNE.Tune` — GR1 (index 0) has only the grip-speed curve so the "미학습" state is visible in the demo.
+fn seed_tune(gr_index: usize) -> Json {
+    let mech: Vec<Vec<f64>> = [false, true].iter().map(|slow| (0..MECH_BINS).map(|k| mech_curve(k, *slow)).collect()).collect();
+    let scale: Vec<f64> = (12..=24)
+        .map(|inch| {
+            if inch == 15 {
+                105.0
+            } else if inch == 22 {
+                96.0
+            } else {
+                100.0
+            }
+        })
+        .collect();
+    json!({
+        "Valid": [true, gr_index != 0],
+        "LearnedSpd": [3, 1],
+        "Mech": mech,
+        "Accel": [3.5, 2.0],
+        "TorqSign": 1,
+        "ScaleByInch": scale,
+        "DriftCount": 0,
+        "LearnDone": gr_index != 0,
+        "LearnError": if gr_index == 0 { 1 } else { 0 },
+        "LearnErrorPos": if gr_index == 0 { 512.3 } else { 0.0 },
+    })
+}
 /// Period (ms) of the demo's stand-in for the GCS Task Manager: every period each idle robot gets one task written
 /// straight into its command path (not through the console), so the ledger sees `origin = external` tasks run to
 /// completion. Unset / unparsable / below 1000 ms = off (the default — other demo users see no surprise tasks).
@@ -129,6 +177,9 @@ struct Side {
     /// A task that just ended: stays in `Now` for one tick with `Status.Complete`/`Canceled` raised,
     /// then moves to its ring — the real PLC's order, which the ledger sync relies on.
     ended: Option<(TaskData, bool)>,
+    /// A gripper LEARN sweep in progress (started by the `GripperLearn` command bit) — G sweeps RangeMin → RangeMax,
+    /// then `GRIP_TUNE` gets both curves and `LearnDone`.
+    learn_at: Option<Instant>,
 }
 
 struct Inner {
@@ -348,6 +399,7 @@ impl DemoWorld {
                 }
             }
             let has_laser = models.contains_key("LASERDIAG") && r.contract.db_number("LASERDIAG").is_some();
+            set_db(&mut models, "GRIP_TUNE", "/Tune", seed_tune(r.gr_index));
             let gi = r.gr_index as f32;
             set_db(&mut models, "OPCUA", "/STAT/ComponentID", json!(r.dst));
             set_db(&mut models, "PARA", "/Machine/ID", json!(r.machine_id));
@@ -395,6 +447,7 @@ impl DemoWorld {
                 relay_root: None,
                 op_echo: None,
                 ended: None,
+                learn_at: None,
             };
             // seed some history so the measurement screens have content — a different amount and tire size per robot
             let (count, id_base, work_base) = (25 + 15 * r.gr_index as u32, 355.6 + 25.4 * gi, 3000 + 1000 * r.gr_index as u32);
@@ -477,6 +530,7 @@ impl DemoWorld {
     }
 
     /// Start / Stop / Reset / BuzzerStop 운전 명령 — 모드만 흉내 낸다(Start → AUTO, Stop → READY, 나머지는 모드 유지).
+    /// GripperLearn 은 G 축을 한 번 쓸고(`LEARN_MS`) `GRIP_TUNE` 을 채운다.
     pub fn command_bit(&self, bit: CommandBit, dst: u16) {
         let mut g = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
         let i = side_index(&g.sides, dst);
@@ -485,6 +539,14 @@ impl DemoWorld {
             CommandBit::Start => true,
             CommandBit::Stop => false,
             CommandBit::Reset | CommandBit::BuzzerStop => return,
+            CommandBit::GripperLearn => {
+                // 실 PLC 처럼 화물이 있거나 이미 학습 중이면 무시한다.
+                let item = (500..999).contains(&side.now.as_ref().map(|r| STEPS[r.step_idx.min(STEPS.len() - 1)]).unwrap_or(0));
+                if side.learn_at.is_none() && !item {
+                    side.learn_at = Some(Instant::now());
+                }
+                return;
+            }
         };
         set_db(&mut side.models, "WEBMON", "/Mode", json!(if auto { 32 } else { 16 }));
         set_db(&mut side.models, "OPCUA", "/STAT/Mode/Auto", json!(auto));
@@ -730,6 +792,22 @@ impl Side {
             self.target[2] = 2500.0;
             self.target[3] = 300.0;
         }
+        // ---- gripper LEARN sweep: G goes RangeMin → RangeMax, then the tune curves are (re)written
+        let learn_frac = self.learn_at.map(|t| t.elapsed().as_millis() as f64 / LEARN_MS as f64);
+        match learn_frac {
+            Some(f) if f < 1.0 => {
+                self.target[3] = (G_RANGE.0 + (G_RANGE.1 - G_RANGE.0) * f) as f32;
+                self.axis[3] = self.target[3];
+            }
+            Some(_) => {
+                self.learn_at = None;
+                self.target[3] = 300.0;
+                let mut tune = seed_tune(1);
+                set(&mut tune, "/LearnedSpd", json!([3, 1]));
+                set_db(&mut self.models, "GRIP_TUNE", "/Tune", tune);
+            }
+            None => {}
+        }
         // ---- axes
         for i in 0..4 {
             let d = self.target[i] - self.axis[i];
@@ -803,6 +881,41 @@ impl Side {
         let gid = self.now.as_ref().map(|r| laser_gid(&r.task, f64::from(axis[2]), f64::from(axis[3]), tick)).unwrap_or([LASER_FAR; 4]);
         let step_secs = self.now.as_ref().map(|r| r.step_at.elapsed().as_secs_f64()).unwrap_or(0.0);
         let msg = format!("{} Step {step}", self.plc);
+        // FB_Gripper 요약 (WEBMON.Gripper 확장): 학습 중 > 파지 중(HOLDING) > 측정 중 > 벌린 채 정지(RELEASED)
+        let gripper = {
+            let g = f64::from(axis[3]);
+            let g_settled = (target[3] - axis[3]).abs() <= 1.0;
+            let gripping = (500..999).contains(&step);
+            let learning = learn_frac.is_some_and(|f| f < 1.0);
+            let mech = mech_curve(mech_bin(g), false);
+            let accel = if g_settled { 0.0 } else { 3.5 };
+            let rise = if gripping {
+                11.0 + 0.3 * (tick as f64 / 5.0).sin()
+            } else if learning {
+                0.3
+            } else {
+                0.0
+            };
+            let (code, mode) = if learning {
+                (65, 6)
+            } else if gripping {
+                (50, 2)
+            } else if step == 400 {
+                (60, 4)
+            } else if g_settled {
+                (10, 0)
+            } else {
+                (20, 1)
+            };
+            let inch = self.now.as_ref().map(|r| (r.task.item.inner_diameter / 25.4).round() as i32).unwrap_or(0);
+            json!({
+                "Code": code, "Timeout": 0, "Mode": mode, "Step": if learning { 20 } else if gripping { 40 } else { 0 }, "ErrorCode": 0, "Inch": inch,
+                "Busy": learning || !g_settled || step == 500, "Done": g_settled && !learning && step != 500, "Error": false, "GripOk": gripping,
+                "ItemPresent": gripping, "Obstacle": false, "Thermal": false, "AtSpeed": !g_settled, "Contact": gripping,
+                "LimitNow": mech + accel + if gripping { 12.5 } else { 5.0 }, "Mech": mech, "Rise": rise, "TorqPct": mech + rise,
+                "Force_N": rise * 9.6, "ContactPos": if gripping { g } else { 0.0 }, "ReachedPos": if g_settled { g } else { 0.0 },
+            })
+        };
         if let Some(w) = self.models.get_mut("WEBMON") {
             set(w, "/UpdateTime", json!(ntp));
             if let Some(stat) = stat {
@@ -831,6 +944,11 @@ impl Side {
                 json!({ "Commanded": step == 500 || !g_settled, "Stopped": g_settled, "AtCommand": g_settled && !gripping, "TorqueReached": gripping,
                         "TorqueStop": step == 500, "Stall": step == 500, "StallNoTorque": false, "StallTime": if step == 500 { step_secs } else { 0.0 } }),
             );
+            if let Some(o) = gripper.as_object() {
+                for (k, v) in o {
+                    set(w, &format!("/Gripper/{k}"), v.clone());
+                }
+            }
             set(w, "/Measure", measure_json);
             set(w, "/MeasLog/Total", json!(meas_total));
             set(w, "/MeasLog/Count", json!(meas_count));

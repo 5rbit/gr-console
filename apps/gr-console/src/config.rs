@@ -152,7 +152,8 @@ impl Default for PlcCfg {
             // 화면도 읽지 않아 요청 시 읽기로 옮겼다 — 레이아웃 검사는 계속 받는다(`all_dbs`).
             fast: vec!["OPCUA".into()],
             webmon: vec!["WEBMON".into()],
-            slow: vec!["PARA".into(), "CELL".into(), "STATION".into(), "MEASLOG".into(), "LASERDIAG".into()],
+            // GRIP_TUNE(그리퍼 학습 곡선, 348 B)은 느린 주기로 충분하다 — 그리퍼 화면의 실시간은 WEBMON.Gripper 가 낸다.
+            slow: vec!["PARA".into(), "CELL".into(), "STATION".into(), "MEASLOG".into(), "LASERDIAG".into(), "GRIP_TUNE".into()],
             on_demand: vec!["MEASLOG_HIST".into(), "TASK".into(), "ALARM".into(), "Interface_GRM".into()],
             // OPCUA.STAT.ComponentID 는 PLC 프로그램이 쓰지 않아 실기에서 항상 0 이다(2026-09-14) — 검사하면 layout_ok=false 로 제출이 막힌다.
             checks: vec![SemanticCheck { db: "PARA".into(), path: "Machine.ID".into(), equals: 2 }],

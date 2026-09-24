@@ -44,6 +44,7 @@ import MeasureMonitor from './components/measure/MeasureMonitor'
 import ScenarioPage from './components/scenario/ScenarioPage'
 import PalletPage from './components/pallet/PalletPage'
 import TracePage from './components/trace/TracePage'
+import GripperPage from './components/gripper/GripperPage'
 import { ContextMenuHost } from './lib/ui/ContextMenuHost'
 import { Toaster } from './lib/ui/Toaster'
 import { ErrorBoundary } from './lib/ui/ErrorBoundary'
@@ -74,6 +75,8 @@ function Screen({ tab }: { tab: Tab }) {
       return <PalletPage />
     case 'trace':
       return <TracePage />
+    case 'gripper':
+      return <GripperPage />
     case 'task':
     default:
       return <TaskIssue />

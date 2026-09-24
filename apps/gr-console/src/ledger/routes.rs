@@ -3,7 +3,7 @@
 //! `GET /api/tasks?state=active|terminal|a,b&type=PICK&origin=console|scenario|external&since=<RFC3339>&q=&limit=&offset=`
 //! `GET /api/tasks/stats` · `GET /api/tasks/gate` · `GET /api/tasks/plc-view` · `GET /api/tasks/stream` (SSE snapshot|upsert|remove)
 //! `POST /api/tasks[?submit=false]` · `GET|DELETE /api/tasks/{id}` · `POST /api/tasks/{id}/submit|cancel|complete|resubmit|mark-failed`
-//! `POST /api/robots/{id}/command/start|stop|reset|buzzerstop|complete|clear` (`robot_cmd`)
+//! `POST /api/robots/{id}/command/start|stop|reset|buzzerstop|gripper-learn|complete|clear` (`robot_cmd`)
 
 use axum::Router;
 use axum::extract::{Path, Query, State};
@@ -151,7 +151,8 @@ async fn complete(State(st): State<AppState>, Path(id): Path<String>) -> ApiResu
 
 /// `POST /api/robots/{id}/command/{action}` — start | stop | reset | buzzerstop | complete | clear (사이드바 로봇 우클릭).
 async fn robot_command(State(st): State<AppState>, Path((robot, action)): Path<(u8, String)>) -> ApiResult<Json> {
-    let a = super::robot_cmd::RobotAction::parse(&action).ok_or_else(|| ApiError::BadRequest(format!("unknown robot command '{action}' (start|stop|reset|buzzerstop|complete|clear)")))?;
+    let a =
+        super::robot_cmd::RobotAction::parse(&action).ok_or_else(|| ApiError::BadRequest(format!("unknown robot command '{action}' (start|stop|reset|buzzerstop|gripper-learn|complete|clear)")))?;
     let r = st.robot(Some(robot))?;
     Ok(axum::Json(super::robot_cmd::run(&st, r, a).await?))
 }

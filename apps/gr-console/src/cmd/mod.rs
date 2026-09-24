@@ -32,6 +32,9 @@ pub enum CommandBit {
     Reset,
     /// 부저 정지 — GR `CL_Buzzor` 가 `"GRM".Command.Common.BuzzerStop` 을 읽어야 효과가 있다.
     BuzzerStop,
+    /// 그리퍼 LEARN(기구 부하 곡선 학습) — UDT 멤버 이름은 일부러 `B3_Spare.Spare_X0` 그대로다(GR `FB_Gripper` 가
+    /// `GRIP.Req.LearnCmd` 로 받는다). PLC 는 MANUAL/MAINT + 그리퍼 Ready + 화물 없음일 때만 받고 아니면 무시한다.
+    GripperLearn,
 }
 
 impl CommandBit {
@@ -41,6 +44,7 @@ impl CommandBit {
             CommandBit::Stop => "Command.Stop.Normal",
             CommandBit::Reset => "Command.Common.Reset",
             CommandBit::BuzzerStop => "Command.Common.BuzzerStop",
+            CommandBit::GripperLearn => "Command.B3_Spare.Spare_X0",
         }
     }
 }

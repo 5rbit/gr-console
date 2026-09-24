@@ -17,7 +17,7 @@ rack = 0
 slot = 1
 fast = ["OPCUA", "TASK"]
 webmon = ["WEBMON"]
-slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG", "LASERDIAG"]
+slow = ["PARA", "ALARM", "Interface_GRM", "CELL", "STATION", "MEASLOG", "LASERDIAG", "GRIP_TUNE"]   # GRIP_TUNE = 그리퍼 학습 곡선(그리퍼 화면, 2026-09-25)
 on_demand = ["MEASLOG_HIST"]
 # OPCUA.STAT.ComponentID 는 PLC 프로그램이 쓰지 않아 실기에서 항상 0 (2026-09-14) → 검사하지 않음
 checks = [
