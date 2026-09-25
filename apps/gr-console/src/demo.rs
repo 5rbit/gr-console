@@ -180,6 +180,8 @@ struct Side {
     /// A gripper LEARN sweep in progress (started by the `GripperLearn` command bit) — G sweeps RangeMin → RangeMax,
     /// then `GRIP_TUNE` gets both curves and `LearnDone`.
     learn_at: Option<Instant>,
+    /// Torque limit sent last tick — the drive echo (`Drive.TorqLimitPV`) lags the setpoint by one tick like the real one.
+    last_limit: f64,
 }
 
 struct Inner {
@@ -448,6 +450,7 @@ impl DemoWorld {
                 op_echo: None,
                 ended: None,
                 learn_at: None,
+                last_limit: 0.0,
             };
             // seed some history so the measurement screens have content — a different amount and tire size per robot
             let (count, id_base, work_base) = (25 + 15 * r.gr_index as u32, 355.6 + 25.4 * gi, 3000 + 1000 * r.gr_index as u32);
@@ -908,12 +911,36 @@ impl Side {
                 (20, 1)
             };
             let inch = self.now.as_ref().map(|r| (r.task.item.inner_diameter / 25.4).round() as i32).unwrap_or(0);
+            let limit = mech + accel + if gripping { 12.5 } else { 5.0 };
+            // the drive echoes the limit one tick late
+            let limit_pv = self.last_limit;
+            self.last_limit = limit;
+            let owner = if learning {
+                5
+            } else if gripping {
+                1
+            } else if step == 400 {
+                2
+            } else {
+                0
+            };
+            let temp = 40.0 + (tick as f64 / 40.0).sin();
+            // separate `json!` — one literal with the nested struct blows serde_json's macro recursion limit
+            let drive = json!({
+                "TorqLimitSV": limit, "TorqLimitPV": limit_pv, "TorqLimitEnable": true, "TorqLimitActivated": !g_settled || gripping,
+                "TorqLimitReached": gripping, "IgnoredLagError": gripping, "CmdStart": !g_settled,
+                "SpeedSV": if g_settled { 0.0 } else if learning { 40.0 } else { 120.0 },
+                "MotorTemp": temp, "InverterTemp": temp - 6.0, "MotorOverheatWarn": false, "EnableApp": true, "Referenced": true, "Fault": false,
+            });
             json!({
                 "Code": code, "Timeout": 0, "Mode": mode, "Step": if learning { 20 } else if gripping { 40 } else { 0 }, "ErrorCode": 0, "Inch": inch,
                 "Busy": learning || !g_settled || step == 500, "Done": g_settled && !learning && step != 500, "Error": false, "GripOk": gripping,
                 "ItemPresent": gripping, "Obstacle": false, "Thermal": false, "AtSpeed": !g_settled, "Contact": gripping,
-                "LimitNow": mech + accel + if gripping { 12.5 } else { 5.0 }, "Mech": mech, "Rise": rise, "TorqPct": mech + rise,
+                "LimitNow": limit, "Mech": mech, "Rise": rise, "TorqPct": mech + rise,
                 "Force_N": rise * 9.6, "ContactPos": if gripping { g } else { 0.0 }, "ReachedPos": if g_settled { g } else { 0.0 },
+                "Owner": owner, "Reject": 0, "SpdIdx": if learning { 0 } else if step == 400 { 2 } else { 1 }, "Fallback": false,
+                "ErrorHold": false, "Disabled": false, "ContactThr": mech + 4.2, "TireNm": 1.3,
+                "Drive": drive,
             })
         };
         if let Some(w) = self.models.get_mut("WEBMON") {

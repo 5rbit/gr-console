@@ -7,6 +7,8 @@ import {
   codeTone,
   gRule,
   learnDisabledReason,
+  limitEchoMatches,
+  ownerName,
   mechSeries,
   paraRows,
   parseScale,
@@ -39,6 +41,14 @@ describe('gripper model', () => {
     expect(codeTone(50)).toBe('ok')
     expect(codeTone(95)).toBe('fault')
     expect(codeTone(10)).toBe('neutral')
+  })
+
+  it('owner names and torque-limit echo', () => {
+    expect(ownerName(5)).toBe('LEARN')
+    expect(ownerName(9)).toBe('9')
+    expect(limitEchoMatches(13.0, 13.04)).toBe(true)
+    expect(limitEchoMatches(13.0, 12.0)).toBe(false)
+    expect(limitEchoMatches(13.0, undefined)).toBeNull()
   })
 
   it('bin centers span RangeMin..RangeMax', () => {

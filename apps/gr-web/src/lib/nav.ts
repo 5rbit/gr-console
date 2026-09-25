@@ -71,9 +71,31 @@ class Nav extends Store {
     this.notify()
   }
 
+  /** 트레이스 화면이 적용할 채널 프리셋 id(빈 문자열 = 없음) — `components/trace/tracePresets`. */
+  #tracePreset = ''
+  get tracePreset(): string {
+    return this.#tracePreset
+  }
+
   /** 탭 이동(화면 가로지르는 흐름의 진입점). */
   go(tab: Tab): void {
     this.tab = tab
+  }
+
+  /** 트레이스 화면을 그 프리셋이 적용된 채로 연다(시작은 사람이 누른다). */
+  goTracePreset(id: string): void {
+    this.#tracePreset = id
+    this.tab = 'trace'
+  }
+
+  /** 지목된 프리셋을 가져가며 비운다. */
+  consumeTracePreset(): string {
+    const v = this.#tracePreset
+    if (v) {
+      this.#tracePreset = ''
+      this.notify()
+    }
+    return v
   }
 
   /** 지목된 Task id를 가져가며 비운다 — 재렌더마다 다시 반응하지 않게. */

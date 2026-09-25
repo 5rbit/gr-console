@@ -20,9 +20,8 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">  레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">   레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)</MultiLanguageText>
       </Comment>
-      <StartValue>16#0000_0000</StartValue>
     </Member>
     <Member Name="PlcName" Datatype="String[16]" Remanence="Retain" Accessibility="Public">
       <AttributeList>
@@ -32,7 +31,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">   HTTP 경로 /api/plc/&lt;PlcName&gt;/..., Hello.Plc</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">    HTTP 경로 /api/plc/&lt;PlcName&gt;/..., Hello.Plc</MultiLanguageText>
       </Comment>
       <StartValue>'GR2'</StartValue>
     </Member>
@@ -44,11 +43,15 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">   슬롯 설정 (LnkSess1 / LnkSess2)</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">    슬롯 설정 (LnkSess1 / LnkSess2)</MultiLanguageText>
       </Comment>
       <Sections>
         <Section Name="None">
-          <Member Name="Enable" Datatype="Bool" />
+          <Member Name="Enable" Datatype="Bool">
+            <Subelement Path="1">
+              <StartValue>TRUE</StartValue>
+            </Subelement>
+          </Member>
           <Member Name="AcceptCommand" Datatype="Bool" />
           <Member Name="SendMeasLog" Datatype="Bool">
             <Subelement Path="1">
@@ -66,7 +69,11 @@
               <StartValue>TRUE</StartValue>
             </Subelement>
           </Member>
-          <Member Name="AllowTrace" Datatype="Bool" />
+          <Member Name="AllowTrace" Datatype="Bool">
+            <Subelement Path="1">
+              <StartValue>TRUE</StartValue>
+            </Subelement>
+          </Member>
           <Member Name="Role" Datatype="USInt">
             <Subelement Path="1">
               <StartValue>1</StartValue>
@@ -77,7 +84,7 @@
           </Member>
           <Member Name="Framing" Datatype="USInt">
             <Subelement Path="1">
-              <StartValue>3</StartValue>
+              <StartValue>1</StartValue>
             </Subelement>
             <Subelement Path="2">
               <StartValue>2</StartValue>
@@ -85,7 +92,7 @@
           </Member>
           <Member Name="Format" Datatype="USInt">
             <Subelement Path="1">
-              <StartValue>1</StartValue>
+              <StartValue>2</StartValue>
             </Subelement>
             <Subelement Path="2">
               <StartValue>1</StartValue>

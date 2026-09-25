@@ -10,7 +10,8 @@ import { Hand } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useSelectedStatus } from '../../lib/feeds'
 import { modeName } from '../../lib/gr/const'
-import { delta, dtl, pos } from '../../lib/meas/format'
+import { delta, dtl, f1, pos } from '../../lib/meas/format'
+import { nav } from '../../lib/nav'
 import { visibleInterval } from '../../lib/poll'
 import { robots } from '../../lib/robots'
 import { robotChip, robotFailure, withRobotChip } from '../../lib/robotContext'
@@ -30,6 +31,7 @@ import { Input } from '../../lib/ui/Input'
 import { OverflowMenu } from '../../lib/ui/OverflowMenu'
 import { ScreenHeader } from '../../lib/ui/ScreenHeader'
 import { Section } from '../../lib/ui/Section'
+import { StatusDot } from '../../lib/ui/StatusDot'
 import { StatRow, type StatItem } from '../../lib/ui/StatRow'
 import { Toolbar } from '../../lib/ui/Toolbar'
 import type { MenuItem } from '../../lib/ui/menu'
@@ -48,8 +50,10 @@ import {
   errorName,
   gRule,
   learnDisabledReason,
+  limitEchoMatches,
   mechSeries,
   modeLabel,
+  ownerName,
   paraRows,
   parseScale,
   scaleRows,
@@ -198,6 +202,12 @@ function GripperScreen() {
       run: openScale,
       testid: 'gripper-scale-edit',
     },
+    {
+      // 트레이스 화면으로 — 그리퍼 프리셋(위치·토크·제한·에코·도달 24 채널)을 적용한 채로. 시작은 거기서 누른다.
+      label: '트레이스 (그리퍼 프리셋)…',
+      run: () => nav.goTracePreset('gripper'),
+      testid: 'gripper-trace-preset',
+    },
   ]
 
   if (!live && !snap) {
@@ -226,6 +236,8 @@ function GripperScreen() {
   const err = live?.Error
   const learnDone = tune?.LearnDone ?? false
   const learnErr = tune?.LearnError ?? 0
+  const drv = live?.Drive
+  const echo = limitEchoMatches(drv?.TorqLimitSV, drv?.TorqLimitPV)
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="gripper-page">
@@ -293,11 +305,70 @@ function GripperScreen() {
                   </span>,
                 ],
                 ['Timeout', String(live?.Timeout ?? 0)],
+                ['Owner', `${live?.Owner ?? 0} ${ownerName(live?.Owner ?? 0)}`, 'GRIP_OWNER_* — 지금 그리퍼를 쥔 주체'],
+                ['Reject', `${live?.Reject ?? 0} ${errorName(live?.Reject)}`, '마지막 거부 사유 (GRIP_E_*)'],
+                ['SpdIdx', String(live?.SpdIdx ?? 0), '사용 중 Mech 곡선 (0 없음)'],
+                [
+                  'Fallback / ErrorHold / Disabled',
+                  <Bits
+                    key="fb"
+                    obj={live as unknown as Record<string, unknown>}
+                    keys={['Fallback', 'ErrorHold', 'Disabled']}
+                    warn={['Fallback', 'ErrorHold']}
+                    bad={['Disabled']}
+                    inline
+                  />,
+                ],
+                ['ContactThr (%)', delta(live?.ContactThr), '측정 접촉 판정 문턱'],
+                ['TireNm (Nm)', delta(live?.TireNm), '타이어 몫 사양 @RefDia'],
                 ['ContactPos (mm)', pos(live?.ContactPos)],
                 ['ReachedPos (mm)', pos(live?.ReachedPos)],
                 ['GTarget (mm)', pos(wm?.Axis?.[3]?.Target ?? snap?.live.GTarget)],
                 ['TorqueReachedPosition (mm)', pos(live?.TorqueReachedPosition)],
               ]}
+            />
+          </Section>
+          <Section
+            title="Drive (DRIVE.Axis[G])"
+            help="드라이브 원본. TorqLimitPV 는 드라이브가 돌려준 에코 — SV 와 다르면 제한이 아직 안 먹은 스캔이다. Activated/Reached 는 드라이브 판정(참고)."
+            right={drv ? undefined : '이 PLC 레이아웃에는 없음'}
+          >
+            <KvTable
+              rows={[
+                [
+                  'TorqLimitSV / PV (%)',
+                  <span key="lim" className="flex items-center gap-2">
+                    <span>
+                      {delta(drv?.TorqLimitSV)} / {delta(drv?.TorqLimitPV)}
+                    </span>
+                    {echo === null ? null : (
+                      <StatusDot
+                        status={echo ? 'ok' : 'warn'}
+                        size="sm"
+                        label={echo ? '에코 일치' : '에코 불일치'}
+                      />
+                    )}
+                  </span>,
+                ],
+                ['SpeedSV (mm/s)', delta(drv?.SpeedSV)],
+                ['MotorTemp / InverterTemp (°C)', drv ? `${f1(drv.MotorTemp)} / ${f1(drv.InverterTemp)}` : '-'],
+              ]}
+            />
+            <Bits
+              obj={drv as unknown as Record<string, unknown>}
+              keys={[
+                'TorqLimitEnable',
+                'TorqLimitActivated',
+                'TorqLimitReached',
+                'IgnoredLagError',
+                'CmdStart',
+                'EnableApp',
+                'Referenced',
+                'Fault',
+                'MotorOverheatWarn',
+              ]}
+              bad={['Fault']}
+              warn={['MotorOverheatWarn', 'IgnoredLagError']}
             />
           </Section>
         </Card>

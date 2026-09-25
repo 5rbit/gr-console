@@ -9,6 +9,7 @@
 // 재생 경로:   `/api/trace/<id>?max=budgetFor(폭)` → `RowArray` → 같은 차트.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Waves } from 'lucide-react'
+import { nav } from '../../lib/nav'
 import { robots } from '../../lib/robots'
 import { visibleInterval } from '../../lib/poll'
 import { useStore } from '../../lib/store'
@@ -37,6 +38,7 @@ import { SessionList, clock, durationSec } from './SessionList'
 import { TraceChart } from './TraceChart'
 import type { SeriesSpec } from './traceChartModel'
 import { traceLive } from './traceStream'
+import { TRACE_PRESETS, applyPreset, tracePreset, type TracePreset } from './tracePresets'
 import {
   CHAN_MAX,
   FLUSH_MIN_MS,
@@ -154,6 +156,44 @@ function Trace() {
 
   const current = ov?.current ?? null
   const running = current !== null
+
+  /**
+   * 프리셋 적용 — 카탈로그(`WEBMON.` 전체)로 걸러 옛 레이아웃에 없는 경로는 뺀다. 카탈로그를 못 받으면
+   * 그대로 넣고 시작 때 백엔드 사유를 본다. 세션이 도는 동안은 구성을 못 바꾸므로 거절한다.
+   */
+  const usePreset = useCallback(
+    async (p: TracePreset) => {
+      if (running) {
+        toast.error('세션이 도는 동안은 채널을 바꿀 수 없습니다 — 정지한 뒤 프리셋을 적용하세요')
+        return
+      }
+      let available: string[] | null = null
+      try {
+        const r = await traceApi.channels('WEBMON.', 5000)
+        available = r.total <= r.channels.length ? r.channels.map((c) => c.path) : null
+      } catch {
+        available = null
+      }
+      const a = applyPreset(p, available)
+      setSelection(a.channels)
+      setCfg({ divider: p.divider, flushMs: p.flushMs })
+      if (a.missing.length)
+        toast.error(
+          `${p.label} 프리셋: 계약에 없는 채널 ${a.missing.length}개는 뺐습니다 — ${a.missing.map(shortPath).join(', ')}`,
+        )
+      else toast.ok(`${p.label} 프리셋: 채널 ${a.channels.length} · 분주 ${p.divider} · Flush ${p.flushMs} ms`)
+    },
+    [running],
+  )
+
+  // 다른 화면(그리퍼 ⋯ 메뉴)이 지목한 프리셋 — 개요를 받은 뒤 한 번만 적용한다(세션 여부를 알아야 한다).
+  useStore(nav)
+  useEffect(() => {
+    if (!ov) return
+    const id = nav.consumeTracePreset()
+    const p = tracePreset(id)
+    if (p) void usePreset(p)
+  }, [ov, usePreset, nav.tracePreset])
   const chanMax = CHAN_MAX
 
   // 차트가 무엇을 그리는가 — 재생 중이면 그 세션, 아니면 라이브 링.
@@ -169,7 +209,8 @@ function Trace() {
       channels
         .map((c, i) => ({
           path: c.path,
-          name: shortPath(c.path),
+          // 범례도 값 표와 같은 **전체 경로**(`WEBMON.Gripper.Drive.TorqLimitPV`)다 — 같은 이름이 두 DB 에 있을 수 있다.
+          name: c.path,
           index: i,
           axis: right.has(c.path) ? ('R' as const) : ('L' as const),
         }))
@@ -421,6 +462,22 @@ function Trace() {
                 </div>
               ) : (
                 <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="text-2xs text-content-faint">프리셋</span>
+                    {TRACE_PRESETS.map((p) => (
+                      <Button
+                        key={p.id}
+                        size="sm"
+                        intent="outline"
+                        disabled={busy}
+                        title={`채널 ${p.channels.length} · 분주 ${p.divider} · Flush ${p.flushMs} ms — 지금 고른 채널을 바꿉니다`}
+                        onClick={() => void usePreset(p)}
+                        data-testid={`trace-preset-${p.id}`}
+                      >
+                        {p.label}
+                      </Button>
+                    ))}
+                  </div>
                   <ChannelPicker
                     selected={selection}
                     onChange={setSelection}

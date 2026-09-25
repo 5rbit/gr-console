@@ -3,20 +3,21 @@
 VERSION : 0.1
 // 표준 접근 : PLC 소켓 링크 설정 (retain). Conn[1] 기본 Active NDJSON, Conn[2] 기본 Passive HTTP, 둘 다 Enable FALSE
    STRUCT 
-      LayoutSig : DWord;   //   레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
-      PlcName : String[16];   //    HTTP 경로 /api/plc/<PlcName>/..., Hello.Plc
-      Conn : Array[1..2] of "LNK_ConnCfg";   //    슬롯 설정 (LnkSess1 / LnkSess2)
+      LayoutSig : DWord;   //    레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
+      PlcName : String[16];   //     HTTP 경로 /api/plc/<PlcName>/..., Hello.Plc
+      Conn : Array[1..2] of "LNK_ConnCfg";   //     슬롯 설정 (LnkSess1 / LnkSess2)
    END_STRUCT;
 
 
 BEGIN
-   LayoutSig := 16#0000_0000;
    PlcName := 'GR2';
+   Conn[1].Enable := TRUE;
    Conn[1].SendMeasLog := TRUE;
    Conn[1].SendStatus := TRUE;
+   Conn[1].AllowTrace := TRUE;
    Conn[1].Role := 1;
-   Conn[1].Framing := 3;
-   Conn[1].Format := 1;
+   Conn[1].Framing := 1;
+   Conn[1].Format := 2;
    Conn[1].InterfaceId := 64;
    Conn[1].ConnId := 16#0120;
    Conn[1].RemoteIP[1] := 16#00C0;

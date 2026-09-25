@@ -78,6 +78,13 @@ fn code_names(c: &Contract, live: &Json) -> Map<String, Json> {
     m.insert("ModeName".into(), json!(const_name(&c.consts, "GRIP_", &["GRIP_ST_", "GRIP_E_", "GRIP_TO_", "GRIP_OWNER_"], i("Mode"))));
     m.insert("ErrorName".into(), json!(const_name(&c.consts, "GRIP_E_", &[], i("ErrorCode"))));
     m.insert("TimeoutName".into(), json!(const_name(&c.consts, "GRIP_TO_", &[], i("Timeout"))));
+    // 상수표에 GRIP_OWNER_NONE 이 없다 — 0 은 "아무도 안 쥠".
+    let owner = match i("Owner") {
+        0 => "NONE".to_string(),
+        v => const_name(&c.consts, "GRIP_OWNER_", &[], v),
+    };
+    m.insert("OwnerName".into(), json!(owner));
+    m.insert("RejectName".into(), json!(const_name(&c.consts, "GRIP_E_", &[], i("Reject"))));
     m
 }
 
@@ -216,6 +223,7 @@ mod tests {
         assert_eq!(const_name(&c, "GRIP_ST_", &[], 50), "HOLDING");
         assert_eq!(const_name(&c, "GRIP_", &["GRIP_ST_", "GRIP_E_", "GRIP_TO_", "GRIP_OWNER_"], 6), "LEARN");
         assert_eq!(const_name(&c, "GRIP_E_", &[], 8), "LEARN");
+        assert_eq!(const_name(&c, "GRIP_OWNER_", &[], 5), "LEARN");
         assert_eq!(const_name(&c, "GRIP_ST_", &[], 99), "99");
     }
 

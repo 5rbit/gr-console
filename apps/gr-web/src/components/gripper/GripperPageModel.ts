@@ -50,6 +50,28 @@ export const GRIP_ERROR: Readonly<Record<number, string>> = {
   10: 'NOT_READY',
 }
 
+/** `GRIP_OWNER_*` — 지금 그리퍼를 쥔 주체. */
+export const GRIP_OWNER: Readonly<Record<number, string>> = {
+  0: 'NONE',
+  1: 'TASK',
+  2: 'MEASURE',
+  3: 'MANUAL_MEASURE',
+  4: 'MANUAL',
+  5: 'LEARN',
+}
+
+export function ownerName(owner: number | null | undefined): string {
+  if (owner === null || owner === undefined) return '-'
+  return GRIP_OWNER[owner] ?? String(owner)
+}
+
+/** 토크 제한 에코 — 드라이브가 돌려준 PV 가 SV 와 같은가(0.05 % 안). 둘 다 없으면 null. */
+export function limitEchoMatches(sv: number | null | undefined, pv: number | null | undefined): boolean | null {
+  if (sv === null || sv === undefined || pv === null || pv === undefined) return null
+  if (!Number.isFinite(sv) || !Number.isFinite(pv)) return null
+  return Math.abs(sv - pv) <= 0.05
+}
+
 /** `Tune.LearnError` — 마지막 LEARN 실패 원인. */
 export const LEARN_ERROR: Readonly<Record<number, string>> = {
   0: '없음',

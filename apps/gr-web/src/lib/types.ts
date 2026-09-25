@@ -898,6 +898,40 @@ export interface WebMonGripper {
   Force_N?: number
   ContactPos?: number
   ReachedPos?: number
+  /** GRIP_OWNER_* */
+  Owner?: number
+  /** 마지막 거부 사유 (GRIP_E_*) */
+  Reject?: number
+  /** 사용 중 Mech 곡선 (0 없음) */
+  SpdIdx?: number
+  /** 사양 없이 고정 % (기존 동작) */
+  Fallback?: boolean
+  ErrorHold?: boolean
+  Disabled?: boolean
+  /** 측정 접촉 문턱 (%) */
+  ContactThr?: number
+  /** 타이어 몫 사양 (Nm @RefDia) */
+  TireNm?: number
+  Drive?: WebMonGripperDrive
+}
+
+/** WEBMON.Gripper.Drive — "DRIVE".Axis["G"] 원본(제한 반영 · 도달 · 온도). */
+export interface WebMonGripperDrive {
+  TorqLimitSV: number
+  /** 드라이브 에코 — SV 와 다르면 제한이 아직 안 먹었다. */
+  TorqLimitPV: number
+  TorqLimitEnable: boolean
+  TorqLimitActivated: boolean
+  TorqLimitReached: boolean
+  IgnoredLagError: boolean
+  CmdStart: boolean
+  SpeedSV: number
+  MotorTemp: number
+  InverterTemp: number
+  MotorOverheatWarn: boolean
+  EnableApp: boolean
+  Referenced: boolean
+  Fault: boolean
 }
 
 /** "MACHINE".Gripper.State (WEBMON 복사) — GripperState FC 가 매 스캔 갱신. */
@@ -1210,6 +1244,8 @@ export interface GripperLive extends WebMonGripper {
   ModeName: string
   ErrorName: string
   TimeoutName: string
+  OwnerName: string
+  RejectName: string
 }
 
 /** LGR_GripperTune — 학습 · 보정값. */
