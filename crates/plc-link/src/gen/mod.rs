@@ -34,9 +34,9 @@ use crate::wire_json::check_supported;
 
 pub use closure::{callees_first, direct_udts, udt_closure};
 pub use names::{MAX_LIT_LEN, MAX_NAME_LEN, Names, member, scl_str};
-pub use tags::ConstDef;
+pub use tags::{ConstDef, render_xml};
 pub use testvec::{JSON_CHUNK, TEST_DB_MAX_BYTES, VECTOR_SEQ};
-pub use text::{GENERATED_MARKER, has_generated_marker, normalize_for_compare};
+pub use text::{GENERATED_MARKER, has_generated_marker, normalize_for_compare, tia_bytes};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GenOpts {

@@ -17,7 +17,26 @@ pub struct Config {
     /// Robots reachable through GRM (up to 2). Empty = one robot derived from `cmd` + `opcua`.
     pub robots: Vec<RobotCfg>,
     pub conveyor: ConveyorCfg,
+    pub evtlog: EvtLogCfg,
     pub demo: bool,
+}
+
+/// PLC 이벤트 로그(`evtlog`): EVTLOG DB950 수집 + 콘솔 이벤트. 저장은 `<data_dir>/events.db` (운영 DB 와 따로).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EvtLogCfg {
+    pub enabled: bool,
+    /// 이보다 오래된 행은 매시간 지운다.
+    pub keep_days: u32,
+    /// events.db 가 쓰는 크기 상한(MB) — 넘으면 오래된 것부터 지운다.
+    pub max_mb: u64,
+    /// 코드 사전. 없으면 실행 파일에 넣어 둔 사본을 쓴다.
+    pub catalog: PathBuf,
+}
+impl Default for EvtLogCfg {
+    fn default() -> Self {
+        Self { enabled: true, keep_days: 90, max_mb: 20_480, catalog: "plc/evtlog/catalog.toml".into() }
+    }
 }
 
 /// 컨베이어 화물 코드 트래킹(`stock::conveyor`).
@@ -133,6 +152,11 @@ pub struct PlcCfg {
     /// 빠른 주기에서 **이 범위만** 읽는 DB(`DB 이름 → 멤버 경로들`) — 나머지는 느린 주기에 전체를 새로 읽어 채운다.
     /// 큰 DB 에서 쓰는 곳이 일부뿐일 때(GRM OPCUA 18.5 KB 중 CMD 헤더 · STATION). GRM 은 비어 있으면 로봇 설정에서 채운다.
     pub fast_ranges: std::collections::BTreeMap<String, Vec<String>>,
+    /// `fast_ranges` 의 DB 중 **전체를 한 번도 읽지 않는** 것 — 범위 밖은 0 으로 두고 느린 주기에서도 다시 읽지 않는다
+    /// (EVTLOG 34 KB: 머리만 빠른 주기, 본문은 수집기가 필요한 칸만).
+    pub ranges_only: Vec<String>,
+    /// 레이아웃 검사에 실패해도 `layout_ok` 를 내리지 않는 DB — 아직 PLC 에 없을 수 있는 선택 DB(EVTLOG).
+    pub optional: Vec<String>,
     /// Semantic checks: `db.path == value`.
     pub checks: Vec<SemanticCheck>,
 }
@@ -159,6 +183,8 @@ impl Default for PlcCfg {
             checks: vec![SemanticCheck { db: "PARA".into(), path: "Machine.ID".into(), equals: 2 }],
             heartbeat: Some("OPCUA.STAT.Status.HeartBeat".into()),
             fast_ranges: Default::default(),
+            ranges_only: vec![],
+            optional: vec![],
         }
     }
 }
@@ -302,6 +328,7 @@ impl Default for Config {
             link: LinkCfg::default(),
             robots: vec![],
             conveyor: ConveyorCfg::default(),
+            evtlog: EvtLogCfg::default(),
             demo: false,
         }
     }
@@ -382,6 +409,7 @@ impl Config {
         fix(&mut self.paths.data_dir);
         fix(&mut self.paths.contract_dir);
         fix(&mut self.paths.sqlite);
+        fix(&mut self.evtlog.catalog);
         if let Some(w) = self.paths.web_dir.as_mut() {
             fix(w);
         }
@@ -450,6 +478,15 @@ mod portable_tests {
         let mut c = Config::default();
         c.anchor(Path::new("/app"));
         assert_eq!(c.paths.sqlite, Path::new("/app/data/gr-console.db"));
+    }
+
+    /// 저장소의 설정 파일이 읽히고 이벤트 로그 기본값이 그대로다.
+    #[test]
+    fn repo_config_parses_with_evtlog() {
+        let c: Config = toml::from_str(include_str!("../../../gr-console.toml")).unwrap();
+        assert!(c.evtlog.enabled);
+        assert_eq!((c.evtlog.keep_days, c.evtlog.max_mb), (90, 20_480));
+        assert!(c.plcs.iter().all(|p| p.ranges_only.is_empty() && p.optional.is_empty()), "EVTLOG 는 시작 때 자동 설정");
     }
 
     #[test]

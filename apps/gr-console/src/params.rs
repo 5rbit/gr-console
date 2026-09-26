@@ -268,6 +268,8 @@ pub fn save(db: &Db, new: Params, by: &str) -> Result<(u32, Params, Vec<Change>)
         )
     })?;
     *CACHE.write().unwrap_or_else(PoisonError::into_inner) = Some((nv, new.clone()));
+    let list: Vec<String> = changes.iter().map(|(k, a, b)| format!("{k} {a} → {b}")).collect();
+    crate::evtlog::console("CON_SETTINGS", "console", i64::from(nv), 0, 0, format!("스케줄 파라미터 v{nv} ({by}): {}", list.join(", ")));
     Ok((nv, new, changes))
 }
 

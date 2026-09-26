@@ -61,6 +61,14 @@ bind = "0.0.0.0:2000"
 
 # 컨베이어 화물 코드 트래킹 — GRM ConnectionPrev/Next 밖의 추가 연결 [from, to] (스테이션 Id).
 # 품목 코드만 넘기고 PLC 에는 쓰지 않는다(GRM 측정·OD 트래킹은 그대로). 테스트 베드: 2003(CV 2103) → 2102.
+# PLC 이벤트 로그 — EVTLOG(DB950) 수집 + 콘솔 이벤트 → data/events.db (이벤트 탭, /api/events).
+# 계약에 EVTLOG 가 있는 PLC 는 설정 없이도 머리(36 B)만 빠른 주기에 읽고, 본문은 Total 이 늘 때만 읽는다.
+# PLC 에 아직 EVTLOG 가 없으면 그 DB 만 건너뛴다(레이아웃 판정은 그대로). 사전: plc/evtlog/catalog.toml
+[evtlog]
+enabled = true
+keep_days = 90     # 이보다 오래된 행은 매시간 지운다
+max_mb = 20480     # events.db 크기 상한 — 넘으면 오래된 것부터
+
 [conveyor]
 # extra_links = [[2003, 2102]]
 

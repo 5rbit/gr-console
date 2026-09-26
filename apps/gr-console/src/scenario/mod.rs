@@ -444,6 +444,7 @@ impl Runner {
         let _ = self.persist_run(&snap);
         let (ctl_tx, ctl_rx) = watch::channel(Ctl::default());
         let me = self.clone();
+        crate::evtlog::console("CON_RUNNER", "console", 0, 0, 0, format!("시나리오 시작 {} (run {})", scenario.name, snap.run_id));
         let join = tokio::spawn(async move { runner::run_loop(st, me, scenario, plan, ctl_rx).await });
         *active = Some(Active { ctl: ctl_tx, join });
         Ok(snap)
@@ -466,6 +467,7 @@ impl Runner {
             return Err(ApiError::Conflict(format!("run is {}", cur.state.as_str())));
         }
         self.with_ctl(|c| c.paused = true);
+        crate::evtlog::console("CON_RUNNER", "console", 0, 0, 0, format!("시나리오 일시정지 {} (run {})", cur.scenario_name, cur.run_id));
         Ok(self.update(|g| g.state = Phase::Paused))
     }
 
@@ -548,6 +550,7 @@ impl Runner {
             c.stop = true;
             c.paused = false;
         });
+        crate::evtlog::console("CON_RUNNER", "console", 0, 0, 0, format!("시나리오 정지 {} (run {})", cur.scenario_name, cur.run_id));
         Ok(self.update(|g| g.state = Phase::Stopping))
     }
 }

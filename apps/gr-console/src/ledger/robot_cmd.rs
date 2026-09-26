@@ -99,6 +99,7 @@ pub async fn run(st: &AppState, r: &RobotCtx, action: RobotAction) -> Result<Jso
         return Err(ApiError::OpcNotReady(with_robot(&r.name, &format!("{} 을 켠 뒤 끄지 못했습니다 — GRM 에서 비트가 켜진 채일 수 있습니다: {e}", bit.path()))));
     }
     tracing::info!(robot = %r.name, path = bit.path(), "robot command pulse");
+    crate::evtlog::console("CON_ROBOT_CMD", &r.plc, 0, 0, 0, format!("{} {} ({})", r.name, action_name(action), bit.path()));
     Ok(json!({ "robot": r.name, "action": action_name(action), "path": bit.path() }))
 }
 

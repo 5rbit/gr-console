@@ -5,7 +5,10 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use rusqlite::Connection;
 
-const MIGRATIONS: &[(&str, &str)] = &[
+/// (이름, SQL) — 이름 순서대로 한 번씩.
+pub type Migrations = &'static [(&'static str, &'static str)];
+
+const MIGRATIONS: Migrations = &[
     ("0001_init", include_str!("migrations/0001_init.sql")),
     ("0002_registry", include_str!("migrations/0002_registry.sql")),
     ("0003_ledger", include_str!("migrations/0003_ledger.sql")),
@@ -88,24 +91,31 @@ fn unquote(s: &str) -> String {
 #[derive(Clone)]
 pub struct Db {
     conn: Arc<Mutex<Connection>>,
+    migrations: Migrations,
 }
 
 impl Db {
     pub fn open(path: &Path) -> anyhow::Result<Db> {
+        Db::open_with(path, MIGRATIONS)
+    }
+
+    /// 다른 파일·다른 마이그레이션 목록(이벤트 로그 `events.db`)에도 같은 규칙: WAL, 모르는 마이그레이션 거부, 적용 전 백업.
+    pub fn open_with(path: &Path, migrations: Migrations) -> anyhow::Result<Db> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         let conn = Connection::open(path)?;
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;")?;
-        let db = Db { conn: Arc::new(Mutex::new(conn)) };
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;")?;
+        let db = Db { conn: Arc::new(Mutex::new(conn)), migrations };
         // 옛 실행 파일이 새 DB 를 열면 조용히 오동작한다(0007 이 표를 지웠다 등) — 모르는 마이그레이션이면 멈춘다.
-        db.refuse_newer_schema(MIGRATIONS)?;
+        db.refuse_newer_schema(migrations)?;
         // 적용할 마이그레이션이 있는 **기존** DB 는 먼저 통째로 떠 둔다(data/backup) — 업그레이드 되돌리기용.
-        let pending = db.pending(MIGRATIONS)?;
+        let pending = db.pending(migrations)?;
         if !pending.is_empty() && db.applied_count()? > 0 {
             let dir = path.parent().map(|p| p.join("backup")).unwrap_or_else(|| PathBuf::from("backup"));
             let stamp: String = crate::util::now_str().chars().filter(char::is_ascii_digit).take(14).collect();
-            let dest = dir.join(format!("gr-console-{stamp}-before-{}.db", pending[0]));
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("db");
+            let dest = dir.join(format!("{stem}-{stamp}-before-{}.db", pending[0]));
             db.backup_into(&dest)?;
             tracing::info!(to = %dest.display(), pending = ?pending, "DB backed up before migration");
         }
@@ -122,13 +132,20 @@ impl Db {
     #[cfg(test)]
     pub fn open_memory_upto(n: usize) -> anyhow::Result<Db> {
         let conn = Connection::open_in_memory()?;
-        let db = Db { conn: Arc::new(Mutex::new(conn)) };
+        let db = Db { conn: Arc::new(Mutex::new(conn)), migrations: MIGRATIONS };
         db.migrate_list(&MIGRATIONS[..n])?;
         Ok(db)
     }
 
+    #[cfg(test)]
+    pub fn open_memory_with(migrations: Migrations) -> anyhow::Result<Db> {
+        let db = Db { conn: Arc::new(Mutex::new(Connection::open_in_memory()?)), migrations };
+        db.migrate()?;
+        Ok(db)
+    }
+
     fn migrate(&self) -> anyhow::Result<()> {
-        self.migrate_list(MIGRATIONS)
+        self.migrate_list(self.migrations)
     }
 
     fn migrate_list(&self, list: &[(&str, &str)]) -> anyhow::Result<()> {
@@ -407,7 +424,7 @@ mod tests {
         {
             // "옛 버전" DB: 앞 5 개만
             let conn = Connection::open(&path).unwrap();
-            let db = Db { conn: Arc::new(Mutex::new(conn)) };
+            let db = Db { conn: Arc::new(Mutex::new(conn)), migrations: MIGRATIONS };
             db.migrate_list(&MIGRATIONS[..5]).unwrap();
         }
         let db = Db::open(&path).unwrap();

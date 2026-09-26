@@ -19,7 +19,7 @@ use crate::status::StatusBus;
 use crate::stock::Stock;
 use crate::trace::TraceStore;
 
-/// Unified console event (SSE `/api/events`).
+/// Unified console event (SSE `/api/console/events`).
 #[derive(Clone, Debug, Serialize)]
 pub struct ConsoleEvent {
     pub topic: &'static str,
@@ -61,6 +61,8 @@ pub struct AppState {
     /// Cycle-accurate trace over the PLC socket link; `None` when the contract has no `LNK_Trace`.
     pub trace: Option<Arc<TraceStore>>,
     pub events: broadcast::Sender<ConsoleEvent>,
+    /// PLC event log (`evtlog`); `None` when `[evtlog] enabled = false` or events.db failed to open.
+    pub evtlog: Option<Arc<crate::evtlog::EvtLog>>,
     /// 안전 종료 조정자 — PLC 쓰기 구간은 `shutdown.enter(…)` 로 감싼다(`crate::shutdown`).
     pub shutdown: crate::shutdown::Shutdown,
 }

@@ -739,6 +739,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "evt-catalog"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
 name = "fallible-iterator"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -944,6 +954,7 @@ dependencies = [
  "calamine",
  "clap",
  "csv",
+ "evt-catalog",
  "futures",
  "gr-proto",
  "include_dir",
@@ -973,9 +984,12 @@ name = "gr-contract"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "calamine",
  "clap",
+ "evt-catalog",
  "plc-layout",
  "plc-link",
+ "serde",
  "serde_json",
  "toml",
 ]

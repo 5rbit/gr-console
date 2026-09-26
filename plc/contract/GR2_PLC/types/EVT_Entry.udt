@@ -1,0 +1,16 @@
+﻿TYPE "EVT_Entry"
+VERSION : 0.1
+   STRUCT
+      Seq : UDInt;   // = EVTLOG.Total after this write (1-based, gap = lost rows)
+      "Time" {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;   // PLC local time, read once per scan (UL_EvtPre)
+      Cat : USInt;   // EVT_CAT_*
+      Lvl : USInt;   // EVT_LVL_*
+      Src : UInt;
+      Code : UInt;   // EVT_<event>, STEP : new step
+      A : DInt;
+      B : DInt;
+      Ctx : UDInt;   // current task WorkId (0 = idle)
+   END_STRUCT;
+
+END_TYPE
+

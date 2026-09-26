@@ -12,7 +12,9 @@ async fn events(State(st): State<AppState>) -> impl IntoResponse {
 
 pub fn router(st: AppState) -> Router {
     Router::new()
-        .route("/api/events", get(events))
+        // 콘솔 내부 알림 스트림 — `/api/events` 는 이벤트 로그(`evtlog`)가 쓴다.
+        .route("/api/console/events", get(events))
+        .merge(crate::evtlog::routes::router())
         .merge(crate::plc::routes::router())
         .merge(crate::backup::router())
         .merge(crate::measure::routes::router())

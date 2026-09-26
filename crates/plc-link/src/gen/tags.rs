@@ -96,7 +96,7 @@ fn esc(s: &str) -> String {
 }
 
 /// SimaticML document of the table (IDs sequential hex, comment cultures en-US / hu-HU / ko-KR).
-pub(crate) fn render_xml(table: &str, consts: &[ConstDef]) -> String {
+pub fn render_xml(table: &str, consts: &[ConstDef]) -> String {
     let mut s = String::new();
     s.push_str("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Document>\n  <Engineering version=\"V20\" />\n  <SW.Tags.PlcTagTable ID=\"0\">\n    <AttributeList>\n");
     s.push_str(&format!("      <Name>{}</Name>\n", esc(table)));

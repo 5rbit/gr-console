@@ -27,10 +27,53 @@ const RING: usize = 10;
 const QUEUE: usize = 4;
 const STEPS: [u16; 7] = [100, 200, 300, 400, 500, 600, 999];
 /// DBs modelled on a robot PLC (skipped one by one when the contract lacks them).
-const GR_DBS: [&str; 12] = ["OPCUA", "TASK", "CELL", "STATION", "PARA", "ALARM", "Interface_GRM", "WEBMON", "MEASLOG", "MEASLOG_HIST", "LASERDIAG", "GRIP_TUNE"];
-const GRM_DBS: [&str; 4] = ["OPCUA", "STATION", "CELL", "MACHINE"];
-/// Tables a client may write over S7: absorbed back into the model (see `encode_models`).
-const ABSORB: [&str; 4] = ["CELL", "STATION", "LASERDIAG", "GRIP_TUNE"];
+const GR_DBS: [&str; 13] = ["OPCUA", "TASK", "CELL", "STATION", "PARA", "ALARM", "Interface_GRM", "WEBMON", "MEASLOG", "MEASLOG_HIST", "LASERDIAG", "GRIP_TUNE", "EVTLOG"];
+const GRM_DBS: [&str; 5] = ["OPCUA", "STATION", "CELL", "MACHINE", "EVTLOG"];
+/// Tables a client may write over S7: absorbed back into the model (see `encode_models`). EVTLOG: the logger Cfg dialog.
+const ABSORB: [&str; 5] = ["CELL", "STATION", "LASERDIAG", "GRIP_TUNE", "EVTLOG"];
+/// Demo event ids from `plc/evtlog/catalog.toml`: (cat, lvl, code).
+mod ev {
+    pub const SYS_STARTUP: (u8, u8, u16) = (1, 2, 101);
+    pub const MODE_CHANGED: (u8, u8, u16) = (2, 2, 201);
+    pub const TASK_ACCEPTED: (u8, u8, u16) = (4, 2, 401);
+    pub const TASK_REJECTED: (u8, u8, u16) = (4, 3, 402);
+    pub const TASK_LOADED: (u8, u8, u16) = (4, 2, 404);
+    pub const TASK_COMPLETED: (u8, u8, u16) = (4, 2, 408);
+    pub const TASK_CANCELED: (u8, u8, u16) = (4, 2, 411);
+    pub const TASK_CYCLE: (u8, u8, u16) = (4, 2, 416);
+    pub const CMD_RESPONSE: (u8, u8, u16) = (5, 2, 508);
+    pub const ALM_RAISED_WARN: (u8, u8, u16) = (6, 3, 601);
+    pub const ALM_CLEARED: (u8, u8, u16) = (6, 2, 602);
+    pub const GRIP_REQ: (u8, u8, u16) = (7, 2, 701);
+    pub const GRIP_ERROR: (u8, u8, u16) = (7, 3, 704);
+    pub const GRIP_RETRY: (u8, u8, u16) = (7, 2, 706);
+    pub const GRIP_STATE: (u8, u8, u16) = (7, 1, 709);
+    pub const DRV_WARNING: (u8, u8, u16) = (8, 3, 802);
+    pub const DRV_FAULT_CLEARED: (u8, u8, u16) = (8, 2, 803);
+    pub const ILK_TARGET: (u8, u8, u16) = (12, 2, 1201);
+    pub const ILK_PI: (u8, u8, u16) = (12, 2, 1202);
+    pub const ILK_PO: (u8, u8, u16) = (12, 2, 1203);
+    pub const COM_LINK: (u8, u8, u16) = (14, 3, 1401);
+    pub const COM_GET_FAIL: (u8, u8, u16) = (14, 1, 1407);
+    pub const DATA_PARA_SECTION: (u8, u8, u16) = (15, 2, 1508);
+    pub const STEP: u8 = 3;
+    pub const PROC_TASK: u16 = 20;
+}
+
+/// One `EvtLog` call on a model set (no-op when the contract has no EVTLOG).
+#[allow(clippy::too_many_arguments)]
+fn evt(models: &mut HashMap<String, Json>, time: &str, (cat, lvl, code): (u8, u8, u16), src: u16, a: i32, b: i32, ctx: u32) {
+    if let Some(m) = models.get_mut("EVTLOG") {
+        crate::evtlog::demo::push(m, time, cat, lvl, src, code, a, b, ctx);
+    }
+}
+
+/// Logger start values after a "download": LayoutSig, BootId, Cfg defaults.
+fn evt_init(models: &mut HashMap<String, Json>, contract: &Contract, boot_id: u16) {
+    if let (Some(m), Ok(sig)) = (models.get_mut("EVTLOG"), contract.layout_sig("EVTLOG")) {
+        crate::evtlog::demo::init(m, sig, boot_id, &crate::evtlog::catalog::embedded());
+    }
+}
 /// Gripper (G axis) travel modelled by the demo — `PARA.Drive.RangeMin/RangeMax["G"]` of the real machine.
 const G_RANGE: (f64, f64) = (295.0, 630.0);
 /// `LGR_GripperTune.Mech` bins per curve.
@@ -182,6 +225,8 @@ struct Side {
     learn_at: Option<Instant>,
     /// Torque limit sent last tick — the drive echo (`Drive.TorqLimitPV`) lags the setpoint by one tick like the real one.
     last_limit: f64,
+    /// EVTLOG demo: tick at which the demo drive warning clears.
+    evt_warn_until: Option<u64>,
 }
 
 struct Inner {
@@ -451,7 +496,9 @@ impl DemoWorld {
                 ended: None,
                 learn_at: None,
                 last_limit: 0.0,
+                evt_warn_until: None,
             };
+            evt_init(&mut side.models, &side.contract, 1 + side.gr_index as u16);
             // seed some history so the measurement screens have content — a different amount and tire size per robot
             let (count, id_base, work_base) = (25 + 15 * r.gr_index as u32, 355.6 + 25.4 * gi, 3000 + 1000 * r.gr_index as u32);
             for i in 0..count {
@@ -468,6 +515,7 @@ impl DemoWorld {
             side.encode();
             sides.push(side);
         }
+        evt_init(&mut grm_models, &grm, 11);
         let mut inner = Inner { sides, grm: grm_models, grm_encoded: HashMap::new(), cmd_id: 1, seq: 1, tick: 0, cmd_zero };
         encode_models(&grm, &grm_store, &mut inner.grm, &mut inner.grm_encoded);
         let world = Arc::new(DemoWorld { inner: Mutex::new(inner), grm_store, grm, grm_addr: servers[0].addr, addrs, _servers: servers });
@@ -636,6 +684,7 @@ impl DemoWorld {
             s.tick(tick, &ntp, grm, cmd_zero);
             s.encode();
         }
+        grm_evt_tick(grm, tick, &ntp, sides.len());
         encode_models(&self.grm, &self.grm_store, grm, grm_encoded);
     }
 
@@ -664,6 +713,31 @@ impl DemoWorld {
     }
 }
 
+/// GRM logger: start-up, robot links, a periodic warning and a PARA section change.
+fn grm_evt_tick(grm: &mut HashMap<String, Json>, tick: u64, now: &str, robots: usize) {
+    let Some(m) = grm.get_mut("EVTLOG") else { return };
+    crate::evtlog::demo::begin_scan(m, 30 + (tick % 17) as u32);
+    if tick == 1 {
+        evt(grm, now, ev::SYS_STARTUP, 0, 0, 0, 0);
+        evt(grm, now, ev::MODE_CHANGED, 0, 0x20, 0x10, 0);
+        for r in 1..=robots {
+            evt(grm, now, ev::COM_LINK, r as u16, 1, 1200, 0);
+        }
+    }
+    if tick.is_multiple_of(150) {
+        evt(grm, now, ev::COM_GET_FAIL, 0, 0x80A0, 0, 0);
+    }
+    if tick % 500 == 250 {
+        evt(grm, now, ev::ALM_RAISED_WARN, 2, 12, 0, 0);
+    }
+    if tick % 500 == 300 {
+        evt(grm, now, ev::ALM_CLEARED, 2, 12, 0, 0);
+    }
+    if tick % 900 == 450 {
+        evt(grm, now, ev::DATA_PARA_SECTION, 7, 0x5A3C_11F0, 0x1B22_09AA, 0);
+    }
+}
+
 impl Side {
     fn encode(&mut self) {
         encode_models(&self.contract, &self.store, &mut self.models, &mut self.encoded);
@@ -672,6 +746,24 @@ impl Side {
     /// One tick of this robot; mirrors its STAT into GRM `OPCUA.GR[gr_index]`.
     fn tick(&mut self, tick: u64, ntp: &str, grm: &mut HashMap<String, Json>, cmd_zero: &Json) {
         let gr = format!("/GR/{}", self.gr_index);
+        let run_us = self.rng.random_range(25..70);
+        if let Some(m) = self.models.get_mut("EVTLOG") {
+            crate::evtlog::demo::begin_scan(m, run_us);
+        }
+        if tick == 1 {
+            evt(&mut self.models, ntp, ev::SYS_STARTUP, 0, 0, 0, 0);
+            evt(&mut self.models, ntp, ev::MODE_CHANGED, 0, 0x20, 0x10, 0);
+            evt(&mut self.models, ntp, ev::COM_LINK, 0, 1, 1500, 0);
+        }
+        // a drive warning now and then, cleared a few seconds later
+        if tick % 700 == 350 + 100 * self.gr_index as u64 {
+            evt(&mut self.models, ntp, ev::DRV_WARNING, 3, 113, 2, 0);
+            self.evt_warn_until = Some(tick + 40);
+        }
+        if self.evt_warn_until.is_some_and(|t| tick >= t) {
+            self.evt_warn_until = None;
+            evt(&mut self.models, ntp, ev::DRV_FAULT_CLEARED, 3, 0, 0, 0);
+        }
         // ---- command intake (GR UL_ParseOpcUaCommand semantics, simplified)
         if let Some((h, task)) = self.pending.take() {
             let mut data = [0u8; 16];
@@ -713,9 +805,13 @@ impl Side {
                 set_db(models, "OPCUA", &format!("{prefix}/STAT/RES/Task"), res_t.clone());
                 set_db(models, "OPCUA", &format!("{prefix}/STAT/RES/Data"), res_d.clone());
             }
+            let (ty, cell, work) = (u16::from(task.task_type), i32::from(task.cell.id), task.work_id);
+            evt(&mut self.models, ntp, ev::CMD_RESPONSE, 0, i32::from(h.seq), i32::from(task.task_type), work);
             if accepted {
+                evt(&mut self.models, ntp, ev::TASK_ACCEPTED, ty, cell, work as i32, work);
                 self.queue.push(task);
             } else {
+                evt(&mut self.models, ntp, ev::TASK_REJECTED, ty, i32::from(data[0]), i32::from(validation), work);
                 ring_push(&mut self.rejected, task);
             }
         }
@@ -753,6 +849,7 @@ impl Side {
                     if let Some(r) = self.now.take_if(|r| r.task.work_id == work_id && (task_id == 0 || r.task.task_id == task_id)) {
                         // the running task is also Queue[0]: one key, one ring entry
                         removed.retain(|t| t.key() != r.task.key());
+                        evt(&mut self.models, ntp, ev::TASK_CANCELED, 1, 1, work_id as i32, work_id);
                         self.ended = Some((r.task, true));
                     }
                     for t in removed {
@@ -776,17 +873,63 @@ impl Side {
         if self.now.is_none() && self.ended.is_none() && !self.queue.is_empty() {
             let t = self.queue[0].clone();
             self.target = [t.position[0], t.position[1], t.position[2], t.position[3]];
+            let (ty, cell, work) = (u16::from(t.task_type), i32::from(t.cell.id), t.work_id);
+            evt(&mut self.models, ntp, ev::TASK_LOADED, ty, cell, work as i32, work);
+            evt(&mut self.models, ntp, ev::ILK_TARGET, 0, cell, i32::from(t.task_type), work);
+            evt(&mut self.models, ntp, (ev::STEP, 2, STEPS[0]), ev::PROC_TASK, 0, 0, work);
             self.now = Some(Running { task: t, step_idx: 0, step_at: Instant::now() });
         }
         let mut finished: Option<TaskData> = None;
+        let mut step_evt: Option<(u16, u16, i32, TaskData)> = None;
         if let Some(r) = self.now.as_mut()
             && r.step_at.elapsed() > Duration::from_millis(700)
         {
+            let dwell = r.step_at.elapsed().as_millis() as i32;
+            let left = STEPS[r.step_idx.min(STEPS.len() - 1)];
             r.step_idx += 1;
             r.step_at = Instant::now();
             if r.step_idx >= STEPS.len() {
                 finished = Some(r.task.clone());
+            } else {
+                step_evt = Some((left, STEPS[r.step_idx], dwell, r.task.clone()));
             }
+        }
+        if let Some((left, now_step, dwell, t)) = step_evt {
+            let work = t.work_id;
+            evt(&mut self.models, ntp, (ev::STEP, 2, now_step), ev::PROC_TASK, dwell, i32::from(left), work);
+            match now_step {
+                400 if t.cell.is_station() => {
+                    evt(&mut self.models, ntp, ev::ILK_PO, 0, 0b01, 0, work);
+                    evt(&mut self.models, ntp, ev::ILK_PI, 0, 0b1011, 0b0011, work);
+                }
+                500 => {
+                    // FB_Gripper events are GR2-only (catalog plc = ["GR2"]): a contract without GRIP_E_* has no gripper FB
+                    let fb = self.contract.consts.contains_key("GRIP_E_TIMEOUT");
+                    let g = (f64::from(t.item.inner_diameter) * 10.0) as i32;
+                    if fb {
+                        evt(&mut self.models, ntp, ev::GRIP_REQ, 2, g, 1, work);
+                        evt(&mut self.models, ntp, ev::GRIP_STATE, 0, 30, 10, work);
+                    }
+                    if self.rng.random_range(0..100) < 20 {
+                        if fb {
+                            evt(&mut self.models, ntp, ev::GRIP_ERROR, 5, g - 140, 38, work);
+                        }
+                        evt(&mut self.models, ntp, ev::GRIP_RETRY, 0, 1, 410, work);
+                    } else if fb {
+                        evt(&mut self.models, ntp, ev::GRIP_STATE, 0, 50, 30, work);
+                    }
+                }
+                600 if t.cell.is_station() => {
+                    evt(&mut self.models, ntp, ev::ILK_PO, 0, 0b10, 0b01, work);
+                }
+                _ => {}
+            }
+        }
+        if let Some(t) = finished.as_ref() {
+            let (ty, cell, work) = (u16::from(t.task_type), i32::from(t.cell.id), t.work_id);
+            evt(&mut self.models, ntp, (ev::STEP, 2, 0), ev::PROC_TASK, 700, 999, work);
+            evt(&mut self.models, ntp, ev::TASK_COMPLETED, ty, cell, work as i32, work);
+            evt(&mut self.models, ntp, ev::TASK_CYCLE, 0, 700 * STEPS.len() as i32, 1400, work);
         }
         if let Some(t) = finished {
             self.now = None;

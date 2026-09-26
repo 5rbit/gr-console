@@ -350,6 +350,7 @@ impl Registry {
             )?;
             tx.commit()
         })?;
+        crate::evtlog::console("CON_SETTINGS", "console", i64::from(d.version), 0, 0, format!("기본값 v{}{}", d.version, if note.is_empty() { String::new() } else { format!(" ({note})") }));
         Ok(d)
     }
 

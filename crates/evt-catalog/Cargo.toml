@@ -1,0 +1,16 @@
+[package]
+name = "evt-catalog"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "PLC event log catalog (plc/evtlog/catalog.toml): constants for gen-evt and the text renderer"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

@@ -6,6 +6,7 @@ members = [
     "crates/plc-link",
     "crates/gr-proto",
     "crates/opcua-cmd",
+    "crates/evt-catalog",
     "apps/gr-console",
     "apps/plc-link-server",
     "tools/gr-contract",

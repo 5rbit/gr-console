@@ -7,6 +7,7 @@ mod console_info;
 mod db;
 mod demo;
 mod error;
+mod evtlog;
 mod gripper;
 mod instance;
 mod issue;
@@ -156,6 +157,9 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    // PLC 이벤트 로그 — PLC 연결보다 먼저 연다(연결·레이아웃 콘솔 이벤트가 첫 연결부터 남게).
+    let evtlog = if cfg.evtlog.enabled { open_evtlog(&cfg, &contracts, &contract_root) } else { None };
+
     // demo world (fake PLCs) — one fake PLC per robot so switching robots shows different data; rewrites hosts
     let demo_world = if cfg.demo {
         let grm_contract = cfg.plcs.iter().find(|p| p.role == config::PlcRole::Grm).map(|p| p.contract.clone()).unwrap_or_else(|| "GRM_PLC".into());
@@ -213,11 +217,17 @@ async fn main() -> anyhow::Result<()> {
             paths.push("STATION".into());
             p.fast_ranges.insert("OPCUA".into(), paths);
         }
+        evtlog::auto_configure(&mut p, evtlog.is_some() && c.db_number(evtlog::DB).is_some() && c.dbs.contains_key(evtlog::DB));
         let name = p.name.clone();
         let h = plc::spawn(p, c, cfg.poll.clone())?;
         plcs.insert(name, h);
     }
     let plcs = Arc::new(plcs);
+    if let Some(log) = &evtlog {
+        for h in plcs.values().filter(|h| h.has_db(evtlog::DB)) {
+            log.attach(h.clone());
+        }
+    }
 
     // storage
     let db = db::Db::open(&cfg.paths.sqlite)?;
@@ -284,7 +294,8 @@ async fn main() -> anyhow::Result<()> {
                     struct_write: o.struct_write,
                     array_bases: grm_for_opc.as_deref().map(|g| cmd::opcua_array_bases(g, &o.db_name, &r.opcua_root)).unwrap_or_default(),
                 };
-                let (writer, _state_rx) = opcua_cmd::CmdWriter::spawn(ocfg);
+                let (writer, state_rx) = opcua_cmd::CmdWriter::spawn(ocfg);
+                watch_opcua_session(state_rx, cfg.cmd.grm_plc.clone(), r.name.clone(), o.endpoint.clone());
                 CommandPort::Opc { writer, cfg: rcfg, last: Mutex::new(None), endpoint: o.endpoint.clone() }
             }
         };
@@ -334,7 +345,7 @@ async fn main() -> anyhow::Result<()> {
     if trace.is_none() {
         tracing::warn!("trace disabled: {}", trace_why.join("; "));
     }
-    let st = AppState { cfg: cfg.clone(), plcs, cmd, robots, task_events, db, ledger, registry, scenario, stock, recorder, trace, events, shutdown: sd.clone() };
+    let st = AppState { cfg: cfg.clone(), plcs, cmd, robots, task_events, db, ledger, registry, scenario, stock, recorder, trace, events, evtlog, shutdown: sd.clone() };
     // 로봇 실제 상태(HoldItem · 링)와 Hand · 이송 지시를 상시 맞춘다 — 콘솔 DB 만 고친다.
     stock::sync::spawn(st.clone());
     // Task 생성 엔진 — 자동 생성은 기본 꺼짐(설정 auto), 후보·점수는 늘 계산해 보여 준다.
@@ -457,6 +468,65 @@ async fn main() -> anyhow::Result<()> {
     say_done();
     // 남은 백그라운드 태스크(폴링·동기화)를 기다리지 않고 지금 끝낸다 — 중요한 것은 위에서 다 마무리했다.
     std::process::exit(0);
+}
+
+/// events.db + catalog + per-PLC renderers (contract constants, `alarms.json`). A failure only disables the log.
+fn open_evtlog(cfg: &Config, contracts: &HashMap<String, Arc<Contract>>, contract_root: &std::path::Path) -> Option<Arc<evtlog::EvtLog>> {
+    let catalog = match evtlog::catalog::load_catalog(&cfg.evtlog.catalog) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!("evtlog disabled: {e:#}");
+            return None;
+        }
+    };
+    let mut plcs = Vec::new();
+    for p in &cfg.plcs {
+        let Some(c) = contracts.get(&p.contract) else { continue };
+        let path = contract_root.join(&p.contract).join("alarms.json");
+        let alarms = match std::fs::read_to_string(&path) {
+            Ok(t) => evt_catalog::AlarmTable::parse(&t).unwrap_or_else(|e| {
+                tracing::warn!(path = %path.display(), "alarms.json: {e}");
+                Default::default()
+            }),
+            Err(_) => Default::default(),
+        };
+        tracing::info!(plc = %p.name, alarms = alarms.entries.len(), "evtlog renderer");
+        plcs.push((p.name.clone(), &c.consts, alarms));
+    }
+    match evtlog::EvtLog::start(cfg.evtlog.clone(), &cfg.paths.data_dir.join("events.db"), catalog, plcs) {
+        Ok(l) => Some(l),
+        Err(e) => {
+            tracing::error!("evtlog disabled: events.db: {e:#}");
+            None
+        }
+    }
+}
+
+/// OPC UA session up / down → console event (state changes only).
+fn watch_opcua_session(mut rx: tokio::sync::watch::Receiver<opcua_cmd::OpcState>, plc: String, robot: String, endpoint: String) {
+    tokio::spawn(async move {
+        let mut up: Option<bool> = None;
+        loop {
+            let (now, why) = match &*rx.borrow_and_update() {
+                opcua_cmd::OpcState::Ready { node_count, .. } => (Some(true), format!("{robot} {endpoint} ({node_count} nodes)")),
+                opcua_cmd::OpcState::Failed { error, .. } => (Some(false), format!("{robot} {endpoint}: {error}")),
+                opcua_cmd::OpcState::Disconnected => (Some(false), format!("{robot} {endpoint}")),
+                _ => (None, String::new()),
+            };
+            if let Some(n) = now
+                && up != Some(n)
+                && (up.is_some() || n)
+            {
+                evtlog::console("CON_OPCUA", &plc, i64::from(n), 0, 0, why);
+                up = Some(n);
+            } else if let Some(n) = now {
+                up = Some(n);
+            }
+            if rx.changed().await.is_err() {
+                return;
+            }
+        }
+    });
 }
 
 fn say_done() {

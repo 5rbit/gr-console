@@ -171,6 +171,27 @@ fn resolve_fast_ranges(cfg: &PlcCfg, layouts: &HashMap<String, Layout>) -> HashM
     out
 }
 
+/// `ranges_only` DB 의 JSON — 읽은 경로만(`{"Total": .., "Stat": {..}}`). 34 KB 전체를 매번 풀지 않는다.
+fn decode_ranges(contract: &Contract, db: &str, paths: &[String], raw: &[u8]) -> Option<Arc<Json>> {
+    let mut root = serde_json::Map::new();
+    for p in paths {
+        let v = contract.decode_path(db, p, raw).ok()?;
+        let mut keys = p.split('.').peekable();
+        let mut node = &mut root;
+        while let Some(k) = keys.next() {
+            if keys.peek().is_none() {
+                node.insert(k.to_string(), v);
+                break;
+            }
+            node = node.entry(k.to_string()).or_insert_with(|| Json::Object(Default::default())).as_object_mut()?;
+        }
+    }
+    Some(Arc::new(Json::Object(root)))
+}
+
+/// 이 시간 동안 하트비트가 안 바뀌면 콘솔 이벤트 `CON_HEARTBEAT` 를 한 번 남긴다.
+const HEARTBEAT_STALL_MS: u64 = 3000;
+
 /// `DB.a.b.c` 의 bool 을 스냅샷 JSON 에서.
 fn json_bool(json: &Json, path: &str) -> Option<bool> {
     path.split('.').try_fold(json, |v, k| v.get(k)).and_then(Json::as_bool)
@@ -329,6 +350,8 @@ async fn run(
         S7Config { host: cfg.host.clone(), port: cfg.port, rack: cfg.rack, slot: cfg.slot, connection_type: cfg.connection_type, timeout: Duration::from_millis(cfg.timeout_ms), pdu_request: 960 };
     let fast_ms = if cfg.role == PlcRole::Grm { poll.grm_fast_ms } else { poll.fast_ms };
     let mut seq: u64 = 0;
+    // 콘솔 이벤트는 상태가 바뀔 때만(재시도마다 남기지 않는다). None = 아직 모름.
+    let mut link_up: Option<bool> = None;
     loop {
         health_tx.send_modify(|h| {
             h.connecting = true;
@@ -338,6 +361,10 @@ async fn run(
             Ok(c) => c,
             Err(e) => {
                 tracing::warn!(plc = %cfg.name, host = %cfg.host, error = %e, "S7 connect failed");
+                if link_up != Some(false) {
+                    link_up = Some(false);
+                    crate::evtlog::console("CON_PLC_LINK", &cfg.name, 0, 0, 0, format!("connect {}: {e}", cfg.host));
+                }
                 health_tx.send_modify(|h| {
                     h.connecting = false;
                     h.last_error = Some(e.to_string());
@@ -364,9 +391,16 @@ async fn run(
         };
         let pdu = client.pdu_size();
         let checks = verify::verify(&mut client, &cfg, &contract, &layouts).await;
-        let all_ok = checks.iter().all(|c| matches!(c.result, CheckResult::Ok));
-        for c in checks.iter().filter(|c| !matches!(c.result, CheckResult::Ok)) {
-            tracing::warn!(plc = %cfg.name, db = %c.db, "layout check failed: {}", c.result.text());
+        // 선택 DB(아직 PLC 에 없을 수 있는 EVTLOG)는 실패해도 전체 판정을 내리지 않는다 — 그 DB 만 안 읽는다.
+        let all_ok = checks.iter().all(|c| matches!(c.result, CheckResult::Ok) || cfg.optional.contains(&c.db));
+        let failed: Vec<String> = checks.iter().filter(|c| !matches!(c.result, CheckResult::Ok)).map(|c| format!("{}: {}", c.db, c.result.text())).collect();
+        for f in &failed {
+            tracing::warn!(plc = %cfg.name, "layout check failed: {f}");
+        }
+        link_up = Some(true);
+        crate::evtlog::console("CON_PLC_LINK", &cfg.name, 1, 0, 0, format!("{} PDU {pdu}", cfg.host));
+        if !failed.is_empty() {
+            crate::evtlog::console("CON_LAYOUT", &cfg.name, 0, 0, 0, format!("{} · {}", cfg.name, failed.join("; ")));
         }
         health_tx.send_modify(|h| {
             // 한 번이라도 붙었다가 다시 붙은 것 = 재연결(첫 연결은 세지 않는다).
@@ -398,6 +432,7 @@ async fn run(
         let mut slow_cur: Option<(String, u16, usize, Vec<u8>)> = None;
         let mut slow_t0 = Instant::now();
         let mut hb: Option<(bool, Instant)> = None;
+        let mut hb_stalled = false;
         let slice_bytes = client.max_read_chunk() * SLICE_PDUS;
         // 빠른 주기 부분 읽기 구간 — 이 DB 들은 느린 주기 작업에서 전체를 새로 읽는다(범위 밖을 채운다).
         let partial = resolve_fast_ranges(&cfg, &layouts);
@@ -408,7 +443,7 @@ async fn run(
                 _ = webmon.tick(), if !cfg.webmon.is_empty() => (Tier::Webmon, cfg.webmon.clone()),
                 _ = slow.tick() => {
                     if slow_queue.is_empty() && slow_cur.is_none() {
-                        slow_queue = cfg.slow.iter().chain(partial.keys().filter(|k| !cfg.slow.contains(k))).filter(|d| ok_db(d)).cloned().collect();
+                        slow_queue = cfg.slow.iter().chain(partial.keys().filter(|k| !cfg.slow.contains(k) && !cfg.ranges_only.contains(k))).filter(|d| ok_db(d)).cloned().collect();
                         slow_t0 = Instant::now();
                     } else {
                         health_tx.send_modify(|h| h.slow_overruns += 1);
@@ -496,7 +531,11 @@ async fn run(
             for db in &dbs {
                 let (Some(n), Some(layout)) = (contract.db_number(db), layouts.get(db)) else { continue };
                 // 부분 읽기: 범위가 있고 전체 사본이 있으면 범위만 읽어 사본에 덧씌운다(첫 읽기는 전체).
-                let prev = partial.get(db.as_str()).and_then(|r| snap_tx.borrow().db(db).filter(|p| p.raw.len() == layout.size as usize).map(|p| (r.clone(), p.raw.clone())));
+                let ranges_only = cfg.ranges_only.contains(db);
+                let prev = partial.get(db.as_str()).and_then(|r| {
+                    let have = snap_tx.borrow().db(db).filter(|p| p.raw.len() == layout.size as usize).map(|p| p.raw.clone());
+                    have.or_else(|| ranges_only.then(|| Arc::new(vec![0u8; layout.size as usize]))).map(|raw| (r.clone(), raw))
+                });
                 let read = match prev {
                     Some((ranges, prev)) => {
                         let reads: Vec<DbRead> = ranges.iter().map(|(a, b)| DbRead { db: n, start: *a, len: (b - a) as usize }).collect();
@@ -522,7 +561,11 @@ async fn run(
                 };
                 match read {
                     Ok(raw) => {
-                        if let Some(json) = decode_or_reuse(&cfg.name, &snap_tx, &contract, db, &raw) {
+                        let json = match cfg.fast_ranges.get(db.as_str()).filter(|_| ranges_only) {
+                            Some(paths) => decode_ranges(&contract, db, paths, &raw),
+                            None => decode_or_reuse(&cfg.name, &snap_tx, &contract, db, &raw),
+                        };
+                        if let Some(json) = json {
                             updated.push((db.clone(), raw, json));
                         }
                     }
@@ -546,6 +589,14 @@ async fn run(
                 && hb.is_none_or(|(last, _)| last != v)
             {
                 hb = Some((v, Instant::now()));
+                hb_stalled = false;
+            }
+            if let Some((_, t)) = hb {
+                let age = t.elapsed().as_millis() as u64;
+                if age >= HEARTBEAT_STALL_MS && !hb_stalled {
+                    hb_stalled = true;
+                    crate::evtlog::console("CON_HEARTBEAT", &cfg.name, age as i64, 0, 0, cfg.heartbeat.clone().unwrap_or_default());
+                }
             }
             let at = publish_dbs(&cfg.name, &snap_tx, &ev_tx, &mut seq, tier, updated);
             let tn = tier_name(tier);
@@ -566,6 +617,8 @@ async fn run(
             Ok(()) => tracing::info!(plc = %cfg.name, "reconnect / reverify requested"),
             Err(e) => {
                 tracing::warn!(plc = %cfg.name, error = %e, "S7 poll failed; reconnecting");
+                link_up = Some(false);
+                crate::evtlog::console("CON_PLC_LINK", &cfg.name, 0, 0, 0, format!("poll: {e}"));
                 health_tx.send_modify(|h| {
                     h.error_count += 1;
                     h.connected = false;

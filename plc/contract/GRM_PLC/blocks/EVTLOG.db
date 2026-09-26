@@ -1,0 +1,33 @@
+﻿DATA_BLOCK "EVTLOG"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   STRUCT 
+      LayoutSig : DWord := 16#7915BD0A;   // 레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
+      Total : UDInt;
+      Head : Int;
+      BootId : UInt;
+      Dropped : UDInt;
+      Stat : Struct
+         RunUs : UDInt;
+         MaxRunUs : UDInt;
+         MaxPerScanHit : UDInt;
+      END_STRUCT;
+      Cfg : Struct
+         MinLevel : USInt;
+         CatMask : DWord;
+         MaxPerScan : Int;
+      END_STRUCT;
+      Now : Struct
+         "Time" {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;
+         Ctx : UDInt;
+         Count : Int;
+      END_STRUCT;
+      Entry : Array[0.."EVT_LAST"] of "EVT_Entry";
+   END_STRUCT;
+
+
+BEGIN
+   LayoutSig := 16#7915_BD0A;
+
+END_DATA_BLOCK

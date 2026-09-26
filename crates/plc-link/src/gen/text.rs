@@ -8,7 +8,7 @@ pub fn has_generated_marker(text: &str) -> bool {
 }
 
 /// TIA source bytes (same as a TIA export): UTF-8 BOM, CRLF line ends, trailing CRLF.
-pub(crate) fn tia_bytes(text: &str) -> Vec<u8> {
+pub fn tia_bytes(text: &str) -> Vec<u8> {
     let body = text.trim_end_matches(['\r', '\n']);
     let mut out = Vec::with_capacity(body.len() + body.len() / 16 + 5);
     out.extend_from_slice(&[0xEF, 0xBB, 0xBF]);

@@ -1,0 +1,1332 @@
+# PLC event log catalog (single source of truth, v1 2026-09-27).
+#
+# PLC side : "EvtLog"(Cat, Lvl, Src, Code, A, B) appends one EVT_Entry to DB "EVTLOG" (DB950, standard access).
+#            The PLC stores numbers only. Constants EVT_* are generated from this file
+#            (`gr-contract gen-evt --plc <PLC>` -> <export>/<PLC>/tags/Const/EVT_Const_Gen.xml).
+# PC side  : gr-console reads the ring by Seq and renders `text` at display time. Raw values are kept, so editing a
+#            text re-renders old rows; an unknown (cat, code) renders as "CAT code src=.. a=.. b=..".
+#
+# Entry (EVT_Entry, 34 B): Seq UDInt | Time DTL | Cat USInt | Lvl USInt | Src UInt | Code UInt | A DInt | B DInt | Ctx UDInt
+#   Ctx = current task WorkId (robots: TASK.Now.WorkId, else Buff[0].WorkId, filled once per scan by UL_EvtPre;
+#         LGR_Task_Data has no CMD_ID). GRM: 0 unless the event sets it. The console links Ctx to the ledger by WorkId.
+#
+# Template syntax (text):
+#   {src} {a} {b} {code} {ctx}     raw integer
+#   {a:enum}                       enum lookup (unknown value -> number)
+#   {a:bits:enum}                  names of the set bits (bit n = value n of the enum), joined by ", "
+#   {a/100}                        divide, decimals = digits of the divisor (0.01 -> 2)
+#   {a:hex}                        16#XXXX
+#   {a:onoff}                      0 -> OFF, else ON
+#   {alarm}                        ALARM category only: (area = src, bit index = a) -> code + text from the HMI
+#                                  alarm list (contract alarms.json)
+#
+# Enums: `values` inline, or `from_const = "<PREFIX>"` = every constant of the PLC contract whose name starts with the
+#        prefix (name shown without the prefix). `plc_const = true` also emits EVT_<ENUM>_<NAME> constants.
+#
+# Codes are unique across categories: cat * 100 + n. STEP is the exception: its Code is the new step number.
+# `plc` = PLCs that emit the event (GR1, GR2, GRM). `lvl` = default level the PLC writes.
+# CatMask bit n enables category id n. Levels below Cfg.MinLevel are not written.
+
+version = 1
+const_prefix = "EVT_"
+db = "EVTLOG"
+db_number = 950
+watch_db = "EVTWATCH"
+watch_db_number = 951
+entry_udt = "EVT_Entry"
+capacity = 1000
+# default PLC config (EVTLOG.Cfg start values)
+min_level = "INFO"
+max_per_scan = 32
+
+[[level]]
+id = 0
+name = "TRACE"
+[[level]]
+id = 1
+name = "DEBUG"
+[[level]]
+id = 2
+name = "INFO"
+[[level]]
+id = 3
+name = "WARN"
+[[level]]
+id = 4
+name = "ERROR"
+
+[[cat]]
+id = 1
+name = "SYS"
+[[cat]]
+id = 2
+name = "MODE"
+[[cat]]
+id = 3
+name = "STEP"
+[[cat]]
+id = 4
+name = "TASK"
+[[cat]]
+id = 5
+name = "CMD"
+[[cat]]
+id = 6
+name = "ALARM"
+[[cat]]
+id = 7
+name = "GRIP"
+[[cat]]
+id = 8
+name = "DRIVE"
+[[cat]]
+id = 9
+name = "SAFETY"
+[[cat]]
+id = 10
+name = "SENSOR"
+[[cat]]
+id = 11
+name = "MEAS"
+[[cat]]
+id = 12
+name = "ILOCK"
+[[cat]]
+id = 13
+name = "ANTICOL"
+[[cat]]
+id = 14
+name = "COMM"
+[[cat]]
+id = 15
+name = "DATA"
+# GRM-only categories are reserved for the GRM phase
+[[cat]]
+id = 16
+name = "STATION"
+[[cat]]
+id = 17
+name = "SCEN"
+
+# ---------------------------------------------------------------- enums
+
+[enum.mode]
+from_const = "MODE_"
+
+[enum.axis]
+values = { 1 = "X", 2 = "Y", 3 = "Z", 4 = "G", 5 = "X1", 6 = "X2" }
+
+[enum.task_type]
+from_const = "CMD_TASK_"
+
+[enum.validation]
+from_const = "INVALID_"
+
+[enum.grip_mode]
+values = { 0 = "IDLE", 1 = "MOVE", 2 = "GRIP", 3 = "CLOSE", 4 = "MEASURE_OPEN", 5 = "RETRY", 6 = "LEARN", 7 = "LIMIT" }
+
+[enum.grip_owner]
+from_const = "GRIP_OWNER_"
+
+[enum.grip_state]
+from_const = "GRIP_ST_"
+
+[enum.grip_err]
+from_const = "GRIP_E_"
+
+[enum.grip_timeout]
+from_const = "GRIP_TO_"
+
+[enum.alarm_area]
+plc_const = true
+values = { 1 = "FAULT", 2 = "WARN", 3 = "EVENT", 4 = "TASK" }
+
+# ProcNo start values (PROC / TASK.Proc). 0 = not assigned.
+[enum.proc]
+plc_const = true
+values = { 20 = "Task", 100 = "Init", 110 = "ChangeIP", 121 = "HomingX", 122 = "HomingY", 123 = "HomingZ", 124 = "HomingG", 130 = "InitPos", 140 = "MeasureItem", 141 = "ManualMeasure", 150 = "CalibrationZ", 161 = "CellOriginX", 162 = "CellOriginY" }
+
+[enum.task_step]
+values = { 0 = "Idle", 10 = "Validate", 30 = "CrossCheck", 90 = "Init", 100 = "GHome", 200 = "LiftUp", 300 = "Travel", 400 = "LiftDown", 410 = "GClose", 420 = "GOpen", 430 = "ZUp", 440 = "ZDown", 450 = "GRetry", 500 = "Grip", 600 = "LiftAfter", 999 = "End" }
+
+[enum.startup]
+values = { 0 = "LostRetentive", 1 = "LostRTC" }
+
+[enum.auto_stop]
+plc_const = true
+values = { 1 = "PB_Stop", 2 = "AllStop", 3 = "EMS", 4 = "SSW_Auto off" }
+
+[enum.start_src]
+plc_const = true
+values = { 1 = "PB_Start", 2 = "GCS Common.Start" }
+
+# bits of MODE_AUTO_REFUSED.A
+[enum.start_block]
+plc_const = true
+values = { 0 = "RobotUse", 1 = "PowerOnDrive", 2 = "DriveSync", 3 = "GRM_Connected" }
+
+[enum.reset_result]
+plc_const = true
+values = { 1 = "Try", 2 = "OK", 3 = "Fail" }
+
+# MODE_OPTION.Src = bit order of MACHINE.Option
+[enum.option]
+values = { 0 = "Mode_Production", 1 = "Mode_DriveSetup", 2 = "Disable_XSync", 3 = "Disable_ExtEncorder", 4 = "Disable_JogInterlock", 5 = "Disable_ItemCheck", 6 = "Disable_CommFault_GRM", 7 = "Disable_CommFault_GCS", 8 = "Disable_StationInterlock", 9 = "Disable_DriveOverHeatAlarm", 10 = "Disable_AnticolSensor", 11 = "Disable_AnticolPosition", 12 = "Disable_IOLinkModule", 13 = "Use_TorqueItemDectection" }
+
+# MODE_GRM_PANEL.Src = bit of Interface_GRM.RECV.Status
+[enum.grm_panel]
+values = { 1 = "SSW_Auto", 2 = "SSW_Manual", 6 = "ForceMode", 7 = "RobotUse", 13 = "TeachOverride", 14 = "ModeTeach" }
+
+[enum.machine_status]
+values = { 0 = "Normal", 1 = "Idle", 2 = "Busy", 3 = "Stopped", 4 = "Online", 5 = "Warn", 6 = "Fault", 7 = "PowerOn", 8 = "ItemDectect", 9 = "BuzzerStop" }
+
+# TASK_REJECTED.A = ResData[0] bits
+[enum.reject]
+values = { 0 = "DST (robot no.)", 1 = "Duplicated header", 2 = "Invalid task", 3 = "Buffer full", 7 = "Not online" }
+
+[enum.cmd_src]
+plc_const = true
+values = { 1 = "OPC", 2 = "HMI", 3 = "HMI Force", 4 = "Socket" }
+
+[enum.manual_complete]
+plc_const = true
+values = { 1 = "Requested", 2 = "Refused AUTO (W6026)", 3 = "Grip NG (F6022)", 4 = "No item (F6018)", 5 = "Pending CV handover", 6 = "Done" }
+
+[enum.pending_end]
+plc_const = true
+values = { 1 = "CV handover", 2 = "AUTO forced (W6024)", 3 = "Timeout (W6024)", 4 = "Dropped" }
+
+[enum.cancel_result]
+plc_const = true
+values = { 1 = "OK", 2 = "Refused (F6020)" }
+
+[enum.override_kind]
+values = { 1 = "Cell", 2 = "Station" }
+
+# CMD_ALLSTOP / CMD_RESET.A bits
+[enum.stop_src]
+values = { 0 = "GRM", 1 = "PB", 2 = "HMI AxisCtrl", 3 = "HMI StopPB" }
+
+[enum.unused_cmd]
+plc_const = true
+values = { 1 = "Stop.Fast", 2 = "Stop.Cycle", 3 = "Common.Initializing", 4 = "Jog", 5 = "Home", 6 = "MaintPos", 7 = "CellOrigin", 8 = "ChangeMode" }
+
+[enum.hmi_task_button]
+values = { 1 = "CompletePB", 2 = "CancelPB", 3 = "ForceCancelPB", 4 = "RestartLastTaskPB" }
+
+[enum.function]
+values = { 1 = "CalibrationZ", 2 = "MeasureFloor", 3 = "AdjustFLD", 4 = "AdjustXAC", 5 = "AdjustGID", 6 = "AdjustGripperOffset", 7 = "CellOrigin" }
+
+[enum.manual_start]
+values = { 1 = "InitPos", 2 = "Measure" }
+
+[enum.grip_status]
+values = { 1 = "Timeout", 2 = "Obstacle", 3 = "NeedRetry" }
+
+[enum.learn_phase]
+plc_const = true
+values = { 1 = "Accepted", 2 = "Done", 3 = "Error" }
+
+[enum.overheat]
+values = { 0 = "Inverter warn", 1 = "Inverter alarm", 2 = "Motor warn", 3 = "Motor alarm" }
+
+[enum.limit]
+values = { 0 = "FLS", 1 = "RLS" }
+
+[enum.mdr]
+values = { 0 = "Ready", 1 = "Fault", 2 = "DCLinkOk", 3 = "PowerSupplyOk", 4 = "PreCharging", 5 = "LineContactOn" }
+
+[enum.drive_state]
+values = { 0 = "STO", 1 = "Enabled", 2 = "BrakeReleased" }
+
+# SAFE_INPUT.Src (robot INPUT members)
+[enum.safety_input]
+values = { 1 = "MC_Feed_SD_POWER", 2 = "MCCB_SD_Power_Ok", 3 = "LSW_DOOR01", 4 = "LSW_DOOR02", 5 = "LSW_DOOR03", 10 = "MCB_PS01_Ok", 11 = "MCB_PS02_Ok", 12 = "MCB_PS03_Ok", 13 = "MCB_PS04_Ok", 14 = "MCB_PS05_Ok", 20 = "SUB_PS01_Ok", 21 = "SUB_PS02_Ok", 22 = "SUB_PS03_Ok", 23 = "SUB_PS04_Ok", 24 = "SUB_PS05_Ok", 30 = "MCB_PLC_Ok", 31 = "MCB_SPLC_Ok", 32 = "MCB_RIO_Ok", 33 = "MCB_Sensor_Ok", 34 = "MCB_BZ_TL_Ok", 35 = "MCB_Hub01_Ok", 36 = "MCB_Hub02_Ok", 37 = "MCB_AP_Ok", 38 = "MCB_FAN_Ok", 39 = "MCB_PanelLamp_Ok", 40 = "MCB_HandTouch_Ok", 41 = "MCB_G_BRAKE_Ok", 42 = "MCB_Z_FAN_Ok", 43 = "DRIVE_DC_POWER_Ok" }
+
+[enum.io_force]
+values = { 1 = "IOForceMode", 2 = "OutputForced" }
+
+[enum.output]
+values = { 1 = "SOL_SD", 2 = "SEVOCONTROL ON", 3 = "PENDANT AUTO", 4 = "PENDANT TEACH" }
+
+[enum.module]
+values = { 1 = "PLC_OK", 2 = "RIO_Ok[1]", 3 = "IOLink_Ok[1]", 4 = "IOLink_Ok[2]" }
+
+[enum.belt]
+values = { 1 = "BTL", 2 = "BTR", 3 = "FTL", 4 = "FTR" }
+
+[enum.pdi]
+values = { 1 = "XACF", 2 = "XACR", 3 = "GID", 4 = "X1RD1", 5 = "X2RD1" }
+
+[enum.meas_kind]
+values = { 1 = "Item", 2 = "Sku", 3 = "Floor", 4 = "Pick", 5 = "Manual" }
+
+[enum.meas_log]
+values = { 1 = "MEASLOG", 2 = "LASERDIAG" }
+
+[enum.laser_flag]
+values = { 0 = "Bias", 1 = "NoResp", 2 = "Unstable", 3 = "CenterLost" }
+
+# SNS_MODULE_DIAG.Src
+[enum.module_diag]
+values = { 1 = "PLC module", 2 = "PLC IO system", 3 = "Drive", 4 = "RIO 1", 5 = "RIO 2", 6 = "RIO 3", 7 = "IOLink 1", 8 = "IOLink 2" }
+
+# SNS_MODULE_DIAG.A bits
+[enum.diag_bits]
+values = { 0 = "Fault", 1 = "Disabled", 2 = "AnyFault" }
+
+# COM_HEARTBEAT.B
+[enum.stall]
+values = { 0 = "재개", 1 = "멈춤" }
+
+[enum.slowdown]
+values = { 1 = "FLD", 2 = "StackHeight" }
+
+[enum.pi_bits]
+values = { 0 = "CVOK", 1 = "Req", 2 = "MeasReq", 3 = "ItemExist", 7 = "SpareX7" }
+
+[enum.po_bits]
+values = { 0 = "CVNO", 1 = "Comp" }
+
+[enum.speed_kind]
+values = { 1 = "Travel", 2 = "Grip", 3 = "Manual" }
+
+[enum.peer]
+values = { 0 = "GRM", 1 = "GR1", 2 = "GR2" }
+
+[enum.comm_block]
+values = { 1 = "BSEND", 2 = "BRCV", 3 = "GET" }
+
+[enum.sock_state]
+values = { 0 = "DISABLED", 1 = "IDLE", 2 = "CONNECTING", 3 = "UP", 4 = "CLOSING", 5 = "BACKOFF" }
+
+[enum.csv_kind]
+values = { 1 = "PARA", 2 = "STATION", 3 = "CELL" }
+
+[enum.csv_result]
+plc_const = true
+values = { 1 = "Import request", 2 = "Import done", 3 = "Import timeout", 4 = "File missing -> defaults", 5 = "Import error (treated as done)", 6 = "Export", 7 = "Export error" }
+
+# DATA_PARA_*.Src. HMI edits (DATA_PARA_HMI) use the HMI parameter number pNNN instead.
+[enum.para]
+plc_const = true
+values = { 1 = "Sensor.GIDL_ZOffset", 2 = "Sensor.GIDF_ZOffset", 3 = "Sensor.GIDR_ZOffset", 4 = "Sensor.GIDB_ZOffset", 11 = "Drive.HomePos[X]", 12 = "Drive.HomePos[Y]", 13 = "Drive.HomePos[Z]", 14 = "Drive.HomePos[G]", 21 = "Drive.RangeMin[X]", 22 = "Drive.RangeMin[Y]", 23 = "Drive.RangeMin[Z]", 24 = "Drive.RangeMin[G]", 31 = "Drive.RangeMax[X]", 32 = "Drive.RangeMax[Y]", 33 = "Drive.RangeMax[Z]", 34 = "Drive.RangeMax[G]", 41 = "Drive.MCS_TO_ACS[Z,0]", 42 = "Drive.MCS_TO_ACS[Z,1]", 43 = "Drive.MCS_TO_ACS[Z,2]", 44 = "Drive.ACS_TO_MCS[Z,0]", 45 = "Drive.ACS_TO_MCS[Z,1]", 46 = "Drive.ACS_TO_MCS[Z,2]", 51 = "Machine.XLengthFront", 52 = "Machine.XLengthRear", 53 = "Sensor.XACF_Offset", 54 = "Sensor.XACR_Offset", 55 = "Sensor.FLD_Offset", 56 = "Machine.G_Offset" }
+
+[enum.para_section]
+values = { 1 = "Machine", 2 = "Network", 3 = "Sensor", 4 = "Drive", 5 = "Task", 6 = "Timeout", 7 = "SpeedSet" }
+
+# ---------------------------------------------------------------- events (robot: GR1 / GR2)
+# plc omitted = ["GR1", "GR2", "GRM"]
+
+# SYS
+[[event]]
+code = 101
+name = "SYS_STARTUP"
+cat = "SYS"
+lvl = "INFO"
+text = "PLC 기동 {a:bits:startup}"
+a = "startup flags"
+
+[[event]]
+code = 102
+name = "SYS_PROG_ERROR"
+cat = "SYS"
+lvl = "ERROR"
+text = "Programming error : block {src}, Fault_ID {a:hex}, DB {b}"
+
+[[event]]
+code = 103
+name = "SYS_CYCLE_OVERRUN"
+cat = "SYS"
+lvl = "ERROR"
+text = "Cycle time error : Fault_ID {a:hex}"
+
+[[event]]
+code = 104
+name = "SYS_CLOCK_SET"
+cat = "SYS"
+lvl = "WARN"
+text = "시계 보정 {a} ms"
+a = "offset ms (new - old)"
+
+[[event]]
+code = 105
+name = "SYS_LOGGER_DROP"
+cat = "SYS"
+lvl = "WARN"
+text = "로거 누락 : Dropped {a} (MaxPerScan 초과)"
+
+[[event]]
+code = 106
+name = "SYS_LOGGER_SLOW"
+cat = "SYS"
+lvl = "WARN"
+text = "로거 실행 시간 MaxRunUs {a} µs"
+
+# MODE
+[[event]]
+code = 201
+name = "MODE_CHANGED"
+cat = "MODE"
+lvl = "INFO"
+text = "{b:mode} → {a:mode}"
+a = "new mode"
+b = "old mode"
+
+[[event]]
+code = 202
+name = "MODE_REJECTED"
+cat = "MODE"
+lvl = "WARN"
+text = "모드 요청 거부 {b:mode} → {a:mode}"
+
+[[event]]
+code = 203
+name = "MODE_AUTO_STOP"
+cat = "MODE"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "AUTO 정지 : {a:auto_stop}"
+
+[[event]]
+code = 204
+name = "MODE_AUTO_START"
+cat = "MODE"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "AUTO 시작 : {a:start_src}"
+
+[[event]]
+code = 205
+name = "MODE_AUTO_REFUSED"
+cat = "MODE"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "AUTO 시작 불가 : {a:bits:start_block}"
+
+[[event]]
+code = 206
+name = "MODE_FAULT_RESET"
+cat = "MODE"
+lvl = "INFO"
+text = "Fault reset {a:reset_result} (FaultCode[0] {b})"
+
+[[event]]
+code = 207
+name = "MODE_OPTION"
+cat = "MODE"
+lvl = "WARN"
+text = "Option {src:option} {a:onoff}"
+
+[[event]]
+code = 208
+name = "MODE_TEACH_BUFF_CLEARED"
+cat = "MODE"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "Teach 진입 : TASK.Buff {a} 건 삭제"
+
+[[event]]
+code = 209
+name = "MODE_GCS_ONLINE"
+cat = "MODE"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "GCS_Online {a:onoff}"
+
+[[event]]
+code = 210
+name = "MODE_GRM_PANEL"
+cat = "MODE"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "GRM {src:grm_panel} {a:onoff}"
+
+[[event]]
+code = 211
+name = "MODE_STATUS_BIT"
+cat = "MODE"
+lvl = "DEBUG"
+plc = ["GR1", "GR2"]
+text = "Status.{src:machine_status} {a:onoff}"
+
+# STEP : Code = new step, Src = ProcNo, A = dwell of the step left (ms), B = previous step
+[[event]]
+code = "*"
+name = "STEP_CHANGED"
+cat = "STEP"
+lvl = "INFO"
+text = "{src:proc} {b}→{code}  ({b} 체류 {a} ms)"
+
+# TASK : Src = task type, A = Cell.Id, B = WorkId unless noted; Ctx = CMD_ID
+[[event]]
+code = 401
+name = "TASK_ACCEPTED"
+cat = "TASK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "수락 {src:task_type} · Cell {a} · WorkId {b}"
+
+[[event]]
+code = 402
+name = "TASK_REJECTED"
+cat = "TASK"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "거부 {src:task_type} : {a:bits:reject} ({b:validation})"
+
+[[event]]
+code = 403
+name = "TASK_HEADER_TIMEOUT"
+cat = "TASK"
+lvl = "ERROR"
+plc = ["GR1", "GR2"]
+text = "명령 헤더 빈 필드 15 s (F{a})"
+
+[[event]]
+code = 404
+name = "TASK_LOADED"
+cat = "TASK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "시작 {src:task_type} · Cell {a} · WorkId {b}"
+
+[[event]]
+code = 405
+name = "TASK_WAIT_DEADLOCK"
+cat = "TASK"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "적재 대기 : 상대 로봇 교착·회피 {a} ms"
+
+[[event]]
+code = 406
+name = "TASK_RESUMED"
+cat = "TASK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "정지 후 재개 → step {a}"
+
+[[event]]
+code = 407
+name = "TASK_CROSSCHECK_FAIL"
+cat = "TASK"
+lvl = "ERROR"
+plc = ["GR1", "GR2"]
+text = "아이템 교차 확인 실패 F{a}"
+
+[[event]]
+code = 408
+name = "TASK_COMPLETED"
+cat = "TASK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "완료 {src:task_type} · Cell {a} · WorkId {b}"
+
+[[event]]
+code = 409
+name = "TASK_MANUAL_COMPLETE"
+cat = "TASK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "수동 완료 ({src:cmd_src}) : {a:manual_complete} · WorkId {b}"
+
+[[event]]
+code = 410
+name = "TASK_PENDING_END"
+cat = "TASK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "CompletePending 해소 : {a:pending_end} · WorkId {b}"
+
+[[event]]
+code = 411
+name = "TASK_CANCELED"
+cat = "TASK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "취소 ({src:cmd_src}) : {a:cancel_result} · WorkId {b}"
+
+[[event]]
+code = 412
+name = "TASK_CANCEL_IGNORED"
+cat = "TASK"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "AUTO 중 OPC 취소 무시 · WorkId {b}"
+
+[[event]]
+code = 413
+name = "TASK_RESTART_LAST"
+cat = "TASK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "마지막 작업 재시작 · WorkId {b}"
+
+[[event]]
+code = 414
+name = "TASK_TEACH_OVERRIDE"
+cat = "TASK"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "TeachOverride : {src:override_kind} {a} 위치 갱신"
+
+[[event]]
+code = 415
+name = "TASK_ITEM_CHANGED"
+cat = "TASK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "잡은 아이템 {b} → {a}"
+
+[[event]]
+code = 416
+name = "TASK_CYCLE"
+cat = "TASK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "사이클 ProcessTime {a} ms · Travel {b} mm (flags {src:hex})"
+b = "travel distance (mm)"
+
+[[event]]
+code = 417
+name = "TASK_STEP_TIMEOUT"
+cat = "TASK"
+lvl = "WARN"
+plc = ["GR2"]
+text = "Step {src:task_step} 타임아웃 : WaitCause {a} ({b} ms)"
+
+[[event]]
+code = 418
+name = "TASK_STATUS_BIT"
+cat = "TASK"
+lvl = "DEBUG"
+plc = ["GR1", "GR2"]
+text = "TASK.Status bit {src} {a:onoff}"
+
+# CMD
+[[event]]
+code = 501
+name = "CMD_ALLSTOP"
+cat = "CMD"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "AllStop {b:onoff} : {a:bits:stop_src}"
+
+[[event]]
+code = 502
+name = "CMD_EMS"
+cat = "CMD"
+lvl = "ERROR"
+plc = ["GR1", "GR2"]
+text = "AllStop_Fast (EMS) {a:onoff}"
+
+[[event]]
+code = 503
+name = "CMD_RESET"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "Reset : {a:bits:stop_src}"
+
+[[event]]
+code = 504
+name = "CMD_GCS_START"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "GCS Common.Start"
+
+[[event]]
+code = 505
+name = "CMD_BUZZER_STOP"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "BuzzerStop"
+
+[[event]]
+code = 506
+name = "CMD_GRIP_LEARN"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GR2"]
+text = "Gripper LearnCmd"
+
+[[event]]
+code = 507
+name = "CMD_UNUSED"
+cat = "CMD"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "받았지만 처리하지 않는 명령 : {src:unused_cmd}"
+
+[[event]]
+code = 508
+name = "CMD_RESPONSE"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "응답 {b:task_type} SEQ {a}"
+
+[[event]]
+code = 509
+name = "CMD_HMI_TASK_BUTTON"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "HMI {src:hmi_task_button}"
+
+[[event]]
+code = 510
+name = "CMD_FUNCTION"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "Function {src:function} {a:onoff}"
+
+[[event]]
+code = 511
+name = "CMD_DRIVE_POWER"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "{src:axis} PowerOn {a:onoff} (manual)"
+
+[[event]]
+code = 512
+name = "CMD_MANUAL_START"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "Manual {src:manual_start} 시작"
+
+[[event]]
+code = 513
+name = "CMD_JOG"
+cat = "CMD"
+lvl = "DEBUG"
+plc = ["GR1", "GR2"]
+text = "{src:axis} Jog {a:hex}"
+
+# ALARM : Src = area, A = bit index (byte * 8 + bit), B = TASK.Proc.Step.Now. Lvl = ERROR (FAULT) / WARN (WARN) / INFO
+[[event]]
+code = 601
+name = "ALM_RAISED"
+cat = "ALARM"
+lvl = "ERROR"
+text = "{alarm} 발생 (step {b})"
+
+[[event]]
+code = 602
+name = "ALM_CLEARED"
+cat = "ALARM"
+lvl = "INFO"
+text = "{alarm} 해제"
+
+[[event]]
+code = 603
+name = "ALM_RESET"
+cat = "ALARM"
+lvl = "INFO"
+text = "{src:alarm_area} reset ({a} bits set)"
+
+[[event]]
+code = 604
+name = "ALM_TO_FAULT"
+cat = "ALARM"
+lvl = "ERROR"
+text = "FAULT 전환 : 첫 코드 {a}"
+
+# GRIP (GR2 FB_Gripper)
+[[event]]
+code = 701
+name = "GRIP_REQ"
+cat = "GRIP"
+lvl = "INFO"
+plc = ["GR2"]
+text = "요청 {src:grip_mode} Target {a/10} mm ({b:grip_owner})"
+
+[[event]]
+code = 702
+name = "GRIP_REJECT"
+cat = "GRIP"
+lvl = "WARN"
+plc = ["GR2"]
+text = "요청 거부 {a:grip_err} ({src:grip_owner})"
+
+[[event]]
+code = 703
+name = "GRIP_ABORT"
+cat = "GRIP"
+lvl = "WARN"
+plc = ["GR2"]
+text = "요청 중단 ({src:grip_owner})"
+
+[[event]]
+code = 704
+name = "GRIP_ERROR"
+cat = "GRIP"
+lvl = "WARN"
+plc = ["GR2"]
+text = "실패 {src:grip_err} StopPos {a/10} mm · {b} %"
+
+[[event]]
+code = 705
+name = "GRIP_STATUS"
+cat = "GRIP"
+lvl = "WARN"
+plc = ["GR2"]
+text = "{src:grip_status} {a}"
+a = "Src 1 Timeout: GRIP_TO_* value (1 STALL_OUT, 2 NO_ITEM, 3 GRIPPER); Src 2 Obstacle / 3 NeedRetry: 1 on, 0 off"
+
+[[event]]
+code = 706
+name = "GRIP_RETRY"
+cat = "GRIP"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "재파지 {a} → step {b}"
+
+[[event]]
+code = 707
+name = "GRIP_LEARN"
+cat = "GRIP"
+lvl = "INFO"
+plc = ["GR2"]
+text = "Learn {src:learn_phase} LearnError {a} @ {b/10} mm"
+
+[[event]]
+code = 708
+name = "GRIP_THERMAL"
+cat = "GRIP"
+lvl = "WARN"
+plc = ["GR2"]
+text = "Thermal {a:onoff}"
+
+[[event]]
+code = 709
+name = "GRIP_STATE"
+cat = "GRIP"
+lvl = "DEBUG"
+plc = ["GR2"]
+text = "{b:grip_state} → {a:grip_state}"
+
+[[event]]
+code = 710
+name = "GRIP_ITEM_DETECT"
+cat = "GRIP"
+lvl = "DEBUG"
+plc = ["GR1", "GR2"]
+text = "ItemDetect {a:onoff}"
+
+[[event]]
+code = 711
+name = "GRIP_STEP"
+cat = "GRIP"
+lvl = "DEBUG"
+plc = ["GR2"]
+text = "GRIP.Step {b} → {a}"
+
+[[event]]
+code = 712
+name = "GRIP_READY"
+cat = "GRIP"
+lvl = "WARN"
+plc = ["GR2"]
+text = "Sense.Ready {a:onoff}"
+
+# DRIVE : Src = axis
+[[event]]
+code = 801
+name = "DRV_FAULT"
+cat = "DRIVE"
+lvl = "ERROR"
+plc = ["GR1", "GR2"]
+text = "{src:axis} Fault MainCode {a} SubCode {b}"
+
+[[event]]
+code = 802
+name = "DRV_WARNING"
+cat = "DRIVE"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "{src:axis} Warning MainCode {a} SubCode {b}"
+
+[[event]]
+code = 803
+name = "DRV_FAULT_CLEARED"
+cat = "DRIVE"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "{src:axis} Fault/Warning 해제"
+
+[[event]]
+code = 804
+name = "DRV_REF_LOST"
+cat = "DRIVE"
+lvl = "ERROR"
+plc = ["GR1", "GR2"]
+text = "{src:axis} Referenced 상실"
+
+[[event]]
+code = 805
+name = "DRV_OVERHEAT"
+cat = "DRIVE"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "{src:axis} Overheat {a:bits:overheat}"
+
+[[event]]
+code = 806
+name = "DRV_SYNC"
+cat = "DRIVE"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "X1/X2 sync F{a} (SyncDiff {b/10} mm)"
+
+[[event]]
+code = 807
+name = "DRV_LAG"
+cat = "DRIVE"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "X lag {a/10} mm ({b:alarm_area})"
+
+[[event]]
+code = 808
+name = "DRV_ENABLE_FAIL"
+cat = "DRIVE"
+lvl = "ERROR"
+plc = ["GR1", "GR2"]
+text = "{src:axis} Enable / encoder F{a}"
+
+[[event]]
+code = 809
+name = "DRV_LIMIT"
+cat = "DRIVE"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "{src:axis} limit {a:bits:limit}"
+
+[[event]]
+code = 810
+name = "DRV_MDR"
+cat = "DRIVE"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "MDR {a:bits:mdr}"
+
+[[event]]
+code = 811
+name = "DRV_STATE"
+cat = "DRIVE"
+lvl = "DEBUG"
+plc = ["GR1", "GR2"]
+text = "{src:axis} {a:bits:drive_state}"
+
+[[event]]
+code = 812
+name = "DRV_HOMING_DONE"
+cat = "DRIVE"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "{src:axis} homing 완료"
+
+[[event]]
+code = 813
+name = "DRV_TARGET_RANGE"
+cat = "DRIVE"
+lvl = "ERROR"
+plc = ["GR1", "GR2"]
+text = "{src:axis} 목표 범위 밖 F{a} (target {b/10} mm)"
+
+# SAFETY
+[[event]]
+code = 901
+name = "SAFE_EMS"
+cat = "SAFETY"
+lvl = "ERROR"
+text = "EMS {a:onoff}"
+
+[[event]]
+code = 902
+name = "SAFE_INPUT"
+cat = "SAFETY"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "{src:safety_input} {a:onoff}"
+
+[[event]]
+code = 903
+name = "SAFE_IO_FORCE"
+cat = "SAFETY"
+lvl = "WARN"
+text = "{src:io_force} {a:onoff}"
+
+[[event]]
+code = 904
+name = "SAFE_OUTPUT"
+cat = "SAFETY"
+lvl = "DEBUG"
+plc = ["GR1", "GR2"]
+text = "Output {src:output} {a:onoff}"
+
+# SENSOR
+[[event]]
+code = 1001
+name = "SNS_MODULE"
+cat = "SENSOR"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "Module {src:module} {a:onoff}"
+
+[[event]]
+code = 1002
+name = "SNS_BELT"
+cat = "SENSOR"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "Belt {src:belt} {a:onoff}"
+
+[[event]]
+code = 1003
+name = "SNS_IOLINK_DROP"
+cat = "SENSOR"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "IO-Link input {src} 끊김 (누적 {a})"
+a = "drop count; Src = input channel 3..7"
+
+[[event]]
+code = 1004
+name = "SNS_MODULE_DIAG"
+cat = "SENSOR"
+lvl = "WARN"
+text = "Module diag {src:module_diag} : {a:bits:diag_bits}"
+
+[[event]]
+code = 1005
+name = "SNS_PDI"
+cat = "SENSOR"
+lvl = "DEBUG"
+plc = ["GR1", "GR2"]
+text = "{src:pdi} status {a:hex}"
+
+# MEAS
+[[event]]
+code = 1101
+name = "MEAS_RECORD"
+cat = "MEAS"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "측정 기록 {src:meas_kind} Seq {a} Status {b}"
+
+[[event]]
+code = 1102
+name = "MEAS_LOG_RESET"
+cat = "MEAS"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "{src:meas_log} reset"
+
+[[event]]
+code = 1103
+name = "MEAS_SENSOR"
+cat = "MEAS"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "Laser {src} : {a:bits:laser_flag}"
+
+[[event]]
+code = 1104
+name = "MEAS_SLOWDOWN"
+cat = "MEAS"
+lvl = "DEBUG"
+plc = ["GR1", "GR2"]
+text = "ZSlowDown {src:slowdown}"
+
+# ILOCK
+[[event]]
+code = 1201
+name = "ILK_TARGET"
+cat = "ILOCK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "WorkCell {a} · WorkType {b:hex}"
+
+[[event]]
+code = 1202
+name = "ILK_PI"
+cat = "ILOCK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "PI {a:bits:pi_bits} (이전 {b:bits:pi_bits})"
+
+[[event]]
+code = 1203
+name = "ILK_PO"
+cat = "ILOCK"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "PO {a:bits:po_bits} (이전 {b:bits:po_bits})"
+
+[[event]]
+code = 1204
+name = "ILK_TIMEOUT"
+cat = "ILOCK"
+lvl = "ERROR"
+plc = ["GR1", "GR2"]
+text = "Interlock timeout F{a} (step {src})"
+
+# ANTICOL
+[[event]]
+code = 1301
+name = "ACL_TARGET_SHIFT"
+cat = "ANTICOL"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "회피 목표 변경 X {a/10} → {b/10} mm"
+
+[[event]]
+code = 1302
+name = "ACL_APPROACH"
+cat = "ANTICOL"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "상대 로봇 접근·교착 F{a}"
+
+[[event]]
+code = 1303
+name = "ACL_LIMIT"
+cat = "ANTICOL"
+lvl = "ERROR"
+plc = ["GR1", "GR2"]
+text = "충돌 한계 F{a}"
+
+[[event]]
+code = 1304
+name = "ACL_SPEED"
+cat = "ANTICOL"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "SpeedFactor {src:speed_kind} {b} → {a} %"
+b = "previous %"
+
+[[event]]
+code = 1305
+name = "ACL_AVOID"
+cat = "ANTICOL"
+lvl = "DEBUG"
+plc = ["GR1", "GR2"]
+text = "AvoidReq {a:onoff}"
+
+# COMM
+[[event]]
+code = 1401
+name = "COM_LINK"
+cat = "COMM"
+lvl = "WARN"
+text = "{src:peer} link {a:onoff} (끊김 {b} ms)"
+
+[[event]]
+code = 1402
+name = "COM_BLOCK_ERR"
+cat = "COMM"
+lvl = "WARN"
+text = "{src:comm_block} error STATUS {a:hex}"
+
+[[event]]
+code = 1403
+name = "COM_CMD_FRAME"
+cat = "COMM"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "GRM 명령 프레임 수신 {b:task_type}"
+
+[[event]]
+code = 1404
+name = "COM_HEARTBEAT"
+cat = "COMM"
+lvl = "WARN"
+text = "{src:peer} heartbeat {b:stall} ({a} ms)"
+b = "1 stopped, 0 resumed"
+
+[[event]]
+code = 1405
+name = "COM_XY_STOP"
+cat = "COMM"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "통신 끊김으로 XY 정지 (W{a})"
+
+[[event]]
+code = 1406
+name = "COM_SOCK"
+cat = "COMM"
+lvl = "INFO"
+plc = ["GR2"]
+text = "Socket slot {src} {a:sock_state} (LastErr {b})"
+
+[[event]]
+code = 1407
+name = "COM_GET_FAIL"
+cat = "COMM"
+lvl = "DEBUG"
+text = "GET NDR 없음 STATUS {a:hex}"
+
+# DATA : PARA writes store A = new * 100, B = old * 100
+[[event]]
+code = 1501
+name = "DATA_CSV"
+cat = "DATA"
+lvl = "INFO"
+text = "CSV {src:csv_kind} : {a:csv_result} (STATUS {b:hex})"
+
+[[event]]
+code = 1502
+name = "DATA_PARA_HMI"
+cat = "DATA"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "HMI p{src} {b/100} → {a/100}"
+
+[[event]]
+code = 1503
+name = "DATA_PARA_HOMING"
+cat = "DATA"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "Homing 이 {src:para} 를 씀 {b/100} → {a/100}"
+
+[[event]]
+code = 1504
+name = "DATA_PARA_ADJUST"
+cat = "DATA"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "Adjust 가 {src:para} 를 씀 {b/100} → {a/100}"
+
+[[event]]
+code = 1505
+name = "DATA_PARA_ZCAL"
+cat = "DATA"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "Laser ZCal 이 {src:para} 를 씀 {b/100} → {a/100}"
+
+[[event]]
+code = 1506
+name = "DATA_PARA_AUTOCAL"
+cat = "DATA"
+lvl = "WARN"
+plc = ["GR2"]
+text = "Laser AutoCal 이 {src:para} 를 씀 {b/100} → {a/100}"
+
+[[event]]
+code = 1507
+name = "DATA_PARA_CALZ"
+cat = "DATA"
+lvl = "WARN"
+plc = ["GR1", "GR2"]
+text = "CalibrationZ 가 {src:para} 를 씀 {b/100} → {a/100}"
+
+[[event]]
+code = 1508
+name = "DATA_PARA_SECTION"
+cat = "DATA"
+lvl = "INFO"
+text = "PARA.{src:para_section} 변경 (checksum {b:hex} → {a:hex})"
+
+[[event]]
+code = 1509
+name = "DATA_PARA_SPEED"
+cat = "DATA"
+lvl = "INFO"
+plc = ["GR1", "GR2"]
+text = "HMI SpeedSet {src:axis} index {a} 변경"
+
+# ---------------------------------------------------------------- console events (origin = console, not in the PLC)
+[[console]]
+code = 9001
+name = "CON_PLC_LINK"
+cat = "COMM"
+lvl = "WARN"
+text = "콘솔 S7 {plc} {a:onoff}"
+
+[[console]]
+code = 9002
+name = "CON_LAYOUT"
+cat = "COMM"
+lvl = "ERROR"
+text = "레이아웃 불일치 {detail}"
+
+[[console]]
+code = 9003
+name = "CON_HEARTBEAT"
+cat = "COMM"
+lvl = "WARN"
+text = "하트비트 멈춤 {a} ms"
+
+[[console]]
+code = 9004
+name = "CON_OPCUA"
+cat = "COMM"
+lvl = "WARN"
+text = "OPC UA 세션 {a:onoff} {detail}"
+
+[[console]]
+code = 9010
+name = "CON_GATE_REFUSED"
+cat = "CMD"
+lvl = "WARN"
+text = "제출 거부 : {detail}"
+
+[[console]]
+code = 9011
+name = "CON_SUBMIT"
+cat = "CMD"
+lvl = "INFO"
+text = "콘솔 제출 {detail}"
+
+[[console]]
+code = 9012
+name = "CON_ROBOT_CMD"
+cat = "CMD"
+lvl = "INFO"
+text = "콘솔 운전 명령 {detail}"
+
+[[console]]
+code = 9013
+name = "CON_TASK_STATE"
+cat = "TASK"
+lvl = "INFO"
+text = "원장 {detail}"
+
+[[console]]
+code = 9014
+name = "CON_RUNNER"
+cat = "CMD"
+lvl = "INFO"
+text = "{detail}"
+
+[[console]]
+code = 9015
+name = "CON_SETTINGS"
+cat = "DATA"
+lvl = "INFO"
+text = "설정 저장 {detail}"
+
+[[console]]
+code = 9020
+name = "CON_EVT_GAP"
+cat = "SYS"
+lvl = "WARN"
+text = "EVTLOG 누락 {a} 건 (Seq {b} 이후)"
+
+[[console]]
+code = 9021
+name = "CON_EVT_EPOCH"
+cat = "SYS"
+lvl = "INFO"
+text = "EVTLOG 새 epoch (BootId {a}, Total {b})"

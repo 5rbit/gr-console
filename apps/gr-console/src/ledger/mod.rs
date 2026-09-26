@@ -337,6 +337,22 @@ impl Ledger {
         if to.is_terminal() {
             entry.ended_at = Some(at.clone());
         }
+        let by_s = serde_json::to_string(&by).unwrap_or_default().trim_matches('"').to_string();
+        crate::evtlog::console(
+            "CON_TASK_STATE",
+            &self.plc,
+            i64::from(entry.work_id),
+            i64::from(entry.task_id),
+            0,
+            format!(
+                "WorkId {} TaskId {}: {} → {} ({by_s}){}",
+                entry.work_id,
+                entry.task_id,
+                from.map(|s| s.as_str()).unwrap_or("-"),
+                to.as_str(),
+                note.as_deref().map(|n| format!(" {n}")).unwrap_or_default()
+            ),
+        );
         let _ = self.db.with(|c| {
             c.execute(
                 "INSERT INTO task_events (task_id, ts, from_state, to_state, by, note) VALUES (?1,?2,?3,?4,?5,?6)",

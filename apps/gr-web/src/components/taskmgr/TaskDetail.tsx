@@ -9,6 +9,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../../lib/api'
+import { evtApi, type EventRow } from '../../lib/evtlog/api'
+import { lvlTone } from '../../lib/evtlog/evtRowsModel'
+import { mergeTimeline } from '../../lib/evtlog/taskTimelineModel'
 import { allStatus } from '../../lib/feeds'
 import { PARAM_LABELS } from '../../lib/gr/const'
 import { pos } from '../../lib/meas/format'
@@ -67,6 +70,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+const NO_EVENTS: readonly EventRow[] = []
+
 const ACTOR_LABEL: Record<TaskTransition['by'], string> = {
   ui: '콘솔',
   plc: 'PLC',
@@ -74,30 +79,67 @@ const ACTOR_LABEL: Record<TaskTransition['by'], string> = {
   system: '시스템',
 }
 
-function Timeline({ history, now }: { history: TaskTransition[]; now: number }) {
-  if (history.length === 0) return <p className="m-0 text-xs text-content-faint">이력 없음</p>
+/** 원장 전이 + PLC 이벤트(`/api/events/task/{id}`)를 시각 순 한 줄로. 이벤트는 레벨 점 + PLC 이름으로 가른다. */
+function Timeline({
+  history,
+  events,
+  now,
+}: {
+  history: TaskTransition[]
+  events: readonly EventRow[]
+  now: number
+}) {
+  const items = mergeTimeline(history, events)
+  if (items.length === 0) return <p className="m-0 text-xs text-content-faint">이력 없음</p>
   return (
     <ol className="m-0 list-none space-y-1 p-0" data-testid="task-timeline">
-      {history.map((h, i) => (
-        <li key={i} className="flex items-baseline gap-2 text-xs">
-          <span
-            className="w-20 shrink-0 font-mono text-2xs text-content-faint tabular-nums"
-            title={h.at}
+      {items.map((it, i) => {
+        if (it.kind === 'state') {
+          const h = it.h
+          return (
+            <li key={`s${i}`} className="flex items-baseline gap-2 text-xs">
+              <span
+                className="w-20 shrink-0 font-mono text-2xs text-content-faint tabular-nums"
+                title={h.at}
+              >
+                {fmtTime(h.at, now)}
+              </span>
+              {/* 고정폭 — 상태 글자 길이가 달라도 행위자·메모의 x가 줄마다 같다. */}
+              <span className="w-14 shrink-0">
+                <StatusDot status={STATE_TONE[h.to]} size="sm" label={STATE_LABEL[h.to]} />
+              </span>
+              <span className="text-2xs text-content-faint">{ACTOR_LABEL[h.by]}</span>
+              {h.note ? (
+                <span className="min-w-0 truncate text-content-tertiary" title={h.note}>
+                  {h.note}
+                </span>
+              ) : null}
+            </li>
+          )
+        }
+        const e = it.e
+        return (
+          <li
+            key={`e${e.id}`}
+            className="flex items-baseline gap-2 text-xs"
+            data-testid="task-timeline-evt"
           >
-            {fmtTime(h.at, now)}
-          </span>
-          {/* 고정폭 — 상태 글자 길이가 달라도 행위자·메모의 x가 줄마다 같다. */}
-          <span className="w-14 shrink-0">
-            <StatusDot status={STATE_TONE[h.to]} size="sm" label={STATE_LABEL[h.to]} />
-          </span>
-          <span className="text-2xs text-content-faint">{ACTOR_LABEL[h.by]}</span>
-          {h.note ? (
-            <span className="min-w-0 truncate text-content-tertiary" title={h.note}>
-              {h.note}
+            <span
+              className="w-20 shrink-0 font-mono text-2xs text-content-faint tabular-nums"
+              title={e.ts}
+            >
+              {fmtTime(new Date(e.ts_ms).toISOString(), now)}
             </span>
-          ) : null}
-        </li>
-      ))}
+            <span className="w-14 shrink-0">
+              <StatusDot status={lvlTone(e.lvl_name)} size="sm" label={e.plc} />
+            </span>
+            <span className="font-mono text-2xs text-content-faint">{e.name ?? e.cat_name}</span>
+            <span className="min-w-0 truncate text-content-tertiary" title={e.detail ?? e.text}>
+              {e.text}
+            </span>
+          </li>
+        )
+      })}
     </ol>
   )
 }
@@ -132,6 +174,23 @@ export default function TaskDetail({ id, ids = [], onNavigate }: TaskDetailProps
   const [area, setArea] = useState<PlcTaskArea | null>(
     () => allStatus.ofPlc(tasks.get(id)?.plc_name)?.webmon.Stat.Task ?? null,
   )
+  // PLC 이벤트(EVTLOG) — 이력이 늘 때 다시 받는다. 엔드포인트가 없는 백엔드면 조용히 원장만 그린다.
+  const [plcEvents, setPlcEvents] = useState<{ id: string; rows: EventRow[] }>({ id: '', rows: [] })
+  const histLen = (live ?? fetched)?.history.length ?? 0
+  useEffect(() => {
+    let alive = true
+    evtApi
+      .task(id)
+      .then((r) => {
+        if (alive) setPlcEvents({ id, rows: r.rows })
+      })
+      .catch(() => {
+        if (alive) setPlcEvents({ id, rows: [] })
+      })
+    return () => {
+      alive = false
+    }
+  }, [id, histLen])
   useEffect(() => allStatus.start(), [])
   useEffect(() => robots.start(), [])
 
@@ -452,7 +511,11 @@ export default function TaskDetail({ id, ids = [], onNavigate }: TaskDetailProps
               )}
             </Section>
             <Section title="이력">
-              <Timeline history={t.history} now={now} />
+              <Timeline
+                history={t.history}
+                events={plcEvents.id === id ? plcEvents.rows : NO_EVENTS}
+                now={now}
+              />
             </Section>
           </>
         ) : null}

@@ -10,6 +10,8 @@
 //!   (옛 DB 는 건드리지 않는다 — 마이그레이션은 새 콘솔이 켜질 때 백업 뒤 한다) 나머지 파일을 복사한다.
 //!
 //! 계약(`data/contract`)과 로그는 옮기지 않는다 — 계약은 실행 파일이 매번 다시 풀고, 로그는 그 자리의 기록이다.
+//! 이벤트 로그 `data/events.db` 는 [`EVENTS_BACKUP_MAX`] 이하일 때만 `VACUUM INTO` 로 넣는다(상한 20 GB 라 통째 사본은
+//! 백업을 몇 분 · 몇 GB 로 만든다). 넘으면 BACKUP.txt 에 빠졌다고 적는다 — 필요하면 콘솔을 끄고 파일을 복사한다.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -26,6 +28,30 @@ use crate::state::AppState;
 
 /// 옮겨 다니는 data 아래 항목(파일 또는 폴더). DB 는 따로(`VACUUM INTO`).
 const CARRY: [&str; 3] = ["pki", "records", "traces"];
+/// 이 크기(본 파일 + WAL) 이하의 events.db 만 백업에 넣는다.
+pub const EVENTS_BACKUP_MAX: u64 = 256 * 1024 * 1024;
+
+/// events.db 의 일관 사본(작을 때만). BACKUP.txt 에 적을 한 줄을 돌려준다.
+fn backup_events(data_dir: &Path, dest_data: &Path) -> String {
+    let src = data_dir.join("events.db");
+    let size = |p: &Path| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
+    if !src.is_file() {
+        return "events.db: 없음".into();
+    }
+    let total = size(&src) + size(&PathBuf::from(format!("{}-wal", src.display())));
+    if total > EVENTS_BACKUP_MAX {
+        return format!("events.db: {} MB — 백업에서 뺐음(상한 {} MB). 콘솔을 끄고 data/events.db 를 직접 복사하세요.", total / 1_048_576, EVENTS_BACKUP_MAX / 1_048_576);
+    }
+    let dest = dest_data.join("events.db");
+    let r = rusqlite::Connection::open(&src).and_then(|c| c.execute_batch(&format!("VACUUM INTO '{}'", dest.to_string_lossy().replace('\'', "''"))));
+    match r {
+        Ok(()) => format!("events.db: 포함 ({} MB)", total / 1_048_576),
+        Err(e) => {
+            tracing::warn!("backup events.db: {e}");
+            format!("events.db: 복사 실패 ({e})")
+        }
+    }
+}
 
 static ORIGIN: OnceLock<(PathBuf, PathBuf)> = OnceLock::new();
 
@@ -85,10 +111,11 @@ pub fn snapshot(db: &Db, cfg: &Config, config_path: &Path, base: &Path) -> anyho
             std::fs::copy(&p, data.join(n))?;
         }
     }
+    let events = backup_events(&cfg.paths.data_dir, &data);
     std::fs::write(
         dest.join("BACKUP.txt"),
         format!(
-            "gr-console 백업\n시각: {}\n버전: {}\n원본 폴더: {}\n\n복원: 이 폴더의 gr-console.toml 과 data/ 를 콘솔 폴더(gr-console.exe 옆)에 복사한 뒤 실행한다.\n",
+            "gr-console 백업\n시각: {}\n버전: {}\n원본 폴더: {}\n{events}\n\n복원: 이 폴더의 gr-console.toml 과 data/ 를 콘솔 폴더(gr-console.exe 옆)에 복사한 뒤 실행한다.\n",
             crate::util::now_str(),
             env!("CARGO_PKG_VERSION"),
             base.display()

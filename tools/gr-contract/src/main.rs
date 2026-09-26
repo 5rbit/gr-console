@@ -5,7 +5,11 @@
 //! * `sizes`   print DB / UDT sizes
 //! * `gen-sig` compute the LayoutSig of a DB and rewrite the `LayoutSig` start value in a .db source
 //! * `gen-link` generate the PLC link SCL / constant table / test vector DB and the PC artifacts
+//! * `gen-evt`  generate the `EVT_Const_Gen` constant table from the event log catalog
+//! * `alarms`   build `plc/contract/<PLC>/alarms.json` (alarm area + bit -> code / text)
 
+mod alarms;
+mod gen_evt;
 mod gen_link;
 
 use std::collections::{BTreeSet, HashSet};
@@ -111,6 +115,24 @@ enum Cmd {
         #[arg(long)]
         verify_sync: bool,
     },
+    /// Generate EVT_Const_Gen.xml (event log constants) from plc/evtlog/catalog.toml.
+    GenEvt {
+        #[arg(long)]
+        plc: String,
+        #[arg(long, default_value = "plc/evtlog/catalog.toml")]
+        catalog: PathBuf,
+        /// TIA export root (contains <PLC>/{blocks,types,tags})
+        #[arg(long, default_value = "../siemens/export")]
+        export: PathBuf,
+        /// Default <export>/<PLC>/tags/Const
+        #[arg(long)]
+        out_tags: Option<PathBuf>,
+        /// Write nothing; exit 1 when the file differs (whitespace-normalized compare)
+        #[arg(long)]
+        check: bool,
+    },
+    /// Build plc/contract/<PLC>/alarms.json: (area, bit index) -> alarm code, class and texts.
+    Alarms(alarms::Args),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -175,6 +197,13 @@ fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
+        Cmd::GenEvt { plc, catalog, export, out_tags, check } => {
+            if !gen_evt::run(&gen_evt::Args { plc, catalog, export, out_tags, check })? {
+                std::process::exit(1);
+            }
+            Ok(())
+        }
+        Cmd::Alarms(args) => alarms::run(&args),
     }
 }
 

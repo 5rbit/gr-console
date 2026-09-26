@@ -18,6 +18,7 @@ import ScenarioPage from '../scenario/ScenarioPage'
 import PalletPage from '../pallet/PalletPage'
 import TracePage from '../trace/TracePage'
 import GripperPage from '../gripper/GripperPage'
+import EventsPage from '../events/EventsPage'
 import PlcPane, { PlcSummary } from '../panes/PlcPane'
 import RobotsPane, { RobotsSummary } from '../panes/RobotsPane'
 import StatusPane, { StatusSummary } from '../panes/StatusPane'
@@ -52,6 +53,7 @@ const SCREEN_COMPONENT: Record<string, ComponentType> = {
   pallet: PalletPage,
   trace: TracePage,
   gripper: GripperPage,
+  events: EventsPage,
 }
 
 const SCREEN_KEYWORDS: Record<string, string> = {
@@ -63,6 +65,7 @@ const SCREEN_KEYWORDS: Record<string, string> = {
   pallet: 'palletizing pattern drag 팔렛 패턴 적재 드래그 입고 출하',
   trace: 'trace waveform scope 파형 스코프 채널 사이클 오실로 로깅',
   gripper: 'gripper torque learn 그리퍼 토크 학습 기구 부하 mech scale inch',
+  events: 'event log evtlog alarm step ctx 이벤트 로그 알람 스텝 로거',
 }
 
 /** 보조 패널 — 예전 사이드바의 세 섹션. 이제는 어디에나 도킹된다. */

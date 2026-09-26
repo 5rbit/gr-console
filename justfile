@@ -57,3 +57,11 @@ link-selftest:
 # 배포 패키지 — 실행 파일 하나(웹·계약 내장) + 설정 + 안내문 → dist/*.zip
 package:
     pwsh -NoProfile -File tools/package.ps1
+
+# PLC 이벤트 로그 상수표 EVT_Const_Gen.xml (plc/evtlog/catalog.toml → siemens export, 세 PLC). 이름 규칙은 crates/evt-catalog
+gen-evt:
+    cargo run -p gr-contract -- gen-evt --plc GR2_PLC --export ../siemens/export; cargo run -p gr-contract -- gen-evt --plc GR1_PLC --export ../siemens/export; cargo run -p gr-contract -- gen-evt --plc GRM_PLC --export ../siemens/export
+
+# 알람 주소표 plc/contract/<PLC>/alarms.json (SetAlarm 호출 + HMI 알람 + ErrorList) — 이벤트 로그의 {alarm} 문구
+alarms:
+    cargo run -p gr-contract -- alarms --export ../siemens/export --xlsx ../siemens/E13398_GR_V1.5.2_ErrorList_260926.xlsx

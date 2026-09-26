@@ -163,7 +163,8 @@ impl Engine {
     }
     /// 저장 — 버전 +1, 이력은 표에 남는다.
     pub fn save(&self, mut c: GenConfig) -> Result<GenConfig, ApiError> {
-        let prev = self.config().version;
+        let old = self.config();
+        let prev = old.version;
         c.version = prev + 1;
         for r in &mut c.rules {
             r.manual_requests = 0; // 요청 수는 `taskgen_manual`
@@ -171,6 +172,10 @@ impl Engine {
         let doc = serde_json::to_string(&c)?;
         self.db.with(|x| x.execute("INSERT INTO taskgen_config (version, doc_json, saved_at) VALUES (?1, ?2, ?3)", (c.version, &doc, now_str())))?;
         *self.cfg.lock().unwrap_or_else(PoisonError::into_inner) = c.clone();
+        crate::evtlog::console("CON_SETTINGS", "console", i64::from(c.version), 0, 0, format!("Task 생성 규칙 v{} ({} 규칙)", c.version, c.rules.len()));
+        if old.auto != c.auto {
+            crate::evtlog::console("CON_RUNNER", "console", i64::from(c.auto), 0, 0, format!("자동 생성 {}", if c.auto { "켜짐" } else { "꺼짐" }));
+        }
         Ok(c)
     }
     fn persist_manual(&self, rule: &str, n: u32) {

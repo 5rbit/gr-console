@@ -19,6 +19,7 @@ export type Tab =
   | 'pallet'
   | 'trace'
   | 'gripper'
+  | 'events'
 
 class Nav extends Store {
   /** 활성 탭. */

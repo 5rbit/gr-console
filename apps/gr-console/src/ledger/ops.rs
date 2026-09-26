@@ -121,6 +121,19 @@ pub fn gate(st: &AppState, r: &RobotCtx) -> Gate {
     Gate { can_submit: reasons.is_empty(), reasons: label_reasons(&r.name, reasons), robot: r.name.clone(), plc: r.plc.clone() }
 }
 
+/// 게이트 거부 — 이벤트 로그(`CON_GATE_REFUSED`)에 사유를 남기고 409.
+fn refused(r: &RobotCtx, g: &Gate) -> ApiError {
+    let why = submit_refusal(&r.name, &g.reasons);
+    crate::evtlog::console("CON_GATE_REFUSED", &r.plc, 0, 0, 0, why.clone());
+    ApiError::Conflict(why)
+}
+
+/// `GR2 PICK WorkId 88 TaskId 1 Cell 410` — 콘솔 이벤트 설명.
+fn task_label(r: &RobotCtx, e: &LedgerEntry) -> String {
+    let ty = gr_proto::TaskType::from_code(e.plc_task.task_type).map(|t| format!("{t:?}").to_uppercase()).unwrap_or_else(|| format!("type {}", e.plc_task.task_type));
+    format!("{} {ty} WorkId {} TaskId {} Cell {}", r.name, e.work_id, e.task_id, e.plc_task.cell.id)
+}
+
 /// Submits a Draft entry: writes the command, records the header and moves to Submitted.
 pub async fn submit(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<LedgerEntry, ApiError> {
     if entry.state != TaskState::Draft {
@@ -150,7 +163,7 @@ async fn submit_prepared(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Res
     let _busy = st.shutdown.enter(format!("Task 제출 (로봇 {})", r.id))?;
     let g = gate(st, r);
     if !g.can_submit {
-        return Err(ApiError::Conflict(submit_refusal(&r.name, &g.reasons)));
+        return Err(refused(r, &g));
     }
     let (header, uncertain) = r.cmd.write_task(&entry.plc_task).await?;
     let mut e = entry;
@@ -162,6 +175,7 @@ async fn submit_prepared(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Res
         tracing::warn!(robot = %r.name, detail = %d, "task header write unanswered — recorded as submitted, echo decides");
         format!("헤더 쓰기 응답 없음({d}) — PLC 에코로 판정")
     });
+    crate::evtlog::console("CON_SUBMIT", &r.plc, i64::from(e.work_id), i64::from(e.task_id), 0, task_label(r, &e));
     r.ledger.transition(e, TaskState::Submitted, Actor::Ui, note)
 }
 
@@ -185,7 +199,7 @@ pub async fn create_and_submit(
     if submit_now {
         let g = gate(st, r);
         if !g.can_submit {
-            return Err(ApiError::Conflict(submit_refusal(&r.name, &g.reasons)));
+            return Err(refused(r, &g));
         }
     }
     let mut task = task;
@@ -383,6 +397,7 @@ pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
         t2.history.push(super::Transition { from: Some(t2.state), to: t2.state, at: crate::util::now_str(), by: Actor::Ui, note: Some(note) });
         r.ledger.upsert(t2)?;
     }
+    crate::evtlog::console("CON_ROBOT_CMD", &r.plc, i64::from(e.work_id), i64::from(e.task_id), 0, format!("Task Delete {} (+{})", task_label(r, &e), order.len() - 1));
     // The PLC takes one Delete at a time (re-armed with zeros in between): the requested task first,
     // then its tail in TaskId order.
     for t in order.iter() {
@@ -414,6 +429,7 @@ pub async fn force_complete(st: &AppState, id: &str) -> Result<LedgerEntry, ApiE
     let mut e2 = e.clone();
     e2.history.push(super::Transition { from: Some(e2.state), to: e2.state, at: crate::util::now_str(), by: Actor::Ui, note: Some(super::sync::COMPLETE_REQUESTED.into()) });
     r.ledger.upsert(e2)?;
+    crate::evtlog::console("CON_ROBOT_CMD", &r.plc, i64::from(e.work_id), i64::from(e.task_id), 0, format!("Task Complete {}", task_label(r, &e)));
     task_op(&r.cmd, TaskOp::Complete, e.key()).await?;
     watch_op_answer(r.ledger.clone(), id.clone(), e.state, "Complete");
     Ok(r.ledger.get(&id).unwrap_or(e))
