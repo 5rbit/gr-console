@@ -1,10 +1,12 @@
 // 이벤트 라이브 스트림 — `/api/events/stream` 의 이름 붙은 이벤트 `evt`(행 하나) + `lag`(건너뛴 수).
+// 같은 연결에 `alert` · `alert_ack` 도 온다 — 이 스트림이 열려 있는 동안은 알림 배지가 자기 연결을 닫고
+// 이것을 빌려 쓴다(`lib/evtlog/alerts`). 브라우저의 호스트당 연결 수(HTTP/1.1 에서 6)를 한 칸 아낀다.
 //
 // `SseFeed` 가 아닌 이유는 `traceStream` 과 같다: 이름이 둘이고, 필요한 것은 마지막 메시지가 아니라
 // **모든 행**이다. 이름 붙은 이벤트는 `onmessage` 로 오지 않으므로 `addEventListener('evt')` 로 받는다.
 import { frameThrottle } from '../sse'
 import { Store } from '../store'
-import { EVT_STREAM_URL, type EventRow } from './api'
+import { EVT_STREAM_URL, type AlertRec, type EventRow } from './api'
 
 class EvtStream extends Store {
   #es: EventSource | null = null
@@ -13,6 +15,8 @@ class EvtStream extends Store {
   #error: string | null = null
   #lag = 0
   #handlers = new Set<(r: EventRow) => void>()
+  #alertHandlers = new Set<(a: AlertRec) => void>()
+  #ackHandlers = new Set<(ids: number[]) => void>()
   #flush = frameThrottle(() => this.notify())
 
   get connected(): boolean {
@@ -34,6 +38,16 @@ class EvtStream extends Store {
     this.#handlers.add(fn)
     return () => {
       this.#handlers.delete(fn)
+    }
+  }
+
+  /** 알림(`alert`) · 확인(`alert_ack`, 빈 목록 = 전부) 리스너. */
+  onAlert(fn: (a: AlertRec) => void, ack: (ids: number[]) => void): () => void {
+    this.#alertHandlers.add(fn)
+    this.#ackHandlers.add(ack)
+    return () => {
+      this.#alertHandlers.delete(fn)
+      this.#ackHandlers.delete(ack)
     }
   }
 
@@ -77,6 +91,22 @@ class EvtStream extends Store {
       this.#connected = true
       for (const h of this.#handlers) h(r)
       this.#flush()
+    })
+    es.addEventListener('alert', (ev) => {
+      try {
+        const a = JSON.parse((ev as MessageEvent<string>).data) as AlertRec
+        for (const h of this.#alertHandlers) h(a)
+      } catch {
+        // 깨진 프레임은 버린다
+      }
+    })
+    es.addEventListener('alert_ack', (ev) => {
+      try {
+        const ids = JSON.parse((ev as MessageEvent<string>).data) as number[]
+        for (const h of this.#ackHandlers) h(ids)
+      } catch {
+        // 깨진 프레임은 버린다
+      }
     })
     es.addEventListener('lag', (ev) => {
       const n = Number((ev as MessageEvent<string>).data)

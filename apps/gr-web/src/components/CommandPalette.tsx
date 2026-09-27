@@ -11,6 +11,8 @@ import type * as React from 'react'
 import { Check, Search } from 'lucide-react'
 import { groupHits, matchCommands, type Command } from '../lib/commands'
 import { density } from '../lib/density'
+import { EVT_VIEWS } from '../lib/evtlog/evtUrlModel'
+import { evtView } from '../lib/evtlog/store'
 import { chord, hasMod } from '../lib/keys'
 import { nav, type Tab } from '../lib/nav'
 import { palette } from '../lib/palette'
@@ -58,6 +60,25 @@ function buildCommands(): Command[] {
       },
     })
   }
+
+  // ── 보기: 이벤트 화면의 하위 보기(통계 · 인터록) — 탭 안의 세그먼트까지 한 번에 ──
+  const events = paneDef('events')
+  if (events)
+    for (const v of EVT_VIEWS.filter((x) => x.id !== 'list'))
+      out.push({
+        id: `events.${v.id}`,
+        group: '보기',
+        label: `${events.label} · ${v.label}`,
+        keywords: 'events evtlog alarm step interlock swimlane pareto 통계 스윔레인',
+        checked:
+          (ws ? workspace.rendered.includes('events') : nav.tab === 'events') &&
+          evtView.view === v.id,
+        run: () => {
+          evtView.setView(v.id)
+          if (ws) workspace.reveal('events', events.defaultZone)
+          else nav.go('events')
+        },
+      })
 
   // ── 레이아웃: 프리셋 · 저장 ──
   for (const p of PRESETS)
@@ -378,9 +399,7 @@ export function CommandPalette() {
                         role="option"
                         aria-selected={on}
                         className={`flex w-full items-center gap-2 px-3 py-1 text-left text-sm-tight ${
-                          on
-                            ? 'bg-accent-soft text-accent-text'
-                            : 'text-content-secondary'
+                          on ? 'bg-accent-soft text-accent-text' : 'text-content-secondary'
                         } ${c.disabled ? 'opacity-50' : ''}`}
                         data-testid={`cmd-${c.id}`}
                         title={c.disabled}

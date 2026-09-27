@@ -14,7 +14,7 @@ use super::EvtLog;
 use super::catalog::{EventRow, Texts, now_ms};
 use super::routes::{log, num, opt};
 use super::stats::{ALM_CLEARED, ALM_RAISED, CAT_ALARM};
-use super::store::{Filter, Row};
+use super::store::{Cursor, Filter, Row};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
@@ -261,12 +261,28 @@ pub fn load(log: &EvtLog, robots: &[(String, String)], grm_plc: Option<&str>, sl
     Ok(Swimlane { station, slot, from, to, lanes: b.lanes, spans: b.spans, markers })
 }
 
+/// Station slot an event row belongs to: a STATION row's Src, an ILK_TARGET's station, else the robot's last
+/// ILK_TARGET **before that row in log order** (ts, id) — the robot logs the target and its PI/PO in the same ms.
+pub fn slot_of_event(log: &EvtLog, id: i64) -> rusqlite::Result<Option<u32>> {
+    let Some(r) = log.store.get(id)? else { return Ok(None) };
+    let station = |a: i64| u16::try_from(a).ok().filter(|t| gr_proto::is_station_id(*t)).map(|t| u32::from(t % 100));
+    Ok(match (r.cat, r.code) {
+        (CAT_STATION, _) => Some(r.src).filter(|s| (1..=32).contains(s)),
+        (CAT_ILOCK, ILK_TARGET) if station(r.a).is_some() => station(r.a),
+        (CAT_ILOCK, _) => {
+            let f = Filter { plcs: vec![r.plc.clone()], codes: vec![(Some(CAT_ILOCK), Some(ILK_TARGET))], ..Default::default() };
+            log.store.query(&f, Some(Cursor { ts: r.plc_ts, id }), 1, false)?.first().and_then(|(_, t)| station(t.a))
+        }
+        _ => None,
+    })
+}
+
 #[derive(Deserialize, Default)]
 struct SwimQ {
     station: Option<String>,
     slot: Option<String>,
-    /// Robot PLC: the station is its ILK_TARGET at `to` (entry from an ILK_PI / ILK_PO row).
-    plc: Option<String>,
+    /// An ILOCK / STATION event id: its station (entry from the ±30 s window).
+    event: Option<String>,
     from: Option<String>,
     to: Option<String>,
 }
@@ -282,7 +298,7 @@ async fn swimlane(State(st): State<AppState>, Query(q): Query<SwimQ>) -> ApiResu
         return Err(ApiError::BadRequest("from < to, 창은 24 시간까지".into()));
     }
     let station: Option<u16> = num(&q.station, "station")?;
-    let slot = match (station, num::<u32>(&q.slot, "slot")?, opt(&q.plc)) {
+    let slot = match (station, num::<u32>(&q.slot, "slot")?, num::<i64>(&q.event, "event")?) {
         (Some(id), _, _) => {
             if !gr_proto::is_station_id(id) {
                 return Err(ApiError::BadRequest(format!("station: {id} 는 스테이션 Id 가 아닙니다")));
@@ -290,16 +306,14 @@ async fn swimlane(State(st): State<AppState>, Query(q): Query<SwimQ>) -> ApiResu
             u32::from(id % 100)
         }
         (None, Some(s), _) => s,
-        (None, None, Some(plc)) => {
-            let plc = st.plc(plc)?.name().to_string();
+        (None, None, Some(ev)) => {
             let l = log.clone();
-            let target = tokio::task::spawn_blocking(move || last_before(&l, &plc, CAT_ILOCK, ILK_TARGET, None, to + 1)).await.map_err(|e| ApiError::Internal(e.to_string()))??;
-            match target.and_then(|r| u16::try_from(r.a).ok()).filter(|t| gr_proto::is_station_id(*t)) {
-                Some(t) => u32::from(t % 100),
-                None => return Err(ApiError::NotFound("이 로봇의 ILK_TARGET 이 스테이션이 아닙니다".into())),
+            match tokio::task::spawn_blocking(move || slot_of_event(&l, ev)).await.map_err(|e| ApiError::Internal(e.to_string()))?? {
+                Some(s) => s,
+                None => return Err(ApiError::NotFound(format!("이벤트 {ev} 의 스테이션을 찾지 못했습니다 (그때 ILK_TARGET 이 스테이션이 아님)"))),
             }
         }
-        _ => return Err(ApiError::BadRequest("station, slot, plc 중 하나가 필요합니다".into())),
+        _ => return Err(ApiError::BadRequest("station, slot, event 중 하나가 필요합니다".into())),
     };
     let station = station.or_else(|| st.registry.stations().ok()?.iter().map(|s| s.id).find(|id| u32::from(id % 100) == slot));
     let robots: Vec<(String, String)> = st.robots.iter().map(|r| (r.name.clone(), r.plc.clone())).collect();
@@ -410,5 +424,30 @@ mod tests {
         let j = serde_json::to_value(&s).unwrap();
         assert_eq!(j["markers"][0]["kind"], "meas");
         assert!(j["markers"][0]["text"].is_string(), "the marker carries the rendered row");
+    }
+
+    #[tokio::test]
+    async fn an_event_row_leads_to_its_station() {
+        let cat = std::sync::Arc::new(crate::evtlog::catalog::embedded());
+        let log = EvtLog::memory(cat);
+        // same ms: the load logs TARGET then PI, the end logs PO then TARGET 0
+        let rows = vec![
+            raw("GR2", 1, 1_000, CAT_ILOCK, 2, ILK_TARGET, 0, 2102, 1, 5),
+            raw("GR2", 1, 1_000, CAT_ILOCK, 2, ILK_PI, 0, 1, 0, 5),
+            raw("GR2", 1, 2_000, CAT_ILOCK, 2, ILK_PO, 0, 0, 2, 5),
+            raw("GR2", 1, 2_000, CAT_ILOCK, 2, ILK_TARGET, 0, 0, 0, 5),
+            raw("GR2", 1, 3_000, CAT_ILOCK, 2, ILK_PO, 0, 1, 0, 6),
+            raw("GRM", 1, 3_000, CAT_STATION, 2, ST_MEAS, 7, 1, 0, 0),
+            raw("GR2", 1, 3_000, 3, 2, 300, 20, 5, 200, 6),
+        ];
+        let ids: Vec<i64> = log.store.write(rows, &[]).unwrap().into_iter().map(|(id, _)| id).collect();
+        let slot = |i: usize| slot_of_event(&log, ids[i]).unwrap();
+        assert_eq!(slot(0), Some(2), "ILK_TARGET names the station");
+        assert_eq!(slot(1), Some(2), "PI right after its TARGET in the same ms");
+        assert_eq!(slot(2), Some(2), "PO right before TARGET 0 in the same ms");
+        assert_eq!(slot(4), None, "target cleared: not at a station");
+        assert_eq!(slot(5), Some(7), "STATION row: Src is the slot");
+        assert_eq!(slot(6), None);
+        assert_eq!(slot_of_event(&log, 9_999).unwrap(), None);
     }
 }

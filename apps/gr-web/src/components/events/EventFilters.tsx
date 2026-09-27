@@ -24,14 +24,14 @@ import { cn } from '../../lib/utils'
 const TEXT_DEBOUNCE_MS = 350
 const CODE_LIST_ID = 'evt-code-suggest'
 
-interface PickOption {
+export interface PickOption {
   id: string
   label: string
   hint?: string
 }
 
 /** 여러 개 고르기 — 버튼 + 체크 목록. 비우면 전부. */
-function EvtMultiPick({
+export function EvtMultiPick({
   label,
   options,
   value,

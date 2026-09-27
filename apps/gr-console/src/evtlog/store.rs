@@ -160,6 +160,14 @@ impl Store {
         })
     }
 
+    pub fn get(&self, id: i64) -> rusqlite::Result<Option<Row>> {
+        self.db.with(|c| {
+            let mut st = c.prepare(&format!("SELECT {COLS} FROM events WHERE id = ?1"))?;
+            let mut it = st.query_map([id], row_of)?;
+            Ok(it.next().transpose()?.map(|(_, r)| r))
+        })
+    }
+
     pub fn state(&self, plc: &str) -> rusqlite::Result<Option<CollState>> {
         self.db.with(|c| {
             let mut st = c.prepare("SELECT epoch, boot_id, last_seq FROM evt_state WHERE plc = ?1")?;

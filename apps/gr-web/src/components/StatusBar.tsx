@@ -20,6 +20,7 @@ import { chord } from '../lib/keys'
 import { ALL_TABS } from '../lib/tabs'
 import { workspace } from '../lib/workspace/store'
 import { visibleLabels } from './workspace/WorkspaceShell'
+import { AlertBadge } from './events/AlertBadge'
 
 export interface StatusBarProps {
   tab: string
@@ -110,6 +111,9 @@ export function StatusBar({ tab }: StatusBarProps) {
       </span>
 
       <span className="flex-1"></span>
+
+      {/* 이벤트 로그 알림(확인 안 된 것) — 0 이면 없다. 누르면 목록이 열리는, 상태바의 두 번째 조작. */}
+      <AlertBadge />
 
       {slow > 1.05 ? (
         // 폴이 물러난 상태 — 화면이 밀리고 있다는 사실을 값 대신 여기서 말한다.

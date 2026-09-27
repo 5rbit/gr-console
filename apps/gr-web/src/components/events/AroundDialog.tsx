@@ -1,8 +1,11 @@
 // 행 전후 ±30 s — **모든 PLC** 의 이벤트를 오래된 것부터 한 줄로. 누른 행을 가운데에 세운다.
+// ILOCK · STATION 행이면 바닥에 '인터록 보기'(그 스테이션의 스윔레인, 행 ±5 분).
 import { useEffect, useRef, useState } from 'react'
 import { evtApi, type EventRow } from '../../lib/evtlog/api'
 import { buildQuery, EMPTY_FILTER } from '../../lib/evtlog/evtFilterModel'
 import { aroundWindow, fmtEvtTime, fmtOffset, newestFirst } from '../../lib/evtlog/evtRowsModel'
+import { swimEntry, type SwimState } from '../../lib/evtlog/swimlaneModel'
+import { Button } from '../../lib/ui/Button'
 import { Dialog } from '../../lib/ui/Dialog'
 import { EmptyState } from '../../lib/ui/EmptyState'
 import { Skeleton } from '../../lib/ui/Skeleton'
@@ -16,11 +19,13 @@ export function AroundDialog({
   now,
   onClose,
   onCtx,
+  onSwim,
 }: {
   row: EventRow | null
   now: number
   onClose: () => void
   onCtx: (ctx: number) => void
+  onSwim?: (s: SwimState) => void
 }) {
   const [rows, setRows] = useState<EventRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -80,6 +85,20 @@ export function AroundDialog({
         ) : null
       }
       size="lg"
+      footer={
+        row && onSwim && swimEntry(row) ? (
+          <Button
+            size="sm"
+            onClick={() => {
+              const s = swimEntry(row)
+              if (s) onSwim(s)
+            }}
+            data-testid="evt-around-swim"
+          >
+            인터록 보기
+          </Button>
+        ) : undefined
+      }
       testid="evt-around-dialog"
     >
       {error ? (

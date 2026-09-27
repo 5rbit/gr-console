@@ -318,6 +318,8 @@ struct Side {
     evt_alarm: Option<(u16, i32, u64)>,
     /// EVTLOG demo: the interlock of the running station task timed out (FAULT reset at the task end).
     evt_ilk_fault: bool,
+    /// EVTLOG demo: slot whose CVNO reason (next occupied) is up until the robot's Comp.
+    evt_cvno_held: Option<u16>,
 }
 
 struct Inner {
@@ -593,6 +595,7 @@ impl DemoWorld {
                 tasks_run: 0,
                 evt_alarm: None,
                 evt_ilk_fault: false,
+                evt_cvno_held: None,
             };
             evt_init(&mut side.models, &side.contract, 1 + side.gr_index as u16);
             // seed some history so the measurement screens have content — a different amount and tire size per robot
@@ -1044,15 +1047,13 @@ impl Side {
                     let held = slot.is_some() && self.rng.random_range(0..100) < 15;
                     if let (Some(s), true) = (slot, held) {
                         evt(grm, ntp, ev::ST_CVNO_REASON, s, 0b10, 0, 0);
+                        self.evt_cvno_held = Some(s);
                     }
                     evt(&mut self.models, ntp, ev::ILK_PO, 0, 0b01, 0, work);
                     if let Some(s) = slot {
                         cv_out_set(grm, ntp, cv_out, s, 0b01, 0);
                         let pi = demo_cv_in(s, tick);
                         evt(&mut self.models, ntp, ev::ILK_PI, 0, pi | 0b0010, pi, work);
-                        if held {
-                            evt(grm, ntp, ev::ST_CVNO_REASON, s, 0, 0b10, 0);
-                        }
                         // 1 in 12 (after the first tasks): the interlock times out → FAULT, reset when the task ends
                         if self.tasks_run > 2 && self.rng.random_range(0..12) == 0 {
                             evt(&mut self.models, ntp, ev::ILK_TIMEOUT, 400, 3118, 0, work);
@@ -1081,6 +1082,9 @@ impl Side {
                 }
                 600 if t.cell.is_station() => {
                     evt(&mut self.models, ntp, ev::ILK_PO, 0, 0b10, 0b01, work);
+                    if let Some(s) = self.evt_cvno_held.take() {
+                        evt(grm, ntp, ev::ST_CVNO_REASON, s, 0, 0b10, 0);
+                    }
                     if let Some(s) = demo_slot(&t.cell) {
                         cv_out_set(grm, ntp, cv_out, s, 0b10, 0b01);
                         if t.task_type == TaskType::Pick.code() {
