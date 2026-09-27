@@ -22,12 +22,12 @@
       "text_ko": 175
     },
     "WARN": {
-      "entries": 70,
-      "scl_bits": 2,
+      "entries": 102,
+      "scl_bits": 34,
       "hmi_only": 68,
-      "bits_with_code": 70,
-      "with_text": 70,
-      "text_en_hmi": 70,
+      "bits_with_code": 102,
+      "with_text": 102,
+      "text_en_hmi": 102,
       "text_en_errorlist": 0,
       "text_ko": 20
     },
@@ -385,7 +385,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:173"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:282"
     },
     {
       "area": "FAULT",
@@ -399,7 +399,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:174"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:283"
     },
     {
       "area": "FAULT",
@@ -413,7 +413,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:175"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:284"
     },
     {
       "area": "FAULT",
@@ -427,7 +427,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:176"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:285"
     },
     {
       "area": "FAULT",
@@ -441,7 +441,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:177"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:286"
     },
     {
       "area": "FAULT",
@@ -455,7 +455,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:178"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:287"
     },
     {
       "area": "FAULT",
@@ -469,7 +469,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:179"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:288"
     },
     {
       "area": "FAULT",
@@ -483,7 +483,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:180"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:289"
     },
     {
       "area": "FAULT",
@@ -497,7 +497,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:181"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:290"
     },
     {
       "area": "FAULT",
@@ -511,7 +511,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:182"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:291"
     },
     {
       "area": "FAULT",
@@ -525,7 +525,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:183"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:292"
     },
     {
       "area": "FAULT",
@@ -539,7 +539,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:184"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:293"
     },
     {
       "area": "FAULT",
@@ -553,7 +553,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:185"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:294"
     },
     {
       "area": "FAULT",
@@ -567,7 +567,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:186"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:295"
     },
     {
       "area": "FAULT",
@@ -581,7 +581,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:187"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:296"
     },
     {
       "area": "FAULT",
@@ -595,7 +595,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:188"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:297"
     },
     {
       "area": "FAULT",
@@ -609,7 +609,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:189"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:298"
     },
     {
       "area": "FAULT",
@@ -623,7 +623,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:190"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:299"
     },
     {
       "area": "FAULT",
@@ -637,7 +637,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:191"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:300"
     },
     {
       "area": "FAULT",
@@ -651,7 +651,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:192"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:301"
     },
     {
       "area": "FAULT",
@@ -665,7 +665,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:193"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:302"
     },
     {
       "area": "FAULT",
@@ -679,7 +679,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:194"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:303"
     },
     {
       "area": "FAULT",
@@ -693,7 +693,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:195"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:304"
     },
     {
       "area": "FAULT",
@@ -707,7 +707,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:196"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:305"
     },
     {
       "area": "FAULT",
@@ -721,7 +721,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:197"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:306"
     },
     {
       "area": "FAULT",
@@ -735,7 +735,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:198"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:307"
     },
     {
       "area": "FAULT",
@@ -749,7 +749,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:199"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:308"
     },
     {
       "area": "FAULT",
@@ -763,7 +763,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:200"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:309"
     },
     {
       "area": "FAULT",
@@ -777,7 +777,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:201"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:310"
     },
     {
       "area": "FAULT",
@@ -791,7 +791,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:202"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:311"
     },
     {
       "area": "FAULT",
@@ -805,7 +805,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:203"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:312"
     },
     {
       "area": "FAULT",
@@ -819,7 +819,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:204"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:313"
     },
     {
       "area": "FAULT",
@@ -833,7 +833,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:206"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:315"
     },
     {
       "area": "FAULT",
@@ -847,7 +847,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:207"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:316"
     },
     {
       "area": "FAULT",
@@ -861,7 +861,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:208"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:317"
     },
     {
       "area": "FAULT",
@@ -875,7 +875,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:209"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:318"
     },
     {
       "area": "FAULT",
@@ -889,7 +889,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:210"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:319"
     },
     {
       "area": "FAULT",
@@ -903,7 +903,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:211"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:320"
     },
     {
       "area": "FAULT",
@@ -917,7 +917,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:212"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:321"
     },
     {
       "area": "FAULT",
@@ -931,7 +931,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:213"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:322"
     },
     {
       "area": "FAULT",
@@ -945,7 +945,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:214"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:323"
     },
     {
       "area": "FAULT",
@@ -959,7 +959,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:215"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:324"
     },
     {
       "area": "FAULT",
@@ -973,7 +973,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:216"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:325"
     },
     {
       "area": "FAULT",
@@ -987,7 +987,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:217"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:326"
     },
     {
       "area": "FAULT",
@@ -1001,7 +1001,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:218"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:327"
     },
     {
       "area": "FAULT",
@@ -1015,7 +1015,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:219"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:328"
     },
     {
       "area": "FAULT",
@@ -1029,7 +1029,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:220"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:329"
     },
     {
       "area": "FAULT",
@@ -1043,7 +1043,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:221"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:330"
     },
     {
       "area": "FAULT",
@@ -1057,7 +1057,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:222"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:331"
     },
     {
       "area": "FAULT",
@@ -1071,7 +1071,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:223"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:332"
     },
     {
       "area": "FAULT",
@@ -1085,7 +1085,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:224"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:333"
     },
     {
       "area": "FAULT",
@@ -1099,7 +1099,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:225"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:334"
     },
     {
       "area": "FAULT",
@@ -1113,7 +1113,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:226"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:335"
     },
     {
       "area": "FAULT",
@@ -1127,7 +1127,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:227"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:336"
     },
     {
       "area": "FAULT",
@@ -1141,7 +1141,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:228"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:337"
     },
     {
       "area": "FAULT",
@@ -1155,7 +1155,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:229"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:338"
     },
     {
       "area": "FAULT",
@@ -1169,7 +1169,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:230"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:339"
     },
     {
       "area": "FAULT",
@@ -1183,7 +1183,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:231"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:340"
     },
     {
       "area": "FAULT",
@@ -1197,7 +1197,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:232"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:341"
     },
     {
       "area": "FAULT",
@@ -1211,7 +1211,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:233"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:342"
     },
     {
       "area": "FAULT",
@@ -1225,7 +1225,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:234"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:343"
     },
     {
       "area": "FAULT",
@@ -1239,7 +1239,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:235"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:344"
     },
     {
       "area": "FAULT",
@@ -1253,7 +1253,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:236"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:345"
     },
     {
       "area": "FAULT",
@@ -1267,7 +1267,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:237"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:346"
     },
     {
       "area": "FAULT",
@@ -1281,7 +1281,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:243"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:352"
     },
     {
       "area": "FAULT",
@@ -1295,7 +1295,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:244"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:353"
     },
     {
       "area": "FAULT",
@@ -1309,7 +1309,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:245"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:354"
     },
     {
       "area": "FAULT",
@@ -1323,7 +1323,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:246"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:355"
     },
     {
       "area": "FAULT",
@@ -1337,7 +1337,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:247"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:356"
     },
     {
       "area": "FAULT",
@@ -1351,7 +1351,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:248"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:357"
     },
     {
       "area": "FAULT",
@@ -1365,7 +1365,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:249"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:358"
     },
     {
       "area": "FAULT",
@@ -1379,7 +1379,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:250"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:359"
     },
     {
       "area": "FAULT",
@@ -1393,7 +1393,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:251"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:360"
     },
     {
       "area": "FAULT",
@@ -1407,7 +1407,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:252"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:361"
     },
     {
       "area": "FAULT",
@@ -1421,7 +1421,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:253"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:362"
     },
     {
       "area": "FAULT",
@@ -1435,7 +1435,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:254"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:363"
     },
     {
       "area": "FAULT",
@@ -1449,7 +1449,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:255"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:364"
     },
     {
       "area": "FAULT",
@@ -1463,7 +1463,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:256"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:365"
     },
     {
       "area": "FAULT",
@@ -1477,7 +1477,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:257"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:366"
     },
     {
       "area": "FAULT",
@@ -1491,7 +1491,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:258"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:367"
     },
     {
       "area": "FAULT",
@@ -1505,7 +1505,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:259"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:368"
     },
     {
       "area": "FAULT",
@@ -1519,7 +1519,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:260"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:369"
     },
     {
       "area": "FAULT",
@@ -1533,7 +1533,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:261"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:370"
     },
     {
       "area": "FAULT",
@@ -1547,7 +1547,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:262"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:371"
     },
     {
       "area": "FAULT",
@@ -1561,7 +1561,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:263"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:372"
     },
     {
       "area": "FAULT",
@@ -1575,7 +1575,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:264"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:373"
     },
     {
       "area": "FAULT",
@@ -1589,7 +1589,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:265"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:374"
     },
     {
       "area": "FAULT",
@@ -1603,7 +1603,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:266"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:375"
     },
     {
       "area": "FAULT",
@@ -1617,7 +1617,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:267"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:376"
     },
     {
       "area": "FAULT",
@@ -1631,7 +1631,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:268"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:377"
     },
     {
       "area": "FAULT",
@@ -1645,7 +1645,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:269"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:378"
     },
     {
       "area": "FAULT",
@@ -1659,7 +1659,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:270"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:379"
     },
     {
       "area": "FAULT",
@@ -1673,7 +1673,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:271"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:380"
     },
     {
       "area": "FAULT",
@@ -1687,7 +1687,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:272"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:381"
     },
     {
       "area": "FAULT",
@@ -1701,7 +1701,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:273"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:382"
     },
     {
       "area": "FAULT",
@@ -1715,7 +1715,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:274"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:383"
     },
     {
       "area": "FAULT",
@@ -1799,7 +1799,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/ChangeIP.scl:234"
+      "where": "GRM_PLC/blocks/ChangeIP.scl:277"
     },
     {
       "area": "FAULT",
@@ -1813,7 +1813,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/ChangeIP.scl:236"
+      "where": "GRM_PLC/blocks/ChangeIP.scl:279"
     },
     {
       "area": "FAULT",
@@ -1827,7 +1827,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:71"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:101"
     },
     {
       "area": "FAULT",
@@ -1841,7 +1841,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:72"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:103"
     },
     {
       "area": "FAULT",
@@ -1855,7 +1855,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:73"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:105"
     },
     {
       "area": "FAULT",
@@ -1869,7 +1869,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:74"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:107"
     },
     {
       "area": "FAULT",
@@ -1883,7 +1883,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:75"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:109"
     },
     {
       "area": "FAULT",
@@ -1897,7 +1897,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:76"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:111"
     },
     {
       "area": "FAULT",
@@ -1911,7 +1911,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:77"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:113"
     },
     {
       "area": "FAULT",
@@ -1925,7 +1925,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:78"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:115"
     },
     {
       "area": "FAULT",
@@ -1939,7 +1939,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:79"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:117"
     },
     {
       "area": "FAULT",
@@ -1953,7 +1953,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:80"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:119"
     },
     {
       "area": "FAULT",
@@ -1967,7 +1967,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:81"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:121"
     },
     {
       "area": "FAULT",
@@ -1981,7 +1981,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:82"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:123"
     },
     {
       "area": "FAULT",
@@ -1995,7 +1995,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:83"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:125"
     },
     {
       "area": "FAULT",
@@ -2009,7 +2009,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:84"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:127"
     },
     {
       "area": "FAULT",
@@ -2023,7 +2023,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:85"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:129"
     },
     {
       "area": "FAULT",
@@ -2037,7 +2037,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:86"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:131"
     },
     {
       "area": "FAULT",
@@ -2051,7 +2051,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:87"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:133"
     },
     {
       "area": "FAULT",
@@ -2065,7 +2065,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:88"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:135"
     },
     {
       "area": "FAULT",
@@ -2079,7 +2079,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:89"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:137"
     },
     {
       "area": "FAULT",
@@ -2093,7 +2093,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:90"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:139"
     },
     {
       "area": "FAULT",
@@ -2107,7 +2107,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:91"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:141"
     },
     {
       "area": "FAULT",
@@ -2121,7 +2121,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:92"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:143"
     },
     {
       "area": "FAULT",
@@ -2135,7 +2135,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:93"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:145"
     },
     {
       "area": "FAULT",
@@ -2149,7 +2149,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:94"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:147"
     },
     {
       "area": "FAULT",
@@ -2163,7 +2163,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:95"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:149"
     },
     {
       "area": "FAULT",
@@ -2177,7 +2177,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:96"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:151"
     },
     {
       "area": "FAULT",
@@ -2191,7 +2191,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:97"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:153"
     },
     {
       "area": "FAULT",
@@ -2205,7 +2205,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:98"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:155"
     },
     {
       "area": "FAULT",
@@ -2219,7 +2219,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:99"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:157"
     },
     {
       "area": "FAULT",
@@ -2233,7 +2233,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:100"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:159"
     },
     {
       "area": "FAULT",
@@ -2247,7 +2247,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:101"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:161"
     },
     {
       "area": "FAULT",
@@ -2261,7 +2261,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:102"
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:163"
     },
     {
       "area": "FAULT",
@@ -3152,6 +3152,422 @@
       "en_src": "hmi",
       "ko_src": "errorlist",
       "where": "GRM_PLC/blocks/CL_ForcedMode.scl:81"
+    },
+    {
+      "area": "WARN",
+      "bit": 320,
+      "byte": 40,
+      "bit_in_byte": 0,
+      "code": 1101,
+      "class": "Warning",
+      "text_en": "Station 01 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:389"
+    },
+    {
+      "area": "WARN",
+      "bit": 321,
+      "byte": 40,
+      "bit_in_byte": 1,
+      "code": 1102,
+      "class": "Warning",
+      "text_en": "Station 02 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:390"
+    },
+    {
+      "area": "WARN",
+      "bit": 322,
+      "byte": 40,
+      "bit_in_byte": 2,
+      "code": 1103,
+      "class": "Warning",
+      "text_en": "Station 03 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:391"
+    },
+    {
+      "area": "WARN",
+      "bit": 323,
+      "byte": 40,
+      "bit_in_byte": 3,
+      "code": 1104,
+      "class": "Warning",
+      "text_en": "Station 04 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:392"
+    },
+    {
+      "area": "WARN",
+      "bit": 324,
+      "byte": 40,
+      "bit_in_byte": 4,
+      "code": 1105,
+      "class": "Warning",
+      "text_en": "Station 05 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:393"
+    },
+    {
+      "area": "WARN",
+      "bit": 325,
+      "byte": 40,
+      "bit_in_byte": 5,
+      "code": 1106,
+      "class": "Warning",
+      "text_en": "Station 06 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:394"
+    },
+    {
+      "area": "WARN",
+      "bit": 326,
+      "byte": 40,
+      "bit_in_byte": 6,
+      "code": 1107,
+      "class": "Warning",
+      "text_en": "Station 07 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:395"
+    },
+    {
+      "area": "WARN",
+      "bit": 327,
+      "byte": 40,
+      "bit_in_byte": 7,
+      "code": 1108,
+      "class": "Warning",
+      "text_en": "Station 08 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:396"
+    },
+    {
+      "area": "WARN",
+      "bit": 328,
+      "byte": 41,
+      "bit_in_byte": 0,
+      "code": 1109,
+      "class": "Warning",
+      "text_en": "Station 09 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:397"
+    },
+    {
+      "area": "WARN",
+      "bit": 329,
+      "byte": 41,
+      "bit_in_byte": 1,
+      "code": 1110,
+      "class": "Warning",
+      "text_en": "Station 10 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:398"
+    },
+    {
+      "area": "WARN",
+      "bit": 330,
+      "byte": 41,
+      "bit_in_byte": 2,
+      "code": 1111,
+      "class": "Warning",
+      "text_en": "Station 11 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:399"
+    },
+    {
+      "area": "WARN",
+      "bit": 331,
+      "byte": 41,
+      "bit_in_byte": 3,
+      "code": 1112,
+      "class": "Warning",
+      "text_en": "Station 12 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:400"
+    },
+    {
+      "area": "WARN",
+      "bit": 332,
+      "byte": 41,
+      "bit_in_byte": 4,
+      "code": 1113,
+      "class": "Warning",
+      "text_en": "Station 13 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:401"
+    },
+    {
+      "area": "WARN",
+      "bit": 333,
+      "byte": 41,
+      "bit_in_byte": 5,
+      "code": 1114,
+      "class": "Warning",
+      "text_en": "Station 14 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:402"
+    },
+    {
+      "area": "WARN",
+      "bit": 334,
+      "byte": 41,
+      "bit_in_byte": 6,
+      "code": 1115,
+      "class": "Warning",
+      "text_en": "Station 15 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:403"
+    },
+    {
+      "area": "WARN",
+      "bit": 335,
+      "byte": 41,
+      "bit_in_byte": 7,
+      "code": 1116,
+      "class": "Warning",
+      "text_en": "Station 16 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:404"
+    },
+    {
+      "area": "WARN",
+      "bit": 336,
+      "byte": 42,
+      "bit_in_byte": 0,
+      "code": 1117,
+      "class": "Warning",
+      "text_en": "Station 17 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:405"
+    },
+    {
+      "area": "WARN",
+      "bit": 337,
+      "byte": 42,
+      "bit_in_byte": 1,
+      "code": 1118,
+      "class": "Warning",
+      "text_en": "Station 18 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:406"
+    },
+    {
+      "area": "WARN",
+      "bit": 338,
+      "byte": 42,
+      "bit_in_byte": 2,
+      "code": 1119,
+      "class": "Warning",
+      "text_en": "Station 19 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:407"
+    },
+    {
+      "area": "WARN",
+      "bit": 339,
+      "byte": 42,
+      "bit_in_byte": 3,
+      "code": 1120,
+      "class": "Warning",
+      "text_en": "Station 20 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:408"
+    },
+    {
+      "area": "WARN",
+      "bit": 340,
+      "byte": 42,
+      "bit_in_byte": 4,
+      "code": 1121,
+      "class": "Warning",
+      "text_en": "Station 21 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:409"
+    },
+    {
+      "area": "WARN",
+      "bit": 341,
+      "byte": 42,
+      "bit_in_byte": 5,
+      "code": 1122,
+      "class": "Warning",
+      "text_en": "Station 22 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:410"
+    },
+    {
+      "area": "WARN",
+      "bit": 342,
+      "byte": 42,
+      "bit_in_byte": 6,
+      "code": 1123,
+      "class": "Warning",
+      "text_en": "Station 23 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:411"
+    },
+    {
+      "area": "WARN",
+      "bit": 343,
+      "byte": 42,
+      "bit_in_byte": 7,
+      "code": 1124,
+      "class": "Warning",
+      "text_en": "Station 24 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:412"
+    },
+    {
+      "area": "WARN",
+      "bit": 344,
+      "byte": 43,
+      "bit_in_byte": 0,
+      "code": 1125,
+      "class": "Warning",
+      "text_en": "Station 25 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:413"
+    },
+    {
+      "area": "WARN",
+      "bit": 345,
+      "byte": 43,
+      "bit_in_byte": 1,
+      "code": 1126,
+      "class": "Warning",
+      "text_en": "Station 26 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:414"
+    },
+    {
+      "area": "WARN",
+      "bit": 346,
+      "byte": 43,
+      "bit_in_byte": 2,
+      "code": 1127,
+      "class": "Warning",
+      "text_en": "Station 27 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:415"
+    },
+    {
+      "area": "WARN",
+      "bit": 347,
+      "byte": 43,
+      "bit_in_byte": 3,
+      "code": 1128,
+      "class": "Warning",
+      "text_en": "Station 28 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:416"
+    },
+    {
+      "area": "WARN",
+      "bit": 348,
+      "byte": 43,
+      "bit_in_byte": 4,
+      "code": 1129,
+      "class": "Warning",
+      "text_en": "Station 29 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:417"
+    },
+    {
+      "area": "WARN",
+      "bit": 349,
+      "byte": 43,
+      "bit_in_byte": 5,
+      "code": 1130,
+      "class": "Warning",
+      "text_en": "Station 30 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:418"
+    },
+    {
+      "area": "WARN",
+      "bit": 350,
+      "byte": 43,
+      "bit_in_byte": 6,
+      "code": 1131,
+      "class": "Warning",
+      "text_en": "Station 31 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:419"
+    },
+    {
+      "area": "WARN",
+      "bit": 351,
+      "byte": 43,
+      "bit_in_byte": 7,
+      "code": 1132,
+      "class": "Warning",
+      "text_en": "Station 32 - Measuring Error",
+      "text_ko": "",
+      "origin": "scl",
+      "en_src": "hmi",
+      "where": "GRM_PLC/blocks/FB_CL_Stations.scl:420"
     },
     {
       "area": "WARN",

@@ -398,7 +398,7 @@ values = { 0 = "Robot AntiCol", 1 = "Next occupied", 2 = "Data/item mismatch", 3
 [enum.st_meas]
 plc_const = true
 plc = ["GRM"]
-values = { 1 = "Start", 2 = "Done", 3 = "Error", 4 = "Duplicate" }
+values = { 1 = "Start", 2 = "Done", 3 = "Error", 4 = "Duplicate", 5 = "Error X offset", 6 = "Error Y offset", 7 = "Error diameter", 8 = "No data 5 s" }
 
 # ST_STATUS bits
 [enum.st_status]

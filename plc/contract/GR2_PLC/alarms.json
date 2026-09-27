@@ -77,7 +77,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:52"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:53"
     },
     {
       "area": "FAULT",
@@ -91,7 +91,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:55"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:56"
     },
     {
       "area": "FAULT",
@@ -105,7 +105,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:58"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:59"
     },
     {
       "area": "FAULT",
@@ -143,7 +143,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:67"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:68"
     },
     {
       "area": "FAULT",
@@ -157,7 +157,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:69"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:70"
     },
     {
       "area": "FAULT",
@@ -171,7 +171,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:70"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:71"
     },
     {
       "area": "FAULT",
@@ -185,7 +185,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:77"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:78"
     },
     {
       "area": "FAULT",
@@ -199,7 +199,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:82"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:83"
     },
     {
       "area": "FAULT",
@@ -447,7 +447,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:154"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:155"
     },
     {
       "area": "FAULT",
@@ -461,7 +461,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Ready.scl:67"
+      "where": "GR2_PLC/blocks/005. PL/PL_Ready.scl:87"
     },
     {
       "area": "FAULT",
@@ -514,7 +514,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:114"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:163"
     },
     {
       "area": "FAULT",
@@ -596,7 +596,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:165"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:166"
     },
     {
       "area": "FAULT",
@@ -610,7 +610,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:172"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:173"
     },
     {
       "area": "FAULT",
@@ -624,7 +624,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/200. Drive/1. Control/DriveEnable.scl:71"
+      "where": "GR2_PLC/blocks/200. Drive/1. Control/DriveEnable.scl:108"
     },
     {
       "area": "FAULT",
@@ -638,7 +638,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:179"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:180"
     },
     {
       "area": "FAULT",
@@ -691,7 +691,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/200. Drive/1. Control/Position/Move/DriveAbsPos.scl:80"
+      "where": "GR2_PLC/blocks/200. Drive/1. Control/Position/Move/DriveAbsPos.scl:98"
     },
     {
       "area": "FAULT",
@@ -718,7 +718,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:245"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:246"
     },
     {
       "area": "FAULT",
@@ -732,7 +732,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:254"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:255"
     },
     {
       "area": "FAULT",
@@ -746,7 +746,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:247"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:248"
     },
     {
       "area": "FAULT",
@@ -760,7 +760,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:256"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:257"
     },
     {
       "area": "FAULT",
@@ -774,7 +774,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:135"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:186"
     },
     {
       "area": "FAULT",
@@ -788,7 +788,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:136"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:187"
     },
     {
       "area": "FAULT",
@@ -854,7 +854,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:304"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:313"
     },
     {
       "area": "FAULT",
@@ -868,7 +868,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:192"
+      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:233"
     },
     {
       "area": "FAULT",
@@ -882,7 +882,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:216"
+      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:273"
     },
     {
       "area": "FAULT",
@@ -896,7 +896,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:195"
+      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:244"
     },
     {
       "area": "FAULT",
@@ -910,7 +910,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:219"
+      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:284"
     },
     {
       "area": "FAULT",
@@ -924,7 +924,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:89"
+      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:98"
     },
     {
       "area": "FAULT",
@@ -938,7 +938,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:93"
+      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:110"
     },
     {
       "area": "FAULT",
@@ -952,7 +952,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/200. Drive/1. Control/DriveEnable.scl:37"
+      "where": "GR2_PLC/blocks/200. Drive/1. Control/DriveEnable.scl:46"
     },
     {
       "area": "FAULT",
@@ -966,7 +966,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:233"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:234"
     },
     {
       "area": "FAULT",
@@ -980,7 +980,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:234"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:235"
     },
     {
       "area": "FAULT",
@@ -994,7 +994,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/003. CL/AntiColChangePos_V4.scl:151"
+      "where": "GR2_PLC/blocks/003. CL/AntiColChangePos_V4.scl:176"
     },
     {
       "area": "FAULT",
@@ -1008,7 +1008,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/003. CL/AntiColChangePos_V4.scl:141"
+      "where": "GR2_PLC/blocks/003. CL/AntiColChangePos_V4.scl:150"
     },
     {
       "area": "FAULT",
@@ -1022,7 +1022,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/003. CL/AntiColChangePos_V4.scl:149"
+      "where": "GR2_PLC/blocks/003. CL/AntiColChangePos_V4.scl:166"
     },
     {
       "area": "FAULT",
@@ -1036,7 +1036,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:346"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:363"
     },
     {
       "area": "FAULT",
@@ -1050,7 +1050,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:347"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:364"
     },
     {
       "area": "FAULT",
@@ -1064,7 +1064,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:348"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:365"
     },
     {
       "area": "FAULT",
@@ -1078,7 +1078,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:349"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:366"
     },
     {
       "area": "FAULT",
@@ -1092,7 +1092,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:443"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:484"
     },
     {
       "area": "FAULT",
@@ -1106,7 +1106,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:444"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:485"
     },
     {
       "area": "FAULT",
@@ -1120,7 +1120,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:445"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:486"
     },
     {
       "area": "FAULT",
@@ -1198,7 +1198,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:114"
+      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:147"
     },
     {
       "area": "FAULT",
@@ -1212,7 +1212,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:101"
+      "where": "GR2_PLC/blocks/CL_AntiCollision_V4.scl:126"
     },
     {
       "area": "FAULT",
@@ -1226,7 +1226,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:166"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:167"
     },
     {
       "area": "FAULT",
@@ -1240,7 +1240,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:173"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:174"
     },
     {
       "area": "FAULT",
@@ -1254,7 +1254,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/200. Drive/1. Control/DriveEnable.scl:72"
+      "where": "GR2_PLC/blocks/200. Drive/1. Control/DriveEnable.scl:110"
     },
     {
       "area": "FAULT",
@@ -1268,7 +1268,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:183"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:184"
     },
     {
       "area": "FAULT",
@@ -1282,7 +1282,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:663"
+      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:754"
     },
     {
       "area": "FAULT",
@@ -1322,7 +1322,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/200. Drive/1. Control/Position/Move/DriveAbsPos.scl:81"
+      "where": "GR2_PLC/blocks/200. Drive/1. Control/Position/Move/DriveAbsPos.scl:100"
     },
     {
       "area": "FAULT",
@@ -1349,7 +1349,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:261"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:262"
     },
     {
       "area": "FAULT",
@@ -1363,7 +1363,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:266"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:267"
     },
     {
       "area": "FAULT",
@@ -1377,7 +1377,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:140"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:191"
     },
     {
       "area": "FAULT",
@@ -1391,7 +1391,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:141"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:192"
     },
     {
       "area": "FAULT",
@@ -1513,7 +1513,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:351"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:368"
     },
     {
       "area": "FAULT",
@@ -1552,7 +1552,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:167"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:168"
     },
     {
       "area": "FAULT",
@@ -1566,7 +1566,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:174"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:175"
     },
     {
       "area": "FAULT",
@@ -1580,7 +1580,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/200. Drive/1. Control/DriveEnable.scl:73"
+      "where": "GR2_PLC/blocks/200. Drive/1. Control/DriveEnable.scl:112"
     },
     {
       "area": "FAULT",
@@ -1594,7 +1594,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:187"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:188"
     },
     {
       "area": "FAULT",
@@ -1608,7 +1608,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:664"
+      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:755"
     },
     {
       "area": "FAULT",
@@ -1648,7 +1648,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/200. Drive/1. Control/Position/Move/DriveAbsPos.scl:82"
+      "where": "GR2_PLC/blocks/200. Drive/1. Control/Position/Move/DriveAbsPos.scl:102"
     },
     {
       "area": "FAULT",
@@ -1675,7 +1675,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:271"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:272"
     },
     {
       "area": "FAULT",
@@ -1689,7 +1689,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:276"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:277"
     },
     {
       "area": "FAULT",
@@ -1703,7 +1703,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:145"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:196"
     },
     {
       "area": "FAULT",
@@ -1717,7 +1717,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:146"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:197"
     },
     {
       "area": "FAULT",
@@ -1744,7 +1744,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/200. Drive/11.HomingSequence/DriveHoming.scl:647"
+      "where": "GR2_PLC/blocks/200. Drive/11.HomingSequence/DriveHoming.scl:755"
     },
     {
       "area": "FAULT",
@@ -1785,7 +1785,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1855"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1923"
     },
     {
       "area": "FAULT",
@@ -1799,7 +1799,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1066"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1114"
     },
     {
       "area": "FAULT",
@@ -1813,7 +1813,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:354"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:371"
     },
     {
       "area": "FAULT",
@@ -1827,7 +1827,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:355"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:372"
     },
     {
       "area": "FAULT",
@@ -1867,7 +1867,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:421"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:438"
     },
     {
       "area": "FAULT",
@@ -1881,7 +1881,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:424"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:441"
     },
     {
       "area": "FAULT",
@@ -1935,7 +1935,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/200. Drive/11.HomingSequence/DriveHoming.scl:648"
+      "where": "GR2_PLC/blocks/200. Drive/11.HomingSequence/DriveHoming.scl:756"
     },
     {
       "area": "FAULT",
@@ -1949,7 +1949,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:168"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:169"
     },
     {
       "area": "FAULT",
@@ -1963,7 +1963,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:175"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:176"
     },
     {
       "area": "FAULT",
@@ -1977,7 +1977,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/200. Drive/1. Control/DriveEnable.scl:74"
+      "where": "GR2_PLC/blocks/200. Drive/1. Control/DriveEnable.scl:114"
     },
     {
       "area": "FAULT",
@@ -1991,7 +1991,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:192"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:193"
     },
     {
       "area": "FAULT",
@@ -2005,7 +2005,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:665"
+      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:756"
     },
     {
       "area": "FAULT",
@@ -2045,7 +2045,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/200. Drive/1. Control/Position/Move/DriveAbsPos.scl:83"
+      "where": "GR2_PLC/blocks/200. Drive/1. Control/Position/Move/DriveAbsPos.scl:104"
     },
     {
       "area": "FAULT",
@@ -2072,7 +2072,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:282"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:283"
     },
     {
       "area": "FAULT",
@@ -2098,7 +2098,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:151"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:202"
     },
     {
       "area": "FAULT",
@@ -2112,7 +2112,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:152"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:203"
     },
     {
       "area": "FAULT",
@@ -2165,7 +2165,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1546"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1594"
     },
     {
       "area": "FAULT",
@@ -2191,7 +2191,7 @@
       "text_en": "",
       "text_ko": "",
       "origin": "scl",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1549"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1597"
     },
     {
       "area": "FAULT",
@@ -2205,7 +2205,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:357"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:374"
     },
     {
       "area": "FAULT",
@@ -2219,7 +2219,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:358"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:375"
     },
     {
       "area": "FAULT",
@@ -2245,7 +2245,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:612"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:613"
     },
     {
       "area": "FAULT",
@@ -2259,7 +2259,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1086"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1134"
     },
     {
       "area": "FAULT",
@@ -2286,7 +2286,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:561"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:562"
     },
     {
       "area": "FAULT",
@@ -2300,7 +2300,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:598"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:599"
     },
     {
       "area": "FAULT",
@@ -2314,7 +2314,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:563"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:564"
     },
     {
       "area": "FAULT",
@@ -2328,7 +2328,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:618"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:619"
     },
     {
       "area": "FAULT",
@@ -2342,7 +2342,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:815"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:855"
     },
     {
       "area": "FAULT",
@@ -2394,7 +2394,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1580"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1634"
     },
     {
       "area": "FAULT",
@@ -2408,7 +2408,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1279"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1327"
     },
     {
       "area": "FAULT",
@@ -2422,7 +2422,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:605"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:606"
     },
     {
       "area": "FAULT",
@@ -2436,7 +2436,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:707"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:747"
     },
     {
       "area": "FAULT",
@@ -2450,7 +2450,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/003. CL/CL_Common_Command.scl:157"
+      "where": "GR2_PLC/blocks/003. CL/CL_Common_Command.scl:251"
     },
     {
       "area": "FAULT",
@@ -2477,7 +2477,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/003. CL/CL_Common_Command.scl:205"
+      "where": "GR2_PLC/blocks/003. CL/CL_Common_Command.scl:332"
     },
     {
       "area": "FAULT",
@@ -2491,7 +2491,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/003. CL/CL_Common_Command.scl:155"
+      "where": "GR2_PLC/blocks/003. CL/CL_Common_Command.scl:243"
     },
     {
       "area": "FAULT",
@@ -2505,7 +2505,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:939"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:979"
     },
     {
       "area": "FAULT",
@@ -2568,7 +2568,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2129"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2209"
     },
     {
       "area": "FAULT",
@@ -2582,7 +2582,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2130"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2210"
     },
     {
       "area": "FAULT",
@@ -2596,7 +2596,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2134"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2214"
     },
     {
       "area": "FAULT",
@@ -2610,7 +2610,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2135"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2215"
     },
     {
       "area": "FAULT",
@@ -2624,7 +2624,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2136"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2216"
     },
     {
       "area": "FAULT",
@@ -2638,7 +2638,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2140"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2220"
     },
     {
       "area": "FAULT",
@@ -2652,7 +2652,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2141"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2221"
     },
     {
       "area": "FAULT",
@@ -2666,7 +2666,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2142"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2222"
     },
     {
       "area": "FAULT",
@@ -2680,7 +2680,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2146"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2226"
     },
     {
       "area": "FAULT",
@@ -2694,7 +2694,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2147"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2227"
     },
     {
       "area": "FAULT",
@@ -2708,7 +2708,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2148"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2228"
     },
     {
       "area": "FAULT",
@@ -2722,7 +2722,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2149"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2229"
     },
     {
       "area": "FAULT",
@@ -2736,7 +2736,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2150"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2230"
     },
     {
       "area": "FAULT",
@@ -2750,7 +2750,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2151"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2231"
     },
     {
       "area": "FAULT",
@@ -2764,7 +2764,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2155"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2235"
     },
     {
       "area": "FAULT",
@@ -2778,7 +2778,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2156"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2236"
     },
     {
       "area": "FAULT",
@@ -2792,7 +2792,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2157"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2237"
     },
     {
       "area": "FAULT",
@@ -2806,7 +2806,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2158"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2238"
     },
     {
       "area": "FAULT",
@@ -2820,7 +2820,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2159"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2239"
     },
     {
       "area": "FAULT",
@@ -2834,7 +2834,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2163"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2243"
     },
     {
       "area": "FAULT",
@@ -2848,7 +2848,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2164"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2244"
     },
     {
       "area": "FAULT",
@@ -2862,7 +2862,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2165"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2245"
     },
     {
       "area": "FAULT",
@@ -2876,7 +2876,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2166"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2246"
     },
     {
       "area": "FAULT",
@@ -2890,7 +2890,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2167"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2247"
     },
     {
       "area": "FAULT",
@@ -2904,7 +2904,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2171"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2251"
     },
     {
       "area": "FAULT",
@@ -2918,7 +2918,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2172"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2252"
     },
     {
       "area": "FAULT",
@@ -2932,7 +2932,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2173"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2253"
     },
     {
       "area": "FAULT",
@@ -2946,7 +2946,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2174"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2254"
     },
     {
       "area": "FAULT",
@@ -2960,7 +2960,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2175"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2255"
     },
     {
       "area": "FAULT",
@@ -2974,7 +2974,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2176"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2256"
     },
     {
       "area": "FAULT",
@@ -2988,7 +2988,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2180"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2260"
     },
     {
       "area": "FAULT",
@@ -3002,7 +3002,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2181"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2261"
     },
     {
       "area": "FAULT",
@@ -3016,7 +3016,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2182"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2262"
     },
     {
       "area": "FAULT",
@@ -3030,7 +3030,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2183"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2263"
     },
     {
       "area": "FAULT",
@@ -3044,7 +3044,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2184"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2264"
     },
     {
       "area": "FAULT",
@@ -3058,7 +3058,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2185"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:2265"
     },
     {
       "area": "FAULT",
@@ -3072,7 +3072,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:85"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:132"
     },
     {
       "area": "FAULT",
@@ -3086,7 +3086,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:86"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:133"
     },
     {
       "area": "FAULT",
@@ -3100,7 +3100,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:87"
+      "where": "GR2_PLC/blocks/005. PL/PL_Init.scl:134"
     },
     {
       "area": "FAULT",
@@ -3114,7 +3114,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:459"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:500"
     },
     {
       "area": "FAULT",
@@ -3217,7 +3217,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:463"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:504"
     },
     {
       "area": "FAULT",
@@ -3231,7 +3231,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:467"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:508"
     },
     {
       "area": "FAULT",
@@ -3328,7 +3328,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/800. HMI/UL_ParseOpcUaCommand.scl:223"
+      "where": "GR2_PLC/blocks/800. HMI/UL_ParseOpcUaCommand.scl:331"
     },
     {
       "area": "FAULT",
@@ -3342,7 +3342,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/800. HMI/UL_ParseOpcUaCommand.scl:224"
+      "where": "GR2_PLC/blocks/800. HMI/UL_ParseOpcUaCommand.scl:332"
     },
     {
       "area": "FAULT",
@@ -4157,7 +4157,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:157"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:158"
     },
     {
       "area": "WARN",
@@ -4184,7 +4184,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:686"
+      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:784"
     },
     {
       "area": "WARN",
@@ -4198,7 +4198,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:306"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:323"
     },
     {
       "area": "WARN",
@@ -4212,7 +4212,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:364"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:381"
     },
     {
       "area": "WARN",
@@ -4226,7 +4226,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:365"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:382"
     },
     {
       "area": "WARN",
@@ -4240,7 +4240,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:366"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:383"
     },
     {
       "area": "WARN",
@@ -4254,7 +4254,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:367"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:384"
     },
     {
       "area": "WARN",
@@ -4268,7 +4268,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:293"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:294"
     },
     {
       "area": "WARN",
@@ -4282,7 +4282,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:687"
+      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:785"
     },
     {
       "area": "WARN",
@@ -4296,7 +4296,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:369"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:386"
     },
     {
       "area": "WARN",
@@ -4323,7 +4323,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:296"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:297"
     },
     {
       "area": "WARN",
@@ -4337,7 +4337,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:688"
+      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:786"
     },
     {
       "area": "WARN",
@@ -4351,7 +4351,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:372"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:389"
     },
     {
       "area": "WARN",
@@ -4365,7 +4365,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:373"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:390"
     },
     {
       "area": "WARN",
@@ -4379,7 +4379,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:427"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:444"
     },
     {
       "area": "WARN",
@@ -4393,7 +4393,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:429"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:446"
     },
     {
       "area": "WARN",
@@ -4421,7 +4421,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:297"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:298"
     },
     {
       "area": "WARN",
@@ -4448,7 +4448,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:689"
+      "where": "GR2_PLC/blocks/005. PL/PL_ManualCommand.scl:787"
     },
     {
       "area": "WARN",
@@ -4472,7 +4472,7 @@
       "text_en": "",
       "text_ko": "",
       "origin": "scl",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:295"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:296"
     },
     {
       "area": "WARN",
@@ -4486,7 +4486,7 @@
       "origin": "scl",
       "en_src": "errorlist",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:375"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:392"
     },
     {
       "area": "WARN",
@@ -4500,7 +4500,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:376"
+      "where": "GR2_PLC/blocks/004. FL/FL_Alarm.scl:393"
     },
     {
       "area": "WARN",
@@ -4514,7 +4514,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:331"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:373"
     },
     {
       "area": "WARN",
@@ -4528,7 +4528,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:332"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:374"
     },
     {
       "area": "WARN",
@@ -4542,7 +4542,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:333"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:375"
     },
     {
       "area": "WARN",
@@ -4556,7 +4556,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:334"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:376"
     },
     {
       "area": "WARN",
@@ -4570,7 +4570,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:335"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:377"
     },
     {
       "area": "WARN",
@@ -4584,7 +4584,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:336"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:378"
     },
     {
       "area": "WARN",
@@ -4598,7 +4598,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:337"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:379"
     },
     {
       "area": "WARN",
@@ -4612,7 +4612,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:338"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:380"
     },
     {
       "area": "WARN",
@@ -4626,7 +4626,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:339"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:381"
     },
     {
       "area": "WARN",
@@ -4640,7 +4640,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:340"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:382"
     },
     {
       "area": "WARN",
@@ -4654,7 +4654,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:341"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:383"
     },
     {
       "area": "WARN",
@@ -4668,7 +4668,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:342"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:384"
     },
     {
       "area": "WARN",
@@ -4682,7 +4682,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:343"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:385"
     },
     {
       "area": "WARN",
@@ -4696,7 +4696,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:344"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:386"
     },
     {
       "area": "WARN",
@@ -4710,7 +4710,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:345"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:387"
     },
     {
       "area": "WARN",
@@ -4724,7 +4724,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:346"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:388"
     },
     {
       "area": "WARN",
@@ -4738,7 +4738,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:347"
+      "where": "GR2_PLC/blocks/010.Func/Measure/UL_LaserDiag.scl:389"
     },
     {
       "area": "WARN",
@@ -4765,7 +4765,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1461"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:1509"
     },
     {
       "area": "WARN",
@@ -4779,7 +4779,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/003. CL/CL_Common_Command.scl:68"
+      "where": "GR2_PLC/blocks/003. CL/CL_Common_Command.scl:121"
     },
     {
       "area": "WARN",
@@ -4807,7 +4807,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/003. CL/CL_Common_Command.scl:128"
+      "where": "GR2_PLC/blocks/003. CL/CL_Common_Command.scl:210"
     },
     {
       "area": "WARN",
@@ -4847,7 +4847,7 @@
       "origin": "scl",
       "en_src": "hmi",
       "ko_src": "errorlist",
-      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:523"
+      "where": "GR2_PLC/blocks/005. PL/Task_V2/PL_Task_V2.scl:524"
     },
     {
       "area": "EVENT",
