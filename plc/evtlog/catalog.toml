@@ -21,7 +21,8 @@
 #                                  alarm list (contract alarms.json)
 #
 # Enums: `values` inline, or `from_const = "<PREFIX>"` = every constant of the PLC contract whose name starts with the
-#        prefix (name shown without the prefix). `plc_const = true` also emits EVT_<ENUM>_<NAME> constants.
+#        prefix (name shown without the prefix). `plc_const = true` also emits EVT_<ENUM>_<NAME> constants, only for the
+#        PLCs in the enum `plc` list when it has one.
 #
 # Codes are unique across categories: cat * 100 + n. STEP is the exception: its Code is the new step number.
 # `plc` = PLCs that emit the event (GR1, GR2, GRM). `lvl` = default level the PLC writes.
@@ -100,7 +101,7 @@ name = "COMM"
 [[cat]]
 id = 15
 name = "DATA"
-# GRM-only categories are reserved for the GRM phase
+# GRM-only categories
 [[cat]]
 id = 16
 name = "STATION"
@@ -268,8 +269,9 @@ values = { 1 = "MEASLOG", 2 = "LASERDIAG" }
 values = { 0 = "Bias", 1 = "NoResp", 2 = "Unstable", 3 = "CenterLost" }
 
 # SNS_MODULE_DIAG.Src
+# GRM : MODULE.Module[0] = 1, Module[i] = 10 + i
 [enum.module_diag]
-values = { 1 = "PLC module", 2 = "PLC IO system", 3 = "Drive", 4 = "RIO 1", 5 = "RIO 2", 6 = "RIO 3", 7 = "IOLink 1", 8 = "IOLink 2" }
+values = { 1 = "PLC module", 2 = "PLC IO system", 3 = "Drive", 4 = "RIO 1", 5 = "RIO 2", 6 = "RIO 3", 7 = "IOLink 1", 8 = "IOLink 2", 11 = "GRM Module[1]", 12 = "GRM Module[2]", 13 = "GRM Module[3]", 14 = "GRM Module[4]", 15 = "GRM Module[5]", 16 = "GRM Module[6]", 17 = "GRM Module[7]", 18 = "GRM Module[8]", 19 = "GRM Module[9]" }
 
 # SNS_MODULE_DIAG.A bits
 [enum.diag_bits]
@@ -291,10 +293,13 @@ values = { 0 = "CVNO", 1 = "Comp" }
 [enum.speed_kind]
 values = { 1 = "Travel", 2 = "Grip", 3 = "Manual" }
 
+# 11 / 12 = GRM watch of the robot S7 GET data (Interface_GR.RECV[n].TimeStamp)
 [enum.peer]
-values = { 0 = "GRM", 1 = "GR1", 2 = "GR2" }
+values = { 0 = "GRM", 1 = "GR1", 2 = "GR2", 3 = "GCS", 11 = "GR1 GET data", 12 = "GR2 GET data" }
 
 [enum.comm_block]
+plc_const = true
+plc = ["GRM"]
 values = { 1 = "BSEND", 2 = "BRCV", 3 = "GET" }
 
 [enum.sock_state]
@@ -314,6 +319,124 @@ values = { 1 = "Sensor.GIDL_ZOffset", 2 = "Sensor.GIDF_ZOffset", 3 = "Sensor.GID
 
 [enum.para_section]
 values = { 1 = "Machine", 2 = "Network", 3 = "Sensor", 4 = "Drive", 5 = "Task", 6 = "Timeout", 7 = "SpeedSet" }
+
+# ---------------------------------------------------------------- enums (GRM)
+
+# MODE_GRM_OPTION.Src = bit of MACHINE.Option (LGR_GRM_Option)
+[enum.grm_option]
+values = { 0 = "Mode_SafetyCommission", 1 = "Mode_Teaching", 2 = "Mode_Scenario", 3 = "Mode_TeachingOverride" }
+
+# MODE_GRM_FORCE.Src
+[enum.grm_force]
+values = { 0 = "ForceMode", 1 = "ForceModeNoLimit", 2 = "RobotForceUse[1]", 3 = "RobotForceUse[2]", 4 = "RobotUse[1]", 5 = "RobotUse[2]", 6 = "MaintPos GR1", 7 = "MaintPos GR2" }
+
+# command header CMD byte (task types and robot commands)
+[enum.cmd_type]
+from_const = "CMD_"
+
+# CMD_GCS_BITS / COM_BSEND_DONE bits of OPCUA.GR[n].CMD.Command
+[enum.gcs_cmd_bits]
+values = { 0 = "Stop.Normal", 1 = "Stop.Fast", 2 = "Stop.Cycle", 3 = "Common.Reset", 4 = "Common.Initializing", 5 = "Common.Start", 6 = "Common.BuzzerStop", 7 = "Task.Complete", 8 = "Task.Delete", 9 = "Jog", 10 = "B3_Spare.X0 (Learn)", 11 = "Home", 12 = "MaintPos", 13 = "CellOrigin", 14 = "ChangeMode" }
+
+# COM_GRM_TO_GR bits of Interface_GR.SEND[n].Status (X15 heartbeat not logged)
+[enum.grm_send_status]
+values = { 0 = "EMS", 1 = "Auto", 2 = "Manual", 3 = "Start", 4 = "Stop", 5 = "Reset", 6 = "ForceMode", 7 = "RobotUse", 8 = "GR1 CommOk", 9 = "GR2 CommOk", 10 = "GR3 CommOk", 11 = "DoorOpenError", 13 = "TeachOverride", 14 = "ModeTeach" }
+
+[enum.ip_if]
+plc_const = true
+plc = ["GRM"]
+values = { 1 = "X1", 2 = "X2" }
+
+[enum.ip_result]
+values = { 0 = "OK", 1 = "Error" }
+
+# SAFE_GRM_EMS.Src
+[enum.ems_src]
+values = { 0 = "MCP_EMS", 1 = "SFA_EMS", 2 = "Area1 FenceBox EMS", 3 = "Area2 FenceBox EMS", 4 = "Area3 FenceBox EMS" }
+
+# SAFE_ZONE bits of ZONE.Area[n]
+[enum.zone_bits]
+values = { 0 = "AreaUse", 1 = "AreaUnlock", 2 = "DoorOpened", 3 = "FenceBox.EMS", 4 = "SSW_Auto", 5 = "SSW_Manual", 6 = "SSW_Open" }
+
+# HMI.Zone.DoorStatus (UL_DoorStatus)
+[enum.door_status]
+values = { 0 = "-", 1 = "Open (no request)", 2 = "Closed", 3 = "Open (requested)", 4 = "Closed (requested)" }
+
+# SAFE_GRM_INPUT.Src (INPUT members; alarms 0301-0414 are commented out, so this is the only trace)
+[enum.grm_input]
+values = { 0 = "MC01Feed_GR01_PowerOn", 1 = "MC02Feed_GR01_PowerOn", 2 = "MC03Feed_GR02_PowerOn", 3 = "MC04Feed_GR02_PowerOn", 4 = "MCCB_GR01Power_Ok", 5 = "MCCB_GR02Power_Ok", 6 = "MCB_PanelLamp_Ok", 7 = "MCB_PowerPilotLamp_Ok", 8 = "MCB_InnerConsent_Ok", 9 = "MCB_OuterConsent_Ok", 10 = "MCB_PowerMeter_Ok", 11 = "MAIN_PS01_Ok", 12 = "MAIN_PS02_Ok", 13 = "MAIN_PS03_Ok", 14 = "MAIN_PS04_Ok", 15 = "MCB_HMI_Ok", 16 = "MCB_PLC_Ok", 17 = "MCB_SPLC_Ok", 18 = "MCB_Sdevice_IN_Ok", 19 = "MCB_Sdevice_OUT_Ok", 20 = "MCB_RIO_Ok", 21 = "MCB_Sensor_Ok", 22 = "MCB_Hub01_Ok", 23 = "MCB_Hub02_Ok", 24 = "MCB_AP_Ok", 25 = "TEMP_Panel", 26 = "FAN01_ALRAM", 27 = "FAN02_ALRAM", 28 = "FAN03_ALRAM", 29 = "FAN04_ALRAM", 30 = "FAN05_ALRAM", 31 = "FAN06_ALRAM", 32 = "LIGHT_CURTAIN_DETECT(MOVEX)", 33 = "LIGHT_CURTAIN_DETECT(SFA)", 34 = "LIGHT CURTAIN DETECT" }
+
+# SAFE_GRM_BUTTON.Src (raw INPUT, DEBUG; commands are in the EVENT alarm area)
+[enum.grm_button]
+values = { 0 = "MCP_SSW_Auto", 1 = "MCP_SSW_Manual", 2 = "MCP_PB_Start", 3 = "MCP_PB_Stop", 4 = "MCP_PB_Reset", 5 = "MCP_PB_ForcedRun", 6 = "PB_GR01_PowerOn", 7 = "PB_GR01_PowerOff", 8 = "PB_GR02_PowerOn", 9 = "PB_GR02_PowerOff" }
+
+# portLinkState (LPNDR)
+[enum.port_link]
+values = { 0 = "-", 1 = "Up", 2 = "Down" }
+
+[enum.grm_para_section]
+values = { 1 = "Machine", 2 = "Network", 3 = "Zone/Cell range", 4 = "DI_ContactType", 5 = "ZoneNo", 6 = "ioModuleNo" }
+
+[enum.csv_dir]
+values = { 0 = "read", 1 = "write" }
+
+# ST_TRACK_CLEAR.A
+[enum.track_clear]
+plc_const = true
+plc = ["GRM"]
+values = { 1 = "Accepted", 2 = "Rejected item detected", 3 = "Unsupported cmd" }
+
+# ST_CV_OUT bits of Interface_CV.SEND[n]
+[enum.cv_out]
+values = { 0 = "CVNO", 1 = "Comp", 2 = "MeasComp", 3 = "MeasErr" }
+
+# ST_CVNO_REASON bits (FB_CL_Station Interlock Out)
+[enum.cvno_reason]
+values = { 0 = "Robot AntiCol", 1 = "Next occupied", 2 = "Data/item mismatch", 3 = "Tracking invalid", 4 = "Door unlocked", 5 = "No MeasReq/item", 6 = "MeasErr" }
+
+# ST_MEAS.A
+[enum.st_meas]
+plc_const = true
+plc = ["GRM"]
+values = { 1 = "Start", 2 = "Done", 3 = "Error", 4 = "Duplicate" }
+
+# ST_STATUS bits
+[enum.st_status]
+values = { 0 = "MeasuringError", 1 = "DataMissMatch[0] data without item", 2 = "DataMissMatch[1] item without data" }
+
+# ST_TRACKING.A
+[enum.track_cause]
+plc_const = true
+plc = ["GRM"]
+values = { 1 = "Measured", 2 = "Moved", 3 = "Robot pick", 4 = "GCS clear", 5 = "HMI clear", 6 = "HMI save" }
+
+# ST_HMI_OP.A
+[enum.st_hmi_op]
+plc_const = true
+plc = ["GRM"]
+values = { 1 = "ForceComplete", 2 = "SensorApply", 3 = "Save", 4 = "TrackingErrorReset" }
+
+# SC_TASK.A
+[enum.sc_task]
+plc_const = true
+plc = ["GRM"]
+values = { 1 = "Sent", 2 = "Ack", 3 = "Ack timeout", 4 = "Wrap end" }
+
+# SC_BLOCKED.A bits
+[enum.sc_block]
+values = { 0 = "Null task", 1 = "Station not ready", 2 = "CenterAdjust NG" }
+
+# TEACH_TASK.A
+[enum.teach_task]
+plc_const = true
+plc = ["GRM"]
+values = { 1 = "Sent", 2 = "Ack", 3 = "Ack timeout", 4 = "Null cell stop" }
+
+# CELL_EDIT.A
+[enum.cell_edit]
+plc_const = true
+plc = ["GRM"]
+values = { 1 = "Apply", 2 = "Save", 3 = "Add", 4 = "Create", 5 = "Delete", 6 = "CSV import" }
 
 # ---------------------------------------------------------------- events (robot: GR1 / GR2)
 # plc omitted = ["GR1", "GR2", "GRM"]
@@ -1245,6 +1368,414 @@ cat = "DATA"
 lvl = "INFO"
 plc = ["GR1", "GR2"]
 text = "HMI SpeedSet {src:axis} index {a} 변경"
+
+# ---------------------------------------------------------------- events (GRM only)
+
+# GRM : MODE
+[[event]]
+code = 212
+name = "MODE_GRM_OPTION"
+cat = "MODE"
+lvl = "WARN"
+plc = ["GRM"]
+text = "Option {src:grm_option} {a:onoff}"
+
+[[event]]
+code = 213
+name = "MODE_GRM_FORCE"
+cat = "MODE"
+lvl = "WARN"
+plc = ["GRM"]
+text = "{src:grm_force} {a:onoff}"
+
+
+# GRM : SYS
+[[event]]
+code = 107
+name = "SYS_IP_CONFIG"
+cat = "SYS"
+lvl = "INFO"
+plc = ["GRM"]
+text = "IP 설정 {src:ip_if} {b:ip_result} (STATUS {a:hex})"
+b = "0 OK, 1 Error (row level ERROR)"
+
+[[event]]
+code = 108
+name = "SYS_GCS_TIME_STALE"
+cat = "SYS"
+lvl = "WARN"
+plc = ["GRM"]
+text = "GCS NTP 갱신 {b:stall} ({a} ms)"
+a = "ms since the last OPCUA.GRM.CMD.NTP change"
+b = "1 stopped (30 s), 0 resumed; this is the GCS heartbeat"
+
+
+# GRM : CMD (GCS command via OPC UA). Src = robot, Ctx = WorkId
+[[event]]
+code = 520
+name = "CMD_GCS_NEW"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GRM"]
+text = "GR{src} 새 명령 {b:cmd_type} · Cell {a}"
+a = "TaskData.Cell.Id"
+b = "header CMD"
+
+[[event]]
+code = 521
+name = "CMD_GCS_ACK"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GRM"]
+text = "GR{src} 명령 ack {b:cmd_type} ({a} ms)"
+a = "ms from CMD_GCS_NEW to the robot RES.Header echo"
+b = "header CMD"
+
+[[event]]
+code = 522
+name = "CMD_GCS_OVERWRITE"
+cat = "CMD"
+lvl = "WARN"
+plc = ["GRM"]
+text = "GR{src} ack 전 덮어씀 : 이전 {b:cmd_type} WorkId {a}"
+a = "previous WorkId (Ctx = new WorkId)"
+b = "previous header CMD"
+
+[[event]]
+code = 523
+name = "CMD_GCS_BITS"
+cat = "CMD"
+lvl = "INFO"
+plc = ["GRM"]
+text = "GR{src} 명령 비트 {a:bits:gcs_cmd_bits} (이전 {b:bits:gcs_cmd_bits})"
+
+[[event]]
+code = 524
+name = "CMD_GCS_PARTIAL"
+cat = "CMD"
+lvl = "WARN"
+plc = ["GRM"]
+text = "GR{src} 헤더 일부만 씀 (CMDRetry) {b:cmd_type}"
+b = "header CMD"
+
+[[event]]
+code = 525
+name = "CMD_GCS_RESEND"
+cat = "CMD"
+lvl = "WARN"
+plc = ["GRM"]
+text = "GR{src} 30 s 무응답 재전송 {b:cmd_type} SEQ {a}"
+
+[[event]]
+code = 526
+name = "CMD_GCS_ACCEPT_HOLD"
+cat = "CMD"
+lvl = "DEBUG"
+plc = ["GRM"]
+text = "GR{src} Accept 보류 {a:onoff}"
+
+
+# GRM : SAFETY
+[[event]]
+code = 905
+name = "SAFE_GRM_EMS"
+cat = "SAFETY"
+lvl = "ERROR"
+plc = ["GRM"]
+text = "{src:ems_src} {a:onoff}"
+
+[[event]]
+code = 906
+name = "SAFE_ZONE"
+cat = "SAFETY"
+lvl = "WARN"
+plc = ["GRM"]
+text = "Area{src} {a:bits:zone_bits} (이전 {b:bits:zone_bits})"
+
+[[event]]
+code = 907
+name = "SAFE_DOOR"
+cat = "SAFETY"
+lvl = "INFO"
+plc = ["GRM"]
+text = "Door {src} {b:door_status} → {a:door_status}"
+
+[[event]]
+code = 908
+name = "SAFE_DOOR_ERROR"
+cat = "SAFETY"
+lvl = "ERROR"
+plc = ["GRM"]
+text = "GR{src} 요청 없이 도어 열림 {a:onoff}"
+
+[[event]]
+code = 909
+name = "SAFE_HMI_BLOCK"
+cat = "SAFETY"
+lvl = "WARN"
+plc = ["GRM"]
+text = "HMI 조작 차단 {a:onoff}"
+
+[[event]]
+code = 910
+name = "SAFE_COMMISSION_WIPE"
+cat = "SAFETY"
+lvl = "WARN"
+plc = ["GRM"]
+text = "SafetyCommission : PARA ZoneNo/ioModuleNo {a} 개 지움"
+
+[[event]]
+code = 911
+name = "SAFE_GRM_INPUT"
+cat = "SAFETY"
+lvl = "WARN"
+plc = ["GRM"]
+text = "{src:grm_input} {a:onoff}"
+
+[[event]]
+code = 912
+name = "SAFE_GRM_BUTTON"
+cat = "SAFETY"
+lvl = "DEBUG"
+plc = ["GRM"]
+text = "{src:grm_button} {a:onoff}"
+
+
+# GRM : SENSOR
+[[event]]
+code = 1006
+name = "SNS_PORT_LINK"
+cat = "SENSOR"
+lvl = "WARN"
+plc = ["GRM"]
+text = "PN module {src} (module*10+port) {b:port_link} → {a:port_link}"
+
+
+# GRM : COMM. Src = robot unless noted
+[[event]]
+code = 1408
+name = "COM_BSEND_DONE"
+cat = "COMM"
+lvl = "INFO"
+plc = ["GRM"]
+text = "GR{src} BSEND 완료 {b:cmd_type} {a:bits:gcs_cmd_bits}"
+a = "command bits sent"
+b = "header CMD (0 = command bits only); Ctx = WorkId"
+
+[[event]]
+code = 1409
+name = "COM_RECV_GAP"
+cat = "COMM"
+lvl = "WARN"
+plc = ["GRM"]
+text = "GR{src} BRCV 간격 {a} ms"
+
+[[event]]
+code = 1410
+name = "COM_GR_CMD_ERROR"
+cat = "COMM"
+lvl = "WARN"
+plc = ["GRM"]
+text = "GR{src} 명령 오류 StatusCode {a}.{b}"
+a = "StatusCode.Main (9101-9399)"
+b = "StatusCode.Sub"
+
+[[event]]
+code = 1411
+name = "COM_GRM_TO_GR"
+cat = "COMM"
+lvl = "INFO"
+plc = ["GRM"]
+text = "GRM→GR{src} {a:bits:grm_send_status} (이전 {b:bits:grm_send_status})"
+
+[[event]]
+code = 1412
+name = "COM_HMI_PANEL"
+cat = "COMM"
+lvl = "WARN"
+plc = ["GRM"]
+text = "HMI 판넬 (MTP) heartbeat {b:stall} ({a} ms)"
+
+[[event]]
+code = 1413
+name = "COM_GRM_BLOCK_ERR"
+cat = "COMM"
+lvl = "WARN"
+plc = ["GRM"]
+text = "GR{src} {b:comm_block} error STATUS {a:hex}"
+
+
+# GRM : DATA
+[[event]]
+code = 1510
+name = "DATA_GRM_PARA_SECTION"
+cat = "DATA"
+lvl = "INFO"
+plc = ["GRM"]
+text = "PARA.{src:grm_para_section} 변경 (checksum {b:hex} → {a:hex})"
+
+[[event]]
+code = 1511
+name = "DATA_CSV_ROW"
+cat = "DATA"
+lvl = "WARN"
+plc = ["GRM"]
+text = "CSV {src:csv_kind} 잘못된 행 {a} ({b:csv_dir})"
+
+
+# GRM : STATION. Src = station slot 1..32
+[[event]]
+code = 1601
+name = "ST_MEAS_COMP"
+cat = "STATION"
+lvl = "INFO"
+plc = ["GRM"]
+text = "St{src} GCS MeasComp {a:onoff}"
+
+[[event]]
+code = 1602
+name = "ST_TRACK_CLEAR"
+cat = "STATION"
+lvl = "INFO"
+plc = ["GRM"]
+text = "St{src} GCS 트래킹 명령 : {a:track_clear} ({b})"
+b = "Accepted: OD x10 cleared (0 = was empty); Unsupported cmd: OPCUA.STATION[n].Cmd bits 0 Reset, 1 ClearStaged, 2 FetchStaged, 3 FetchPrev, 4 FetchNext, 5 FetchLast"
+
+[[event]]
+code = 1603
+name = "ST_CV_IN"
+cat = "STATION"
+lvl = "INFO"
+plc = ["GRM"]
+text = "St{src} CV→GRM {a:bits:pi_bits} (이전 {b:bits:pi_bits})"
+
+[[event]]
+code = 1604
+name = "ST_CV_OUT"
+cat = "STATION"
+lvl = "INFO"
+plc = ["GRM"]
+text = "St{src} GRM→CV {a:bits:cv_out} (이전 {b:bits:cv_out})"
+a = "CVNO debounced 0.5 s"
+
+[[event]]
+code = 1605
+name = "ST_CVNO_REASON"
+cat = "STATION"
+lvl = "INFO"
+plc = ["GRM"]
+text = "St{src} CVNO 이유 {a:bits:cvno_reason} (이전 {b:bits:cvno_reason})"
+
+[[event]]
+code = 1606
+name = "ST_MEAS"
+cat = "STATION"
+lvl = "INFO"
+plc = ["GRM"]
+text = "St{src} 측정 {a:st_meas} OD {b/10} mm"
+b = "outer diameter x10 (0 at Start)"
+
+[[event]]
+code = 1607
+name = "ST_MEAS_OFFSET"
+cat = "STATION"
+lvl = "INFO"
+plc = ["GRM"]
+text = "St{src} 측정 TaskOffset X {a/10} · Y {b/10} mm"
+
+[[event]]
+code = 1608
+name = "ST_STATUS"
+cat = "STATION"
+lvl = "WARN"
+plc = ["GRM"]
+text = "St{src} {a:bits:st_status} (이전 {b:bits:st_status})"
+
+[[event]]
+code = 1609
+name = "ST_TRACKING"
+cat = "STATION"
+lvl = "INFO"
+plc = ["GRM"]
+text = "St{src} 트래킹 {a:track_cause} ({b})"
+b = "Measured / HMI save: OD x10; Moved: source slot; Robot pick: robot; clears: 0"
+
+[[event]]
+code = 1610
+name = "ST_HMI_OP"
+cat = "STATION"
+lvl = "INFO"
+plc = ["GRM"]
+text = "St{src} {a:st_hmi_op}"
+
+[[event]]
+code = 1611
+name = "ST_ROBOT_OVER"
+cat = "STATION"
+lvl = "DEBUG"
+plc = ["GRM"]
+text = "St{src} GR{a} 위 {b:onoff}"
+a = "robot (on: the robot now over, off: the robot that left)"
+
+
+# GRM : SCEN. Src = robot, Ctx = WorkId
+[[event]]
+code = 1701
+name = "SC_RUN"
+cat = "SCEN"
+lvl = "INFO"
+plc = ["GRM"]
+text = "GR{src} 시나리오 {a:onoff} (List {b})"
+
+[[event]]
+code = 1702
+name = "SC_TASK"
+cat = "SCEN"
+lvl = "INFO"
+plc = ["GRM"]
+text = "GR{src} 시나리오 작업 {a:sc_task} (index {b})"
+
+[[event]]
+code = 1703
+name = "SC_BLOCKED"
+cat = "SCEN"
+lvl = "WARN"
+plc = ["GRM"]
+text = "GR{src} 시나리오 전송 보류 {a:bits:sc_block} (index {b})"
+b = "once per index"
+
+[[event]]
+code = 1704
+name = "TEACH_RUN"
+cat = "SCEN"
+lvl = "INFO"
+plc = ["GRM"]
+text = "GR{src} Teach {a:onoff} (index {b})"
+
+[[event]]
+code = 1705
+name = "TEACH_TASK"
+cat = "SCEN"
+lvl = "INFO"
+plc = ["GRM"]
+text = "GR{src} Teach 이동 {a:teach_task} (Cell index {b})"
+
+[[event]]
+code = 1706
+name = "TEACH_CELL_Z"
+cat = "SCEN"
+lvl = "WARN"
+plc = ["GRM"]
+text = "Cell {src} Z {b/10} → {a/10} mm (바닥 측정)"
+
+[[event]]
+code = 1707
+name = "CELL_EDIT"
+cat = "SCEN"
+lvl = "INFO"
+plc = ["GRM"]
+text = "Cell {src} {a:cell_edit} (CELL.Count {b})"
+b = "Src = Cell.Id (Create: StartID, CSV import: 0)"
 
 # ---------------------------------------------------------------- console events (origin = console, not in the PLC)
 [[console]]

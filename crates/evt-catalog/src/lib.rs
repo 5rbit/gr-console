@@ -41,6 +41,15 @@ pub struct EnumDef {
     pub from_const: Option<String>,
     pub values: BTreeMap<i64, String>,
     pub plc_const: bool,
+    /// PLCs that get the `plc_const` constants (short names); `None` = all. Rendering is not filtered.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plc: Option<Vec<String>>,
+}
+
+impl EnumDef {
+    pub fn consts_for(&self, plc_short: &str) -> bool {
+        self.plc_const && self.plc.as_ref().is_none_or(|l| l.iter().any(|p| p.eq_ignore_ascii_case(plc_short)))
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -121,6 +130,7 @@ struct RawEnum {
     values: BTreeMap<String, String>,
     #[serde(default)]
     plc_const: bool,
+    plc: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -180,7 +190,7 @@ impl Catalog {
             if e.plc_const && e.from_const.is_some() {
                 return Err(invalid(format!("enum {name}: plc_const needs inline values")));
             }
-            enums.insert(name, EnumDef { from_const: e.from_const, values, plc_const: e.plc_const });
+            enums.insert(name, EnumDef { from_const: e.from_const, values, plc_const: e.plc_const, plc: e.plc });
         }
         let mut events = Vec::new();
         let mut codes = HashSet::new();

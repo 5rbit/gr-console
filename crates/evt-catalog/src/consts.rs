@@ -5,7 +5,8 @@
 //!   `EVT_CATMASK_ALL` (DWord)
 //! * `EVT_LVL_<LEVEL>`, `EVT_CAT_<CAT>` (USInt)
 //! * `EVT_<EVENT NAME>` (UInt, the code) for events the PLC emits; `code = "*"` and console events are skipped
-//! * `EVT_<ENUM>_<VALUE NAME>` (UInt) for enums with `plc_const = true`; see [`const_ident`]
+//! * `EVT_<ENUM>_<VALUE NAME>` (UInt) for enums with `plc_const = true` (and the PLC in the enum `plc` list, if any); see
+//!   [`const_ident`]
 
 use std::collections::HashSet;
 
@@ -76,7 +77,7 @@ impl Catalog {
             let lvl = self.level_name(e.lvl).unwrap_or("?");
             push(format!("{p}{}", const_ident(&e.name)), "UInt", code.to_string(), format!("{} {lvl}", e.cat_name), short(&e.text, 80));
         }
-        for (name, en) in self.enums.iter().filter(|(_, e)| e.plc_const) {
+        for (name, en) in self.enums.iter().filter(|(_, e)| e.consts_for(&who)) {
             for (v, label) in &en.values {
                 if *v < 0 || *v > i64::from(u16::MAX) {
                     return Err(invalid(format!("enum {name}: value {v} does not fit UInt")));
@@ -141,6 +142,12 @@ mod tests {
         let grm = c.constants("GRM").unwrap();
         assert!(grm.iter().any(|x| x.name == "EVT_MODE_CHANGED"));
         assert!(!grm.iter().any(|x| x.name == "EVT_TASK_ACCEPTED"));
+        // enum `plc` limits the value constants, not the events
+        assert!(grm.iter().any(|x| x.name == "EVT_ST_MEAS_DONE" && x.value == "2"));
+        assert!(grm.iter().any(|x| x.name == "EVT_COMM_BLOCK_GET" && x.value == "3"));
+        assert!(grm.iter().any(|x| x.name == "EVT_CMD_GCS_NEW" && x.value == "520"));
+        assert!(!k.iter().any(|x| x.name.starts_with("EVT_ST_MEAS") || x.name.starts_with("EVT_COMM_BLOCK_") || x.name == "EVT_CMD_GCS_NEW"));
+        assert!(!gr1.iter().any(|x| x.name.starts_with("EVT_TRACK_CAUSE_")));
     }
 
     #[test]
