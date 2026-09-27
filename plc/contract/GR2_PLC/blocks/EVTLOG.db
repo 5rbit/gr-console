@@ -2,24 +2,24 @@
 { S7_Optimized_Access := 'FALSE' }
 VERSION : 0.1
 NON_RETAIN
-// Standard access : gr-console reads by S7 (DB950), layout checked by LayoutSig. Writer : "EvtLog" only
-   STRUCT
-      LayoutSig : DWord := 16#7915BD0A;   // gr-contract gen-sig, do not edit
-      Total : UDInt;   // rows written since boot = Seq of the newest row
-      Head : Int;   // next write index (newest = Entry[Head-1])
-      BootId : UInt;   // EVTWATCH.BootCount (low 16 bit), new epoch on change
-      Dropped : UDInt;   // rows refused by Cfg.MaxPerScan
+// Standard access : gr-console reads by S7 (DB950), layout checked by LayoutSig. Writer : "EvtWrite" only
+   STRUCT 
+      LayoutSig : DWord;   //  gr-contract gen-sig, do not edit
+      Total : UDInt;   //  rows written since boot = Seq of the newest row
+      Head : Int;   //  next write index (newest = Entry[Head-1])
+      BootId : UInt;   //  EVTWATCH.BootCount (low 16 bit), new epoch on change
+      Dropped : UDInt;   //  rows refused by Cfg.MaxPerScan
       Stat : Struct
-         RunUs : UDInt;   // UL_EvtPre + UL_EvtWatch, last scan (µs)
-         MaxRunUs : UDInt;   // console may reset
-         MaxPerScanHit : UDInt;   // scans that reached Cfg.MaxPerScan
+         RunUs : UDInt;   //  UL_EvtPre + UL_EvtWatch, last scan (µs)
+         MaxRunUs : UDInt;   //  console may reset
+         MaxPerScanHit : UDInt;   //  scans that reached Cfg.MaxPerScan
       END_STRUCT;
-      Cfg : Struct   // console writable
-         MinLevel : USInt;   // EVT_LVL_* : lower levels are not written
-         CatMask : DWord;   // bit n = EVT_CAT id n
+      Cfg : Struct   //  console writable
+         MinLevel : USInt;   //  EVT_LVL_* : lower levels are not written
+         CatMask : DWord;   //  bit n = EVT_CAT id n
          MaxPerScan : Int;
       END_STRUCT;
-      Now : Struct   // per-scan context (UL_EvtPre)
+      Now : Struct   //  per-scan context (UL_EvtPre)
          "Time" {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;
          Ctx : UDInt;
          Count : Int;

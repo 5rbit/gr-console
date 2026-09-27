@@ -27,7 +27,7 @@ pub(crate) fn pc_bytes(text: &str) -> Vec<u8> {
 }
 
 /// Comparison form: BOM stripped, CRLF → LF, every run of whitespace collapsed to one space and trimmed, blank
-/// lines dropped, ` OF ` compared as ` of `, XML `&apos;` / `&quot;` compared as `'` / `"`. A TIA import + re-export
+/// lines dropped, ` OF ` compared as ` of `, XML `&apos;` / `&quot;` / `&gt;` compared as `'` / `"` / `>`. A TIA import + re-export
 /// re-indents (`{ S7_Optimized_Access }`, `VAR_*`), widens comment spacing in DB sources (`//   ` → `//    `),
 /// upper-cases `Array[*] OF` and writes apostrophes unescaped in tag tables without changing the source.
 pub fn normalize_for_compare(bytes: &[u8]) -> String {
@@ -40,7 +40,7 @@ pub fn normalize_for_compare(bytes: &[u8]) -> String {
         if l.is_empty() {
             continue;
         }
-        let l = l.replace(" OF ", " of ").replace("&apos;", "'").replace("&quot;", "\"");
+        let l = l.replace(" OF ", " of ").replace("&apos;", "'").replace("&quot;", "\"").replace("&gt;", ">");
         out.push_str(&canon_numbers(&l));
         out.push('\n');
     }
@@ -98,6 +98,7 @@ mod tests {
             normalize_for_compare(b"   { S7_Optimized_Access := 'TRUE' }\nVAR_IN_OUT\n      Buf : Array[*] OF Byte;   //    x")
         );
         assert_eq!(normalize_for_compare(b"<Text>magic &apos;GS&apos;</Text>\n"), normalize_for_compare(b"<Text>magic 'GS'</Text>"));
+        assert_eq!(normalize_for_compare(b"<Text>a -&gt; b</Text>"), normalize_for_compare(b"<Text>a -> b</Text>"));
         assert_ne!(normalize_for_compare(b"Lit := ',\"Use\":'"), normalize_for_compare(b"Lit := ',\"use\":'"));
         assert_eq!(normalize_for_compare(b"A.F := 16#A0; B := 3319752200; C := 16#0000_BEEF;"), normalize_for_compare(b"A.F := 16#00A0; B := 3_319_752_200; C := 16#beef;"));
         assert_ne!(normalize_for_compare(b"B := 16#A0;"), normalize_for_compare(b"B := 16#A1;"));

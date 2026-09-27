@@ -4947,7 +4947,7 @@
               <MultilingualTextItem ID="31E" CompositionName="Items">
                 <AttributeList>
                   <Culture>en-US</Culture>
-                  <Text>csv_result = File missing -&gt; defaults</Text>
+                  <Text>csv_result = File missing -> defaults</Text>
                 </AttributeList>
               </MultilingualTextItem>
               <MultilingualTextItem ID="31F" CompositionName="Items">
@@ -4959,7 +4959,7 @@
               <MultilingualTextItem ID="320" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>csv_result = File missing -&gt; defaults</Text>
+                  <Text>csv_result = File missing -> defaults</Text>
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
