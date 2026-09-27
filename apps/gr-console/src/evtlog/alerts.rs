@@ -41,6 +41,9 @@ pub struct RuleMatch {
     /// Case-insensitive, over the rendered text, the event name and the detail.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_contains: Option<String>,
+    /// Exact value of A (on/off events: 1 = ON only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub a_eq: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,6 +68,7 @@ pub struct Compiled {
     codes: Vec<(Option<u8>, u32)>,
     min_lvl: Option<u8>,
     text: Option<String>,
+    a_eq: Option<i64>,
     cooldown_ms: i64,
 }
 
@@ -98,6 +102,7 @@ pub fn compile(r: &Rule, cat: &Catalog) -> Result<Compiled, String> {
         codes,
         min_lvl,
         text: blank(&m.text_contains).map(str::to_lowercase),
+        a_eq: m.a_eq,
         cooldown_ms: i64::from(r.cooldown_s) * 1000,
     })
 }
@@ -115,6 +120,9 @@ impl Compiled {
             return false;
         }
         if !self.codes.is_empty() && !self.codes.iter().any(|(k, c)| *c == r.code && k.is_none_or(|k| k == r.cat)) {
+            return false;
+        }
+        if self.a_eq.is_some_and(|a| a != r.a) {
             return false;
         }
         match &self.text {
@@ -459,6 +467,10 @@ mod tests {
         other.plc = "GR1".into();
         assert!(!grip.matches(&other, &mut text_of(&other)));
         assert!(num.matches(&r_grip, &mut text_of(&r_grip)), "a bare number matches the code in any category");
+        let ems_on = compile(&rule(6, RuleMatch { codes: vec!["SAFE_GRM_EMS".into()], a_eq: Some(1), ..Default::default() }, 0), &cat).unwrap();
+        let mut ems_off = r_ems.clone();
+        ems_off.a = 0;
+        assert!(ems_on.matches(&r_ems, &mut text_of(&r_ems)) && !ems_on.matches(&ems_off, &mut text_of(&ems_off)), "a_eq picks ON only");
         assert_eq!(grip.text.as_deref(), Some("stoppos"), "lower-cased once");
         // bad names are refused up front
         assert!(compile(&rule(5, RuleMatch { codes: vec!["NOPE".into()], ..Default::default() }, 0), &cat).is_err());

@@ -242,6 +242,7 @@ export interface RuleMatch {
   codes?: string[]
   min_lvl?: string
   text_contains?: string
+  a_eq?: number
 }
 
 export interface AlertRule {

@@ -24,5 +24,5 @@ CREATE INDEX IF NOT EXISTS alerts_ts ON alerts(ts);
 -- 기본 규칙(한 번만 — 마이그레이션은 한 번 돈다)
 INSERT INTO alert_rules (name, enabled, match_json, cooldown_s, updated_at) VALUES
     ('ERROR 레벨 전체', 1, '{"min_lvl":"ERROR"}', 30, datetime('now')),
-    ('EMS', 1, '{"codes":["SAFE_EMS","SAFE_GRM_EMS","CMD_EMS"]}', 0, datetime('now')),
+    ('EMS', 1, '{"codes":["SAFE_EMS","SAFE_GRM_EMS","CMD_EMS"],"a_eq":1}', 0, datetime('now')),
     ('FAULT 전환', 1, '{"codes":["ALM_TO_FAULT"]}', 0, datetime('now'));

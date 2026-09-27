@@ -12,6 +12,8 @@ export interface RuleForm {
   /** 레벨 이름, 빈 값 = 전부. */
   minLvl: string
   text: string
+  /** A 값 조건, 빈 값 = 무관 (on/off 이벤트는 1 = ON). */
+  aEq: string
   cooldown: string
 }
 
@@ -23,6 +25,7 @@ export const EMPTY_RULE_FORM: RuleForm = {
   codes: '',
   minLvl: '',
   text: '',
+  aEq: '',
   cooldown: '60',
 }
 
@@ -36,6 +39,7 @@ export function ruleToForm(r: AlertRule): RuleForm {
     codes: (m.codes ?? []).join(', '),
     minLvl: m.min_lvl ?? '',
     text: m.text_contains ?? '',
+    aEq: m.a_eq === undefined ? '' : String(m.a_eq),
     cooldown: String(r.cooldown_s),
   }
 }
@@ -48,12 +52,14 @@ export function formToBody(f: RuleForm): AlertRuleBody {
   if (codes.length) match.codes = codes
   if (f.minLvl.trim()) match.min_lvl = f.minLvl.trim()
   if (f.text.trim()) match.text_contains = f.text.trim()
+  if (f.aEq.trim()) match.a_eq = Number(f.aEq.trim())
   return { name: f.name.trim(), enabled: f.enabled, match, cooldown_s: Number(f.cooldown) }
 }
 
 /** 저장할 수 없는 이유 — 없으면 `undefined`. 카탈로그가 있으면 이벤트 이름도 본다(서버도 다시 본다). */
 export function ruleFormWhy(f: RuleForm, catalog?: EvtCatalog | null): string | undefined {
   if (!f.name.trim()) return '이름을 적으세요'
+  if (f.aEq.trim() && !/^-?\d+$/.test(f.aEq.trim())) return 'A 는 정수입니다'
   if (!/^\d+$/.test(f.cooldown.trim()) || Number(f.cooldown) > 86_400)
     return 'cooldown 은 0~86400 초입니다'
   if (catalog) {
@@ -73,6 +79,7 @@ export function matchSummary(m: RuleMatch): string {
   if (m.min_lvl) parts.push(`≥ ${m.min_lvl}`)
   if (m.codes?.length) parts.push(m.codes.join(', '))
   if (m.text_contains) parts.push(`"${m.text_contains}"`)
+  if (m.a_eq !== undefined) parts.push(`A = ${m.a_eq}`)
   return parts.length ? parts.join(' · ') : '전체'
 }
 

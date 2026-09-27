@@ -294,6 +294,12 @@ export function AlertRulesDialog({
             onValueChange={(v) => set({ text: v })}
             hint="렌더된 문구 · 이름 · detail 에서"
           />
+          <Input
+            label="A"
+            value={form.aEq}
+            onValueChange={(v) => set({ aEq: v })}
+            hint="값이 이것일 때만 (on/off 이벤트는 1 = ON), 비우면 무관"
+          />
           <div className="flex items-end">
             <Switch
               inline
