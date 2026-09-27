@@ -3,9 +3,267 @@
   <Engineering version="V20" />
   <SW.Blocks.GlobalDB ID="0">
     <AttributeList>
+      <AutoNumber>false</AutoNumber>
+      <DBAccessibleFromOPCUA>true</DBAccessibleFromOPCUA>
+      <DBAccessibleFromWebserver>true</DBAccessibleFromWebserver>
+      <HeaderAuthor />
+      <HeaderFamily />
+      <HeaderName />
+      <HeaderVersion>0.1</HeaderVersion>
+      <Interface><Sections xmlns="http://www.siemens.com/automation/Openness/SW/Interface/v5">
+  <Section Name="Static">
+    <Member Name="LayoutSig" Datatype="DWord" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">  gr-contract gen-sig, do not edit</MultiLanguageText>
+      </Comment>
+      <StartValue>16#7915_BD0A</StartValue>
+    </Member>
+    <Member Name="Total" Datatype="UDInt" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">  rows written since boot = Seq of the newest row</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="Head" Datatype="Int" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">  next write index (newest = Entry[Head-1])</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="BootId" Datatype="UInt" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">  EVTWATCH.BootCount (low 16 bit), new epoch on change</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="Dropped" Datatype="UDInt" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">  rows refused by Cfg.MaxPerScan</MultiLanguageText>
+      </Comment>
+    </Member>
+    <Member Name="Stat" Datatype="Struct" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Member Name="RunUs" Datatype="UDInt">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">  UL_EvtPre + UL_EvtWatch, last scan (µs)</MultiLanguageText>
+        </Comment>
+      </Member>
+      <Member Name="MaxRunUs" Datatype="UDInt">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">  console may reset</MultiLanguageText>
+        </Comment>
+      </Member>
+      <Member Name="MaxPerScanHit" Datatype="UDInt">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">  scans that reached Cfg.MaxPerScan</MultiLanguageText>
+        </Comment>
+      </Member>
+    </Member>
+    <Member Name="Cfg" Datatype="Struct" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">  console writable</MultiLanguageText>
+      </Comment>
+      <Member Name="MinLevel" Datatype="USInt">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">  EVT_LVL_* : lower levels are not written</MultiLanguageText>
+        </Comment>
+        <StartValue>2</StartValue>
+      </Member>
+      <Member Name="CatMask" Datatype="DWord">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+        <Comment>
+          <MultiLanguageText Lang="en-US">  bit n = EVT_CAT id n</MultiLanguageText>
+        </Comment>
+        <StartValue>16#0003_FFFE</StartValue>
+      </Member>
+      <Member Name="MaxPerScan" Datatype="Int">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+        <StartValue>32</StartValue>
+      </Member>
+    </Member>
+    <Member Name="Now" Datatype="Struct" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">  per-scan context (UL_EvtPre)</MultiLanguageText>
+      </Comment>
+      <Member Name="Time" Datatype="DTL" Version="1.0">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+      </Member>
+      <Member Name="Ctx" Datatype="UDInt">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+      </Member>
+      <Member Name="Count" Datatype="Int">
+        <AttributeList>
+          <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+          <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
+        </AttributeList>
+      </Member>
+    </Member>
+    <Member Name="Entry" Datatype="Array[0..&quot;EVT_LAST&quot;] of &quot;EVT_Entry&quot;" Remanence="NonRetain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+      </AttributeList>
+      <Sections>
+        <Section Name="None">
+          <Member Name="Seq" Datatype="UDInt" />
+          <Member Name="Time" Datatype="DTL" Version="1.0" />
+          <Member Name="Cat" Datatype="USInt" />
+          <Member Name="Lvl" Datatype="USInt" />
+          <Member Name="Src" Datatype="UInt" />
+          <Member Name="Code" Datatype="UInt" />
+          <Member Name="A" Datatype="DInt" />
+          <Member Name="B" Datatype="DInt" />
+          <Member Name="Ctx" Datatype="UDInt" />
+        </Section>
+      </Sections>
+    </Member>
+  </Section>
+</Sections></Interface>
+      <IsOnlyStoredInLoadMemory>false</IsOnlyStoredInLoadMemory>
+      <IsWriteProtectedInAS>false</IsWriteProtectedInAS>
+      <MemoryLayout>Standard</MemoryLayout>
       <Name>EVTLOG</Name>
+      <Namespace />
       <Number>950</Number>
       <ProgrammingLanguage>DB</ProgrammingLanguage>
     </AttributeList>
+    <ObjectList>
+      <MultilingualText ID="1" CompositionName="Comment">
+        <ObjectList>
+          <MultilingualTextItem ID="2" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text> Standard access : gr-console reads by S7 (DB950), layout checked by LayoutSig. Writer : "EvtWrite" only</Text>
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="3" CompositionName="Items">
+            <AttributeList>
+              <Culture>hu-HU</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="4" CompositionName="Items">
+            <AttributeList>
+              <Culture>ko-KR</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+      <MultilingualText ID="5" CompositionName="Title">
+        <ObjectList>
+          <MultilingualTextItem ID="6" CompositionName="Items">
+            <AttributeList>
+              <Culture>en-US</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="7" CompositionName="Items">
+            <AttributeList>
+              <Culture>hu-HU</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+          <MultilingualTextItem ID="8" CompositionName="Items">
+            <AttributeList>
+              <Culture>ko-KR</Culture>
+              <Text />
+            </AttributeList>
+          </MultilingualTextItem>
+        </ObjectList>
+      </MultilingualText>
+    </ObjectList>
   </SW.Blocks.GlobalDB>
 </Document>
