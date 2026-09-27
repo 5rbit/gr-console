@@ -32,10 +32,12 @@ pub struct EvtLogCfg {
     pub max_mb: u64,
     /// 코드 사전. 없으면 실행 파일에 넣어 둔 사본을 쓴다.
     pub catalog: PathBuf,
+    /// 자정이 지나면 전날 보고서를 `<data_dir>/reports/events-YYYY-MM-DD.xlsx` 로 쓴다(`keep_days` 로 정리).
+    pub daily_report: bool,
 }
 impl Default for EvtLogCfg {
     fn default() -> Self {
-        Self { enabled: true, keep_days: 90, max_mb: 20_480, catalog: "plc/evtlog/catalog.toml".into() }
+        Self { enabled: true, keep_days: 90, max_mb: 20_480, catalog: "plc/evtlog/catalog.toml".into(), daily_report: false }
     }
 }
 

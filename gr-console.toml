@@ -68,6 +68,7 @@ bind = "0.0.0.0:2000"
 enabled = true
 keep_days = 90     # 이보다 오래된 행은 매시간 지운다
 max_mb = 20480     # events.db 크기 상한 — 넘으면 오래된 것부터
+daily_report = false  # true: 자정이 지나면 전날 보고서 data/reports/events-YYYY-MM-DD.xlsx (keep_days 로 정리)
 
 [conveyor]
 # extra_links = [[2003, 2102]]

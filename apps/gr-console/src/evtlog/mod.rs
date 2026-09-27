@@ -4,14 +4,19 @@
 //! Every write goes through one writer thread (mpsc): [`console`] never blocks its caller on sqlite, the collectors
 //! only wait for channel space.
 
+pub mod alerts;
 pub mod catalog;
 pub mod collect;
 pub mod demo;
+pub mod report;
 pub mod routes;
+pub mod stats;
 pub mod store;
+pub mod swimlane;
+pub mod views;
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
@@ -85,6 +90,8 @@ pub struct CollectorStatus {
     pub gaps: u64,
     pub last_read_at: Option<String>,
     pub error: Option<String>,
+    /// EVTLOG.Dropped of the last header read.
+    pub dropped: Option<u32>,
 }
 
 pub struct EvtLog {
@@ -93,6 +100,9 @@ pub struct EvtLog {
     /// Reader connection (API); the writer thread has its own.
     pub store: Store,
     pub stream: broadcast::Sender<EventRow>,
+    /// New / acknowledged alerts (SSE `alert` / `alert_ack`).
+    pub alerts_tx: broadcast::Sender<alerts::AlertMsg>,
+    alerts: Arc<alerts::Engine>,
     tx: mpsc::Sender<Msg>,
     status: Mutex<HashMap<String, CollectorStatus>>,
 }
@@ -105,22 +115,64 @@ impl EvtLog {
         let store = Store::open(path)?;
         let texts = Arc::new(Texts::new(catalog.clone(), plcs));
         let (tx, rx) = mpsc::channel(QUEUE);
-        let (stream, _) = broadcast::channel(1024);
-        spawn_writer(writer, rx, texts.clone(), stream.clone());
         let _ = SINK.set(Sink { tx: tx.clone(), catalog, dropped: AtomicU64::new(0) });
-        let me = Arc::new(EvtLog { cfg, texts, store, stream, tx, status: Mutex::new(HashMap::new()) });
+        let me = EvtLog::assemble(cfg, texts, store, writer, tx, rx);
         me.spawn_retention();
+        if me.cfg.daily_report {
+            let dir: PathBuf = path.parent().map(|p| p.join("reports")).unwrap_or_else(|| PathBuf::from("reports"));
+            report::spawn_daily(me.clone(), dir);
+        }
         Ok(me)
+    }
+
+    fn assemble(cfg: EvtLogCfg, texts: Arc<Texts>, store: Store, writer: Store, tx: mpsc::Sender<Msg>, rx: mpsc::Receiver<Msg>) -> Arc<EvtLog> {
+        let (stream, _) = broadcast::channel(1024);
+        let (alerts_tx, _) = broadcast::channel(256);
+        let me = Arc::new(EvtLog { cfg, texts, store, stream, alerts_tx, alerts: Arc::new(alerts::Engine::default()), tx, status: Mutex::new(HashMap::new()) });
+        me.reload_rules();
+        match alerts::last_fired(&me.store) {
+            Ok(m) => me.alerts.set_last(m),
+            Err(e) => tracing::warn!("evtlog alerts: {e}"),
+        }
+        spawn_writer(writer, rx, me.texts.clone(), me.stream.clone(), me.alerts.clone(), me.alerts_tx.clone());
+        me
     }
 
     #[cfg(test)]
     pub fn memory(catalog: Arc<Catalog>) -> Arc<EvtLog> {
         let texts = Arc::new(Texts::new(catalog, vec![]));
         let (tx, rx) = mpsc::channel(QUEUE);
-        let (stream, _) = broadcast::channel(1024);
         let store = Store::memory();
-        spawn_writer(store.clone(), rx, texts.clone(), stream.clone());
-        Arc::new(EvtLog { cfg: EvtLogCfg::default(), texts, store, stream, tx, status: Mutex::new(HashMap::new()) })
+        EvtLog::assemble(EvtLogCfg::default(), texts, store.clone(), store, tx, rx)
+    }
+
+    /// Enabled rules from the store into the writer's engine (after every rule change). A rule the catalog no
+    /// longer knows is skipped with a warning, not fatal.
+    pub fn reload_rules(&self) {
+        match alerts::rules(&self.store) {
+            Ok(rules) => {
+                let compiled = rules
+                    .iter()
+                    .filter(|r| r.enabled)
+                    .filter_map(|r| match alerts::compile(r, &self.texts.catalog) {
+                        Ok(c) => Some(c),
+                        Err(e) => {
+                            tracing::warn!(rule = %r.name, "evtlog alert rule skipped: {e}");
+                            None
+                        }
+                    })
+                    .collect();
+                self.alerts.set_rules(compiled);
+            }
+            Err(e) => tracing::warn!("evtlog alert rules: {e}"),
+        }
+    }
+
+    /// Every collector's status, by PLC name.
+    pub fn statuses(&self) -> Vec<(String, CollectorStatus)> {
+        let mut v: Vec<(String, CollectorStatus)> = self.status.lock().unwrap_or_else(PoisonError::into_inner).iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        v.sort_by(|a, b| a.0.cmp(&b.0));
+        v
     }
 
     pub fn status(&self, plc: &str) -> CollectorStatus {
@@ -199,6 +251,8 @@ impl EvtLog {
         // a failed read leaves the position where it was — the next header retries the same range
         let saved = st.clone();
         let d = collect::decide(st, h, geo.capacity);
+        let dropped = h.dropped;
+        self.set_status(name, |s| s.dropped = Some(dropped));
         let mut rows = Vec::new();
         if d.new_epoch {
             tracing::info!(plc = %name, epoch = st.epoch, boot_id = h.boot_id, total = h.total, "evtlog: new epoch");
@@ -300,7 +354,7 @@ impl EvtLog {
     }
 }
 
-fn spawn_writer(store: Store, mut rx: mpsc::Receiver<Msg>, texts: Arc<Texts>, stream: broadcast::Sender<EventRow>) {
+fn spawn_writer(store: Store, mut rx: mpsc::Receiver<Msg>, texts: Arc<Texts>, stream: broadcast::Sender<EventRow>, engine: Arc<alerts::Engine>, alerts_tx: broadcast::Sender<alerts::AlertMsg>) {
     let run = move || {
         while let Some(first) = rx.blocking_recv() {
             let mut rows = Vec::new();
@@ -321,6 +375,7 @@ fn spawn_writer(store: Store, mut rx: mpsc::Receiver<Msg>, texts: Arc<Texts>, st
                             let _ = stream.send(texts.row(*id, r));
                         }
                     }
+                    raise_alerts(&store, &texts, &engine, &alerts_tx, &done);
                 }
                 Err(e) => tracing::error!("evtlog write: {e}"),
             }
@@ -328,6 +383,35 @@ fn spawn_writer(store: Store, mut rx: mpsc::Receiver<Msg>, texts: Arc<Texts>, st
     };
     if let Err(e) = std::thread::Builder::new().name("evtlog-writer".into()).spawn(run) {
         tracing::error!("evtlog writer thread: {e}");
+    }
+}
+
+/// Rules over the rows just stored → `alerts` rows + SSE. Runs on the writer thread, after the rows are committed.
+fn raise_alerts(store: &Store, texts: &Texts, engine: &alerts::Engine, tx: &broadcast::Sender<alerts::AlertMsg>, done: &[(i64, Row)]) {
+    let render = |id: i64, r: &Row| {
+        let e = texts.row(id, r);
+        format!(
+            "{}
+{}
+{}",
+            e.text,
+            e.name.unwrap_or_default(),
+            e.detail.unwrap_or_default()
+        )
+    };
+    let fires = engine.evaluate(done, &render);
+    if fires.is_empty() {
+        return;
+    }
+    match alerts::insert(store, &fires) {
+        Ok(ids) => {
+            for (aid, f) in ids.into_iter().zip(&fires) {
+                let event = done.iter().find(|(id, _)| *id == f.event_id).map(|(id, r)| texts.row(*id, r));
+                let rec = alerts::AlertRec { id: aid, ts: texts.fmt_ms(f.ts), ts_ms: f.ts, rule_id: f.rule_id, rule_name: f.rule_name.clone(), acked: false, event };
+                let _ = tx.send(alerts::AlertMsg::New(Box::new(rec)));
+            }
+        }
+        Err(e) => tracing::error!("evtlog alerts write: {e}"),
     }
 }
 

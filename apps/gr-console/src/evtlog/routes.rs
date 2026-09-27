@@ -10,11 +10,11 @@ use axum::routing::get;
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
+use super::alerts::AlertMsg;
 use super::store::{Cursor, Filter, Origin};
 use super::{DB, EventRow, EvtLog};
 use crate::error::{ApiError, ApiResult};
 use crate::plc::{PlcHandle, ensure_db};
-use crate::sse::broadcast_sse;
 use crate::state::AppState;
 
 const MAX_LIMIT: usize = 5000;
@@ -22,7 +22,7 @@ const CSV_MAX: usize = 200_000;
 /// Rows a text search (`q`) renders before it returns a partial page with a cursor.
 const SEARCH_SCAN: usize = 20_000;
 
-fn log(st: &AppState) -> Result<&Arc<EvtLog>, ApiError> {
+pub(super) fn log(st: &AppState) -> Result<&Arc<EvtLog>, ApiError> {
     st.evtlog.as_ref().ok_or_else(|| ApiError::BadRequest("이벤트 로그가 꺼져 있습니다 ([evtlog] enabled)".into()))
 }
 
@@ -44,15 +44,15 @@ pub struct Q {
     order: Option<String>,
 }
 
-fn opt(s: &Option<String>) -> Option<&str> {
+pub(super) fn opt(s: &Option<String>) -> Option<&str> {
     s.as_deref().map(str::trim).filter(|s| !s.is_empty())
 }
 
-fn list(s: &Option<String>) -> Vec<&str> {
+pub(super) fn list(s: &Option<String>) -> Vec<&str> {
     opt(s).map(|s| s.split(',').map(str::trim).filter(|x| !x.is_empty()).collect()).unwrap_or_default()
 }
 
-fn num<T: std::str::FromStr>(s: &Option<String>, what: &str) -> Result<Option<T>, ApiError> {
+pub(super) fn num<T: std::str::FromStr>(s: &Option<String>, what: &str) -> Result<Option<T>, ApiError> {
     opt(s).map(|v| v.parse::<T>().map_err(|_| ApiError::BadRequest(format!("{what}: {v} 는 숫자가 아닙니다")))).transpose()
 }
 
@@ -146,8 +146,49 @@ async fn events(State(st): State<AppState>, Query(q): Query<Q>) -> ApiResult<Jso
     Ok(axum::Json(json!({ "rows": rows, "next_before": next, "scanned": scanned })))
 }
 
-async fn stream(State(st): State<AppState>) -> Result<impl IntoResponse, ApiError> {
-    Ok(broadcast_sse(log(&st)?.stream.subscribe(), "evt", None))
+#[derive(Deserialize, Default)]
+struct StreamQ {
+    /// `only` = alerts without the rows (the status bar badge).
+    alerts: Option<String>,
+}
+
+/// Named events: `evt` (row), `alert` (new alert), `alert_ack` (acknowledged ids, `[]` = all), `lag`.
+async fn stream(State(st): State<AppState>, Query(q): Query<StreamQ>) -> Result<impl IntoResponse, ApiError> {
+    use axum::response::sse::{Event, KeepAlive, Sse};
+    use futures::StreamExt;
+    use tokio_stream::wrappers::BroadcastStream;
+    use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+
+    let log = log(&st)?;
+    let lag = |n: u64| Event::default().event("lag").data(n.to_string());
+    let alerts = BroadcastStream::new(log.alerts_tx.subscribe()).map(move |m| {
+        Ok::<_, std::convert::Infallible>(match m {
+            Ok(AlertMsg::New(a)) => Event::default().event("alert").json_data(a).unwrap_or_default(),
+            Ok(AlertMsg::Ack(ids)) => Event::default().event("alert_ack").json_data(ids).unwrap_or_default(),
+            Err(BroadcastStreamRecvError::Lagged(n)) => lag(n),
+        })
+    });
+    let only_alerts = opt(&q.alerts).is_some_and(|v| v == "only");
+    let rows = if only_alerts { None } else { Some(broadcast_sse_stream(log.stream.subscribe())) };
+    let merged = match rows {
+        Some(r) => futures::stream::select(alerts, r).boxed(),
+        None => alerts.boxed(),
+    };
+    Ok(Sse::new(merged).keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(15)).text("ping")))
+}
+
+/// Rows as `evt` events (the `broadcast_sse` shape, as a stream to merge).
+fn broadcast_sse_stream(rx: tokio::sync::broadcast::Receiver<EventRow>) -> impl futures::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>> + Send {
+    use axum::response::sse::Event;
+    use futures::StreamExt;
+    use tokio_stream::wrappers::BroadcastStream;
+    use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+    BroadcastStream::new(rx).map(|r| {
+        Ok(match r {
+            Ok(v) => Event::default().event("evt").json_data(v).unwrap_or_default(),
+            Err(BroadcastStreamRecvError::Lagged(n)) => Event::default().event("lag").data(n.to_string()),
+        })
+    })
 }
 
 async fn export_csv(State(st): State<AppState>, Query(q): Query<Q>) -> Result<impl IntoResponse, ApiError> {
@@ -315,6 +356,11 @@ pub fn router() -> Router<AppState> {
         .route("/api/events/sources", get(sources))
         .route("/api/events/task/{id}", get(task_events))
         .route("/api/plc/{plc}/evtlog/cfg", get(cfg_get).put(cfg_put))
+        .merge(super::stats::router())
+        .merge(super::swimlane::router())
+        .merge(super::alerts::router())
+        .merge(super::views::router())
+        .merge(super::report::router())
 }
 
 #[cfg(test)]

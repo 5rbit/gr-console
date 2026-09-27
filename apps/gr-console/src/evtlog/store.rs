@@ -6,7 +6,13 @@ use rusqlite::types::Value;
 
 use crate::db::{Db, Migrations};
 
-pub const MIGRATIONS: Migrations = &[("0001_events", include_str!("migrations/0001_events.sql"))];
+pub const MIGRATIONS: Migrations = &[
+    ("0001_events", include_str!("migrations/0001_events.sql")),
+    // 알림 규칙 · 알림 기록 + 기본 규칙 셋, 2026-09-27
+    ("0002_alerts", include_str!("migrations/0002_alerts.sql")),
+    // 이벤트 화면의 저장된 필터, 2026-09-27
+    ("0003_saved_filters", include_str!("migrations/0003_saved_filters.sql")),
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Origin {
@@ -119,6 +125,11 @@ impl Store {
     #[cfg(test)]
     pub fn memory() -> Store {
         Store { db: Db::open_memory_with(MIGRATIONS).unwrap() }
+    }
+
+    /// The connection for the sibling modules' own tables and aggregate queries.
+    pub(super) fn db(&self) -> &Db {
+        &self.db
     }
 
     /// Inserts in one transaction; a PLC row already stored (same plc, epoch, seq) is skipped. Returns the new rows
@@ -235,6 +246,7 @@ impl Store {
     pub fn prune(&self, now_ms: i64, keep_days: u32, max_bytes: i64) -> rusqlite::Result<(usize, usize)> {
         let cutoff = now_ms - i64::from(keep_days) * 86_400_000;
         let by_age = self.db.with(|c| c.execute("DELETE FROM events WHERE plc_ts < ?1", [cutoff]))?;
+        self.db.with(|c| c.execute("DELETE FROM alerts WHERE ts < ?1", [cutoff]))?;
         let mut by_size = 0usize;
         for _ in 0..50 {
             let used = self.used_bytes()?;

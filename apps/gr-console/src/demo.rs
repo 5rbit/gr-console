@@ -43,7 +43,10 @@ mod ev {
     pub const TASK_CYCLE: (u8, u8, u16) = (4, 2, 416);
     pub const CMD_RESPONSE: (u8, u8, u16) = (5, 2, 508);
     pub const ALM_RAISED_WARN: (u8, u8, u16) = (6, 3, 601);
+    pub const ALM_RAISED_FAULT: (u8, u8, u16) = (6, 4, 601);
     pub const ALM_CLEARED: (u8, u8, u16) = (6, 2, 602);
+    pub const ALM_RESET: (u8, u8, u16) = (6, 2, 603);
+    pub const ALM_TO_FAULT: (u8, u8, u16) = (6, 4, 604);
     pub const GRIP_REQ: (u8, u8, u16) = (7, 2, 701);
     pub const GRIP_ERROR: (u8, u8, u16) = (7, 3, 704);
     pub const GRIP_RETRY: (u8, u8, u16) = (7, 2, 706);
@@ -53,9 +56,18 @@ mod ev {
     pub const ILK_TARGET: (u8, u8, u16) = (12, 2, 1201);
     pub const ILK_PI: (u8, u8, u16) = (12, 2, 1202);
     pub const ILK_PO: (u8, u8, u16) = (12, 2, 1203);
+    pub const ILK_TIMEOUT: (u8, u8, u16) = (12, 4, 1204);
     pub const COM_LINK: (u8, u8, u16) = (14, 3, 1401);
     pub const COM_GET_FAIL: (u8, u8, u16) = (14, 1, 1407);
     pub const DATA_PARA_SECTION: (u8, u8, u16) = (15, 2, 1508);
+    pub const ST_CV_IN: (u8, u8, u16) = (16, 2, 1603);
+    pub const ST_CV_OUT: (u8, u8, u16) = (16, 2, 1604);
+    pub const ST_CVNO_REASON: (u8, u8, u16) = (16, 2, 1605);
+    pub const ST_MEAS: (u8, u8, u16) = (16, 2, 1606);
+    pub const ST_TRACKING: (u8, u8, u16) = (16, 2, 1609);
+    /// alarm areas (`enum.alarm_area`)
+    pub const FAULT: u16 = 1;
+    pub const WARN: u16 = 2;
     pub const STEP: u8 = 3;
     pub const PROC_TASK: u16 = 20;
 }
@@ -74,6 +86,72 @@ fn evt_init(models: &mut HashMap<String, Json>, contract: &Contract, boot_id: u1
         crate::evtlog::demo::init(m, sig, boot_id, &crate::evtlog::catalog::embedded());
     }
 }
+/// Conveyor → GRM bits (`enum.pi_bits`) of a demo station slot at `tick`: CVOK always, 2101 Req 10 s on / 5 s off,
+/// 2102 ItemExist every 7.5 s (50 ms ticks) — the same toggles as GRM `OPCUA.STATION[n].Interlock.PI`.
+fn demo_cv_in(slot: u16, tick: u64) -> i32 {
+    match slot {
+        1 => 0b0001 | if tick % 300 < 200 { 0b0010 } else { 0 },
+        2 => 0b0001 | if (tick / 150).is_multiple_of(2) { 0b1000 } else { 0 },
+        _ => 0,
+    }
+}
+
+/// Demo station slot (1 = 2101, 2 = 2102) of a task cell, `None` for cells and unknown stations.
+fn demo_slot(cell: &CellInfo) -> Option<u16> {
+    cell.is_station().then_some(cell.id % 100).filter(|s| (1..=2).contains(s))
+}
+
+/// Sets GRM→CV bits of a slot and logs ST_CV_OUT when they change.
+fn cv_out_set(grm: &mut HashMap<String, Json>, now: &str, cv_out: &mut [i32; 33], slot: u16, set: i32, clear: i32) {
+    let Some(old) = cv_out.get(usize::from(slot)).copied() else { return };
+    let new = (old | set) & !clear;
+    if new != old {
+        cv_out[usize::from(slot)] = new;
+        evt(grm, now, ev::ST_CV_OUT, slot, new, old, 0);
+    }
+}
+
+/// GRM side of the demo stations: ST_CV_IN when the toggles change, a measurement (Start → Done, every fourth an
+/// X offset error with W1102) on every 2102 ItemExist rise with MeasComp / MeasErr, and now and then a station
+/// data-mismatch FAULT (F0501) with its reset.
+fn grm_station_tick(grm: &mut HashMap<String, Json>, tick: u64, now: &str, cv_out: &mut [i32; 33]) {
+    let meas_err = tick % 1200 >= 900;
+    for slot in 1..=2u16 {
+        let (new, old) = (demo_cv_in(slot, tick), if tick <= 1 { 0 } else { demo_cv_in(slot, tick - 1) });
+        if new != old {
+            evt(grm, now, ev::ST_CV_IN, slot, new, old, 0);
+        }
+        if slot == 2 && new & 0b1000 != 0 && old & 0b1000 == 0 {
+            evt(grm, now, ev::ST_MEAS, 2, 1, 0, 0);
+        }
+        if slot == 2 && new & 0b1000 == 0 && old & 0b1000 != 0 {
+            cv_out_set(grm, now, cv_out, 2, 0, 0b1100);
+            if meas_err {
+                evt(grm, now, ev::ALM_CLEARED, ev::WARN, 321, 0, 0);
+            }
+        }
+    }
+    if tick % 300 == 20 {
+        let od = 7_600 + (tick / 300 % 5) as i32 * 60;
+        if meas_err {
+            evt(grm, now, ev::ST_MEAS, 2, 5, 0, 0);
+            cv_out_set(grm, now, cv_out, 2, 0b1000, 0);
+            evt(grm, now, ev::ALM_RAISED_WARN, ev::WARN, 321, 0, 0);
+        } else {
+            evt(grm, now, ev::ST_MEAS, 2, 2, od, 0);
+            evt(grm, now, ev::ST_TRACKING, 2, 1, od, 0);
+            cv_out_set(grm, now, cv_out, 2, 0b0100, 0);
+        }
+    }
+    if tick % 1500 == 700 {
+        evt(grm, now, ev::ALM_RAISED_FAULT, ev::FAULT, 128, 0, 0);
+        evt(grm, now, ev::ALM_TO_FAULT, 0, 501, 0, 0);
+    }
+    if tick % 1500 == 760 {
+        evt(grm, now, ev::ALM_RESET, ev::FAULT, 1, 0, 0);
+    }
+}
+
 /// Gripper (G axis) travel modelled by the demo — `PARA.Drive.RangeMin/RangeMax["G"]` of the real machine.
 const G_RANGE: (f64, f64) = (295.0, 630.0);
 /// `LGR_GripperTune.Mech` bins per curve.
@@ -140,8 +218,13 @@ fn gcs_period(v: Option<&str>) -> Option<Duration> {
 /// The n-th stand-in GCS task: PICK / DROP alternating over the sample cells, one tire.
 fn gcs_task(n: u32) -> TaskData {
     let i = (n as usize / 2) % 12;
-    let cell = sample_cell(101 + i as u16, i);
     let pick = n.is_multiple_of(2);
+    // every third pair goes over the stations (PICK from 2101, DROP to 2102) so the interlock log has sequences
+    let cell = match n % 6 {
+        4 => sample_station(2101, 0).info,
+        5 => sample_station(2102, 1).info,
+        _ => sample_cell(101 + i as u16, i),
+    };
     TaskData {
         work_id: GCS_WORK_BASE + n,
         task_id: 1,
@@ -189,6 +272,8 @@ struct Running {
     task: TaskData,
     step_idx: usize,
     step_at: Instant,
+    /// How long this step lasts (varied so the step statistics have a spread and a few outliers).
+    step_ms: u64,
 }
 
 /// One robot PLC: its models, S7 store and command/task state.
@@ -227,6 +312,12 @@ struct Side {
     last_limit: f64,
     /// EVTLOG demo: tick at which the demo drive warning clears.
     evt_warn_until: Option<u64>,
+    /// EVTLOG demo: tasks loaded so far (the first ones run without outlier steps — tests wait for them).
+    tasks_run: u32,
+    /// EVTLOG demo: open alarm (area, bit, clear at tick; a FAULT ends with a reset).
+    evt_alarm: Option<(u16, i32, u64)>,
+    /// EVTLOG demo: the interlock of the running station task timed out (FAULT reset at the task end).
+    evt_ilk_fault: bool,
 }
 
 struct Inner {
@@ -238,6 +329,8 @@ struct Inner {
     tick: u64,
     /// Zeroed `GR[n].CMD` subtree used to clear Header/TaskData/Data like GRM does.
     cmd_zero: Json,
+    /// GRM→CV bits per station slot (EVTLOG demo, index = slot).
+    cv_out: [i32; 33],
 }
 
 fn ring_push(ring: &mut VecDeque<TaskData>, t: TaskData) {
@@ -497,6 +590,9 @@ impl DemoWorld {
                 learn_at: None,
                 last_limit: 0.0,
                 evt_warn_until: None,
+                tasks_run: 0,
+                evt_alarm: None,
+                evt_ilk_fault: false,
             };
             evt_init(&mut side.models, &side.contract, 1 + side.gr_index as u16);
             // seed some history so the measurement screens have content — a different amount and tire size per robot
@@ -516,7 +612,7 @@ impl DemoWorld {
             sides.push(side);
         }
         evt_init(&mut grm_models, &grm, 11);
-        let mut inner = Inner { sides, grm: grm_models, grm_encoded: HashMap::new(), cmd_id: 1, seq: 1, tick: 0, cmd_zero };
+        let mut inner = Inner { sides, grm: grm_models, grm_encoded: HashMap::new(), cmd_id: 1, seq: 1, tick: 0, cmd_zero, cv_out: [0; 33] };
         encode_models(&grm, &grm_store, &mut inner.grm, &mut inner.grm_encoded);
         let world = Arc::new(DemoWorld { inner: Mutex::new(inner), grm_store, grm, grm_addr: servers[0].addr, addrs, _servers: servers });
         let w = world.clone();
@@ -674,17 +770,19 @@ impl DemoWorld {
         g.tick += 1;
         let tick = g.tick;
         let ntp = now_str().replace('T', " ").chars().take(23).collect::<String>();
-        let Inner { sides, grm, grm_encoded, cmd_zero, .. } = &mut *g;
+        let Inner { sides, grm, grm_encoded, cmd_zero, cv_out, .. } = &mut *g;
         // 스테이션 요청 흉내: 2101 Req 는 10 s 켜짐 · 5 s 꺼짐, 2102 ItemExist 는 7.5 s 마다 바뀐다(50 ms tick 기준).
         if let Some(db) = grm.get_mut("OPCUA") {
             set(db, "/STATION/0/Interlock/PI/Req", json!(tick % 300 < 200));
             set(db, "/STATION/1/Interlock/PI/ItemExist", json!((tick / 150).is_multiple_of(2)));
         }
+        // GRM's logger scan first (begin_scan): the robots add GRM rows of their station in the same tick
+        grm_evt_tick(grm, tick, &ntp, sides.len());
+        grm_station_tick(grm, tick, &ntp, cv_out);
         for s in sides.iter_mut() {
-            s.tick(tick, &ntp, grm, cmd_zero);
+            s.tick(tick, &ntp, grm, cmd_zero, cv_out);
             s.encode();
         }
-        grm_evt_tick(grm, tick, &ntp, sides.len());
         encode_models(&self.grm, &self.grm_store, grm, grm_encoded);
     }
 
@@ -739,12 +837,46 @@ fn grm_evt_tick(grm: &mut HashMap<String, Json>, tick: u64, now: &str, robots: u
 }
 
 impl Side {
+    /// Next step length: 450–950 ms, and after the first tasks one step in 16 is an outlier of 2.6–3.6 s.
+    fn step_ms(&mut self) -> u64 {
+        if self.tasks_run > 2 && self.rng.random_range(0..16) == 0 { self.rng.random_range(2600..3600) } else { self.rng.random_range(450..950) }
+    }
+
+    /// Background alarms of the demo robot: a WARN now and then that clears after 2–40 s, rarely a FAULT
+    /// (FAULT transition, then a reset 5–15 s later). Ticks are 200 ms in `--demo`.
+    fn evt_alarm_tick(&mut self, tick: u64, ntp: &str) {
+        const WARN_BITS: [i32; 4] = [160, 347, 348, 475];
+        match self.evt_alarm {
+            Some((area, bit, until)) if tick >= until => {
+                if area == ev::FAULT {
+                    evt(&mut self.models, ntp, ev::ALM_RESET, ev::FAULT, 1, 0, 0);
+                } else {
+                    evt(&mut self.models, ntp, ev::ALM_CLEARED, area, bit, 0, 0);
+                }
+                self.evt_alarm = None;
+            }
+            Some(_) => {}
+            None => {
+                let roll = self.rng.random_range(0..1000);
+                if roll < 5 {
+                    let bit = WARN_BITS[self.rng.random_range(0..WARN_BITS.len())];
+                    evt(&mut self.models, ntp, ev::ALM_RAISED_WARN, ev::WARN, bit, 0, 0);
+                    self.evt_alarm = Some((ev::WARN, bit, tick + self.rng.random_range(10..200)));
+                } else if roll < 6 {
+                    evt(&mut self.models, ntp, ev::ALM_RAISED_FAULT, ev::FAULT, 320, 0, 0);
+                    evt(&mut self.models, ntp, ev::ALM_TO_FAULT, 0, 1101, 0, 0);
+                    self.evt_alarm = Some((ev::FAULT, 320, tick + self.rng.random_range(25..75)));
+                }
+            }
+        }
+    }
+
     fn encode(&mut self) {
         encode_models(&self.contract, &self.store, &mut self.models, &mut self.encoded);
     }
 
     /// One tick of this robot; mirrors its STAT into GRM `OPCUA.GR[gr_index]`.
-    fn tick(&mut self, tick: u64, ntp: &str, grm: &mut HashMap<String, Json>, cmd_zero: &Json) {
+    fn tick(&mut self, tick: u64, ntp: &str, grm: &mut HashMap<String, Json>, cmd_zero: &Json, cv_out: &mut [i32; 33]) {
         let gr = format!("/GR/{}", self.gr_index);
         let run_us = self.rng.random_range(25..70);
         if let Some(m) = self.models.get_mut("EVTLOG") {
@@ -764,6 +896,7 @@ impl Side {
             self.evt_warn_until = None;
             evt(&mut self.models, ntp, ev::DRV_FAULT_CLEARED, 3, 0, 0, 0);
         }
+        self.evt_alarm_tick(tick, ntp);
         // ---- command intake (GR UL_ParseOpcUaCommand semantics, simplified)
         if let Some((h, task)) = self.pending.take() {
             let mut data = [0u8; 16];
@@ -876,18 +1009,25 @@ impl Side {
             let (ty, cell, work) = (u16::from(t.task_type), i32::from(t.cell.id), t.work_id);
             evt(&mut self.models, ntp, ev::TASK_LOADED, ty, cell, work as i32, work);
             evt(&mut self.models, ntp, ev::ILK_TARGET, 0, cell, i32::from(t.task_type), work);
+            if let Some(slot) = demo_slot(&t.cell) {
+                evt(&mut self.models, ntp, ev::ILK_PI, 0, demo_cv_in(slot, tick), 0, work);
+            }
             evt(&mut self.models, ntp, (ev::STEP, 2, STEPS[0]), ev::PROC_TASK, 0, 0, work);
-            self.now = Some(Running { task: t, step_idx: 0, step_at: Instant::now() });
+            self.tasks_run += 1;
+            let step_ms = self.step_ms();
+            self.now = Some(Running { task: t, step_idx: 0, step_at: Instant::now(), step_ms });
         }
         let mut finished: Option<TaskData> = None;
         let mut step_evt: Option<(u16, u16, i32, TaskData)> = None;
+        let next_ms = self.step_ms();
         if let Some(r) = self.now.as_mut()
-            && r.step_at.elapsed() > Duration::from_millis(700)
+            && r.step_at.elapsed() > Duration::from_millis(r.step_ms)
         {
             let dwell = r.step_at.elapsed().as_millis() as i32;
             let left = STEPS[r.step_idx.min(STEPS.len() - 1)];
             r.step_idx += 1;
             r.step_at = Instant::now();
+            r.step_ms = next_ms;
             if r.step_idx >= STEPS.len() {
                 finished = Some(r.task.clone());
             } else {
@@ -899,8 +1039,28 @@ impl Side {
             evt(&mut self.models, ntp, (ev::STEP, 2, now_step), ev::PROC_TASK, dwell, i32::from(left), work);
             match now_step {
                 400 if t.cell.is_station() => {
+                    let slot = demo_slot(&t.cell);
+                    // now and then the conveyor holds the robot off first (next station occupied)
+                    let held = slot.is_some() && self.rng.random_range(0..100) < 15;
+                    if let (Some(s), true) = (slot, held) {
+                        evt(grm, ntp, ev::ST_CVNO_REASON, s, 0b10, 0, 0);
+                    }
                     evt(&mut self.models, ntp, ev::ILK_PO, 0, 0b01, 0, work);
-                    evt(&mut self.models, ntp, ev::ILK_PI, 0, 0b1011, 0b0011, work);
+                    if let Some(s) = slot {
+                        cv_out_set(grm, ntp, cv_out, s, 0b01, 0);
+                        let pi = demo_cv_in(s, tick);
+                        evt(&mut self.models, ntp, ev::ILK_PI, 0, pi | 0b0010, pi, work);
+                        if held {
+                            evt(grm, ntp, ev::ST_CVNO_REASON, s, 0, 0b10, 0);
+                        }
+                        // 1 in 12 (after the first tasks): the interlock times out → FAULT, reset when the task ends
+                        if self.tasks_run > 2 && self.rng.random_range(0..12) == 0 {
+                            evt(&mut self.models, ntp, ev::ILK_TIMEOUT, 400, 3118, 0, work);
+                            evt(&mut self.models, ntp, ev::ALM_RAISED_FAULT, ev::FAULT, 593, 400, work);
+                            evt(&mut self.models, ntp, ev::ALM_TO_FAULT, 0, 3118, 0, work);
+                            self.evt_ilk_fault = true;
+                        }
+                    }
                 }
                 500 => {
                     // FB_Gripper events are GR2-only (catalog plc = ["GR2"]): a contract without GRIP_E_* has no gripper FB
@@ -921,6 +1081,12 @@ impl Side {
                 }
                 600 if t.cell.is_station() => {
                     evt(&mut self.models, ntp, ev::ILK_PO, 0, 0b10, 0b01, work);
+                    if let Some(s) = demo_slot(&t.cell) {
+                        cv_out_set(grm, ntp, cv_out, s, 0b10, 0b01);
+                        if t.task_type == TaskType::Pick.code() {
+                            evt(grm, ntp, ev::ST_TRACKING, s, 3, self.gr_index as i32 + 1, 0);
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -930,6 +1096,14 @@ impl Side {
             evt(&mut self.models, ntp, (ev::STEP, 2, 0), ev::PROC_TASK, 700, 999, work);
             evt(&mut self.models, ntp, ev::TASK_COMPLETED, ty, cell, work as i32, work);
             evt(&mut self.models, ntp, ev::TASK_CYCLE, 0, 700 * STEPS.len() as i32, 1400, work);
+            if let Some(s) = demo_slot(&t.cell) {
+                evt(&mut self.models, ntp, ev::ILK_PO, 0, 0, 0b10, work);
+                cv_out_set(grm, ntp, cv_out, s, 0, 0b11);
+                evt(&mut self.models, ntp, ev::ILK_TARGET, 0, 0, 0, work);
+            }
+            if std::mem::take(&mut self.evt_ilk_fault) {
+                evt(&mut self.models, ntp, ev::ALM_RESET, ev::FAULT, 1, 0, 0);
+            }
         }
         if let Some(t) = finished {
             self.now = None;
@@ -1532,6 +1706,9 @@ mod two_robot_tests {
         assert_eq!((a.work_id, b.work_id), (GCS_WORK_BASE, GCS_WORK_BASE + 1));
         assert_eq!(a.cell.id, 101);
         assert_eq!(gcs_task(25).cell.id, 101, "wraps over the 12 sample cells");
+        assert_eq!((gcs_task(4).cell.id, gcs_task(5).cell.id), (2101, 2102), "every third pair over the stations");
+        assert_eq!((demo_slot(&gcs_task(4).cell), demo_slot(&a.cell)), (Some(1), None));
+        assert_eq!((demo_cv_in(1, 0), demo_cv_in(1, 250), demo_cv_in(2, 0), demo_cv_in(2, 150)), (0b0011, 0b0001, 0b1001, 0b0001));
         assert!(a.item.code != 0);
     }
 
