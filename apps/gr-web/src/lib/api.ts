@@ -103,7 +103,9 @@ export async function getJson<T>(path: string): Promise<T> {
       return (await r.json()) as T
     } catch (e) {
       if (ctl.signal.aborted) {
-        throw new Error(`응답 없음 ${GET_TIMEOUT_MS / 1000}초 (GET ${path}) — 콘솔 연결이 막혔습니다`)
+        throw new Error(
+          `응답 없음 ${GET_TIMEOUT_MS / 1000}초 (GET ${path}) — 콘솔 연결이 막혔습니다`,
+        )
       }
       throw e
     } finally {
@@ -368,6 +370,12 @@ export const api = {
   /** 생성(+`submit`이면 즉시 PLC로 제출). */
   taskCreate: (req: TaskRequest, submit = false) =>
     postJson<Task>(`/api/tasks${qs({ submit })}`, req),
+  /** PICK/DROP 짝 — 이송 지시를 열고 PICK 을 제출, DROP 은 같은 지시의 초안(보내기는 `taskSubmit`). */
+  taskPair: (pick: TaskRequest, drop: TaskRequest) =>
+    postJson<{ order: string; pick: Task; drop: Task | null; warning: string | null }>(
+      '/api/tasks/pair',
+      { pick, drop },
+    ),
   taskSubmit: (id: string) => postJson<Task>(`/api/tasks/${id}/submit`),
   taskCancel: (id: string) => postJson<Task>(`/api/tasks/${id}/cancel`),
   taskComplete: (id: string) => postJson<Task>(`/api/tasks/${id}/complete`),
@@ -455,7 +463,9 @@ export const api = {
 export function loadFailure(e: unknown): { transport: boolean; text: string } {
   const raw = e instanceof Error ? e.message : String(e)
   const transport =
-    /failed to fetch|networkerror|load failed|fetch failed|err_connection|refused|응답 없음|aborted/i.test(raw)
+    /failed to fetch|networkerror|load failed|fetch failed|err_connection|refused|응답 없음|aborted/i.test(
+      raw,
+    )
   return { transport, text: raw }
 }
 

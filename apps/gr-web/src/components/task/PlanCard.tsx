@@ -56,6 +56,7 @@ import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
 import { preQueueLabel, readPreQueue, writePreQueue } from '../../lib/task/preQueue'
+import { readPairDraft, writePairDraft } from '../../lib/task/pairDraft'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
 import { robots } from '../../lib/robots'
@@ -99,6 +100,7 @@ import type {
   Station,
   StockEntry,
   SyncIssue,
+  Task,
   TaskType,
 } from '../../lib/types'
 import { SyncIssuesDialog } from './SyncIssuesDialog'
@@ -618,12 +620,52 @@ export function PlanCard({
     }
   }
 
+  // PICK/DROP 은 짝으로 **만들고** 하나씩 **보낸다** — PICK 을 보낼 때 다음 DROP 을 같은 이송 지시의 초안으로 만들어
+  // 그 계획 줄에 걸어 둔다. 그 줄 차례(PICK 이 PLC 에 받아지고 큐에 자리가 날 때)에 초안을 보낸다.
+  const [pairDraft, setPairDraftState] = useState<{ stepId: string; taskId: string } | null>(
+    readPairDraft,
+  )
+  function setPairDraft(v: { stepId: string; taskId: string } | null) {
+    setPairDraftState(v)
+    writePairDraft(v)
+  }
+  // 초안이 걸린 줄이 계획에서 빠지면 초안도 지운다(보내지 않은 짝 DROP 이 원장에 남지 않게).
+  useEffect(() => {
+    if (pairDraft && !steps.some((s) => s.id === pairDraft.stepId)) {
+      void api.taskCancel(pairDraft.taskId).catch(() => undefined)
+      setPairDraft(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 계획이 바뀔 때만
+  }, [steps])
+
+  async function sendFirst(): Promise<Task> {
+    if (!first) throw new Error('보낼 스텝 없음')
+    if (pairDraft && pairDraft.stepId === first.id) {
+      const t = await api.taskSubmit(pairDraft.taskId)
+      setPairDraft(null)
+      return t
+    }
+    if (first.type === 'PICK') {
+      const second = rows[1]
+      if (!second || second.type !== 'DROP')
+        throw new Error('PICK 다음에 DROP 이 있어야 짝으로 보냅니다')
+      const res = await api.taskPair(
+        toRequest(first, robots.selected, first.multiPick),
+        toRequest(second, robots.selected, second.multiPick),
+      )
+      if (res.drop) setPairDraft({ stepId: second.id, taskId: res.drop.id })
+      if (res.warning) toast.warn(res.warning)
+      return res.pick
+    }
+    return api.taskCreate(toRequest(first, robots.selected, first.multiPick), true)
+  }
+
   async function submitNext(isAuto = false) {
     if (!first || inFlight.current) return
     inFlight.current = true
     setBusy(true)
     try {
-      const t = await api.taskCreate(toRequest(first, robots.selected, first.multiPick), true)
+      const t = await sendFirst()
       if (isAuto) setEchoId(t.id)
       // 스텝이 제 로봇을 들고 있으면(계획 표의 Robot 열) 그쪽, 아니면 카드 대상.
       const who =

@@ -2,7 +2,7 @@
 //!
 //! `GET /api/tasks?state=active|terminal|a,b&type=PICK&origin=console|scenario|external&since=<RFC3339>&q=&limit=&offset=`
 //! `GET /api/tasks/stats` · `GET /api/tasks/gate` · `GET /api/tasks/plc-view` · `GET /api/tasks/stream` (SSE snapshot|upsert|remove)
-//! `POST /api/tasks[?submit=false]` · `GET|DELETE /api/tasks/{id}` · `POST /api/tasks/{id}/submit|cancel|complete|resubmit|mark-failed`
+//! `POST /api/tasks[?submit=false]` · `POST /api/tasks/pair[?submit=false]`(PICK 제출 + 짝 DROP 초안) · `GET|DELETE /api/tasks/{id}` · `POST /api/tasks/{id}/submit|cancel|complete|resubmit|mark-failed`
 //! `POST /api/robots/{id}/command/start|stop|reset|buzzerstop|gripper-learn|complete|clear` (`robot_cmd`)
 
 use axum::Router;
@@ -123,7 +123,7 @@ async fn create(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::
     // PICK 은 늘 DROP 과 짝이다 — 단독 PICK 은 받지 않는다(짝은 순차 계획/시나리오 실행기가 보낸다). DROP 단독은
     // Hand 에 든 것을 내려놓는 복구용으로 받고, 짝 검사(`enforce_hand`)가 품목·수량을 본다.
     if crate::issue::parse_task_type(&req.task_type)? == gr_proto::TaskType::Pick && req.source.is_none() {
-        return Err(ApiError::Conflict(crate::ledger::ops::with_robot(&r.name, "PICK 단독 제출 불가 — PICK/DROP 은 짝으로 보냅니다(순차 계획 → 저장 후 실행)")));
+        return Err(ApiError::Conflict(crate::ledger::ops::with_robot(&r.name, "PICK 단독 제출 불가 — PICK 은 다음 DROP 과 짝으로 보냅니다(POST /api/tasks/pair)")));
     }
     // 단독 DROP(Hand 복구)은 손에 든 화물의 이송 지시를 잇는다.
     let mut req = req;
@@ -136,8 +136,68 @@ async fn create(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::
     Ok(axum::Json(e))
 }
 
+#[derive(Deserialize)]
+struct PairBody {
+    pick: TaskRequest,
+    drop: TaskRequest,
+}
+
+/// `POST /api/tasks/pair[?submit=false]` — PICK/DROP 을 **짝으로 만든다**: 이송 지시를 열고 PICK 을 제출(기본)하고,
+/// DROP 은 같은 지시의 **초안**으로 둔다. 초안은 로봇이 받을 수 있을 때 `POST /api/tasks/{id}/submit` 으로 보낸다
+/// (보낼 때 그때의 재고로 다시 작성). 순차 계획이 쓴다 — 명령은 짝으로 만들고 보내기는 하나씩.
+async fn create_pair(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::Json(b): axum::Json<PairBody>) -> ApiResult<Json> {
+    let (mut pick, mut drop) = (b.pick, b.drop);
+    let r = st.robot_required(pick.robot.or(drop.robot), "작업 제출")?;
+    if drop.robot.is_some_and(|x| x != r.id) {
+        return Err(ApiError::BadRequest(crate::ledger::ops::with_robot(&r.name, "PICK 과 DROP 은 같은 로봇이어야 짝이 됩니다")));
+    }
+    if crate::issue::parse_task_type(&pick.task_type)? != gr_proto::TaskType::Pick || crate::issue::parse_task_type(&drop.task_type)? != gr_proto::TaskType::Drop {
+        return Err(ApiError::BadRequest("짝은 PICK 다음 DROP 이어야 합니다".into()));
+    }
+    pick.robot = Some(r.id);
+    drop.robot = Some(r.id);
+    if drop.item_code.is_none() {
+        drop.item_code = pick.item_code;
+    }
+    // PICK 을 먼저 작성해 본다 — 안 되면 지시를 열지 않는다.
+    let composed = crate::issue::compose(&st, &pick)?;
+    let order = st.stock.open_order(crate::stock::transfer::NewOrder {
+        robot: Some(r.id),
+        plc: r.plc.clone(),
+        item_code: pick.item_code.unwrap_or(composed.task.item.code),
+        count: u32::from(pick.count.max(1)),
+        from: pick.target.clone(),
+        to: drop.target.clone(),
+        source: "console:plan".into(),
+        note: "순차 계획".into(),
+    })?;
+    pick.transfer_order_id = Some(order.id.clone());
+    drop.transfer_order_id = Some(order.id.clone());
+    let pick_e = match super::ops::create_and_submit(&st, r, Origin::Console, Some(pick), Some(composed.params), composed.task, composed.pallet, q.submit.unwrap_or(true)).await {
+        Ok(e) => e,
+        Err(e) => {
+            let _ = st.stock.abort_order(&order.id, &format!("짝 PICK 제출 실패: {e}"), false);
+            return Err(e);
+        }
+    };
+    // DROP 은 PICK 이 예상 Hand 에 들어간 뒤에 작성해야 짝 검사를 통과한다.
+    let drop_res = match crate::issue::compose(&st, &drop) {
+        Ok(c) => super::ops::create_and_submit(&st, r, Origin::Console, Some(drop), Some(c.params), c.task, c.pallet, false).await,
+        Err(e) => Err(e),
+    };
+    let (drop_e, warning) = match drop_res {
+        Ok(e) => (Some(e), None),
+        Err(e) => (None, Some(format!("PICK 은 보냈지만 짝 DROP 초안을 못 만듦: {e} — DROP 을 다시 보내세요(Hand 복구)"))),
+    };
+    Ok(axum::Json(json!({ "order": order.id, "pick": pick_e, "drop": drop_e, "warning": warning })))
+}
+
+/// 초안 제출. 이송 지시에 묶인 짝 초안은 **지금 재고로 다시 작성**해 보낸다(그 사이 바뀐 재고 · 팔렛 슬롯).
 async fn submit(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<LedgerEntry> {
     let (r, e) = st.find_task(&id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
+    if e.state == TaskState::Draft && e.transfer_order_id.is_some() {
+        return Ok(axum::Json(super::ops::submit_refreshed(&st, r, e).await?));
+    }
     Ok(axum::Json(super::ops::submit(&st, r, e).await?))
 }
 
@@ -193,6 +253,7 @@ async fn stream(State(st): State<AppState>) -> impl IntoResponse {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/tasks", get(list).post(create))
+        .route("/api/tasks/pair", post(create_pair))
         .route("/api/tasks/gate", get(gate))
         .route("/api/tasks/stats", get(stats))
         .route("/api/tasks/plc-view", get(plc_view))
