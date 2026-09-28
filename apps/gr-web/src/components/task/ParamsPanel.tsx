@@ -27,14 +27,23 @@ export function ParamsPanel() {
   const [view, setView] = useState<View>('values')
   const [hist, setHist] = useState<ParamsHistory[]>([])
   const [busy, setBusy] = useState(false)
+  // 읽기 실패는 한 번만 토스트하고 그 뒤로는 띠에 남긴다 — 값이 없어도 "읽는 중…" 으로 멈춰 있지 않게.
+  const [err, setErr] = useState<string | null>(null)
   const load = useCallback(() => {
     paramsApi
       .get()
       .then((s) => {
         setState(s)
         setEdits({})
+        setErr(null)
       })
-      .catch((e) => toast.error(`파라미터 — ${e instanceof Error ? e.message : String(e)}`))
+      .catch((e) => {
+        const why = e instanceof Error ? e.message : String(e)
+        setErr((prev) => {
+          if (prev === null) toast.error(`파라미터를 읽지 못함 — ${why}`)
+          return why
+        })
+      })
   }, [])
   useEffect(load, [load])
   useEffect(() => {
@@ -59,7 +68,22 @@ export function ParamsPanel() {
     return { out, errors }
   }, [edits, state])
 
-  if (!state) return <span className="text-content-faint">읽는 중…</span>
+  const errBand = err ? (
+    <div
+      className="flex items-center gap-2 rounded border border-warn-border bg-warn-soft px-2 py-1 text-2xs text-warn-fg"
+      data-testid="params-error"
+    >
+      <span className="min-w-0 flex-1 truncate" title={err}>
+        파라미터를 읽지 못함 — {err}
+        {state ? ' (아래 값은 마지막으로 읽은 것)' : ''}
+      </span>
+      <Button size="sm" intent="ghost" onClick={load} data-testid="params-retry">
+        다시 시도
+      </Button>
+    </div>
+  ) : null
+
+  if (!state) return errBand ?? <span className="text-content-faint">읽는 중…</span>
 
   const value = (k: string) => (k in edits ? edits[k] : toText(state.params[k]))
   const dirty = Object.keys(edits).length > 0
@@ -169,6 +193,7 @@ export function ParamsPanel() {
 
   return (
     <div className="flex flex-col gap-2 text-xs">
+      {errBand}
       <div className="flex flex-wrap items-center gap-2">
         <Segmented
           ariaLabel="파라미터 보기"
