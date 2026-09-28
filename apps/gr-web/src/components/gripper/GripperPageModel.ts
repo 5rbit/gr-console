@@ -199,7 +199,7 @@ export interface ParaRowView {
   name: string
   param: number
   value: number | null
-  group: 'Machine' | 'Task' | 'Timeout'
+  group: 'Machine' | 'Task' | 'Sensor'
 }
 
 /** 그리퍼 PARA — 이름 · p 번호 · 값(없으면 null). 순서는 p 번호. */
@@ -229,12 +229,12 @@ const PARA_NO: readonly (readonly [string, number, 'Machine' | 'Task'])[] = [
   ['G_LoadAvgMax', 990, 'Task'],
 ]
 
-/** p1040~p1059 — 구간 n 의 Min/Max/OpenPct/MeasPct 가 4 개씩 이어진다. */
-const INCH_PARA: readonly (readonly [string, number, 'Timeout'])[] = [1, 2, 3, 4, 5].flatMap((n) =>
-  (['Min', 'Max', 'OpenPct', 'MeasPct'] as const).map(
-    (k, i) => [`G_Inch${n}_${k}`, 1040 + (n - 1) * 4 + i, 'Timeout'] as const,
-  ),
-)
+/** 인치별 수동 토크 — OpenPct p450~p462(12..24"), MeasPct p463~p475. */
+const INCHES = Array.from({ length: 13 }, (_, i) => 12 + i)
+const INCH_PARA: readonly (readonly [string, number, 'Sensor'])[] = [
+  ...INCHES.map((inch) => [`G_Inch${inch}_OpenPct`, 450 + inch - 12, 'Sensor'] as const),
+  ...INCHES.map((inch) => [`G_Inch${inch}_MeasPct`, 463 + inch - 12, 'Sensor'] as const),
+]
 
 export function paraRows(para: Record<string, number> | null | undefined): ParaRowView[] {
   return [...PARA_NO, ...INCH_PARA].map(([name, param, group]) => {

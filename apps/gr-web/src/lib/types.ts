@@ -912,6 +912,8 @@ export interface WebMonGripper {
   ContactThr?: number
   /** 타이어 몫 사양 (Nm @RefDia) */
   TireNm?: number
+  /** PLC 가 적용한 인치 12..24 (PARA Sensor p450~p475), 0 = 자동 환산 */
+  Band?: number
   Drive?: WebMonGripperDrive
 }
 
@@ -1281,32 +1283,27 @@ export interface GripperSnapshot {
   tune: GripperTune | null
   tune_at: string | null
   tune_error: string | null
-  /** PARA.Machine.G_* · PARA.Task.G_* · PARA.Timeout.G_Inch<n>_* (없는 멤버는 빠진다) */
+  /** PARA.Machine.G_* · PARA.Task.G_* · PARA.Sensor.G_Inch{12..24}_{OpenPct,MeasPct} (없는 멤버는 빠진다) */
   para: Record<string, number>
-  /** 인치 구간 수동 토크(p1040~p1059) 판정 — 서버가 PLC `GripperInchPct` 규칙으로 계산. 구버전 응답엔 없다. */
-  inch_bands?: GripperInchBands
+  /** 인치별 수동 토크(p450~p475) 표 — 적용 인치는 PLC 판정 `WEBMON.Gripper.Band`. 구버전 응답엔 없다. */
+  inch_table?: GripperInchTable
 }
 
-export interface GripperInchBand {
-  n: number
-  min: number
-  max: number
+export interface GripperInchRow {
+  inch: number
   open_pct: number
   meas_pct: number
-  /** Min < Max */
-  valid: boolean
-  /** 첫 매칭 구간 */
+  /** `live.Band == inch` — PLC 가 이 인치를 적용 중 */
   active: boolean
-  /** Fallback 이 켜져 있고 활성 구간의 % > 0 — 구간 % 가 총량을 정하는 중 */
+  /** active 이고 Fallback 이 켜져 있고 % > 0 — 이 % 가 총량을 정하는 중 */
   applied: boolean
 }
 
-export interface GripperInchBands {
-  /** 판정에 쓴 인치(null = 모름) */
-  inch: number | null
-  /** 어디서 온 인치인가 — WEBMON.Gripper.Inch 반올림 근사 */
-  inch_source: string
-  bands: GripperInchBand[]
+export interface GripperInchTable {
+  /** `WEBMON.Gripper.Band` (0 = 자동 환산) */
+  band: number
+  band_source: string
+  rows: GripperInchRow[]
 }
 
 // ── PARA (/api/para?robot=) ─────────────────────────────────────────────────────
