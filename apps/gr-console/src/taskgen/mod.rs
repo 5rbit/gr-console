@@ -184,14 +184,49 @@ pub fn fires(rule: &Rule, w: &World) -> bool {
         Trigger::StationItem { station, require_cvok } => pi(station).item_exist && (!require_cvok || pi(station).cvok),
         Trigger::CellStock { cell, item, min } => w.stock.get(cell).is_some_and(|(code, n)| *n >= *min && item.is_none_or(|i| i == *code)),
     };
-    // 고정 셀로 옮길 것은 출발에 재고가, 도착에 칸이 있어야 한다(자동 셀은 고를 때 본다, 스테이션은 모른다 — 통과).
+    // 출발에 재고(= 콘솔이 품목을 안다)가, 도착에 칸이 있어야 한다. 스테이션도 셀과 같게 본다 — 콘솔 재고가
+    // 곧 GCS 의 지식이다(컨베이어 트래킹이 옮긴다). 자동 셀은 고를 때(`resolve`) 본다.
     base && match &rule.action {
         Action::Transfer { from, to, count, from_auto, to_auto, .. } => {
-            let have = from_auto.is_some() || from.kind != "cell" || w.stock.get(&from.id).is_some_and(|(_, n)| *n >= *count as u32);
-            let room = to_auto.is_some() || to.kind != "cell" || w.room.get(&to.id).is_none_or(|r| *r >= *count as u32);
-            have && room
+            (from_auto.is_some() || source_ready(w, from, *count, rule.item()).is_none()) && (to_auto.is_some() || dest_ready(w, to, *count).is_none())
         }
         _ => true,
+    }
+}
+
+/// 출발이 준비됐나 — 콘솔 재고에 필요한 수량이 있고 품목을 안다. 안 됐으면 사유.
+pub fn source_ready(w: &World, t: &Target, count: u8, want: Option<u32>) -> Option<String> {
+    if t.kind != "cell" && t.kind != "station" {
+        return None;
+    }
+    let (code, n) = w.stock.get(&t.id).copied().unwrap_or((0, 0));
+    let need = count.max(1) as u32;
+    if n < need {
+        return Some(format!("재고 {n} < 필요 {need}"));
+    }
+    // 품목은 규칙이 정하거나 콘솔 재고가 알아야 한다 — 0 으로 보내면 PLC 가 INVALID_ITEM_CODE 로 거부한다.
+    want.or(Some(code).filter(|c| *c != 0)).map_or_else(|| Some("품목을 콘솔이 모름".to_string()), |_| None)
+}
+
+/// 도착이 준비됐나 — 남은 칸(StackMax)이 필요한 수량 이상. 안 됐으면 사유.
+pub fn dest_ready(w: &World, t: &Target, count: u8) -> Option<String> {
+    if t.kind != "cell" && t.kind != "station" {
+        return None;
+    }
+    let need = count.max(1) as u32;
+    match w.room.get(&t.id) {
+        Some(r) if *r < need => Some(format!("남은 칸 {r} < 필요 {need}")),
+        _ => None,
+    }
+}
+
+impl Rule {
+    /// 규칙이 정한 품목(있으면).
+    pub fn item(&self) -> Option<u32> {
+        match &self.action {
+            Action::Transfer { item, .. } | Action::Measure { item, .. } => *item,
+            Action::Move { .. } => None,
+        }
     }
 }
 
@@ -234,22 +269,30 @@ pub fn rule_terms(rule: &Rule, w: &World) -> Vec<Term> {
         }
     }
     match &rule.action {
-        Action::Transfer { from, to, count, from_auto, to_auto, pallet_auto, .. } => {
+        Action::Transfer { from, to, count, from_auto, to_auto, pallet_auto, item } => {
+            // 품목 — 규칙이 정하거나 출발의 콘솔 재고가 알아야 한다(스테이션도 같다).
+            let src_code = from_auto.is_none().then(|| w.stock.get(&from.id).map(|(c, _)| *c).unwrap_or(0)).filter(|c| *c != 0);
+            match (item, src_code, from_auto.is_some()) {
+                (Some(i), _, _) => v.push(t("품목".into(), format!("{i} (규칙)"), true)),
+                (None, Some(c), _) => v.push(t("품목".into(), format!("{c} (출발 재고)"), true)),
+                (None, None, true) => v.push(t("품목".into(), "출발 셀을 고를 때 확정".into(), true)),
+                (None, None, false) => v.push(t("품목".into(), "콘솔이 모름".into(), false)),
+            }
             match from_auto {
                 Some(p) => v.push(t("출발 셀".into(), format!("자동 선택({})", if p.order.is_empty() { "oldest" } else { &p.order }), true)),
-                None if from.kind == "cell" => {
+                None => {
+                    let why = source_ready(w, from, *count, *item);
                     let have = w.stock.get(&from.id).map(|(_, n)| *n).unwrap_or(0);
-                    v.push(t(format!("출발 셀 {} 재고", from.id), format!("{have} 개 / 필요 {count}"), have >= *count as u32));
+                    v.push(t(format!("출발 {} {} 준비", from.kind, from.id), why.clone().unwrap_or_else(|| format!("재고 {have} / 필요 {count}")), why.is_none()));
                 }
-                None => v.push(t("출발".into(), format!("{} {}", from.kind, from.id), true)),
             }
             match to_auto {
                 Some(_) => v.push(t("도착 셀".into(), "자동 선택(가까운 순)".into(), true)),
-                None if to.kind == "cell" => match w.room.get(&to.id) {
-                    Some(r) => v.push(t(format!("도착 셀 {} 남은 칸", to.id), format!("{r} / 필요 {count}"), *r >= *count as u32)),
-                    None => v.push(t(format!("도착 셀 {} 남은 칸", to.id), "제한 없음".into(), true)),
-                },
-                None => v.push(t("도착".into(), format!("{} {}", to.kind, to.id), true)),
+                None => {
+                    let why = dest_ready(w, to, *count);
+                    let room = w.room.get(&to.id).map(|r| format!("남은 칸 {r} / 필요 {count}")).unwrap_or_else(|| "칸 제한 없음".into());
+                    v.push(t(format!("도착 {} {} 준비", to.kind, to.id), why.clone().unwrap_or(room), why.is_none()));
+                }
             }
             if *pallet_auto {
                 v.push(t("팔렛 다음 슬롯".into(), "작성 때 확인".into(), true));
@@ -388,6 +431,8 @@ pub struct Candidate {
     /// 고른(또는 고정) 첫 대상과 짝 DROP 대상.
     pub first: Target,
     pub second: Option<Target>,
+    /// 확정된 품목(PICK/DROP 짝은 늘 있다).
+    pub item: Option<u32>,
     /// 첫 목표 X · (짝이면) DROP 목표 X.
     pub target_x: f32,
     pub drop_x: Option<f32>,
@@ -570,6 +615,7 @@ mod tests {
             robot,
             first: cell(1),
             second: Some(cell(2)),
+            item: Some(2011),
             target_x: lo,
             drop_x: Some(hi),
             area: Interval::span(lo, hi),
@@ -751,37 +797,54 @@ mod tests {
         w.stations.insert(2101, StationPi { cvok: true, req: false, item_exist: true });
         w.stock.insert(401, (2011, 3));
         w.room.insert(402, 1);
-        let shown = |r: &Rule| rule_terms(r, &w).iter().map(|t| (t.label.clone(), t.value.clone(), t.ok)).collect::<Vec<_>>();
+        fn shown(r: &Rule, w: &World) -> Vec<(String, String, bool)> {
+            rule_terms(r, w).iter().map(|t| (t.label.clone(), t.value.clone(), t.ok)).collect()
+        }
 
         let r = Rule { trigger: Trigger::StationReq { station: 2101, require_cvok: true }, ..rule("st", 0.0, 401, 402) };
         assert_eq!(
-            shown(&r),
+            shown(&r, &w),
             vec![
                 ("STATION 2101 Req".into(), "0".into(), false),
                 ("STATION 2101 CVOK".into(), "1".into(), true),
-                ("출발 셀 401 재고".into(), "3 개 / 필요 1".into(), true),
-                ("도착 셀 402 남은 칸".into(), "1 / 필요 1".into(), true),
+                ("품목".into(), "2011 (규칙)".into(), true),
+                ("출발 cell 401 준비".into(), "재고 3 / 필요 1".into(), true),
+                ("도착 cell 402 준비".into(), "남은 칸 1 / 필요 1".into(), true),
             ]
         );
-        // 한 줄 요약은 못 맞춘 항목에 ✗ 를 단다.
         let s = trigger_inputs(&r, &w);
         assert!(s.contains("STATION 2101 Req 0 ✗") && !s.contains("CVOK 1 ✗"), "{s}");
 
         let m = Rule { trigger: Trigger::Manual, manual_requests: 2, ..rule("man", 0.0, 401, 402) };
-        assert_eq!(shown(&m)[0], ("요청 대기".into(), "2 건".into(), true));
+        assert_eq!(shown(&m, &w)[0], ("요청 대기".into(), "2 건".into(), true));
+
+        // 품목을 규칙이 정하지 않으면 출발의 콘솔 재고가 알아야 한다 — 스테이션도 같다.
+        let no_item = Rule {
+            action: Action::Transfer { from: Target { kind: "station".into(), id: 2101 }, to: cell(402), item: None, count: 1, from_auto: None, to_auto: None, pallet_auto: false },
+            ..rule("noitem", 0.0, 0, 0)
+        };
+        let t = shown(&no_item, &w);
+        assert_eq!(t[t.len() - 3], ("품목".into(), "콘솔이 모름".into(), false));
+        assert_eq!(t[t.len() - 2], ("출발 station 2101 준비".into(), "재고 0 < 필요 1".into(), false));
+        assert!(!fires(&Rule { trigger: Trigger::Manual, manual_requests: 1, ..no_item.clone() }, &w), "품목·재고를 모르면 조건이 참이 아니다");
+
+        // 콘솔 재고가 품목을 알면 통과한다(스테이션 재고는 컨베이어 트래킹이 적는다).
+        w.stock.insert(2101, (2013, 1));
+        let t = shown(&no_item, &w);
+        assert_eq!(t[t.len() - 3], ("품목".into(), "2013 (출발 재고)".into(), true));
+        assert!(fires(&Rule { trigger: Trigger::Manual, manual_requests: 1, ..no_item }, &w));
 
         let c = Rule { trigger: Trigger::CellStock { cell: 409, item: Some(2013), min: 2 }, action: Action::Measure { target: cell(409), item: None }, ..rule("cs", 0.0, 0, 0) };
-        assert_eq!(shown(&c), vec![("셀 409 재고".into(), "0 개 / 조건 ≥ 2".into(), false), ("셀 409 품목".into(), "0 / 조건 2013".into(), false), ("대상".into(), "cell 409".into(), true),]);
+        assert_eq!(shown(&c, &w), vec![("셀 409 재고".into(), "0 개 / 조건 ≥ 2".into(), false), ("셀 409 품목".into(), "0 / 조건 2013".into(), false), ("대상".into(), "cell 409".into(), true),]);
 
         let nocv = Rule { trigger: Trigger::StationItem { station: 2101, require_cvok: false }, ..rule("it", 0.0, 401, 402) };
-        assert_eq!(shown(&nocv)[0], ("STATION 2101 ItemExist".into(), "1".into(), true));
-        assert_eq!(shown(&nocv)[1], ("STATION 2101 CVOK".into(), "무시".into(), true));
+        assert_eq!(shown(&nocv, &w)[0], ("STATION 2101 ItemExist".into(), "1".into(), true));
+        assert_eq!(shown(&nocv, &w)[1], ("STATION 2101 CVOK".into(), "무시".into(), true));
 
-        // GRM 에서 못 읽는 스테이션은 그 사실이 항목으로 남는다 — 조건이 조용히 거짓이 되지 않게.
         let gone = Rule { trigger: Trigger::StationReq { station: 2999, require_cvok: true }, ..rule("no", 0.0, 401, 402) };
-        assert_eq!(shown(&gone)[0], ("STATION 2999".into(), "GRM 에서 못 읽음".into(), false));
+        assert_eq!(shown(&gone, &w)[0], ("STATION 2999".into(), "GRM 에서 못 읽음".into(), false));
 
-        // 자동 셀은 값이 아니라 "자동" 이라고 말한다(재고·칸은 고를 때 본다).
+        // 자동 셀은 값이 아니라 "자동" 이라고 말한다(품목·재고·칸은 고를 때 본다).
         let auto = Rule {
             action: Action::Transfer {
                 from: cell(0),
@@ -794,8 +857,9 @@ mod tests {
             },
             ..rule("au", 0.0, 0, 0)
         };
-        let a = shown(&auto);
-        assert_eq!(a[1], ("출발 셀".into(), "자동 선택(oldest)".into(), true));
-        assert_eq!(a[2], ("도착 셀".into(), "자동 선택(가까운 순)".into(), true));
+        let a = shown(&auto, &w);
+        assert_eq!(a[1], ("품목".into(), "출발 셀을 고를 때 확정".into(), true));
+        assert_eq!(a[2], ("출발 셀".into(), "자동 선택(oldest)".into(), true));
+        assert_eq!(a[3], ("도착 셀".into(), "자동 선택(가까운 순)".into(), true));
     }
 }

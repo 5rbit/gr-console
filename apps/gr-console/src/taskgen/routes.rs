@@ -27,7 +27,7 @@ async fn get_all(State(st): State<AppState>) -> ApiResult<Json> {
     let robot_name = |id: u8| st.robots.iter().find(|r| r.id == id).map(|r| r.name.clone()).unwrap_or_else(|| format!("로봇 {id}"));
     let cand = |c: &super::Candidate, why: Option<&String>| {
         json!({ "rule_id": c.rule_id, "rule_name": c.rule_name, "robot": c.robot, "robot_name": robot_name(c.robot), "score": c.score,
-            "breakdown": c.breakdown, "area": c.area, "first": c.first, "second": c.second, "age_min": c.age_min, "order": c.order, "reason": why })
+            "breakdown": c.breakdown, "area": c.area, "first": c.first, "second": c.second, "item": c.item, "age_min": c.age_min, "order": c.order, "reason": why })
     };
     let candidates: Vec<Json> = sel.generate.iter().map(|c| cand(c, None)).chain(sel.waiting.iter().map(|(c, w)| cand(c, Some(w)))).collect();
     let skipped: Vec<Json> = sel.skipped.iter().map(|(r, w)| json!({ "rule": r, "reason": w })).collect();

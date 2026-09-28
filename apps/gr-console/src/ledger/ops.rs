@@ -145,6 +145,7 @@ pub async fn submit(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<L
         // 보정·단수 검사는 **이 원장의 로봇** 기준 — 옛 초안(robot 없음)이 기본 로봇 STATION 표로 계산되지 않게.
         req.robot = Some(r.id);
         // 재고는 초안 작성 뒤에도 바뀐다 — 단수 Max 는 보낼 때의 재고로 본다.
+        crate::issue::enforce_item_known(&entry.plc_task)?;
         crate::issue::enforce_stack_limit(st, &req, &entry.plc_task)?;
         crate::issue::enforce_hand(st, &req, &entry.plc_task)?;
         let mut task = entry.plc_task.clone();
@@ -230,6 +231,7 @@ pub async fn create_and_submit(
         q
     });
     if submit_now && let Some(req) = &request {
+        crate::issue::enforce_item_known(&task)?;
         crate::issue::enforce_stack_limit(st, req, &task)?;
         crate::issue::enforce_hand(st, req, &task)?;
         // 두 로봇 영역 — 단일 명령은 기다리지 않고 거부한다(시나리오 실행기는 게이트에서 기다린다).

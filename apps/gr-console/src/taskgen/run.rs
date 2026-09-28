@@ -306,6 +306,14 @@ fn world(st: &AppState, cfg: &GenConfig) -> (World, Vec<CellView>) {
             updated_at: stamps.get(&c.cell.id).cloned().unwrap_or_default(),
         });
     }
+    // 스테이션도 콘솔 재고를 갖는다(컨베이어 트래킹이 옮긴다) — 출발 품목·칸 조건이 셀과 같게 판정되도록.
+    for s in st.registry.stations().unwrap_or_default() {
+        let (item, count) = stock.get(&s.id).copied().unwrap_or((0, 0));
+        w.stock.insert(s.id, (item, count));
+        if let Some(r) = room_of(item, count) {
+            w.room.insert(s.id, r);
+        }
+    }
     (w, views)
 }
 
@@ -314,15 +322,15 @@ fn gen_busy(r: &RobotCtx, rule: &str) -> bool {
     r.ledger.list().iter().any(|e| !e.state.is_terminal() && e.state != TaskState::Draft && e.request.as_ref().and_then(|q| q.source.as_ref()).is_some_and(|s| s.scenario_id == tag))
 }
 
-/// 고른 대상으로 스텝을 만든다.
-fn steps_for(a: &Action, first: &Target, second: Option<&Target>) -> Vec<GenStep> {
+/// 고른 대상으로 스텝을 만든다. `item` = 확정된 품목(짝의 두 스텝이 같은 값을 든다).
+fn steps_for(a: &Action, first: &Target, second: Option<&Target>, item: Option<u32>) -> Vec<GenStep> {
     match a {
-        Action::Transfer { item, count, pallet_auto, .. } => vec![
-            GenStep { task_type: "PICK".into(), target: first.clone(), item_code: *item, count: *count, pallet_auto: false },
-            GenStep { task_type: "DROP".into(), target: second.cloned().unwrap_or_else(|| first.clone()), item_code: *item, count: *count, pallet_auto: *pallet_auto },
+        Action::Transfer { count, pallet_auto, .. } => vec![
+            GenStep { task_type: "PICK".into(), target: first.clone(), item_code: item, count: *count, pallet_auto: false },
+            GenStep { task_type: "DROP".into(), target: second.cloned().unwrap_or_else(|| first.clone()), item_code: item, count: *count, pallet_auto: *pallet_auto },
         ],
         Action::Move { .. } => vec![GenStep { task_type: "MOVE".into(), target: first.clone(), item_code: None, count: 1, pallet_auto: false }],
-        Action::Measure { item, .. } => vec![GenStep { task_type: "MEASURE".into(), target: first.clone(), item_code: *item, count: 1, pallet_auto: false }],
+        Action::Measure { .. } => vec![GenStep { task_type: "MEASURE".into(), target: first.clone(), item_code: item, count: 1, pallet_auto: false }],
     }
 }
 
@@ -330,25 +338,41 @@ fn cell_target(id: u16) -> Target {
     Target { kind: "cell".into(), id }
 }
 
-/// 규칙의 대상(자동 셀 선택 포함) — 못 고르면 사유.
-fn resolve(st: &AppState, a: &Action, cells: &[CellView], robot_x: Option<f32>, free: &dyn Fn(f32) -> bool) -> Result<(Target, Option<Target>), String> {
+/// 규칙의 대상과 품목 — 자동 셀 선택, 양쪽 위치 등록, 품목 확정까지. 하나라도 안 되면 사유.
+fn resolve(st: &AppState, w: &World, a: &Action, cells: &[CellView], robot_x: Option<f32>, free: &dyn Fn(f32) -> bool) -> Result<(Target, Option<Target>, Option<u32>), String> {
     match a {
         Action::Transfer { from, to, item, count, from_auto, to_auto, pallet_auto } => {
             let src = match from_auto {
                 Some(p) => cell_target(choose_source(cells, p, *item, *count as u32, robot_x, free).ok_or("자동 출발 셀 없음 (재고·구역·영역)")?),
                 None => from.clone(),
             };
-            let src_item = item.or_else(|| cells.iter().find(|c| c.id == src.id).map(|c| c.item).filter(|i| *i != 0)).unwrap_or(0);
+            // 품목은 GCS 가 알아야 한다 — 규칙이 정했거나 출발의 콘솔 재고가 안다(스테이션도 같다).
+            let src_item = item.or_else(|| w.stock.get(&src.id).map(|(c, _)| *c).filter(|c| *c != 0)).ok_or_else(|| format!("출발 {} {} 품목을 콘솔이 모름", src.kind, src.id))?;
+            if st.registry.item(src_item).ok().flatten().is_none() {
+                return Err(format!("품목 {src_item} 이 콘솔 목록에 없음 (규격·StackMax 를 모름)"));
+            }
+            if let Some(why) = super::source_ready(w, &src, *count, Some(src_item)) {
+                return Err(format!("출발 {} {}: {why}", src.kind, src.id));
+            }
             let dst = match to_auto {
                 Some(p) => cell_target(choose_dest(cells, p, src_item, *count as u32, robot_x, Some(src.id).filter(|_| src.kind == "cell"), free).ok_or("자동 도착 셀 없음 (칸·구역·영역)")?),
                 None => to.clone(),
             };
+            if let Some(why) = super::dest_ready(w, &dst, *count) {
+                return Err(format!("도착 {} {}: {why}", dst.kind, dst.id));
+            }
+            // 두 위치 모두 등록돼 있어야(=X 를 알아야) 보낼 수 있다.
+            for t in [&src, &dst] {
+                if crate::area::target_x(st, t).is_none() {
+                    return Err(format!("{} {} 위치 미등록", t.kind, t.id));
+                }
+            }
             if *pallet_auto {
                 // 팔렛 다음 슬롯: DROP 을 미리 작성해 본다(프로파일 없음 · 자리 없음이면 후보 아님)
                 let req = TaskRequest {
                     task_type: "DROP".into(),
                     target: Some(dst.clone()),
-                    item_code: Some(src_item).filter(|i| *i != 0),
+                    item_code: Some(src_item),
                     count: (*count).max(1),
                     pallet: Some(crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
                     ..Default::default()
@@ -357,10 +381,10 @@ fn resolve(st: &AppState, a: &Action, cells: &[CellView], robot_x: Option<f32>, 
                     return Err(format!("팔렛 다음 슬롯 없음: {e}"));
                 }
             }
-            Ok((src, Some(dst)))
+            Ok((src, Some(dst), Some(src_item)))
         }
-        Action::Move { to } => Ok((to.clone(), None)),
-        Action::Measure { target, .. } => Ok((target.clone(), None)),
+        Action::Move { to } => Ok((to.clone(), None, None)),
+        Action::Measure { target, item } => Ok((target.clone(), None, *item)),
     }
 }
 
@@ -424,7 +448,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
             // 자동 셀은 다른 로봇 영역 밖에서 고른다(동시 운전)
             let others: Vec<crate::area::Reservation> = robots.iter().filter(|o| o.id != rv.id).filter_map(|o| super::reserved(o, None)).collect();
             let free = |x: f32| crate::area::blocker(Interval::point(x), &others, sep + rv.margin).is_none();
-            let (first, second) = match resolve(st, &rule.action, &cells, rv.current_x, &free) {
+            let (first, second, item) = match resolve(st, &w, &rule.action, &cells, rv.current_x, &free) {
                 Ok(t) => t,
                 Err(why) => {
                     skipped.push((rule.name.clone(), format!("{}: {why}", rv.name)));
@@ -449,6 +473,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
                 robot: rv.id,
                 first: first.clone(),
                 second: second.clone(),
+                item,
                 target_x: x0,
                 drop_x,
                 area: candidate_area(rv, x0, drop_x),
@@ -500,7 +525,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
                 rule_id: c.rule_id.clone(),
                 rule_name: c.rule_name.clone(),
                 robot: c.robot,
-                steps: steps_for(&rule.action, &c.first, c.second.as_ref()),
+                steps: steps_for(&rule.action, &c.first, c.second.as_ref(), c.item),
                 next: 0,
                 task_ids: vec![],
                 transfer_order_id: None,
