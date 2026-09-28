@@ -170,6 +170,11 @@ values = { 1 = "RAISE", 2 = "CLEAR", 3 = "MOMENT", 4 = "SUPPRESSED" }
 plc_const = true
 values = { 10000 = "TRANS_MUL" }
 
+# v2 bit area the PLC watches (ALARM.FAULT / WARN / EVENT / INFO). Row Src stays the alarm area for FAULT / WARN.
+[enum.v2_area]
+plc_const = true
+values = { 1 = "FAULT", 2 = "WARN", 3 = "OPERATOR", 4 = "INFO" }
+
 # ProcNo start values (PROC / TASK.Proc). 0 = not assigned.
 [enum.proc]
 plc_const = true
