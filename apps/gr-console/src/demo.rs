@@ -30,7 +30,7 @@ const STEPS: [u16; 7] = [100, 200, 300, 400, 500, 600, 999];
 const GR_DBS: [&str; 13] = ["OPCUA", "TASK", "CELL", "STATION", "PARA", "ALARM", "Interface_GRM", "WEBMON", "MEASLOG", "MEASLOG_HIST", "LASERDIAG", "GRIP_TUNE", "EVTLOG"];
 const GRM_DBS: [&str; 5] = ["OPCUA", "STATION", "CELL", "MACHINE", "EVTLOG"];
 /// Tables a client may write over S7: absorbed back into the model (see `encode_models`). EVTLOG: the logger Cfg dialog.
-const ABSORB: [&str; 5] = ["CELL", "STATION", "LASERDIAG", "GRIP_TUNE", "EVTLOG"];
+const ABSORB: [&str; 4] = ["CELL", "STATION", "LASERDIAG", "EVTLOG"];
 /// Demo event ids from `plc/evtlog/catalog.toml`: (cat, lvl, code).
 mod ev {
     pub const SYS_STARTUP: (u8, u8, u16) = (1, 2, 101);
@@ -176,24 +176,12 @@ fn mech_bin(g: f64) -> usize {
 /// Seeded `GRIP_TUNE.Tune` — GR1 (index 0) has only the grip-speed curve so the "미학습" state is visible in the demo.
 fn seed_tune(gr_index: usize) -> Json {
     let mech: Vec<Vec<f64>> = [false, true].iter().map(|slow| (0..MECH_BINS).map(|k| mech_curve(k, *slow)).collect()).collect();
-    let scale: Vec<f64> = (12..=24)
-        .map(|inch| {
-            if inch == 15 {
-                105.0
-            } else if inch == 22 {
-                96.0
-            } else {
-                100.0
-            }
-        })
-        .collect();
     json!({
         "Valid": [true, gr_index != 0],
         "LearnedSpd": [3, 1],
         "Mech": mech,
         "Accel": [3.5, 2.0],
         "TorqSign": 1,
-        "ScaleByInch": scale,
         "DriftCount": 0,
         "LearnDone": gr_index != 0,
         "LearnError": if gr_index == 0 { 1 } else { 0 },

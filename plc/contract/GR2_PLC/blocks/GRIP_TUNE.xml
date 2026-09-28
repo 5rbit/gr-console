@@ -20,7 +20,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US">   FB_CL_Gripper 학습 · 보정값. 표준 접근 : gr-console 이 읽고 (ScaleByInch 는) 쓴다</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">    FB_CL_Gripper 학습 · 보정값. 표준 접근 : gr-console 이 읽고 (ScaleByInch 는) 쓴다</MultiLanguageText>
       </Comment>
       <Sections>
         <Section Name="None">
@@ -29,7 +29,6 @@
           <Member Name="Mech" Datatype="Array[1..2, 0..33] of Real" />
           <Member Name="Accel" Datatype="Array[1..2] of Real" />
           <Member Name="TorqSign" Datatype="Int" />
-          <Member Name="ScaleByInch" Datatype="Array[12..24] of Real" />
           <Member Name="DriftCount" Datatype="Int" />
           <Member Name="LearnDone" Datatype="Bool" />
           <Member Name="LearnError" Datatype="Int" />

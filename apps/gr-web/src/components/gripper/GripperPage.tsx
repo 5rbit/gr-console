@@ -5,7 +5,6 @@
 //    열지 않는다. 화면 머리의 숫자 띠·상태 카드·곡선 위 G 마커가 이것을 쓴다.
 //  - 학습 곡선(`GRIP_TUNE.Tune`)·PARA 는 `GET /api/robots/{id}/gripper` 2 초 폴(숨은 탭 스킵). 느린 주기 DB 라 그걸로 충분하다.
 // 조작은 띠 하나(LEARN 버튼 + `?` + `⋯`)뿐이다. 인치별 수동 토크(PARA Sensor p450~p475)는 읽기 전용 — 편집은 HMI/CSV.
-// (GRIP_TUNE.Tune.ScaleByInch 는 TIA V1.6.1 부터 FB 가 안 쓴다 — 표·편집을 뺐다. 백엔드 PUT 은 남아 있다.)
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Hand } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -302,7 +301,6 @@ function GripperScreen() {
                 ['ContactPos (mm)', pos(live?.ContactPos)],
                 ['ReachedPos (mm)', pos(live?.ReachedPos)],
                 ['GTarget (mm)', pos(wm?.Axis?.[3]?.Target ?? snap?.live.GTarget)],
-                ['TorqueReachedPosition (mm)', pos(live?.TorqueReachedPosition)],
               ]}
             />
           </Section>
