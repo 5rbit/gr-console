@@ -8,6 +8,10 @@ describe('loadFailure', () => {
     expect(
       loadFailure(new Error('task generator not started (GET /api/taskgen → 500)')).transport,
     ).toBe(false)
+    // 연결 한도에 막혀 끊긴 조회도 연결 문제다(브라우저는 한 호스트에 6 연결까지만).
+    expect(
+      loadFailure(new Error('응답 없음 8초 (GET /api/taskgen) — 콘솔 연결이 막혔습니다')).transport,
+    ).toBe(true)
   })
 
   it('연결 실패는 엔진이 아니라 콘솔 연결을 말한다', () => {

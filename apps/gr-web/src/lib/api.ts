@@ -85,12 +85,30 @@ export async function httpError(r: Response, method: string, path: string): Prom
   return new Error(detail ? `${detail} (${head})` : head)
 }
 
+/**
+ * 조회 한 건의 제한 시간 — 브라우저는 한 호스트에 **6 연결**까지만 연다. SSE 스트림이 그 자리를 채우면
+ * 새 GET 은 실패도 하지 않고 **영원히 줄을 선다**(화면이 "읽는 중…" 에 멈춘다). 끊어서 사유를 말하고
+ * 다음 판에 다시 시도하는 편이 낫다.
+ */
+const GET_TIMEOUT_MS = 8000
+
 /** GET → JSON. 동일 URL 동시 조회는 [`shareGet`]이 하나로 합친다. */
 export async function getJson<T>(path: string): Promise<T> {
   return shareGet(path, async () => {
-    const r = await fetch(path)
-    if (!r.ok) throw await httpError(r, 'GET', path)
-    return r.json() as Promise<T>
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), GET_TIMEOUT_MS)
+    try {
+      const r = await fetch(path, { signal: ctl.signal })
+      if (!r.ok) throw await httpError(r, 'GET', path)
+      return (await r.json()) as T
+    } catch (e) {
+      if (ctl.signal.aborted) {
+        throw new Error(`응답 없음 ${GET_TIMEOUT_MS / 1000}초 (GET ${path}) — 콘솔 연결이 막혔습니다`)
+      }
+      throw e
+    } finally {
+      clearTimeout(timer)
+    }
   })
 }
 
@@ -437,7 +455,7 @@ export const api = {
 export function loadFailure(e: unknown): { transport: boolean; text: string } {
   const raw = e instanceof Error ? e.message : String(e)
   const transport =
-    /failed to fetch|networkerror|load failed|fetch failed|err_connection|refused/i.test(raw)
+    /failed to fetch|networkerror|load failed|fetch failed|err_connection|refused|응답 없음|aborted/i.test(raw)
   return { transport, text: raw }
 }
 
