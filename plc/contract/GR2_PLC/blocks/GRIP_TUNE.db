@@ -3,7 +3,7 @@
 VERSION : 0.1
 NON_RETAIN
    STRUCT 
-      Tune : "LGR_GripperTune";   //    FB_CL_Gripper 학습 · 보정값. 표준 접근 : gr-console 이 읽고 (ScaleByInch 는) 쓴다
+      Tune : "LGR_GripperTune";   //     FB_CL_Gripper 학습 · 보정값. 표준 접근 : gr-console 이 읽고 (ScaleByInch 는) 쓴다
    END_STRUCT;
 
 

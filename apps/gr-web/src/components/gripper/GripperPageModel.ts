@@ -172,29 +172,6 @@ export function learnDisabledReason(
   return undefined
 }
 
-export interface ScaleRow {
-  inch: number
-  value: number
-}
-
-/** `ScaleByInch[12..24]` → 표 행. 0 또는 100 = 조정 없음. */
-export function scaleRows(tune: GripperTune | null, lo = 12): ScaleRow[] {
-  const v = tune?.ScaleByInch ?? []
-  return v.map((value, i) => ({ inch: lo + i, value: Number(value) }))
-}
-
-/** 편집 대화상자의 문자열 13 개 → 숫자. 빈 칸은 0(조정 없음), 숫자가 아니면 그 칸의 인치를 사유로 돌려준다. */
-export function parseScale(inputs: readonly string[], lo = 12): { values: number[] } | { error: string } {
-  const values: number[] = []
-  for (let i = 0; i < inputs.length; i++) {
-    const s = inputs[i].trim()
-    const n = s === '' ? 0 : Number(s)
-    if (!Number.isFinite(n) || n < 0 || n > 1000) return { error: `${lo + i} 인치 값이 0~1000 % 사이의 숫자가 아닙니다` }
-    values.push(n)
-  }
-  return { values }
-}
-
 export interface ParaRowView {
   name: string
   param: number

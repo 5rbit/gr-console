@@ -4,12 +4,12 @@ VERSION : 0.1
 NON_RETAIN
 // 표준 접근 : 외부 S7 통신(gr-console) 읽기용, 레이아웃은 LayoutSig 로 검증
    STRUCT 
-      LayoutSig : DWord := 16#7B68EE5A;   //          레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
-      UpdateTime {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;   //           갱신 시각 (PLC 로컬)
-      Mode : Word;   //           "MACHINE".Mode (MODE_* : 0 Boot, 1 Init, 2 Maint, 4 Standby, 8 Manual, 16 Ready, 32 Auto, 128 Fault, 256 Teach)
-      Stat : "LGR_Interface_GR_Status";   //           "OPCUA".STAT 복사 (모드 / 상태 / StatusCode / Task Now·Queue·Completed·Canceled·Rejected / 측정 / 인터록 / 신호 / 드라이브)
-      Proc : "LGR_Proc_component";   //           "TASK".Proc (진행 스텝 / 경과 시간 / 메시지)
-      Alarm : Struct   //           "MACHINE".Alarm 최근 코드
+      LayoutSig : DWord := 16#79A68D8E;   //            레이아웃 서명 (gr-contract gen-sig 가 생성, 수동 수정 금지)
+      UpdateTime {InstructionName := 'DTL'; LibVersion := '1.0'} : DTL;   //             갱신 시각 (PLC 로컬)
+      Mode : Word;   //             "MACHINE".Mode (MODE_* : 0 Boot, 1 Init, 2 Maint, 4 Standby, 8 Manual, 16 Ready, 32 Auto, 128 Fault, 256 Teach)
+      Stat : "LGR_Interface_GR_Status";   //             "OPCUA".STAT 복사 (모드 / 상태 / StatusCode / Task Now·Queue·Completed·Canceled·Rejected / 측정 / 인터록 / 신호 / 드라이브)
+      Proc : "LGR_Proc_component";   //             "TASK".Proc (진행 스텝 / 경과 시간 / 메시지)
+      Alarm : Struct   //             "MACHINE".Alarm 최근 코드
          Fault : Bool;
          Warn : Bool;
          FaultCode : Array[0..9] of UDInt;
@@ -17,11 +17,11 @@ NON_RETAIN
          EventCode : Array[0..9] of UDInt;
          TaskCode : Array[0..9] of UDInt;
       END_STRUCT;
-      Axis : Array["X".."G"] of Struct   //           "DRIVE".Axis 요약 (X, Y, Z, G)
-         Position : Real;   //           PV.Position (mm)
-         Target : Real;   //           SV.Position (mm)
+      Axis : Array["X".."G"] of Struct   //             "DRIVE".Axis 요약 (X, Y, Z, G)
+         Position : Real;   //             PV.Position (mm)
+         Target : Real;   //             SV.Position (mm)
          Speed : Real;
-         Torque : Real;   //           % mot
+         Torque : Real;   //             % mot
          LagError : Real;
          Ready : Bool;
          Enabled : Bool;
@@ -32,16 +32,15 @@ NON_RETAIN
       END_STRUCT;
       Gripper : Struct
          ItemDetect : Bool;
-         GID : Array[0..3] of Real;   //           레이저 거리 (L, F, R, B)
-         FLD : Real;   //           바닥 거리
-         TorqueReachedPosition : Real;
-         State : "LGR_GripperState";   //           "MACHINE".Gripper.State (그리퍼 종합 상태 : TorqueReached / TorqueStop / Stall / StallTime …)
-         Code : USInt;   //           "CL_Gripper".Status.Code (GRIP_ST_*)
-         Timeout : USInt;   //           "CL_Gripper".Status.Timeout (GRIP_TO_*)
-         Mode : USInt;   //           "CL_Gripper".Mode 진행 중 모드
-         Step : Int;   //           "CL_Gripper".Step
-         ErrorCode : Int;   //           "CL_Gripper".Result.ErrorCode (GRIP_E_*)
-         Inch : Int;   //           "CL_Gripper".Result.Inch
+         GID : Array[0..3] of Real;   //             레이저 거리 (L, F, R, B)
+         FLD : Real;   //             바닥 거리
+         State : "LGR_GripperState";   //             "MACHINE".Gripper.State (그리퍼 종합 상태 : TorqueReached / TorqueStop / Stall / StallTime …)
+         Code : USInt;   //             "CL_Gripper".Status.Code (GRIP_ST_*)
+         Timeout : USInt;   //             "CL_Gripper".Status.Timeout (GRIP_TO_*)
+         Mode : USInt;   //             "CL_Gripper".Mode 진행 중 모드
+         Step : Int;   //             "CL_Gripper".Step
+         ErrorCode : Int;   //             "CL_Gripper".Result.ErrorCode (GRIP_E_*)
+         Inch : Int;   //             "CL_Gripper".Result.Inch
          Busy : Bool;
          Done : Bool;
          Error : Bool;
@@ -51,40 +50,40 @@ NON_RETAIN
          Thermal : Bool;
          AtSpeed : Bool;
          Contact : Bool;
-         LimitNow : Real;   //           지금 보내는 토크 제한 (%)
-         Mech : Real;   //           기구 부하 (%)
-         Rise : Real;   //           |PV.Torque| − Mech (%)
-         TorqPct : Real;   //           적용 토크 (%)
-         Force_N : Real;   //           타이어 힘 환산 (N)
+         LimitNow : Real;   //             지금 보내는 토크 제한 (%)
+         Mech : Real;   //             기구 부하 (%)
+         Rise : Real;   //             |PV.Torque| − Mech (%)
+         TorqPct : Real;   //             적용 토크 (%)
+         Force_N : Real;   //             타이어 힘 환산 (N)
          ContactPos : Real;
          ReachedPos : Real;
-         Owner : USInt;   //         "CL_Gripper".Owner (GRIP_OWNER_*)
-         Reject : Int;   //         "CL_Gripper".Reject 마지막 거부 사유 (GRIP_E_*)
-         SpdIdx : Int;   //         "CL_Gripper".SpdIdx 사용 중 Mech 곡선 (0 없음)
-         Fallback : Bool;   //         "CL_Gripper".Fallback 사양 없이 고정 % (기존 동작)
-         ErrorHold : Bool;   //         "CL_Gripper".ErrorHold 에러 후 힘 빼기
-         Disabled : Bool;   //         "CL_Gripper".Disabled 에러 후 축 Disable
-         ContactThr : Real;   //         "CL_Gripper".ContactThr 측정 접촉 문턱 (%)
-         TireNm : Real;   //         "CL_Gripper".TireNm 타이어 몫 사양 (Nm @RefDia)
-         Band : Int;   //      "CL_Gripper".Band 적용한 인치 12..24 (PARA Sensor p450~p475), 0 = 자동 환산
-         Drive : Struct   //         "DRIVE".Axis["G"] 원본 (제한 반영 · 도달 · 온도)
-            TorqLimitSV : Real;   //         SV.TorqLimit (%)
-            TorqLimitPV : Real;   //         PV.TorqLimit 드라이브 에코 (%)
-            TorqLimitEnable : Bool;   //         Cmd.TorqLimit.Enable
-            TorqLimitActivated : Bool;   //         Status.TorqLimit.Activated
-            TorqLimitReached : Bool;   //         Status.TorqLimit.Reached (드라이브 판정, 참고)
+         Owner : USInt;   //           "CL_Gripper".Owner (GRIP_OWNER_*)
+         Reject : Int;   //           "CL_Gripper".Reject 마지막 거부 사유 (GRIP_E_*)
+         SpdIdx : Int;   //           "CL_Gripper".SpdIdx 사용 중 Mech 곡선 (0 없음)
+         Fallback : Bool;   //           "CL_Gripper".Fallback 사양 없이 고정 % (기존 동작)
+         ErrorHold : Bool;   //           "CL_Gripper".ErrorHold 에러 후 힘 빼기
+         Disabled : Bool;   //           "CL_Gripper".Disabled 에러 후 축 Disable
+         ContactThr : Real;   //           "CL_Gripper".ContactThr 측정 접촉 문턱 (%)
+         TireNm : Real;   //           "CL_Gripper".TireNm 타이어 몫 사양 (Nm @RefDia)
+         Band : Int;   //        "CL_Gripper".Band 적용한 인치 12..24 (PARA Sensor p450~p475), 0 = 자동 환산
+         Drive : Struct   //           "DRIVE".Axis["G"] 원본 (제한 반영 · 도달 · 온도)
+            TorqLimitSV : Real;   //           SV.TorqLimit (%)
+            TorqLimitPV : Real;   //           PV.TorqLimit 드라이브 에코 (%)
+            TorqLimitEnable : Bool;   //           Cmd.TorqLimit.Enable
+            TorqLimitActivated : Bool;   //           Status.TorqLimit.Activated
+            TorqLimitReached : Bool;   //           Status.TorqLimit.Reached (드라이브 판정, 참고)
             IgnoredLagError : Bool;
-            CmdStart : Bool;   //         Cmd.Start
-            SpeedSV : Real;   //         SV.Speed
-            MotorTemp : Real;   //         PV.MotorTemp (°C)
+            CmdStart : Bool;   //           Cmd.Start
+            SpeedSV : Real;   //           SV.Speed
+            MotorTemp : Real;   //           PV.MotorTemp (°C)
             InverterTemp : Real;
-            MotorOverheatWarn : Bool;   //         Status.Overheat.Motor.Warn
-            EnableApp : Bool;   //         Cmd.Enable_App
+            MotorOverheatWarn : Bool;   //           Status.Overheat.Motor.Warn
+            EnableApp : Bool;   //           Cmd.Enable_App
             Referenced : Bool;
             Fault : Bool;
          END_STRUCT;
       END_STRUCT;
-      Measure : Struct   //           "FUNC" 측정 진행 상태
+      Measure : Struct   //             "FUNC" 측정 진행 상태
          Item : Struct
             Busy : Bool;
             Done : Bool;
@@ -131,7 +130,7 @@ NON_RETAIN
             PickZTarget : Real;
          END_STRUCT;
       END_STRUCT;
-      MeasLog : Struct   //           "MEASLOG" 요약
+      MeasLog : Struct   //             "MEASLOG" 요약
          Total : UDInt;
          Count : Int;
       END_STRUCT;
@@ -139,7 +138,7 @@ NON_RETAIN
 
 
 BEGIN
-   LayoutSig := 16#7B68_EE5A;
+   LayoutSig := 16#79A6_8D8E;
 
 END_DATA_BLOCK
 

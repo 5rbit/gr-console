@@ -874,7 +874,6 @@ export interface WebMonGripper {
   ItemDetect: boolean
   GID: number[]
   FLD: number
-  TorqueReachedPosition: number
   State?: GripperState
   Code?: number
   Timeout?: number
@@ -1236,7 +1235,7 @@ export interface LaserSnapshot {
 
 // ── 그리퍼 (/api/robots/{id}/gripper) ───────────────────────────────────────────
 // GR2 FB_CL_Gripper 모니터. `live` 는 WEBMON.Gripper 그대로 + G 축 위치 + 이름, `tune` 은 GRIP_TUNE.Tune(JSON 0-based:
-// Mech[0] = PLC Mech[1] 파지 속도 곡선, Mech[1] = Mech[2] 느린 측정 속도; ScaleByInch[0] = 12 인치).
+// Mech[0] = PLC Mech[1] 파지 속도 곡선, Mech[1] = Mech[2] 느린 측정 속도).
 
 export interface GripperLive extends WebMonGripper {
   /** WEBMON.Axis[G].Position (mm) */
@@ -1257,7 +1256,6 @@ export interface GripperTune {
   Mech: number[][]
   Accel: number[]
   TorqSign: number
-  ScaleByInch: number[]
   DriftCount: number
   LearnDone: boolean
   LearnError: number

@@ -217,13 +217,8 @@ export const api = {
   /** 로봇 PLC 의 PARA DB(계약 주석 포함, 읽기 전용) */
   para: (robot?: number | null) => getJson<ParaSnapshot>(`/api/para${qs({ robot })}`),
 
-  // 그리퍼(GR2 FB_Gripper) — WEBMON.Gripper + GRIP_TUNE + PARA G_*. LEARN 은 robotCommand(id, 'gripper-learn').
+  // 그리퍼(GR2 FB_CL_Gripper) — WEBMON.Gripper + GRIP_TUNE + PARA G_*. LEARN 은 robotCommand(id, 'gripper-learn').
   gripper: (robot: number) => getJson<GripperSnapshot>(`/api/robots/${robot}/gripper`),
-  /** GRIP_TUNE.Tune.ScaleByInch[12..24] 13 개(%)를 한 번에 쓴다(S7 직접 쓰기). */
-  gripperScaleByInch: (robot: number, values: number[]) =>
-    putJson<{ ok: boolean; ScaleByInch: number[] }>(`/api/robots/${robot}/gripper/scale-by-inch`, {
-      ScaleByInch: values,
-    }),
 
   // 측정 기록 (현장 시험)
   record: () => getJson<RecordOverview>('/api/record'),
