@@ -43,6 +43,9 @@ import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
+import { api } from '../../lib/api'
+import { useRegistry } from '../../lib/registry'
+import type { Station, Target } from '../../lib/types'
 import { ParamsPanel } from './ParamsPanel'
 const num = (s: string, d = 0) => (s.trim() === '' || !Number.isFinite(Number(s)) ? d : Number(s))
 
@@ -116,7 +119,9 @@ function RuleDialog({
                 ? { kind: 'manual' }
                 : k === 'cell_stock'
                   ? { kind: 'cell_stock', cell: 0, min: 1, item: null }
-                  : ({ kind: k, station: 0, require_cvok: true } as GenTrigger),
+                  : k === 'unmeasured'
+                    ? { kind: 'unmeasured', target: { kind: 'station', id: 0 } }
+                    : ({ kind: k, station: 0, require_cvok: true } as GenTrigger),
             )
           }
         >
@@ -124,6 +129,7 @@ function RuleDialog({
           <option value="station_req">station_req</option>
           <option value="station_item">station_item</option>
           <option value="cell_stock">cell_stock</option>
+          <option value="unmeasured">unmeasured (미측정 품목)</option>
         </Select>
         {t.kind === 'station_req' || t.kind === 'station_item' ? (
           <div className="grid grid-cols-2 items-end gap-2">
@@ -138,6 +144,24 @@ function RuleDialog({
               title="컨베이어 준비(PI.CVOK)도 켜져 있어야 조건 참"
               checked={t.require_cvok !== false}
               onCheckedChange={(v) => setT({ ...t, require_cvok: v })}
+            />
+          </div>
+        ) : t.kind === 'unmeasured' ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Select
+              label="대상.Kind"
+              value={t.target.kind}
+              onValueChange={(k) =>
+                setT({ ...t, target: { ...t.target, kind: k as Target['kind'] } })
+              }
+            >
+              <option value="station">station</option>
+              <option value="cell">cell</option>
+            </Select>
+            <Input
+              label="대상.Id"
+              value={t.target.id}
+              onValueChange={(x) => setT({ ...t, target: { ...t.target, id: num(x) } })}
             />
           </div>
         ) : t.kind === 'cell_stock' ? (
@@ -331,6 +355,14 @@ function PlaceEditor({
             value={p.col_max ?? ''}
             onValueChange={(x) => onAuto({ ...p, col_max: n(x) })}
           />
+          {source ? null : (
+            <Input
+              label="Near"
+              placeholder="출고 Station Id (비우면 로봇 기준)"
+              value={p.near ?? ''}
+              onValueChange={(x) => onAuto({ ...p, near: n(x) })}
+            />
+          )}
           {source ? (
             <Select
               label="Order"
@@ -443,6 +475,78 @@ export function AutoGenDialog({
   )
 }
 
+/**
+ * 기본 규칙 만들기 — 출고 스테이션만 고르면 한 벌이 생긴다.
+ * 측정 먼저(미측정 규격) · 출고 우선 · 적재는 출고에 가까운 셀. 영역·회피는 엔진이 늘 본다(규칙 아님).
+ */
+function SeedDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const stations = useRegistry<Station>(api.stations)
+  const ids = stations.items.map((s) => s.id).sort((a, b) => a - b)
+  // 라인 끝(다음 연결 없음)을 출고로 먼저 고른다 — 아니면 첫 스테이션.
+  const guess = stations.items.find((s) => !s.connection_next)?.id ?? ids[0]
+  const [out, setOut] = useState<number>(0)
+  const [busy, setBusy] = useState(false)
+  const outId = out || guess || 0
+  const ins = ids.filter((id) => id !== outId)
+  return (
+    <FormDialog
+      open
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+      title="기본 규칙 만들기"
+      size="md"
+      submitLabel="만들기"
+      disabledReason={
+        busy ? '만드는 중' : ids.length === 0 ? '등록된 스테이션이 없습니다' : undefined
+      }
+      onSubmit={() => {
+        setBusy(true)
+        void taskgenApi
+          .seedDefaults(outId, ins)
+          .then((r) => {
+            toast.ok(`기본 규칙 ${r.added}개 (v${r.config.version}) — 자동 생성은 꺼진 채입니다`)
+            onDone()
+          })
+          .catch((e) => toast.error(`기본 규칙 — ${e instanceof Error ? e.message : String(e)}`))
+          .finally(() => setBusy(false))
+      }}
+      testid="taskgen-seed-dialog"
+    >
+      <div className="flex flex-col gap-2 text-xs">
+        <Select
+          label="출고 스테이션"
+          value={String(outId)}
+          onValueChange={(v) => setOut(Number(v))}
+        >
+          {ids.map((id) => (
+            <option key={id} value={String(id)}>
+              {id}
+            </option>
+          ))}
+        </Select>
+        <div className="text-2xs text-content-muted">
+          입고 스테이션: {ins.length ? ins.join(' · ') : '없음'} (출고를 뺀 등록 스테이션 전부)
+        </div>
+        <ul className="ml-4 list-disc text-2xs text-content-muted">
+          <li>
+            측정 먼저 — 입고에 올라온 화물의 품목에 비드 프로파일이 없으면 MEASURE (우선순위 80)
+          </li>
+          <li>출고 우선 — 출고가 요청하면 셀에서 꺼내 내보낸다 (60, 대상 가중 +20)</li>
+          <li>적재 — 입고 → 출고에 가까운 셀 (40)</li>
+          <li>
+            영역이 겹치지 않는 명령 우선 · 회피 최우선은 엔진이 늘 본다(파라미터 gen_avoid_bonus)
+          </li>
+        </ul>
+        <div className="text-2xs text-content-faint">
+          같은 이름의 규칙은 새로 만든 것으로 바뀝니다. 만든 뒤에도 자동 생성은 꺼진 채이니 규칙을
+          확인하고 켜세요.
+        </div>
+      </div>
+    </FormDialog>
+  )
+}
+
 const TONE = {
   ok: 'text-ok-fg',
   warn: 'text-warn-fg',
@@ -454,6 +558,7 @@ export function AutoGenPanel() {
   const [editing, setEditing] = useState<GenRule | null>(null)
   const [weightsOpen, setWeightsOpen] = useState(false)
   const [paramsOpen, setParamsOpen] = useState(false)
+  const [seedOpen, setSeedOpen] = useState(false)
   const [confirmAuto, setConfirmAuto] = useState(false)
   // 2 초마다 조회한다 — 실패는 **한 번만** 토스트하고 그 뒤로는 띠에 남긴다(예전에는 2 초마다 토스트가 쌓였다).
   const [err, setErr] = useState<string | null>(null)
@@ -762,6 +867,7 @@ export function AutoGenPanel() {
   ]
 
   const tools: MenuEntry[] = [
+    { label: '기본 규칙 만들기…', run: () => setSeedOpen(true), testid: 'taskgen-seed' },
     { label: '우선순위 가중치…', run: () => setWeightsOpen(true), testid: 'taskgen-weights' },
     {
       label: '제출 · 스케줄링 파라미터…',
@@ -1040,6 +1146,15 @@ export function AutoGenPanel() {
         />
       ) : null}
       {paramsOpen ? <ParamsDialog onClose={() => setParamsOpen(false)} /> : null}
+      {seedOpen ? (
+        <SeedDialog
+          onClose={() => setSeedOpen(false)}
+          onDone={() => {
+            setSeedOpen(false)
+            load()
+          }}
+        />
+      ) : null}
     </div>
   )
 }

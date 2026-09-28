@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
-use super::{Action, Candidate, CellView, GenConfig, Knobs, RobotView, Selection, StationPi, Trigger, World, candidate_area, choose_dest, choose_source, fires, score, select};
+use super::{Action, Candidate, CellView, GenConfig, Knobs, RobotView, Selection, StationPi, Trigger, World, candidate_area, choose_dest, choose_source, fires, score};
 use crate::area::Interval;
 use crate::error::ApiError;
 use crate::ledger::{Origin, ScenarioSource, Target, TaskRequest, TaskState};
@@ -312,6 +312,12 @@ fn world(st: &AppState, cfg: &GenConfig) -> (World, Vec<CellView>) {
             updated_at: stamps.get(&c.cell.id).cloned().unwrap_or_default(),
         });
     }
+    // 아직 재 보지 않은 품목(비드 프로파일 없음) — "측정 먼저" 조건이 본다.
+    for i in st.registry.items().unwrap_or_default() {
+        if i.spec.profiles.iter().all(|p| p.rows.is_empty()) {
+            w.unmeasured.insert(i.code);
+        }
+    }
     // 스테이션도 콘솔 재고를 갖는다(컨베이어 트래킹이 옮긴다) — 출발 품목·칸 조건이 셀과 같게 판정되도록.
     for s in st.registry.stations().unwrap_or_default() {
         let (item, count) = stock.get(&s.id).copied().unwrap_or((0, 0));
@@ -339,6 +345,11 @@ fn steps_for(a: &Action, first: &Target, second: Option<&Target>, item: Option<u
         Action::Move { .. } => vec![GenStep { task_type: "MOVE".into(), target: first.clone(), item_code: None, count: 1, pallet_auto: false }],
         Action::Measure { .. } => vec![GenStep { task_type: "MEASURE".into(), target: first.clone(), item_code: item, count: 1, pallet_auto: false }],
     }
+}
+
+/// 기준 대상의 X — 스테이션·셀 어느 쪽이든 등록된 것에서 찾는다(도착 셀 "가까운 순" 의 기준).
+fn ref_x(st: &AppState, id: u16) -> Option<f32> {
+    ["station", "cell"].iter().find_map(|k| crate::area::target_x(st, &Target { kind: (*k).to_string(), id }))
 }
 
 fn cell_target(id: u16) -> Target {
@@ -369,7 +380,10 @@ fn resolve(st: &AppState, w: &World, rule: &super::Rule, cells: &[CellView], rob
                 return Err(format!("출발 {} {}: {why}", src.kind, src.id));
             }
             let dst = match to_auto {
-                Some(p) => cell_target(choose_dest(cells, p, src_item, *count as u32, robot_x, Some(src.id).filter(|_| src.kind == "cell"), free).ok_or("자동 도착 셀 없음 (칸·구역·영역)")?),
+                Some(p) => cell_target(
+                    choose_dest(cells, p, src_item, *count as u32, robot_x, p.near.and_then(|id| ref_x(st, id)), Some(src.id).filter(|_| src.kind == "cell"), free)
+                        .ok_or("자동 도착 셀 없음 (칸·구역·영역)")?,
+                ),
                 None => to.clone(),
             };
             if let Some(why) = super::dest_ready(w, &dst, *count, c) {
@@ -503,7 +517,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
         status.insert(rule.id.clone(), if made { ("ready", None, age) } else { ("skipped", why, age) });
     }
     drop(seen);
-    let mut sel = select(cands, &robots, sep);
+    let mut sel = super::select_with(cands, &robots, sep, p.gen_avoid_bonus);
     sel.skipped = skipped;
     for (c, why) in &mut sel.waiting {
         e.count_wait(why);

@@ -29,6 +29,8 @@ pub struct Params {
     pub gen_age_per_min: f32,
     /// 영역에 막힌 후보 표시 감점.
     pub gen_blocked_penalty: f32,
+    /// 회피 우선 — 막힌 로봇의 자리를 비켜 주는 후보에 얹는 점수(0 = 안 얹음).
+    pub gen_avoid_bonus: f32,
     /// 새 스테이션 요청 규칙의 기본값 — Req AND CVOK.
     pub station_require_cvok: bool,
     /// PLC 에 실행 중 + 이만큼만(고정 1).
@@ -61,6 +63,7 @@ impl Default for Params {
             gen_max_distance_m: 0.0,
             gen_age_per_min: 0.0,
             gen_blocked_penalty: 0.0,
+            gen_avoid_bonus: 100.0,
             station_require_cvok: true,
             issue_queue_depth: 1,
             area_deadlock_ms: 10_000,
@@ -121,6 +124,7 @@ pub fn spec() -> Vec<Spec> {
         s("gen_max_distance_m", "Generation", "m", Some(0.0), Some(200.0), false, None, "이보다 먼 후보는 만들지 않는다(0 = 제한 없음)."),
         s("gen_age_per_min", "Generation", "score/min", Some(0.0), Some(100.0), false, None, "조건이 참이 된 뒤 1 분마다 더하는 점수(오래 기다린 것 먼저)."),
         s("gen_blocked_penalty", "Generation", "score", Some(0.0), Some(1000.0), false, None, "영역에 막힌 후보의 표시 감점(막힌 후보는 어차피 만들지 않는다)."),
+        s("gen_avoid_bonus", "Generation", "score", Some(0.0), Some(10000.0), false, None, "회피 우선 — 막힌 로봇의 자리를 비켜 주는 후보에 얹는 점수. 0 이면 회피를 우선하지 않는다."),
         s("station_require_cvok", "Generation", "", None, None, false, None, "새 스테이션 요청 규칙의 기본: Req AND CVOK(컨베이어 준비)."),
         s("issue_queue_depth", "Issue", "건", Some(1.0), Some(1.0), true, None, "PLC 에는 실행 중 + 다음 1 건까지만(안전 규칙, 고정)."),
         s("area_deadlock_ms", "Issue", "ms", Some(1000.0), Some(600000.0), false, None, "서 있는 로봇이 영역을 막을 때 교착으로 보고 멈추기까지(시나리오 실행기)."),

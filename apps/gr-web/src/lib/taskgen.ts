@@ -7,6 +7,8 @@ export type GenTrigger =
   | { kind: 'station_req'; station: number; require_cvok?: boolean }
   | { kind: 'station_item'; station: number; require_cvok?: boolean }
   | { kind: 'cell_stock'; cell: number; item?: number | null; min?: number }
+  /** 대상에 재고가 있고 그 품목이 아직 측정되지 않았다(비드 프로파일 없음) — 측정 먼저. */
+  | { kind: 'unmeasured'; target: Target }
 
 /** 셀 자동 선택 — 구역·행·열 필터와 순서(출발 oldest/nearest, 도착 같은 품목 먼저). */
 export interface CellPick {
@@ -17,6 +19,8 @@ export interface CellPick {
   col_max?: number | null
   order?: string
   same_item_first?: boolean
+  /** 도착: 이 대상(보통 출고 스테이션)에 가까운 셀 먼저. */
+  near?: number | null
 }
 
 export type GenAction =
@@ -236,6 +240,12 @@ export const taskgenApi = {
       `/api/taskgen/rules/${encodeURIComponent(id)}/request`,
     ),
   removeQueued: (id: string) => del(`/api/taskgen/queue/${encodeURIComponent(id)}`),
+  /** 기본 규칙 한 벌 — 출고 스테이션 기준으로 만들어 지금 규칙에 덧붙인다. */
+  seedDefaults: (out_station: number, in_stations: number[]) =>
+    postJson<{ added: number; config: GenConfig }>('/api/taskgen/defaults', {
+      out_station,
+      in_stations,
+    }),
 }
 
 export const EMPTY_WEIGHTS: GenWeights = { target: {}, item: {}, robot: {} }
@@ -308,6 +318,8 @@ export function triggerLabel(t: GenTrigger): string {
       return `Station ${t.station} ItemExist${t.require_cvok === false ? '' : ' + CVOK'}`
     case 'cell_stock':
       return `Cell ${t.cell} ≥ ${t.min ?? 1}${t.item ? ` (Item ${t.item})` : ''}`
+    case 'unmeasured':
+      return `${where(t.target)} 미측정 품목`
   }
 }
 

@@ -39,6 +39,8 @@ pub enum Trigger {
         #[serde(default = "yes")]
         require_cvok: bool,
     },
+    /// 대상(셀·스테이션)에 재고가 있고 그 품목이 **아직 측정되지 않았다**(비드 프로파일 없음) — 측정 먼저.
+    Unmeasured { target: Target },
     /// 셀 재고가 `min` 개 이상(품목 지정 시 그 품목만).
     CellStock {
         cell: u16,
@@ -66,6 +68,8 @@ pub struct CellPick {
     pub order: String,
     /// 도착: 같은 품목이 쌓인 셀 먼저(아니면 빈 셀 먼저).
     pub same_item_first: bool,
+    /// 도착: 이 대상(보통 출고 스테이션)에 **가까운 셀 먼저**. 없으면 로봇에 가까운 순.
+    pub near: Option<u16>,
 }
 
 /// 만들 것.
@@ -197,6 +201,8 @@ pub struct World {
     pub room: BTreeMap<u16, u32>,
     /// 셀·스테이션 id → Use(사용) 플래그.
     pub usable: BTreeMap<u16, bool>,
+    /// 아직 측정되지 않은 품목 코드(비드 프로파일 없음).
+    pub unmeasured: std::collections::BTreeSet<u32>,
 }
 
 pub fn fires(rule: &Rule, w: &World) -> bool {
@@ -208,6 +214,7 @@ pub fn fires(rule: &Rule, w: &World) -> bool {
         Trigger::Manual => rule.manual_requests > 0,
         Trigger::StationReq { station, require_cvok } => pi(station).req && (!require_cvok || pi(station).cvok),
         Trigger::StationItem { station, require_cvok } => pi(station).item_exist && (!require_cvok || pi(station).cvok),
+        Trigger::Unmeasured { target } => w.stock.get(&target.id).is_some_and(|(code, n)| *n > 0 && *code != 0 && w.unmeasured.contains(code)),
         Trigger::CellStock { cell, item, min } => w.stock.get(cell).is_some_and(|(code, n)| *n >= *min && item.is_none_or(|i| i == *code)),
     };
     // 출발에 재고(= 콘솔이 품목을 안다)가, 도착에 칸이 있어야 한다. 스테이션도 셀과 같게 본다 — 콘솔 재고가
@@ -270,6 +277,74 @@ impl Rule {
     }
 }
 
+/// 기본 규칙 한 벌 — 현장에서 바로 고쳐 쓰라고 심는 시작점(운전자 규칙 다섯 가지).
+///
+/// 1. 미측정 규격은 **측정 먼저** — 입고 스테이션에 올라온 화물의 품목에 비드 프로파일이 없으면 MEASURE.
+/// 2. **출고 우선** — 출고 스테이션이 요청하면 셀에서 꺼내 내보낸다(가중치로도 올린다).
+/// 3. 영역이 겹치지 않는 명령 우선 — 엔진이 늘 그렇게 고른다(`select`). 규칙이 아니라 동작이다.
+/// 4. **회피가 최우선** — 막힌 로봇의 자리를 비켜 주는 후보에 `gen_avoid_bonus` 를 얹는다(파라미터).
+/// 5. 적재는 **출고에 가까운 셀 먼저** — 입고에서 셀로 넣을 때 도착 셀을 출고 기준으로 고른다.
+pub fn default_rules(out_station: u16, in_stations: &[u16]) -> GenConfig {
+    let station = |id: u16| Target { kind: "station".into(), id };
+    let auto_cell = || Target { kind: "cell".into(), id: 0 };
+    let mut rules = Vec::new();
+    for (i, &inb) in in_stations.iter().enumerate() {
+        let n = if in_stations.len() > 1 { format!(" {}", i + 1) } else { String::new() };
+        rules.push(Rule {
+            id: format!("measure-first-{inb}"),
+            name: format!("측정 먼저 — 입고{n} {inb}"),
+            enabled: true,
+            trigger: Trigger::Unmeasured { target: station(inb) },
+            action: Action::Measure { target: station(inb), item: None },
+            robots: vec![],
+            priority: 80.0,
+            manual_requests: 0,
+            cond: Conditions::default(),
+        });
+        rules.push(Rule {
+            id: format!("store-near-out-{inb}"),
+            name: format!("적재 — 입고{n} {inb} → 출고에 가까운 셀"),
+            enabled: true,
+            trigger: Trigger::StationReq { station: inb, require_cvok: true },
+            action: Action::Transfer {
+                from: station(inb),
+                to: auto_cell(),
+                item: None,
+                count: 1,
+                from_auto: None,
+                to_auto: Some(CellPick { order: "nearest".into(), near: Some(out_station), ..Default::default() }),
+                pallet_auto: false,
+            },
+            robots: vec![],
+            priority: 40.0,
+            manual_requests: 0,
+            cond: Conditions::default(),
+        });
+    }
+    rules.push(Rule {
+        id: format!("ship-{out_station}"),
+        name: format!("출고 우선 — 셀 → 출고 {out_station}"),
+        enabled: true,
+        trigger: Trigger::StationReq { station: out_station, require_cvok: true },
+        action: Action::Transfer {
+            from: auto_cell(),
+            to: station(out_station),
+            item: None,
+            count: 1,
+            from_auto: Some(CellPick { order: "oldest".into(), ..Default::default() }),
+            to_auto: None,
+            pallet_auto: false,
+        },
+        robots: vec![],
+        priority: 60.0,
+        manual_requests: 0,
+        cond: Conditions::default(),
+    });
+    let mut weights = Weights::default();
+    weights.target.insert(out_station, 20.0);
+    GenConfig { version: 0, auto: false, weights, rules }
+}
+
 /// 판단 기준 한 줄 — 무엇을 보는지(`label`), 지금 값(`value`), 그 값이 조건을 만족하는가(`ok`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Term {
@@ -299,6 +374,16 @@ pub fn rule_terms(rule: &Rule, w: &World) -> Vec<Term> {
             } else {
                 v.push(t(format!("STATION {station}"), "GRM 에서 못 읽음".into(), false));
             }
+        }
+        Trigger::Unmeasured { target } => {
+            let (code, n) = w.stock.get(&target.id).copied().unwrap_or((0, 0));
+            let label = format!("{} {} 미측정 품목", target.kind, target.id);
+            v.push(match (n, code) {
+                (0, _) => t(label, "재고 없음".into(), false),
+                (_, 0) => t(label, "품목을 모름".into(), false),
+                (_, c) if w.unmeasured.contains(&c) => t(label, format!("품목 {c} — 비드 프로파일 없음"), true),
+                (_, c) => t(label, format!("품목 {c} — 측정 있음"), false),
+            });
         }
         Trigger::CellStock { cell, item, min } => {
             let (code, n) = w.stock.get(cell).copied().unwrap_or((0, 0));
@@ -457,10 +542,13 @@ pub fn choose_source(cells: &[CellView], f: &CellPick, item: Option<u32>, count:
 }
 
 /// 도착 셀 — 칸 충분(StackMax) · 비었거나 같은 품목 · 영역 밖 중 (`same_item_first` 면 같은 품목 먼저) 가까운 순.
-pub fn choose_dest(cells: &[CellView], f: &CellPick, item: u32, count: u32, robot_x: Option<f32>, exclude: Option<u16>, free: &dyn Fn(f32) -> bool) -> Option<u16> {
+/// `near_x` 가 있으면 그 자리(보통 출고 스테이션)에 가까운 순, 없으면 로봇에 가까운 순.
+#[allow(clippy::too_many_arguments)]
+pub fn choose_dest(cells: &[CellView], f: &CellPick, item: u32, count: u32, robot_x: Option<f32>, near_x: Option<f32>, exclude: Option<u16>, free: &dyn Fn(f32) -> bool) -> Option<u16> {
     let ok = |c: &&CellView| in_filter(c, f) && Some(c.id) != exclude && (c.count == 0 || (item != 0 && c.item == item)) && c.room.is_none_or(|r| r >= count.max(1)) && free(c.x);
     let mut v: Vec<&CellView> = cells.iter().filter(ok).collect();
-    let dist = |c: &CellView| robot_x.map(|x| (c.x - x).abs()).unwrap_or(0.0);
+    let from = near_x.or(robot_x);
+    let dist = |c: &CellView| from.map(|x| (c.x - x).abs()).unwrap_or(0.0);
     v.sort_by(|a, b| {
         let same = |c: &CellView| if f.same_item_first { (c.count == 0) as u8 } else { (c.count != 0) as u8 };
         same(a).cmp(&same(b)).then(dist(a).total_cmp(&dist(b))).then(a.id.cmp(&b.id))
@@ -589,11 +677,37 @@ pub struct Selection {
     pub waiting: Vec<(Candidate, String)>,
     /// 후보조차 못 된 규칙과 사유(자동 셀 없음 · 팔렛 자리 없음 · 거리 초과).
     pub skipped: Vec<(String, String)>,
+    /// 영역에 막힌 후보와 막은 로봇 — 회피 우선 판정이 쓴다(화면에는 `waiting` 사유로 나간다).
+    #[serde(skip)]
+    pub blocked: Vec<(Candidate, u8)>,
 }
 
 /// 영역을 지키며 고른다 — 순위대로, 로봇·규칙마다 하나, 다른 로봇 영역(+ 이번에 고른 것)과 간격 안이면 넘긴다.
 /// 막힌 로봇의 사유: 상대가 비켜 가는 후보를 이번에 만들면 "상대 명령 수령 대기", 아니면 "비켜 줄 작업 없음 — 대기".
-pub fn select(mut cands: Vec<Candidate>, robots: &[RobotView], sep: f32) -> Selection {
+/// **회피가 먼저다** — 막힌 로봇이 있으면 막은 로봇의 후보 중 그 자리를 비켜 주는 것(도착점이 막힌 후보
+/// 영역에서 간격 밖)에 `avoid_bonus`(파라미터 `gen_avoid_bonus`)를 얹어 다시 고른다. 얹지 않으면 점수가
+/// 높은 다른 일이 먼저 나가 교착이 길어진다.
+pub fn select_with(mut cands: Vec<Candidate>, robots: &[RobotView], sep: f32, avoid_bonus: f32) -> Selection {
+    if avoid_bonus > 0.0 {
+        let mut boosted = false;
+        for (blocked, by) in select_once(cands.clone(), robots, sep).blocked {
+            for c in cands.iter_mut().filter(|c| c.robot == by) {
+                let frees = Interval::point(c.drop_x.unwrap_or(c.target_x)).gap(blocked.area) >= sep;
+                if frees && !c.breakdown.iter().any(|(k, _)| k == "Avoidance") {
+                    c.score += avoid_bonus;
+                    c.breakdown.push(("Avoidance".into(), avoid_bonus));
+                    boosted = true;
+                }
+            }
+        }
+        if boosted {
+            rank(&mut cands);
+        }
+    }
+    select_once(cands, robots, sep)
+}
+
+fn select_once(mut cands: Vec<Candidate>, robots: &[RobotView], sep: f32) -> Selection {
     rank(&mut cands);
     let mut out = Selection::default();
     let mut picked: BTreeMap<u8, Interval> = BTreeMap::new();
@@ -624,7 +738,7 @@ pub fn select(mut cands: Vec<Candidate>, robots: &[RobotView], sep: f32) -> Sele
         }
     }
     // 막힌 후보의 사유를 다듬는다 — 상대가 이번에 비켜 가는(도착점이 이 후보 영역에서 간격 밖) 작업을 만들었나.
-    for (c, by) in blocked {
+    for (c, by) in blocked.iter().cloned() {
         let yield_ = out.generate.iter().any(|g| g.robot == by && Interval::point(g.drop_x.unwrap_or(g.target_x)).gap(c.area) >= sep);
         let who = robots.iter().find(|r| r.id == by).map(|r| r.name.clone()).unwrap_or_default();
         let note = if yield_ {
@@ -636,6 +750,7 @@ pub fn select(mut cands: Vec<Candidate>, robots: &[RobotView], sep: f32) -> Sele
             w.1 = format!("{} · {note}", w.1);
         }
     }
+    out.blocked = blocked;
     out
 }
 
@@ -737,14 +852,14 @@ mod tests {
         assert_eq!(choose_source(&cells, &oldest, Some(2011), 1, None, &left), Some(401));
         // 도착: 같은 품목 먼저 → 칸 있는 402(401 은 칸 1, 2개면 안 됨), 아니면 가까운 빈 셀
         let same = CellPick { same_item_first: true, ..Default::default() };
-        assert_eq!(choose_dest(&cells, &same, 2011, 2, Some(0.0), None, &free), Some(402));
+        assert_eq!(choose_dest(&cells, &same, 2011, 2, Some(0.0), None, None, &free), Some(402));
         let empty_first = CellPick::default();
-        assert_eq!(choose_dest(&cells, &empty_first, 2011, 1, Some(0.0), None, &free), Some(403));
+        assert_eq!(choose_dest(&cells, &empty_first, 2011, 1, Some(0.0), None, None, &free), Some(403));
         // 출발 셀은 도착에서 뺀다 · 다른 품목 셀은 안 된다 · 영역
-        assert_eq!(choose_dest(&cells, &same, 2011, 1, Some(0.0), Some(401), &left), Some(403));
+        assert_eq!(choose_dest(&cells, &same, 2011, 1, Some(0.0), None, Some(401), &left), Some(403));
         // 필터: 구역 2 셀 없음
         let sec2 = CellPick { section: Some(2), ..Default::default() };
-        assert_eq!(choose_dest(&cells, &sec2, 2011, 1, None, None, &free), None);
+        assert_eq!(choose_dest(&cells, &sec2, 2011, 1, None, None, None, &free), None);
     }
 
     #[test]
@@ -773,17 +888,17 @@ mod tests {
     #[test]
     fn zone_aware_selection_maximises_concurrency() {
         let robots = vec![robot(1, 2000.0), robot(2, 14000.0)];
-        let s = select(vec![cand("a", 1, 2000.0, 5000.0, 5.0, 1), cand("b", 2, 10000.0, 14000.0, 4.0, 2)], &robots, SEP);
+        let s = select_with(vec![cand("a", 1, 2000.0, 5000.0, 5.0, 1), cand("b", 2, 10000.0, 14000.0, 4.0, 2)], &robots, SEP, 0.0);
         assert_eq!(s.generate.len(), 2);
-        let s = select(vec![cand("b", 2, 9000.0, 14000.0, 9.0, 1), cand("a1", 1, 2000.0, 8000.0, 8.0, 2), cand("a2", 1, 2000.0, 5000.0, 1.0, 3)], &robots, SEP);
+        let s = select_with(vec![cand("b", 2, 9000.0, 14000.0, 9.0, 1), cand("a1", 1, 2000.0, 8000.0, 8.0, 2), cand("a2", 1, 2000.0, 5000.0, 1.0, 3)], &robots, SEP, 0.0);
         assert_eq!(s.generate.iter().map(|c| c.rule_id.as_str()).collect::<Vec<_>>(), vec!["b", "a2"]);
         assert!(s.waiting.iter().any(|(c, why)| c.rule_id == "a1" && why.contains("영역 겹침")));
-        let s = select(vec![cand("r", 1, 2000.0, 3000.0, 5.0, 1), cand("r", 2, 12000.0, 14000.0, 5.0, 1)], &robots, SEP);
+        let s = select_with(vec![cand("r", 1, 2000.0, 3000.0, 5.0, 1), cand("r", 2, 12000.0, 14000.0, 5.0, 1)], &robots, SEP, 0.0);
         assert_eq!(s.generate.len(), 1);
         // 로봇 여유가 간격에 더해진다
         let mut wide = robots.clone();
         wide[1].margin = 3000.0;
-        let s = select(vec![cand("b", 2, 10000.0, 14000.0, 9.0, 1), cand("a", 1, 2000.0, 5000.0, 1.0, 2)], &wide, SEP);
+        let s = select_with(vec![cand("b", 2, 10000.0, 14000.0, 9.0, 1), cand("a", 1, 2000.0, 5000.0, 1.0, 2)], &wide, SEP, 0.0);
         assert_eq!(s.generate.len(), 1, "5000..10000 gap < 2403 + 3000");
     }
 
@@ -793,27 +908,27 @@ mod tests {
         let mut robots = vec![robot(1, 2000.0), robot(2, 8000.0)];
         let need = cand("a", 1, 2000.0, 7000.0, 9.0, 1);
         let away = cand("b", 2, 8000.0, 13000.0, 1.0, 2);
-        let s = select(vec![need.clone(), away.clone()], &robots, SEP);
+        let s = select_with(vec![need.clone(), away.clone()], &robots, SEP, 0.0);
         assert_eq!(s.generate.iter().map(|c| c.rule_id.as_str()).collect::<Vec<_>>(), vec!["b"]);
         let why = &s.waiting.iter().find(|(c, _)| c.rule_id == "a").unwrap().1;
         assert!(why.contains("PLC 수령(Accepted) 뒤"), "{why}");
         robots[1].scheduled = Some(away.area);
         robots[1].busy = true;
-        assert!(select(vec![need.clone()], &robots, SEP).generate.is_empty());
+        assert!(select_with(vec![need.clone()], &robots, SEP, 0.0).generate.is_empty());
         robots[1].scheduled = None;
         robots[1].pending = vec![13000.0];
-        assert!(select(vec![need.clone()], &robots, SEP).generate.is_empty());
+        assert!(select_with(vec![need.clone()], &robots, SEP, 0.0).generate.is_empty());
         robots[1].committed = true;
-        assert_eq!(select(vec![need.clone()], &robots, SEP).generate.len(), 1);
+        assert_eq!(select_with(vec![need.clone()], &robots, SEP, 0.0).generate.len(), 1);
     }
 
     #[test]
     fn no_deadlock_no_overlap() {
         let robots = vec![robot(1, 4000.0), robot(2, 7000.0)];
-        let s = select(vec![cand("a", 1, 4000.0, 7500.0, 5.0, 1)], &robots, SEP);
+        let s = select_with(vec![cand("a", 1, 4000.0, 7500.0, 5.0, 1)], &robots, SEP, 0.0);
         assert!(s.generate.is_empty());
         assert!(s.waiting[0].1.contains("비켜 줄 작업 없음"));
-        let s = select(vec![cand("a", 1, 4000.0, 7500.0, 5.0, 1), cand("b", 2, 3500.0, 7000.0, 4.0, 2)], &robots, SEP);
+        let s = select_with(vec![cand("a", 1, 4000.0, 7500.0, 5.0, 1), cand("b", 2, 3500.0, 7000.0, 4.0, 2)], &robots, SEP, 0.0);
         assert!(s.generate.is_empty() && s.waiting.len() == 2);
     }
 
@@ -945,5 +1060,53 @@ mod tests {
         let no_item = Rule { action: Action::Transfer { from: cell(401), to: cell(402), item: None, count: 1, from_auto: None, to_auto: None, pallet_auto: false }, ..all_off };
         let terms = rule_terms(&no_item, &w);
         assert!(terms.iter().any(|t| t.label == "품목" && t.value.contains("무시")), "{terms:?}");
+    }
+
+    /// 기본 규칙 한 벌 — 측정 먼저 · 출고 우선 · 출고에 가까운 셀 적재.
+    #[test]
+    fn default_rules_cover_the_operator_set() {
+        let c = default_rules(2102, &[2101, 2003]);
+        let ids: Vec<&str> = c.rules.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(ids, vec!["measure-first-2101", "store-near-out-2101", "measure-first-2003", "store-near-out-2003", "ship-2102"]);
+
+        // 1. 미측정 규격은 측정 먼저 — 입고마다, 우선순위가 가장 높다.
+        let m = c.rules.iter().find(|r| r.id == "measure-first-2101").unwrap();
+        assert_eq!(m.trigger, Trigger::Unmeasured { target: Target { kind: "station".into(), id: 2101 } });
+        assert!(matches!(m.action, Action::Measure { .. }));
+        assert!(c.rules.iter().filter(|r| !r.id.starts_with("measure-first")).all(|r| r.priority < m.priority));
+
+        // 2. 출고 우선 — 규칙 점수와 대상 가중 둘 다.
+        let s = c.rules.iter().find(|r| r.id == "ship-2102").unwrap();
+        assert!(s.priority > c.rules.iter().find(|r| r.id == "store-near-out-2101").unwrap().priority);
+        assert_eq!(c.weights.target.get(&2102), Some(&20.0));
+
+        // 5. 적재는 출고에 가까운 셀 먼저.
+        let Action::Transfer { to_auto: Some(p), .. } = &c.rules.iter().find(|r| r.id == "store-near-out-2101").unwrap().action else { panic!("적재 규칙은 도착 셀 자동") };
+        assert_eq!(p.near, Some(2102));
+
+        // 규칙은 켜진 채로 심지만 자동 생성 자체는 꺼져 있다.
+        assert!(!c.auto);
+        assert!(c.rules.iter().all(|r| r.enabled));
+    }
+
+    /// 4. 회피가 최우선 — 막힌 로봇의 자리를 비켜 주는 후보가 먼저 나간다.
+    #[test]
+    fn avoidance_outranks_a_higher_scoring_job() {
+        let robots = vec![robot(1, 0.0), robot(2, 9000.0)];
+        // 1 호기는 2 호기 자리(9000)를 원해 막힌다. 2 호기에는 점수 높은 제자리 일과, 비켜 가는 일이 있다.
+        let want = cand("a", 1, 8500.0, 9000.0, 10.0, 1);
+        let stay = cand("stay", 2, 8800.0, 9200.0, 50.0, 2);
+        // 비켜 가는 일 — 2 호기가 9000 에서 12000 으로 물러난다(도착점이 1 호기 후보 영역 밖).
+        let away = cand("away", 2, 9000.0, 12000.0, 1.0, 3);
+
+        // 보너스가 없으면 점수 높은 제자리 일(stay)이 나간다.
+        let none = select_with(vec![want.clone(), stay.clone(), away.clone()], &robots, SEP, 0.0);
+        assert_eq!(none.generate.iter().map(|c| c.rule_id.as_str()).collect::<Vec<_>>(), vec!["stay"]);
+
+        // 보너스를 얹으면 비켜 가는 일(away)이 먼저 — 다음 판정에서 1 호기가 풀린다.
+        let boosted = select_with(vec![want, stay, away], &robots, SEP, 100.0);
+        let made: Vec<&str> = boosted.generate.iter().map(|c| c.rule_id.as_str()).collect();
+        assert_eq!(made, vec!["away"]);
+        assert!(boosted.generate[0].breakdown.iter().any(|(k, v)| k == "Avoidance" && *v == 100.0));
     }
 }

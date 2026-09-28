@@ -17,7 +17,7 @@
 
 | 필드 | 뜻 |
 | --- | --- |
-| `trigger` | `manual`(요청 버튼 수만큼, DB 에 남음) · `station_req`(PI.Req) · `station_item`(PI.ItemExist) — 둘 다 `require_cvok`(기본 켜짐: CVOK 도) · `cell_stock`(셀 재고 ≥ min, 품목 선택) |
+| `trigger` | `manual`(요청 버튼 수만큼, DB 에 남음) · `station_req`(PI.Req) · `station_item`(PI.ItemExist) — 둘 다 `require_cvok`(기본 켜짐: CVOK 도) · `cell_stock`(셀 재고 ≥ min, 품목 선택) · `unmeasured`(대상 재고의 품목에 비드 프로파일 없음 — 측정 먼저) |
 | `action` | `transfer`(PICK→DROP 짝, 이송 지시 하나) · `move` · `measure` |
 | `from_auto` / `to_auto` | 셀 자동 선택: 구역·행·열 필터. 출발 `oldest`(재고 갱신이 가장 오래된) / `nearest`, 도착은 가까운 순, `same_item_first` 면 같은 품목 셀 먼저(아니면 빈 셀 먼저). StackMax 칸, 다른 로봇 영역 밖만 |
 | `pallet_auto` | 도착이 팔렛 스테이션 — DROP 을 미리 작성해 다음 슬롯이 있을 때만 후보 |
@@ -72,6 +72,21 @@ Task 는 아래가 모두 갖춰질 때만 만든다 — 하나라도 없으면 
 제출 직전에도 한 번 더 막는다(`issue::enforce_item_known`) — 어느 경로로도 품목 0 인 PICK/DROP 은 나가지
 않는다(PLC 가 INVALID_ITEM_CODE 501 로 거부하는 값이다).
 
+## 기본 규칙 한 벌 (자동 생성 → 도구 → 기본 규칙 만들기…)
+
+출고 스테이션만 고르면 운전자 규칙 다섯 가지가 심긴다(`POST /api/taskgen/defaults` → `taskgen::default_rules`).
+나머지 등록 스테이션은 입고로 본다. 같은 id 의 규칙은 새로 만든 것으로 바뀌고, **자동 생성은 꺼진 채**다.
+
+| # | 규칙 | 어떻게 |
+| --- | --- | --- |
+| 1 | 미측정 규격은 측정 먼저 | 입고마다 `unmeasured`(재고 품목에 비드 프로파일 없음) → MEASURE, 우선순위 80 |
+| 2 | 출고 우선 | 출고 `station_req` → 셀(oldest) → 출고, 60 + 대상 가중 +20 |
+| 3 | 영역 겹치지 않는 명령 우선 | 규칙이 아니라 엔진 동작 — `select` 가 순위대로 겹치지 않는 후보만 고른다 |
+| 4 | 회피 최우선 | 막힌 로봇의 자리를 비켜 주는 후보에 `gen_avoid_bonus`(기본 100)를 얹어 **다시** 고른다 |
+| 5 | 적재는 출고에 가까운 셀 | 입고 `station_req` → 자동 도착 셀, `to_auto.near = 출고`(로봇 대신 출고 기준 거리), 40 |
+
+1·5 는 규칙(설정)이고 3·4 는 엔진 동작이라 규칙 표에 줄이 서지 않는다 — 4 의 세기는 파라미터로 조절한다.
+
 ## 우선순위
 
 점수 = `priority` + 대상 가중(스테이션/셀) + 품목 가중(규격) + 로봇 가중 + 대기 가점(`gen_age_per_min` × 분) − 거리 감점(`gen_distance_per_m` × m). `gen_max_distance_m` 보다 먼 후보는 만들지 않는다. 순서는 점수 내림차순,
@@ -122,6 +137,7 @@ Task 는 **짝 단위로 만든다** — PICK 을 보낼 때 짝 DROP 을 같은
 | gen_max_distance_m | m | 0 (제한 없음) | |
 | gen_age_per_min | score/min | 0 | |
 | gen_blocked_penalty | score | 0 | |
+| gen_avoid_bonus | score | 100 | 회피 우선 — 막힌 로봇의 자리를 비켜 주는 후보에 얹는 점수(0 = 안 얹음) |
 | station_require_cvok | | true | 새 규칙 기본 |
 | issue_queue_depth | 건 | 1 (고정) | |
 | area_deadlock_ms | ms | 10000 | 시나리오 실행기 교착 |
@@ -141,5 +157,5 @@ queue_depth · pair · retry · busy). `--demo` 는 GRM `OPCUA.STATION` 인터�
 
 ## API
 
-`GET /api/taskgen` · `PUT /api/taskgen/config` · `POST /api/taskgen/rules/{id}/request` · `DELETE /api/taskgen/queue/{id}` ·
+`GET /api/taskgen` · `PUT /api/taskgen/config` · `POST /api/taskgen/defaults`(기본 규칙 한 벌, `dry_run`·`append`) · `POST /api/taskgen/rules/{id}/request` · `DELETE /api/taskgen/queue/{id}` ·
 `GET/PUT /api/params` · `GET /api/params/history` · `POST /api/params/reset`
