@@ -69,7 +69,7 @@ pub async fn run(st: &AppState, r: &RobotCtx, action: RobotAction) -> Result<Jso
             return Err(ApiError::Conflict(with_robot(&r.name, &why)));
         }
     }
-    // LEARN 은 PLC(FB_Gripper)가 MANUAL/MAINT 에서만 받는다 — 다른 모드에서 펄스를 보내면 조용히 무시되므로 여기서 미리 거절한다.
+    // LEARN 은 PLC(FB_CL_Gripper)가 MANUAL/MAINT 에서만 받는다 — 다른 모드에서 펄스를 보내면 조용히 무시되므로 여기서 미리 거절한다.
     if action == RobotAction::GripperLearn && !st.cfg.demo {
         let v = status_view(st, r).ok_or_else(|| ApiError::PlcUnavailable(with_robot(&r.name, "상태 PLC 스냅샷 없음 — 모드를 알 수 없어 LEARN 을 보내지 않습니다")))?;
         if let Some(why) = learn_refusal(&v.mode) {
@@ -143,7 +143,7 @@ fn mode_now(m: &gr_proto::status::EquipMode) -> &'static str {
     }
 }
 
-/// 그리퍼 LEARN 을 막는 사유 — MANUAL 또는 MAINT 가 아니면(PLC `FB_Gripper` 의 수락 조건과 같다).
+/// 그리퍼 LEARN 을 막는 사유 — MANUAL 또는 MAINT 가 아니면(PLC `FB_CL_Gripper` 의 수락 조건과 같다).
 /// 그리퍼 Ready · 화물 없음은 PLC 가 판정한다(WEBMON.Gripper 로 결과를 본다).
 fn learn_refusal(m: &gr_proto::status::EquipMode) -> Option<String> {
     if (m.manual || m.maint) && !m.auto {
