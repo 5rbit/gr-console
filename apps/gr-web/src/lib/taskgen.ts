@@ -33,6 +33,46 @@ export type GenAction =
   | { kind: 'move'; to: Target }
   | { kind: 'measure'; target: Target; item?: number | null }
 
+/** 규칙마다 켜고 끄는 생성 조건 — 기본은 모두 켜짐. 끈 항목은 판정에서 빠진다. */
+export interface GenConditions {
+  item_known: boolean
+  source_stock: boolean
+  dest_room: boolean
+  target_use: boolean
+}
+
+export const ALL_CONDITIONS: GenConditions = {
+  item_known: true,
+  source_stock: true,
+  dest_room: true,
+  target_use: true,
+}
+
+/** 조건 스위치의 이름과 설명 — 규칙 팝업이 이 순서로 그린다. */
+export const CONDITION_FIELDS: { key: keyof GenConditions; label: string; title: string }[] = [
+  {
+    key: 'item_known',
+    label: '품목 확정',
+    title:
+      '규칙이 정한 품목 또는 출발의 콘솔 재고 품목이 있어야 만든다 — 끄면 품목 0 으로도 보낸다(PLC 가 거부할 수 있음)',
+  },
+  {
+    key: 'source_stock',
+    label: '출발 재고',
+    title: '출발에 필요한 수량이 콘솔 재고에 있어야 만든다',
+  },
+  {
+    key: 'dest_room',
+    label: '도착 칸(StackMax)',
+    title: '도착의 남은 칸이 수량 이상이어야 만든다 — 끄면 단수 Max 를 넘겨 보낸다',
+  },
+  {
+    key: 'target_use',
+    label: 'Use(사용) 확인',
+    title: '출발·도착의 Use 가 켜져 있어야 만든다 — 끄면 쓰지 않는 셀·스테이션도 대상이 된다',
+  },
+]
+
 export interface GenRule {
   id: string
   name: string
@@ -42,6 +82,7 @@ export interface GenRule {
   robots: number[]
   priority: number
   manual_requests?: number
+  cond?: GenConditions
 }
 
 /** 규칙 설정과 함께 저장하는 상황별 가중(대기 가점·거리 감점 같은 전역 값은 Parameters). */
@@ -248,6 +289,13 @@ export function ruleState(
   }
 }
 
+/** 규칙의 조건 요약 — 켠 수 / 전체, 끈 항목 이름. */
+export function condSummary(c: GenConditions | undefined): { label: string; off: string[] } {
+  const cond = { ...ALL_CONDITIONS, ...c }
+  const off = CONDITION_FIELDS.filter((f) => !cond[f.key]).map((f) => f.label)
+  return { label: `${CONDITION_FIELDS.length - off.length}/${CONDITION_FIELDS.length}`, off }
+}
+
 const where = (t: Target) => `${t.kind === 'station' ? 'Station' : 'Cell'} ${t.id}`
 
 export function triggerLabel(t: GenTrigger): string {
@@ -323,5 +371,6 @@ export function newRule(existing: readonly GenRule[]): GenRule {
     },
     robots: [],
     priority: 0,
+    cond: { ...ALL_CONDITIONS },
   }
 }

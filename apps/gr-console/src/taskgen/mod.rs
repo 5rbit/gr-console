@@ -123,6 +123,30 @@ pub struct Rule {
     /// `Manual` 규칙의 남은 요청 수(저장은 `taskgen_manual`).
     #[serde(default)]
     pub manual_requests: u32,
+    /// 켜고 끌 수 있는 생성 조건.
+    #[serde(default)]
+    pub cond: Conditions,
+}
+
+/// 규칙마다 켜고 끄는 생성 조건 — 기본은 모두 켜짐. 끈 항목은 판단에서 빠지고 판단 기준 목록에 "무시" 로 남는다.
+/// 위치 등록(출발·도착의 X)은 끌 수 없다 — 위치 없이는 명령을 만들 수 없다.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Conditions {
+    /// 품목을 콘솔이 알아야(규칙이 정하거나 출발 재고가 안다).
+    pub item_known: bool,
+    /// 출발 재고 ≥ 수량.
+    pub source_stock: bool,
+    /// 도착 남은 칸(품목 StackMax) ≥ 수량.
+    pub dest_room: bool,
+    /// 출발·도착의 Use(사용)가 켜져 있어야.
+    pub target_use: bool,
+}
+
+impl Default for Conditions {
+    fn default() -> Self {
+        Conditions { item_known: true, source_stock: true, dest_room: true, target_use: true }
+    }
 }
 
 /// 상황별 가중(규칙 설정과 함께 저장). 대기 가점 · 거리 감점 같은 전역 값은 파라미터(`params.rs`).
@@ -171,6 +195,8 @@ pub struct World {
     pub stock: BTreeMap<u16, (u32, u32)>,
     /// 셀 id → 남은 칸(StackMax − 예상 재고). 없으면 제한 없음.
     pub room: BTreeMap<u16, u32>,
+    /// 셀·스테이션 id → Use(사용) 플래그.
+    pub usable: BTreeMap<u16, bool>,
 }
 
 pub fn fires(rule: &Rule, w: &World) -> bool {
@@ -188,36 +214,50 @@ pub fn fires(rule: &Rule, w: &World) -> bool {
     // 곧 GCS 의 지식이다(컨베이어 트래킹이 옮긴다). 자동 셀은 고를 때(`resolve`) 본다.
     base && match &rule.action {
         Action::Transfer { from, to, count, from_auto, to_auto, .. } => {
-            (from_auto.is_some() || source_ready(w, from, *count, rule.item()).is_none()) && (to_auto.is_some() || dest_ready(w, to, *count).is_none())
+            (from_auto.is_some() || source_ready(w, from, *count, rule.item(), &rule.cond).is_none()) && (to_auto.is_some() || dest_ready(w, to, *count, &rule.cond).is_none())
         }
         _ => true,
     }
 }
 
-/// 출발이 준비됐나 — 콘솔 재고에 필요한 수량이 있고 품목을 안다. 안 됐으면 사유.
-pub fn source_ready(w: &World, t: &Target, count: u8, want: Option<u32>) -> Option<String> {
+/// 출발이 준비됐나 — Use · 재고 · 품목(규칙에서 켠 것만). 안 됐으면 사유.
+pub fn source_ready(w: &World, t: &Target, count: u8, want: Option<u32>, c: &Conditions) -> Option<String> {
     if t.kind != "cell" && t.kind != "station" {
         return None;
+    }
+    if let Some(why) = use_off(w, t, c) {
+        return Some(why);
     }
     let (code, n) = w.stock.get(&t.id).copied().unwrap_or((0, 0));
     let need = count.max(1) as u32;
-    if n < need {
+    if c.source_stock && n < need {
         return Some(format!("재고 {n} < 필요 {need}"));
     }
     // 품목은 규칙이 정하거나 콘솔 재고가 알아야 한다 — 0 으로 보내면 PLC 가 INVALID_ITEM_CODE 로 거부한다.
-    want.or(Some(code).filter(|c| *c != 0)).map_or_else(|| Some("품목을 콘솔이 모름".to_string()), |_| None)
+    if c.item_known && want.or(Some(code).filter(|x| *x != 0)).is_none() {
+        return Some("품목을 콘솔이 모름".into());
+    }
+    None
 }
 
-/// 도착이 준비됐나 — 남은 칸(StackMax)이 필요한 수량 이상. 안 됐으면 사유.
-pub fn dest_ready(w: &World, t: &Target, count: u8) -> Option<String> {
+/// 도착이 준비됐나 — Use · 남은 칸(규칙에서 켠 것만). 안 됐으면 사유.
+pub fn dest_ready(w: &World, t: &Target, count: u8, c: &Conditions) -> Option<String> {
     if t.kind != "cell" && t.kind != "station" {
         return None;
     }
+    if let Some(why) = use_off(w, t, c) {
+        return Some(why);
+    }
     let need = count.max(1) as u32;
     match w.room.get(&t.id) {
-        Some(r) if *r < need => Some(format!("남은 칸 {r} < 필요 {need}")),
+        Some(r) if c.dest_room && *r < need => Some(format!("남은 칸 {r} < 필요 {need}")),
         _ => None,
     }
+}
+
+/// Use(사용)가 꺼진 대상이면 사유 — 조건을 끄면 무시한다.
+fn use_off(w: &World, t: &Target, c: &Conditions) -> Option<String> {
+    (c.target_use && w.usable.get(&t.id) == Some(&false)).then(|| "Use 꺼짐".to_string())
 }
 
 impl Rule {
@@ -276,21 +316,27 @@ pub fn rule_terms(rule: &Rule, w: &World) -> Vec<Term> {
                 (Some(i), _, _) => v.push(t("품목".into(), format!("{i} (규칙)"), true)),
                 (None, Some(c), _) => v.push(t("품목".into(), format!("{c} (출발 재고)"), true)),
                 (None, None, true) => v.push(t("품목".into(), "출발 셀을 고를 때 확정".into(), true)),
+                (None, None, false) if !rule.cond.item_known => v.push(t("품목".into(), "무시 (조건 끔)".into(), true)),
                 (None, None, false) => v.push(t("품목".into(), "콘솔이 모름".into(), false)),
             }
             match from_auto {
                 Some(p) => v.push(t("출발 셀".into(), format!("자동 선택({})", if p.order.is_empty() { "oldest" } else { &p.order }), true)),
                 None => {
-                    let why = source_ready(w, from, *count, *item);
+                    let why = source_ready(w, from, *count, *item, &rule.cond);
                     let have = w.stock.get(&from.id).map(|(_, n)| *n).unwrap_or(0);
-                    v.push(t(format!("출발 {} {} 준비", from.kind, from.id), why.clone().unwrap_or_else(|| format!("재고 {have} / 필요 {count}")), why.is_none()));
+                    let ok = if rule.cond.source_stock { format!("재고 {have} / 필요 {count}") } else { format!("재고 {have} (수량 조건 끔)") };
+                    v.push(t(format!("출발 {} {} 준비", from.kind, from.id), why.clone().unwrap_or(ok), why.is_none()));
                 }
             }
             match to_auto {
                 Some(_) => v.push(t("도착 셀".into(), "자동 선택(가까운 순)".into(), true)),
                 None => {
-                    let why = dest_ready(w, to, *count);
-                    let room = w.room.get(&to.id).map(|r| format!("남은 칸 {r} / 필요 {count}")).unwrap_or_else(|| "칸 제한 없음".into());
+                    let why = dest_ready(w, to, *count, &rule.cond);
+                    let room = match w.room.get(&to.id) {
+                        Some(r) if rule.cond.dest_room => format!("남은 칸 {r} / 필요 {count}"),
+                        Some(r) => format!("남은 칸 {r} (칸 조건 끔)"),
+                        None => "칸 제한 없음".into(),
+                    };
                     v.push(t(format!("도착 {} {} 준비", to.kind, to.id), why.clone().unwrap_or(room), why.is_none()));
                 }
             }
@@ -606,7 +652,7 @@ mod tests {
         Action::Transfer { from: cell(from), to: cell(to), item: Some(2011), count: 1, from_auto: None, to_auto: None, pallet_auto: false }
     }
     fn rule(id: &str, prio: f32, from: u16, to: u16) -> Rule {
-        Rule { id: id.into(), name: id.into(), enabled: true, trigger: Trigger::Manual, action: transfer(from, to), robots: vec![], priority: prio, manual_requests: 1 }
+        Rule { id: id.into(), name: id.into(), enabled: true, trigger: Trigger::Manual, action: transfer(from, to), robots: vec![], priority: prio, manual_requests: 1, cond: Conditions::default() }
     }
     fn cand(rule_id: &str, robot: u8, lo: f32, hi: f32, score: f32, order: u64) -> Candidate {
         Candidate {
@@ -861,5 +907,43 @@ mod tests {
         assert_eq!(a[1], ("품목".into(), "출발 셀을 고를 때 확정".into(), true));
         assert_eq!(a[2], ("출발 셀".into(), "자동 선택(oldest)".into(), true));
         assert_eq!(a[3], ("도착 셀".into(), "자동 선택(가까운 순)".into(), true));
+    }
+
+    /// 조건은 규칙마다 끌 수 있다 — 끈 항목은 판정에서 빠지고 목록에 "무시" 로 남는다.
+    #[test]
+    fn conditions_can_be_turned_off_per_rule() {
+        let mut w = World::default();
+        w.stock.insert(401, (0, 0));
+        w.room.insert(402, 0);
+        w.usable.insert(401, false);
+        w.usable.insert(402, true);
+        let base = Rule { trigger: Trigger::Manual, manual_requests: 1, ..rule("c", 0.0, 401, 402) };
+
+        // 기본(모두 켜짐) — Use 꺼진 출발에서 안 만든다.
+        assert!(!fires(&base, &w));
+        assert_eq!(source_ready(&w, &cell(401), 1, None, &Conditions::default()).as_deref(), Some("Use 꺼짐"));
+
+        // Use 조건만 끄면 다음 걸림돌(재고)이 사유가 된다.
+        let no_use = Conditions { target_use: false, ..Default::default() };
+        assert_eq!(source_ready(&w, &cell(401), 1, None, &no_use).as_deref(), Some("재고 0 < 필요 1"));
+
+        // 재고까지 끄면 품목이 남고, 품목까지 끄면 출발은 통과한다.
+        let no_stock = Conditions { target_use: false, source_stock: false, ..Default::default() };
+        assert_eq!(source_ready(&w, &cell(401), 1, None, &no_stock).as_deref(), Some("품목을 콘솔이 모름"));
+        let loose = Conditions { item_known: false, ..no_stock };
+        assert_eq!(source_ready(&w, &cell(401), 1, None, &loose), None);
+
+        // 도착 칸 조건도 끌 수 있다(남은 칸 0 이어도 통과).
+        assert_eq!(dest_ready(&w, &cell(402), 1, &Conditions::default()).as_deref(), Some("남은 칸 0 < 필요 1"));
+        assert_eq!(dest_ready(&w, &cell(402), 1, &Conditions { dest_room: false, ..Default::default() }), None);
+
+        // 다 끄면 조건이 참이 되고, 목록은 그 항목들을 "무시" 로 말한다.
+        let all_off = Rule { cond: Conditions { item_known: false, source_stock: false, dest_room: false, target_use: false }, ..base };
+        assert!(fires(&all_off, &w));
+        assert!(rule_terms(&all_off, &w).iter().all(|t| t.ok), "{:?}", rule_terms(&all_off, &w));
+        // 품목을 규칙이 정하지 않은 채 조건을 끄면 그 줄이 "무시" 라고 말한다.
+        let no_item = Rule { action: Action::Transfer { from: cell(401), to: cell(402), item: None, count: 1, from_auto: None, to_auto: None, pallet_auto: false }, ..all_off };
+        let terms = rule_terms(&no_item, &w);
+        assert!(terms.iter().any(|t| t.label == "품목" && t.value.contains("무시")), "{terms:?}");
     }
 }

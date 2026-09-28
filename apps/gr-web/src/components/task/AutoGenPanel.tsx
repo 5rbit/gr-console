@@ -2,9 +2,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus, Send, Trash2 } from 'lucide-react'
 import {
+  ALL_CONDITIONS,
+  CONDITION_FIELDS,
   EMPTY_WEIGHTS,
   actionLabel,
   breakdownText,
+  condSummary,
   criteriaRows,
   formatMap,
   metricsLine,
@@ -51,6 +54,7 @@ function RuleDialog({
   onSave: (r: GenRule) => void
 }) {
   const [r, setR] = useState<GenRule>(rule)
+  const cond = { ...ALL_CONDITIONS, ...r.cond }
   const t = r.trigger
   const a = r.action
   const setT = (x: GenTrigger) => setR({ ...r, trigger: x })
@@ -246,6 +250,24 @@ function RuleDialog({
             checked={r.enabled}
             onCheckedChange={(v) => setR({ ...r, enabled: v })}
           />
+        </div>
+        <div className="rounded border border-line-default p-2">
+          <div className="mb-1 text-2xs text-content-muted">
+            생성 조건 — 끈 항목은 판단에서 빠집니다(위치 등록은 끌 수 없음)
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {CONDITION_FIELDS.map((f) => (
+              <Switch
+                key={f.key}
+                inline
+                label={f.label}
+                title={f.title}
+                checked={cond[f.key]}
+                onCheckedChange={(v) => setR({ ...r, cond: { ...cond, [f.key]: v } })}
+                testid={`taskgen-cond-${f.key}`}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </FormDialog>
@@ -578,6 +600,24 @@ export function AutoGenPanel() {
         return (
           <span className="truncate text-2xs text-content-muted" title={s?.inputs ?? ''}>
             {s?.inputs ?? ''}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'cond',
+      label: '조건',
+      get: (r) => condSummary(r.cond).label,
+      // 완화한 규칙은 좁은 칸에서도 보여야 한다(안전 신호).
+      priority: 1,
+      cell: (r) => {
+        const c = condSummary(r.cond)
+        return (
+          <span
+            className={c.off.length ? 'text-warn-fg' : 'text-content-faint'}
+            title={c.off.length ? `끈 조건: ${c.off.join(' · ')}` : '생성 조건 모두 켜짐'}
+          >
+            {c.label}
           </span>
         )
       },

@@ -5,6 +5,7 @@ import {
   formatMap,
   newRule,
   parseMap,
+  condSummary,
   criteriaRows,
   ruleState,
   triggerLabel,
@@ -131,5 +132,16 @@ describe('taskgen helpers', () => {
       ['꺼진 것', '요청 대기', false, false],
     ])
     expect(new Set(rows.map((r) => r.key)).size).toBe(3)
+  })
+  it('조건 요약은 끈 항목을 말한다', () => {
+    expect(condSummary(undefined)).toEqual({ label: '4/4', off: [] })
+    const c = condSummary({
+      item_known: false,
+      source_stock: true,
+      dest_room: false,
+      target_use: true,
+    })
+    expect(c.label).toBe('2/4')
+    expect(c.off).toEqual(['품목 확정', '도착 칸(StackMax)'])
   })
 })

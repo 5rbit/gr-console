@@ -45,6 +45,11 @@ pub struct GenItem {
     /// 다음 시도 가능 시각(unix ms).
     #[serde(default)]
     pub retry_at_ms: u64,
+    /// 규칙에서 끈 조건 — 제출 문도 같이 완화한다.
+    #[serde(default)]
+    pub allow_unknown_item: bool,
+    #[serde(default)]
+    pub ignore_stack_max: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -290,6 +295,7 @@ fn world(st: &AppState, cfg: &GenConfig) -> (World, Vec<CellView>) {
         let (item, count) = stock.get(&c.cell.id).copied().unwrap_or((0, 0));
         let room = room_of(item, count);
         w.stock.insert(c.cell.id, (item, count));
+        w.usable.insert(c.cell.id, c.cell.use_);
         if let Some(r) = room {
             w.room.insert(c.cell.id, r);
         }
@@ -310,6 +316,7 @@ fn world(st: &AppState, cfg: &GenConfig) -> (World, Vec<CellView>) {
     for s in st.registry.stations().unwrap_or_default() {
         let (item, count) = stock.get(&s.id).copied().unwrap_or((0, 0));
         w.stock.insert(s.id, (item, count));
+        w.usable.insert(s.id, s.para.info.use_);
         if let Some(r) = room_of(item, count) {
             w.room.insert(s.id, r);
         }
@@ -339,26 +346,33 @@ fn cell_target(id: u16) -> Target {
 }
 
 /// 규칙의 대상과 품목 — 자동 셀 선택, 양쪽 위치 등록, 품목 확정까지. 하나라도 안 되면 사유.
-fn resolve(st: &AppState, w: &World, a: &Action, cells: &[CellView], robot_x: Option<f32>, free: &dyn Fn(f32) -> bool) -> Result<(Target, Option<Target>, Option<u32>), String> {
-    match a {
+fn resolve(st: &AppState, w: &World, rule: &super::Rule, cells: &[CellView], robot_x: Option<f32>, free: &dyn Fn(f32) -> bool) -> Result<(Target, Option<Target>, Option<u32>), String> {
+    let c = &rule.cond;
+    match &rule.action {
         Action::Transfer { from, to, item, count, from_auto, to_auto, pallet_auto } => {
             let src = match from_auto {
                 Some(p) => cell_target(choose_source(cells, p, *item, *count as u32, robot_x, free).ok_or("자동 출발 셀 없음 (재고·구역·영역)")?),
                 None => from.clone(),
             };
             // 품목은 GCS 가 알아야 한다 — 규칙이 정했거나 출발의 콘솔 재고가 안다(스테이션도 같다).
-            let src_item = item.or_else(|| w.stock.get(&src.id).map(|(c, _)| *c).filter(|c| *c != 0)).ok_or_else(|| format!("출발 {} {} 품목을 콘솔이 모름", src.kind, src.id))?;
-            if st.registry.item(src_item).ok().flatten().is_none() {
-                return Err(format!("품목 {src_item} 이 콘솔 목록에 없음 (규격·StackMax 를 모름)"));
+            let known = item.or_else(|| w.stock.get(&src.id).map(|(x, _)| *x).filter(|x| *x != 0));
+            if c.item_known && known.is_none() {
+                return Err(format!("출발 {} {} 품목을 콘솔이 모름", src.kind, src.id));
             }
-            if let Some(why) = super::source_ready(w, &src, *count, Some(src_item)) {
+            if let Some(code) = known
+                && st.registry.item(code).ok().flatten().is_none()
+            {
+                return Err(format!("품목 {code} 이 콘솔 목록에 없음 (규격·StackMax 를 모름)"));
+            }
+            let src_item = known.unwrap_or(0);
+            if let Some(why) = super::source_ready(w, &src, *count, known, c) {
                 return Err(format!("출발 {} {}: {why}", src.kind, src.id));
             }
             let dst = match to_auto {
                 Some(p) => cell_target(choose_dest(cells, p, src_item, *count as u32, robot_x, Some(src.id).filter(|_| src.kind == "cell"), free).ok_or("자동 도착 셀 없음 (칸·구역·영역)")?),
                 None => to.clone(),
             };
-            if let Some(why) = super::dest_ready(w, &dst, *count) {
+            if let Some(why) = super::dest_ready(w, &dst, *count, c) {
                 return Err(format!("도착 {} {}: {why}", dst.kind, dst.id));
             }
             // 두 위치 모두 등록돼 있어야(=X 를 알아야) 보낼 수 있다.
@@ -381,7 +395,7 @@ fn resolve(st: &AppState, w: &World, a: &Action, cells: &[CellView], robot_x: Op
                     return Err(format!("팔렛 다음 슬롯 없음: {e}"));
                 }
             }
-            Ok((src, Some(dst), Some(src_item)))
+            Ok((src, Some(dst), known))
         }
         Action::Move { to } => Ok((to.clone(), None, None)),
         Action::Measure { target, item } => Ok((target.clone(), None, *item)),
@@ -448,7 +462,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
             // 자동 셀은 다른 로봇 영역 밖에서 고른다(동시 운전)
             let others: Vec<crate::area::Reservation> = robots.iter().filter(|o| o.id != rv.id).filter_map(|o| super::reserved(o, None)).collect();
             let free = |x: f32| crate::area::blocker(Interval::point(x), &others, sep + rv.margin).is_none();
-            let (first, second, item) = match resolve(st, &w, &rule.action, &cells, rv.current_x, &free) {
+            let (first, second, item) = match resolve(st, &w, rule, &cells, rv.current_x, &free) {
                 Ok(t) => t,
                 Err(why) => {
                     skipped.push((rule.name.clone(), format!("{}: {why}", rv.name)));
@@ -536,6 +550,8 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
                 note: None,
                 attempts: 0,
                 retry_at_ms: 0,
+                allow_unknown_item: !rule.cond.item_known,
+                ignore_stack_max: !rule.cond.dest_room,
             };
             let at = g.created_at.clone();
             e.persist_item(&g);
@@ -817,6 +833,8 @@ async fn issue_one(st: &AppState, p: &crate::params::Params, pairs: &BTreeMap<u8
         source: Some(ScenarioSource { scenario_id: format!("gen:{}", g.rule_id), run_id: g.id.clone(), iteration: 0, step_index: g.next as u32 }),
         robot: Some(r.id),
         transfer_order_id: order.clone(),
+        allow_unknown_item: g.allow_unknown_item,
+        ignore_stack_max: g.ignore_stack_max,
         pallet: step.pallet_auto.then(|| crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
         ..Default::default()
     };
@@ -865,6 +883,8 @@ async fn draft_pair_step(st: &AppState, r: &RobotCtx, g: &GenItem, order: Option
         source: Some(ScenarioSource { scenario_id: format!("gen:{}", g.rule_id), run_id: g.id.clone(), iteration: 0, step_index: 1 }),
         robot: Some(r.id),
         transfer_order_id: order.map(str::to_string),
+        allow_unknown_item: g.allow_unknown_item,
+        ignore_stack_max: g.ignore_stack_max,
         pallet: step.pallet_auto.then(|| crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
         ..Default::default()
     };
@@ -939,6 +959,8 @@ mod tests {
             score: 0.0,
             created_at: "a".into(),
             note: None,
+            allow_unknown_item: false,
+            ignore_stack_max: false,
             attempts: 1,
             retry_at_ms: 0,
         };
