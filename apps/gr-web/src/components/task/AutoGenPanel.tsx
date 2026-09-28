@@ -931,7 +931,17 @@ export function AutoGenPanel() {
       <div className="flex min-h-0 flex-col gap-3 text-xs" data-testid="autogen-panel">
         {head}
         {errBand ?? <span className="text-content-faint">읽는 중…</span>}
+        {/* 규칙을 못 읽는 동안에도 열리는 팝업 — 둘 다 제 값을 따로 읽는다(가중치·규칙 편집은 설정이 있어야 한다). */}
         {paramsOpen ? <ParamsDialog onClose={() => setParamsOpen(false)} /> : null}
+        {seedOpen ? (
+          <SeedDialog
+            onClose={() => setSeedOpen(false)}
+            onDone={() => {
+              setSeedOpen(false)
+              load()
+            }}
+          />
+        ) : null}
       </div>
     )
   }
