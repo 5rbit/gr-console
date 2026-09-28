@@ -31,7 +31,10 @@ const prof = (p: Partial<StationProfile> = {}): StationProfile => ({
   ...p,
 })
 
-const row = (profile: StationProfile | null, guess: Partial<StationProfile> = {}): StationProfileRow => ({
+const row = (
+  profile: StationProfile | null,
+  guess: Partial<StationProfile> = {},
+): StationProfileRow => ({
   id: 2101,
   conv_no: 1,
   profile,
@@ -51,7 +54,12 @@ describe('policy', () => {
   })
 
   it('withPolicy fills policy and rules', () => {
-    const c = withPolicy({ version: 3, auto: false, weights: { target: {}, item: {}, robot: {} }, rules: [] })
+    const c = withPolicy({
+      version: 3,
+      auto: false,
+      weights: { target: {}, item: {}, robot: {} },
+      rules: [],
+    })
     expect(c.policy).toEqual(DEFAULT_POLICY)
     expect(c.version).toBe(3)
   })
@@ -62,10 +70,9 @@ describe('policy', () => {
     expect(
       policyDiff(base, { ...base, inbound_dest: { ...base.inbound_dest, section: null } }),
     ).toEqual([])
-    expect(policyDiff(base, { ...base, consolidate: true, outbound_source: { order: 'nearest' } })).toEqual([
-      'outbound_source',
-      'consolidate',
-    ])
+    expect(
+      policyDiff(base, { ...base, consolidate: true, outbound_source: { order: 'nearest' } }),
+    ).toEqual(['outbound_source', 'consolidate'])
     expect(samePick({ same_item_first: false }, {})).toBe(true)
     expect(samePick({ near: 2101 }, {})).toBe(false)
   })
@@ -102,7 +109,9 @@ describe('station profiles', () => {
       max_height_mm: 1200,
       weight: 0,
       max_wait_s: 0,
+      merge_into: null,
     })
+    expect(profileDraftOf(row(prof({ role: 'pick', merge_into: 2101 }))).merge_into).toBe(2101)
   })
 
   it('dirty only when something changes', () => {
@@ -110,6 +119,7 @@ describe('station profiles', () => {
     const d = profileDraftOf(r)
     expect(profileDirty(r, d)).toBe(false)
     expect(profileDirty(r, { ...d, weight: 5 })).toBe(true)
+    expect(profileDirty(r, { ...d, merge_into: 2101 })).toBe(true)
     const empty = row(null)
     expect(profileDirty(empty, { ...profileDraftOf(empty), weight: 3 })).toBe(false)
     expect(profileDirty(empty, { ...profileDraftOf(empty), role: 'both' })).toBe(true)
@@ -117,9 +127,17 @@ describe('station profiles', () => {
 
   it('first role takes the guess, later role changes keep fields', () => {
     const r = row(null, { role: 'drop', drop_mode: 'stack', max_height_mm: 1400 })
-    expect(withRole(r, profileDraftOf(r), 'drop')).toMatchObject({ role: 'drop', drop_mode: 'stack', max_height_mm: 1400 })
+    expect(withRole(r, profileDraftOf(r), 'drop')).toMatchObject({
+      role: 'drop',
+      drop_mode: 'stack',
+      max_height_mm: 1400,
+    })
     const saved = row(prof({ drop_mode: 'single', weight: 7 }), { drop_mode: 'pallet' })
-    expect(withRole(saved, profileDraftOf(saved), 'both')).toMatchObject({ role: 'both', drop_mode: 'single', weight: 7 })
+    expect(withRole(saved, profileDraftOf(saved), 'both')).toMatchObject({
+      role: 'both',
+      drop_mode: 'single',
+      weight: 7,
+    })
     expect(dropsHere('both')).toBe(true)
     expect(dropsHere('pick')).toBe(false)
     expect(dropsHere(null)).toBe(false)
@@ -135,7 +153,9 @@ describe('station profiles', () => {
   })
 
   it('shows guess only when profile missing or different', () => {
-    expect(guessHint(row(null, { role: 'drop', drop_mode: 'pallet' }))?.text).toBe('추정: drop/pallet')
+    expect(guessHint(row(null, { role: 'drop', drop_mode: 'pallet' }))?.text).toBe(
+      '추정: drop/pallet',
+    )
     expect(guessHint(row(prof(), {}))).toBeNull()
     expect(guessHint(row(prof({ role: 'both' }), {}))?.title).toContain('line end')
   })
@@ -147,6 +167,9 @@ describe('station profiles', () => {
     })
     expect(l.profiles).toEqual(['Station 2101: drop/stack · MaxHeight 1500 mm'])
     expect(l.rules).toEqual(['ship-2101'])
-    expect(migratePlanLines({ profiles: null, disabled_rules: undefined })).toEqual({ profiles: [], rules: [] })
+    expect(migratePlanLines({ profiles: null, disabled_rules: undefined })).toEqual({
+      profiles: [],
+      rules: [],
+    })
   })
 })

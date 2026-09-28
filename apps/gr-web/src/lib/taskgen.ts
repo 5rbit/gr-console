@@ -21,6 +21,10 @@ export interface CellPick {
   same_item_first?: boolean
   /** 도착: 이 대상(보통 출고 스테이션)에 가까운 셀 먼저. */
   near?: number | null
+  /** 도착: 같은 품목이 있는 셀만(빈 시간 정리). */
+  same_item_only?: boolean
+  /** 도착: 빈 셀만(멀티 피킹 2개). */
+  empty_only?: boolean
 }
 
 export type GenAction =

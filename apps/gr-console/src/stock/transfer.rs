@@ -324,12 +324,12 @@ pub fn list(db: &Db, q: &OrderQuery) -> Result<(Vec<TransferOrder>, i64), ApiErr
     Ok((rows.into_iter().filter_map(|d| serde_json::from_str(&d).ok()).collect(), total))
 }
 
-/// 출처가 `prefix` 로 시작하는 지시의 상태별 수 — 요청 진행(`req:<id>`)을 센다.
+/// 출처가 `prefix` 로 시작하는 지시의 상태별 **화물 수**(지시의 count 합) — 요청 진행(`req:<id>`)을 센다(2개 한 번에 집은 지시는 2).
 pub fn count_by_source(db: &Db, prefix: &str) -> Result<std::collections::BTreeMap<String, u32>, ApiError> {
     // 출처 문자열(`req:RQ-YYMMDD-NNNN@2101`)은 접두 범위로 센다.
     let hi = format!("{prefix}\u{10FFFF}");
     Ok(db.with(|c| {
-        let mut st = c.prepare("SELECT state, COUNT(*) FROM transfer_orders WHERE source >= ?1 AND source < ?2 GROUP BY state")?;
+        let mut st = c.prepare("SELECT state, SUM(COALESCE(json_extract(doc_json, '$.count'), 1)) FROM transfer_orders WHERE source >= ?1 AND source < ?2 GROUP BY state")?;
         let rows = st.query_map([prefix, hi.as_str()], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as u32)))?.collect::<Result<Vec<_>, _>>()?;
         Ok(rows.into_iter().collect())
     })?)

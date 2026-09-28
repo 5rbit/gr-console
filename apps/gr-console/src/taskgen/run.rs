@@ -69,6 +69,9 @@ pub struct GenStep {
     /// 팔렛 스테이션 DROP — 다음 슬롯 자동.
     #[serde(default)]
     pub pallet_auto: bool,
+    /// 멀티 피킹 합치기 스텝 — PLC DoublePicking(부분 리프트, 요청 `multi_pick`).
+    #[serde(default)]
+    pub merge: bool,
 }
 
 /// 지표(재시작 때 0 — 오래 남길 것은 `taskgen_log`).
@@ -521,6 +524,7 @@ fn gather(st: &AppState, e: &Engine, cfg: &GenConfig, queue: &[GenItem]) -> Gath
         w.usable.insert(s.id, s.para.info.use_);
     }
     w.profiles = super::profile::list(&st.db).unwrap_or_default().into_iter().map(|p| (p.station_id, p)).collect();
+    w.multi_pick_max = u32::from(cfg.policy.multi_pick_max);
     let stations: Vec<(u16, bool)> = registered.iter().map(|s| (s.id, s.para.info.use_)).collect();
     let since = {
         let mut m = lock(&e.since);
@@ -561,12 +565,12 @@ fn gen_busy(entries: &[(u8, LedgerEntry)], rule: &str) -> bool {
 /// 고른 대상으로 스텝을 만든다. `item` = 확정된 품목(짝의 두 스텝이 같은 값을 든다).
 fn steps_for(a: &Action, first: &Target, second: Option<&Target>, item: Option<u32>) -> Vec<GenStep> {
     match a {
-        Action::Transfer { count, pallet_auto, .. } => vec![
-            GenStep { task_type: "PICK".into(), target: first.clone(), item_code: item, count: *count, pallet_auto: false },
-            GenStep { task_type: "DROP".into(), target: second.cloned().unwrap_or_else(|| first.clone()), item_code: item, count: *count, pallet_auto: *pallet_auto },
+        Action::Transfer { count, pallet_auto, merge, .. } => vec![
+            GenStep { task_type: "PICK".into(), target: first.clone(), item_code: item, count: *count, pallet_auto: false, merge: *merge },
+            GenStep { task_type: "DROP".into(), target: second.cloned().unwrap_or_else(|| first.clone()), item_code: item, count: *count, pallet_auto: *pallet_auto, merge: *merge },
         ],
-        Action::Move { .. } => vec![GenStep { task_type: "MOVE".into(), target: first.clone(), item_code: None, count: 1, pallet_auto: false }],
-        Action::Measure { .. } => vec![GenStep { task_type: "MEASURE".into(), target: first.clone(), item_code: item, count: 1, pallet_auto: false }],
+        Action::Move { .. } => vec![GenStep { task_type: "MOVE".into(), target: first.clone(), item_code: None, count: 1, pallet_auto: false, merge: false }],
+        Action::Measure { .. } => vec![GenStep { task_type: "MEASURE".into(), target: first.clone(), item_code: item, count: 1, pallet_auto: false, merge: false }],
     }
 }
 
@@ -583,7 +587,7 @@ fn cell_target(id: u16) -> Target {
 fn resolve(st: &AppState, w: &World, rule: &Rule, cells: &[CellView], robot_x: Option<f32>, free: &dyn Fn(f32) -> bool) -> Result<(Target, Option<Target>, Option<u32>), String> {
     let c = &rule.cond;
     match &rule.action {
-        Action::Transfer { from, to, item, count, from_auto, to_auto, pallet_auto } => {
+        Action::Transfer { from, to, item, count, from_auto, to_auto, pallet_auto, merge } => {
             let src = match from_auto {
                 Some(p) => cell_target(choose_source(cells, p, *item, *count as u32, robot_x, free).ok_or("자동 출발 셀 없음 (재고·구역·영역)")?),
                 None => from.clone(),
@@ -619,8 +623,13 @@ fn resolve(st: &AppState, w: &World, rule: &Rule, cells: &[CellView], robot_x: O
             if let Some(why) = super::dest_ready(w, &dst, *count, c) {
                 return Err(format!("도착 {} {}: {why}", dst.kind, dst.id));
             }
+            // 멀티 피킹 합치기 — 같은 품목 1개 위(2단)에만.
+            if *merge {
+                super::merge_check(w, &src, &dst)?;
+            }
             // 스택 스테이션 — 이 품목을 얹은 높이가 스테이션 최대 높이 안이어야, 품목 StackMax 도.
             if dst.kind == "station"
+                && !*merge
                 && let Some(p) = w.profiles.get(&dst.id).filter(|p| p.drop_mode == DropMode::Stack)
             {
                 let (ci, cn) = w.stock.get(&dst.id).copied().unwrap_or((0, 0));
@@ -742,7 +751,8 @@ pub fn plan(st: &AppState, e: &Engine, cfg: &GenConfig, seen: &mut HashMap<Strin
         }
     }
     let first_drop_station = w.profiles.values().find(|x| x.role.drops()).map(|x| x.station_id);
-    let ctx = super::policy::Ctx { profiles: &w.profiles, first_drop_station, idle_robots, queued_for_request: &queued_for_request };
+    let station_stock: BTreeMap<u16, (u32, u32)> = w.stock.iter().filter(|(id, _)| (2001..=2999).contains(*id)).map(|(k, v)| (*k, *v)).collect();
+    let ctx = super::policy::Ctx { profiles: &w.profiles, first_drop_station, idle_robots, queued_for_request: &queued_for_request, station_stock: &station_stock };
     let mut rules = super::policy::derive(&cfg.policy, &requests, &ctx);
     {
         let m = lock(&e.manual);
@@ -1330,6 +1340,7 @@ async fn issue_one(st: &AppState, p: &crate::params::Params, pairs: &BTreeMap<u8
         allow_unknown_item: g.allow_unknown_item,
         ignore_stack_max: g.ignore_stack_max,
         pallet: step.pallet_auto.then(|| crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
+        multi_pick: step.merge.then_some(true),
         ..Default::default()
     };
     // 짝의 둘째 스텝은 PICK 때 만들어 둔 초안을 보낸다(값은 보낼 때 다시 작성).
@@ -1380,6 +1391,7 @@ async fn draft_pair_step(st: &AppState, r: &RobotCtx, g: &GenItem, order: Option
         allow_unknown_item: g.allow_unknown_item,
         ignore_stack_max: g.ignore_stack_max,
         pallet: step.pallet_auto.then(|| crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
+        multi_pick: step.merge.then_some(true),
         ..Default::default()
     };
     let composed = crate::issue::compose(st, &req).map_err(|e| format!("짝 DROP 작성: {e}"))?;
@@ -1444,7 +1456,7 @@ mod tests {
     /// 예정 큐의 아직 원장에 없는 스텝은 미래 재고에 접힌다 — PICK −1, DROP +1.
     #[test]
     fn queued_steps_fold_into_future_stock() {
-        let s = |t: &str, id: u16| GenStep { task_type: t.into(), target: Target { kind: "cell".into(), id }, item_code: Some(2011), count: 1, pallet_auto: false };
+        let s = |t: &str, id: u16| GenStep { task_type: t.into(), target: Target { kind: "cell".into(), id }, item_code: Some(2011), count: 1, pallet_auto: false, merge: false };
         assert_eq!(step_delta(&s("PICK", 401)), Some((401, 2011, -1)));
         assert_eq!(step_delta(&s("DROP", 402)), Some((402, 2011, 1)));
         assert_eq!(step_delta(&s("MEASURE", 402)), None);

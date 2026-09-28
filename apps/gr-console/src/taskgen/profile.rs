@@ -56,6 +56,8 @@ pub struct StationProfile {
     pub weight: f32,
     /// 준비된 뒤 이만큼(초) 못 만들면 경고(0 = 없음).
     pub max_wait_s: u32,
+    /// 멀티 피킹: 이 PICK 스테이션의 타이어를 이 스테이션(같은 그룹의 PICK 스테이션) 타이어 위 2단으로 합친다(예: 2102 → 2101).
+    pub merge_into: Option<u16>,
     pub note: String,
     pub updated_at: String,
 }

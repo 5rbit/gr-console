@@ -57,6 +57,21 @@ GRM PI/PO · 미래 재고 · 예약            ─┼─► 준비 상태(ready
 - 셀 PICK: Use · 미래 재고 ≥ 1 · 품목 앎. 셀 DROP: Use · 미래 남은 칸 ≥ 1(비었으면 칸 제한 없음).
   셀은 예약으로 막지 않는다(미래 재고가 반영한다) — 예약은 보이기만 한다.
 
+## 멀티 피킹 (정책 `multi_pick` · 프로파일 `merge_into`)
+
+같은 규격 타이어가 두 PICK 스테이션에 모이면 한쪽 타이어를 다른 쪽 타이어 **위**에 얹은 뒤 한 번에 집는다
+(PLC DoublePicking — 두 스텝 모두 `LiftUpPartial`, DROP 은 작업 Z + 타이어 높이 + 200 에서 크립).
+
+1. `merge-<s>` : PICK `s`(1개) → DROP `merge_into` 스테이션(지금 쌓인 수 + 1 단 위치). 두 스테이션 모두 PICK 준비
+   (`CVOK & Req & ItemExist` · 인계 끝 · 예약 없음), 품목을 콘솔이 알고 같음, 출발 1개, 얹은 뒤 합계 ≤ `multi_pick_max`(기본 3,
+   2 ~ 3) · 품목 StackMax 이내. 점수 `merge_priority`(기본 1100 — 요청보다 먼저, 준비 작업).
+2. 합친 스테이션의 입고(정책 `in-<t>` · 요청)는 쌓인 수(최대 `multi_pick_max`, 요청은 남은 수까지)를 **한 번에** 집어
+   **빈 셀에만** 내린다(`CellPick.empty_only`).
+3. 풀스택은 빈 시간 정리(`consolidate`)가 만든다 — 가장 적게 쌓인 셀에서 1개씩(Split) 같은 품목의 **가장 많이 쌓인** 셀로(Merge).
+
+현장(2026-09-28): 2101 · 2102 = PICK(입고), 2003 = DROP(출고, 하나씩), 2102 → 2101 로 합친다.
+요청 진행(`done` · `active`)은 화물 수(지시 count 합)로 센다 — 2개 한 번에 집은 지시는 2.
+
 ## 요청 목록 (`transfer_requests` 표, `GET/POST /api/requests`)
 
 | 필드 | 뜻 |

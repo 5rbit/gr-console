@@ -35,6 +35,11 @@ pub struct Policy {
     pub consolidate: bool,
     pub consolidate_idle_s: u32,
     pub consolidate_priority: f32,
+    /// 멀티 피킹 — 프로파일 `merge_into` 가 있는 PICK 스테이션의 타이어를 그 스테이션 타이어 위(2단)로 합친 뒤 2개를 한 번에 입고.
+    pub multi_pick: bool,
+    pub merge_priority: f32,
+    /// 한 번에 집을 수 있는 최대 개수(그리퍼 · 스테이션 합치기 한도, 2..=3).
+    pub multi_pick_max: u8,
 }
 
 impl Default for Policy {
@@ -53,6 +58,9 @@ impl Default for Policy {
             consolidate: false,
             consolidate_idle_s: 60,
             consolidate_priority: 5.0,
+            multi_pick: true,
+            merge_priority: 1100.0,
+            multi_pick_max: 3,
         }
     }
 }
@@ -80,6 +88,22 @@ pub struct Ctx<'a> {
     pub idle_robots: Vec<u8>,
     /// 요청 id → 아직 이송 지시가 없는 예정(보낼 차례를 기다리는 생성 작업) 수.
     pub queued_for_request: &'a BTreeMap<String, u32>,
+    /// 스테이션 미래 재고 (품목, 개수) — 합친 스테이션의 PICK 수량.
+    pub station_stock: &'a BTreeMap<u16, (u32, u32)>,
+}
+
+/// 2개 이상 한 번에 입고하면 빈 셀에만 내린다(같은 품목 칸 채우기는 빈 시간 정리가 Split 으로 한다).
+fn multi_dest(mut d: CellPick, count: u8) -> CellPick {
+    if count >= 2 {
+        d.empty_only = true;
+    }
+    d
+}
+
+/// 멀티 피킹 합치기의 도착(다른 스테이션이 `merge_into` 로 가리킴)이면 쌓인 수(최대 `multi_pick_max`)를 한 번에 집는다.
+pub fn pick_count(p: &Policy, ctx: &Ctx, s: u16) -> u8 {
+    let target = p.multi_pick && ctx.profiles.values().any(|x| x.merge_into == Some(s));
+    if target { ctx.station_stock.get(&s).map(|(_, n)| *n).unwrap_or(1).clamp(1, u32::from(p.multi_pick_max.clamp(1, 3))) as u8 } else { 1 }
 }
 
 /// 요청의 이번 판정 남은 수 — 수량 − 끝남 − 진행 중 지시 − 아직 지시가 없는 예정.
@@ -124,12 +148,15 @@ pub fn derive(p: &Policy, reqs: &[TransferRequest], ctx: &Ctx) -> Vec<Rule> {
                     Some(t) => vec![t.id],
                     None => picks.clone(),
                 };
+                let cap = request_cap(r, ctx.queued_for_request).min(u32::from(u8::MAX)) as u8;
                 for s in from {
                     let (to, to_auto) = match &r.to {
                         Some(t) => (t.clone(), None),
                         None => (cell0(), Some(inbound_dest())),
                     };
-                    push(s, Action::Transfer { from: station(s), to, item: r.item_code, count: 1, from_auto: None, to_auto, pallet_auto: false }, Some(s));
+                    let count = pick_count(p, ctx, s).min(cap).max(1);
+                    let to_auto = to_auto.map(|d| multi_dest(d, count));
+                    push(s, Action::Transfer { from: station(s), to, item: r.item_code, count, from_auto: None, to_auto, pallet_auto: false, merge: false }, Some(s));
                 }
             }
             ReqKind::Outbound => {
@@ -142,17 +169,29 @@ pub fn derive(p: &Policy, reqs: &[TransferRequest], ctx: &Ctx) -> Vec<Rule> {
                         Some(t) => (t.clone(), None),
                         None => (cell0(), Some(p.outbound_source.clone())),
                     };
-                    push(s, Action::Transfer { from, to: station(s), item: r.item_code, count: 1, from_auto, to_auto: None, pallet_auto: pallet(s) }, Some(s));
+                    push(s, Action::Transfer { from, to: station(s), item: r.item_code, count: 1, from_auto, to_auto: None, pallet_auto: pallet(s), merge: false }, Some(s));
                 }
             }
             ReqKind::Move => {
                 if let (Some(f), Some(t)) = (&r.from, &r.to) {
-                    push(f.id, Action::Transfer { from: f.clone(), to: t.clone(), item: r.item_code, count: 1, from_auto: None, to_auto: None, pallet_auto: false }, None);
+                    push(f.id, Action::Transfer { from: f.clone(), to: t.clone(), item: r.item_code, count: 1, from_auto: None, to_auto: None, pallet_auto: false, merge: false }, None);
                 }
             }
         }
     }
-    // 2. 측정 먼저 · 입고 자동 — PICK 스테이션마다.
+    // 2. 멀티 피킹 합치기 — 같은 품목이 두 PICK 스테이션에 1개씩이면 `merge_into` 쪽 타이어 위(2단)로 옮긴다.
+    //    그 뒤 합친 스테이션의 입고가 2개를 한 번에 집는다(`pick_count`). 합치기는 요청보다 앞선다(준비 작업).
+    if p.multi_pick {
+        for x in ctx.profiles.values().filter(|x| x.role.picks()) {
+            let Some(t) = x.merge_into.filter(|t| ctx.profiles.get(t).is_some_and(|y| y.role.picks()) && *t != x.station_id) else { continue };
+            let s = x.station_id;
+            let a = Action::Transfer { from: station(s), to: station(t), item: None, count: 1, from_auto: None, to_auto: None, pallet_auto: false, merge: true };
+            let mut r = rule(format!("merge-{s}"), format!("멀티 피킹 — {s} → {t} 위"), RuleOrigin::Policy, Trigger::Ready { require_measured: p.measure_first }, a, p.merge_priority + weight(s));
+            r.station = Some(s);
+            out.push(r);
+        }
+    }
+    // 3. 측정 먼저 · 입고 자동 — PICK 스테이션마다.
     for &s in &picks {
         if p.measure_first {
             let mut x = rule(
@@ -167,22 +206,31 @@ pub fn derive(p: &Policy, reqs: &[TransferRequest], ctx: &Ctx) -> Vec<Rule> {
             out.push(x);
         }
         if p.inbound_auto {
-            let a = Action::Transfer { from: station(s), to: cell0(), item: None, count: 1, from_auto: None, to_auto: Some(inbound_dest()), pallet_auto: false };
+            let a = Action::Transfer {
+                from: station(s),
+                to: cell0(),
+                item: None,
+                count: pick_count(p, ctx, s),
+                from_auto: None,
+                to_auto: Some(multi_dest(inbound_dest(), pick_count(p, ctx, s))),
+                pallet_auto: false,
+                merge: false,
+            };
             let mut x = rule(format!("in-{s}"), format!("입고 — {s} → 셀"), RuleOrigin::Policy, Trigger::Ready { require_measured: p.measure_first }, a, p.inbound_priority + weight(s));
             x.station = Some(s);
             out.push(x);
         }
     }
-    // 3. 출고 자동 — DROP 스테이션마다(요청 없이 가장 오래된 재고).
+    // 4. 출고 자동 — DROP 스테이션마다(요청 없이 가장 오래된 재고).
     if p.outbound_auto {
         for &s in &drops {
-            let a = Action::Transfer { from: cell0(), to: station(s), item: None, count: 1, from_auto: Some(p.outbound_source.clone()), to_auto: None, pallet_auto: pallet(s) };
+            let a = Action::Transfer { from: cell0(), to: station(s), item: None, count: 1, from_auto: Some(p.outbound_source.clone()), to_auto: None, pallet_auto: pallet(s), merge: false };
             let mut x = rule(format!("out-{s}"), format!("출고 — 셀 → {s}"), RuleOrigin::Policy, Trigger::Ready { require_measured: false }, a, p.outbound_priority + weight(s));
             x.station = Some(s);
             out.push(x);
         }
     }
-    // 4. 빈 시간 정리 — 쉬는 로봇만.
+    // 5. 빈 시간 정리 — 쉬는 로봇만.
     if p.consolidate && !ctx.idle_robots.is_empty() {
         let a = Action::Transfer {
             from: cell0(),
@@ -192,6 +240,7 @@ pub fn derive(p: &Policy, reqs: &[TransferRequest], ctx: &Ctx) -> Vec<Rule> {
             from_auto: Some(CellPick { order: "fewest".into(), ..Default::default() }),
             to_auto: Some(CellPick { same_item_first: true, same_item_only: true, ..Default::default() }),
             pallet_auto: false,
+            merge: false,
         };
         let mut x = rule(CONSOLIDATE_ID.into(), "빈 시간 정리 — 같은 품목 모으기".into(), RuleOrigin::Policy, Trigger::Ready { require_measured: false }, a, p.consolidate_priority);
         x.robots = ctx.idle_robots.clone();
@@ -268,7 +317,7 @@ mod tests {
         profiles.insert(2103, prof(2103, StationRole::Drop));
         profiles.insert(2105, prof(2105, StationRole::Off));
         let q = BTreeMap::new();
-        let ctx = Ctx { profiles: &profiles, first_drop_station: Some(2103), idle_robots: vec![], queued_for_request: &q };
+        let ctx = Ctx { profiles: &profiles, first_drop_station: Some(2103), idle_robots: vec![], queued_for_request: &q, station_stock: &BTreeMap::new() };
         let rules = derive(&Policy::default(), &[req("RQ-1", ReqKind::Outbound, 2), req("RQ-2", ReqKind::Inbound, 1)], &ctx);
         let ids: Vec<&str> = rules.iter().map(|r| r.id.as_str()).collect();
         assert_eq!(ids, vec!["req:RQ-1@2103", "req:RQ-2@2101", "measure-2101", "in-2101"]);
@@ -292,7 +341,7 @@ mod tests {
         q.insert("RQ-9".into(), 2);
         assert_eq!(request_cap(&r, &q), 0);
         let profiles = BTreeMap::new();
-        let ctx = Ctx { profiles: &profiles, first_drop_station: None, idle_robots: vec![], queued_for_request: &q };
+        let ctx = Ctx { profiles: &profiles, first_drop_station: None, idle_robots: vec![], queued_for_request: &q, station_stock: &BTreeMap::new() };
         assert!(derive(&Policy::default(), &[r], &ctx).is_empty(), "nothing left to derive");
     }
 
@@ -301,8 +350,8 @@ mod tests {
         let profiles = BTreeMap::new();
         let q = BTreeMap::new();
         let p = Policy { consolidate: true, ..Default::default() };
-        assert!(derive(&p, &[], &Ctx { profiles: &profiles, first_drop_station: None, idle_robots: vec![], queued_for_request: &q }).is_empty());
-        let r = derive(&p, &[], &Ctx { profiles: &profiles, first_drop_station: None, idle_robots: vec![2], queued_for_request: &q });
+        assert!(derive(&p, &[], &Ctx { profiles: &profiles, first_drop_station: None, idle_robots: vec![], queued_for_request: &q, station_stock: &BTreeMap::new() }).is_empty());
+        let r = derive(&p, &[], &Ctx { profiles: &profiles, first_drop_station: None, idle_robots: vec![2], queued_for_request: &q, station_stock: &BTreeMap::new() });
         assert_eq!((r[0].id.as_str(), r[0].robots.clone()), (CONSOLIDATE_ID, vec![2]));
     }
 
@@ -312,5 +361,54 @@ mod tests {
         let (profiles, off) = migrate(&c.rules, &BTreeMap::new());
         assert_eq!(profiles.iter().map(|p| (p.station_id, p.role)).collect::<Vec<_>>(), vec![(2003, StationRole::Pick), (2101, StationRole::Pick), (2102, StationRole::Drop)]);
         assert_eq!(off.len(), 5);
+    }
+
+    /// 멀티 피킹: 2102 → 2101 합치기 규칙, 합친 2101 은 2개를 한 번에 입고(요청은 남은 수까지).
+    #[test]
+    fn multi_pick_merges_then_picks_two() {
+        let mut profiles = BTreeMap::new();
+        profiles.insert(2101, prof(2101, StationRole::Pick));
+        profiles.insert(2102, StationProfile { merge_into: Some(2101), ..prof(2102, StationRole::Pick) });
+        profiles.insert(2003, prof(2003, StationRole::Drop));
+        let q = BTreeMap::new();
+        let mut stock = BTreeMap::new();
+        stock.insert(2101, (2011, 1));
+        stock.insert(2102, (2011, 1));
+        let ctx = Ctx { profiles: &profiles, first_drop_station: Some(2003), idle_robots: vec![], queued_for_request: &q, station_stock: &stock };
+        let p = Policy { measure_first: false, ..Default::default() };
+        let rules = derive(&p, &[], &ctx);
+        let m = rules.iter().find(|r| r.id == "merge-2102").expect("merge rule");
+        let Action::Transfer { from, to, merge, count, .. } = &m.action else { panic!() };
+        assert_eq!((from.id, to.id, *merge, *count), (2102, 2101, true, 1));
+        assert!(m.priority > p.request_priority, "합치기는 요청보다 먼저");
+        let count_of = |rules: &[Rule], id: &str| match &rules.iter().find(|r| r.id == id).unwrap().action {
+            Action::Transfer { count, .. } => *count,
+            _ => 0,
+        };
+        assert_eq!(count_of(&rules, "in-2101"), 1);
+        assert_eq!(count_of(&rules, "in-2102"), 1, "합치는 쪽은 1개씩");
+        // 합친 뒤(2101 에 2개) — 입고는 2개를 한 번에, 요청은 남은 수까지만.
+        let mut stacked = stock.clone();
+        stacked.insert(2101, (2011, 2));
+        let ctx = Ctx { station_stock: &stacked, ..ctx };
+        let rules2 = derive(&p, &[], &ctx);
+        assert_eq!(count_of(&rules2, "in-2101"), 2);
+        let Action::Transfer { to_auto: Some(d), .. } = &rules2.iter().find(|r| r.id == "in-2101").unwrap().action else { panic!() };
+        assert!(d.empty_only, "2개는 빈 셀에만");
+        let mut three = stock.clone();
+        three.insert(2101, (2011, 3));
+        assert_eq!(count_of(&derive(&p, &[], &Ctx { station_stock: &three, idle_robots: vec![], ..ctx }), "in-2101"), 3, "최대 3");
+        let two = Policy { multi_pick_max: 2, ..p.clone() };
+        assert_eq!(count_of(&derive(&two, &[], &Ctx { station_stock: &three, idle_robots: vec![], ..ctx }), "in-2101"), 2, "최대 2로 줄이면 2");
+        let mut r = req("RQ-5", ReqKind::Inbound, 3);
+        r.from = Some(station(2101));
+        assert_eq!(count_of(&derive(&p, std::slice::from_ref(&r), &ctx), "req:RQ-5@2101"), 2);
+        r.done = 2;
+        assert_eq!(count_of(&derive(&p, &[r], &ctx), "req:RQ-5@2101"), 1, "남은 1개만");
+        // 끄면 합치기 없음 · 1개씩.
+        let off = Policy { multi_pick: false, ..p };
+        let rules = derive(&off, &[], &ctx);
+        assert!(!rules.iter().any(|r| r.id.starts_with("merge-")));
+        assert_eq!(count_of(&rules, "in-2101"), 1);
     }
 }

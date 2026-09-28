@@ -65,6 +65,7 @@ const PRIORITY_KEYS = [
   'measure_priority',
   'request_priority',
   'consolidate_priority',
+  'merge_priority',
 ] as const
 
 /** 저장을 막는 사유(없으면 undefined). */
@@ -73,6 +74,8 @@ export function validatePolicy(p: Policy): string | undefined {
     if (!Number.isFinite(p[k])) return `${pascal(k)} 가 숫자가 아닙니다`
   if (!Number.isFinite(p.consolidate_idle_s) || p.consolidate_idle_s < 0)
     return 'ConsolidateIdleS 는 0 이상이어야 합니다'
+  if (!Number.isInteger(p.multi_pick_max) || p.multi_pick_max < 2 || p.multi_pick_max > 3)
+    return 'MultiPickMax 는 2 ~ 3'
   for (const k of ['inbound_dest', 'outbound_source'] as const) {
     const c = p[k]
     if (c.row_min != null && c.row_max != null && c.row_min > c.row_max)
@@ -122,6 +125,7 @@ export interface ProfileDraft {
   max_height_mm: number
   weight: number
   max_wait_s: number
+  merge_into: number | null
 }
 
 export function profileDraftOf(row: StationProfileRow): ProfileDraft {
@@ -133,8 +137,16 @@ export function profileDraftOf(row: StationProfileRow): ProfileDraft {
       max_height_mm: p.max_height_mm,
       weight: p.weight,
       max_wait_s: p.max_wait_s,
+      merge_into: p.merge_into ?? null,
     }
-  return { role: null, drop_mode: 'single', max_height_mm: 0, weight: 0, max_wait_s: 0 }
+  return {
+    role: null,
+    drop_mode: 'single',
+    max_height_mm: 0,
+    weight: 0,
+    max_wait_s: 0,
+    merge_into: null,
+  }
 }
 
 /** 초안이 저장된 값과 다른가. 프로파일이 없고 역할도 비운 채면 나머지 칸은 보지 않는다. */
@@ -146,12 +158,17 @@ export function profileDirty(row: StationProfileRow, d: ProfileDraft): boolean {
     b.drop_mode !== d.drop_mode ||
     b.max_height_mm !== d.max_height_mm ||
     b.weight !== d.weight ||
-    b.max_wait_s !== d.max_wait_s
+    b.max_wait_s !== d.max_wait_s ||
+    b.merge_into !== d.merge_into
   )
 }
 
 /** 역할을 바꾼다 — 프로파일 없던 줄에 처음 역할을 주면 나머지 칸은 추정값으로 채운다. */
-export function withRole(row: StationProfileRow, d: ProfileDraft, role: StationRole | null): ProfileDraft {
+export function withRole(
+  row: StationProfileRow,
+  d: ProfileDraft,
+  role: StationRole | null,
+): ProfileDraft {
   if (d.role === null && role !== null && row.guess)
     return {
       role,
@@ -159,6 +176,7 @@ export function withRole(row: StationProfileRow, d: ProfileDraft, role: StationR
       max_height_mm: row.guess.max_height_mm ?? 0,
       weight: row.guess.weight ?? 0,
       max_wait_s: row.guess.max_wait_s ?? 0,
+      merge_into: null,
     }
   return { ...d, role }
 }
@@ -188,6 +206,7 @@ export function profilePayload(
     max_height_mm: d.max_height_mm,
     weight: d.weight,
     max_wait_s: d.max_wait_s,
+    merge_into: d.merge_into,
     note,
   }
 }

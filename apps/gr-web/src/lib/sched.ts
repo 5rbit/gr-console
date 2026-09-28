@@ -21,6 +21,8 @@ export interface StationProfile {
   weight: number
   /** 준비된 뒤 이만큼(초) 못 만들면 경고(0 = 없음). */
   max_wait_s: number
+  /** 멀티 피킹: 이 PICK 스테이션의 타이어를 이 스테이션 타이어 위 2단으로 합친다(예: 2102 → 2101). */
+  merge_into?: number | null
   note: string
   updated_at: string
 }
@@ -181,6 +183,11 @@ export interface Policy {
   consolidate: boolean
   consolidate_idle_s: number
   consolidate_priority: number
+  /** 멀티 피킹 — merge_into 가 있는 PICK 스테이션을 합친 뒤 2개를 한 번에 입고(빈 셀에). */
+  multi_pick: boolean
+  merge_priority: number
+  /** 한 번에 집을 최대 개수(2..3). */
+  multi_pick_max: number
 }
 
 export const DEFAULT_POLICY: Policy = {
@@ -197,6 +204,9 @@ export const DEFAULT_POLICY: Policy = {
   consolidate: false,
   consolidate_idle_s: 60,
   consolidate_priority: 5,
+  multi_pick: true,
+  merge_priority: 1100,
+  multi_pick_max: 3,
 }
 
 // ── 엔진 상태 확장(GET /api/taskgen 에 실리는 추가 필드) ─────────────

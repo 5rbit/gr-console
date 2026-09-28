@@ -58,7 +58,8 @@ type SchedConfig = GenConfig & { policy: Policy }
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-const CONFLICT_MSG = '다른 곳에서 먼저 저장했습니다 — 최신 설정을 다시 읽었으니 확인 후 다시 저장하세요'
+const CONFLICT_MSG =
+  '다른 곳에서 먼저 저장했습니다 — 최신 설정을 다시 읽었으니 확인 후 다시 저장하세요'
 
 /** 숫자 입력 — 쓰는 중인 글자(`-`, `1.`)를 지키고 숫자가 될 때만 올린다. 바깥 값이 바뀌면(저장 · 되돌리기) 따라간다. */
 function NumInput({
@@ -98,14 +99,15 @@ function NumInput({
 
 // ── 정책 ─────────────────────────────────────────────────────────────
 
-type DemandKey = 'inbound' | 'outbound' | 'measure' | 'request' | 'consolidate'
-type BoolKey = 'inbound_auto' | 'outbound_auto' | 'measure_first' | 'consolidate'
+type DemandKey = 'inbound' | 'outbound' | 'measure' | 'request' | 'consolidate' | 'multi_pick'
+type BoolKey = 'inbound_auto' | 'outbound_auto' | 'measure_first' | 'consolidate' | 'multi_pick'
 type PrioKey =
   | 'inbound_priority'
   | 'outbound_priority'
   | 'measure_priority'
   | 'request_priority'
   | 'consolidate_priority'
+  | 'merge_priority'
 type PickKey = 'inbound_dest' | 'outbound_source'
 
 interface DemandRow {
@@ -123,6 +125,13 @@ const DEMANDS: DemandRow[] = [
     on: null,
     prio: 'request_priority',
     help: '상위 · 사용자 요청 — 늘 켜져 있고 요청 Priority × 10 이 더해진다',
+  },
+  {
+    key: 'multi_pick',
+    name: 'MultiPick',
+    on: 'multi_pick',
+    prio: 'merge_priority',
+    help: '같은 품목이 두 PICK 스테이션에 1개씩이면 MergeInto 쪽 타이어 위 2단으로 합친 뒤 2개를 한 번에 빈 셀에 입고한다 — 풀스택은 Consolidate(Split)가 만든다',
   },
   {
     key: 'measure',
@@ -197,6 +206,17 @@ function PolicySection({
 
   const options: Record<DemandKey, ReactNode> = {
     request: null,
+    multi_pick: (
+      <span className={`inline-flex items-center gap-1 ${mark('multi_pick_max')}`}>
+        <span className="text-2xs text-content-muted">MultiPickMax</span>
+        <NumInput
+          value={cur.multi_pick_max}
+          ariaLabel="MultiPickMax"
+          title="한 번에 집을 최대 개수 (2 ~ 3)"
+          onChange={(n) => set({ multi_pick_max: n })}
+        />
+      </span>
+    ),
     measure: null,
     outbound: pickButton('outbound_source'),
     inbound: (
@@ -399,7 +419,9 @@ function StationsSection({ policy, reload }: { policy: Policy; reload: () => voi
   const saveDirty = async () => {
     setSaving(true)
     const res = await Promise.allSettled(
-      dirty.map((r) => schedApi.saveStation(r.id, profilePayload(draftOf(r), r.profile?.note ?? ''))),
+      dirty.map((r) =>
+        schedApi.saveStation(r.id, profilePayload(draftOf(r), r.profile?.note ?? '')),
+      ),
     )
     setSaving(false)
     const okIds = new Set(dirty.filter((_, i) => res[i].status === 'fulfilled').map((r) => r.id))
@@ -433,7 +455,9 @@ function StationsSection({ policy, reload }: { policy: Policy; reload: () => voi
     void schedApi
       .migrateRules(false)
       .then((p) => {
-        toast.ok(`이관 — 프로파일 ${p.profiles?.length ?? 0}곳 · 규칙 끔 ${p.disabled_rules?.length ?? 0}개`)
+        toast.ok(
+          `이관 — 프로파일 ${p.profiles?.length ?? 0}곳 · 규칙 끔 ${p.disabled_rules?.length ?? 0}개`,
+        )
         load()
         reload()
       })
@@ -500,6 +524,38 @@ function StationsSection({ policy, reload }: { policy: Policy; reload: () => voi
             {MODES.map((x) => (
               <option key={x} value={x}>
                 {DROP_MODE_LABEL[x]}
+              </option>
+            ))}
+          </Select>
+        )
+      },
+    },
+    {
+      key: 'merge',
+      label: 'MergeInto',
+      sortable: false,
+      priority: 2,
+      cell: (r) => {
+        const d = draftOf(r)
+        const picks = (x: StationRole | null) => x === 'pick' || x === 'both'
+        const targets = list.filter((o) => o.id !== r.id && picks(draftOf(o).role))
+        return (
+          <Select
+            dense
+            aria-label={`MergeInto ${r.id}`}
+            value={d.merge_into == null ? '' : String(d.merge_into)}
+            disabled={!picks(d.role)}
+            title={
+              picks(d.role)
+                ? '멀티 피킹: 이 스테이션 타이어를 고른 스테이션 타이어 위에 얹는다'
+                : 'PICK 스테이션에만'
+            }
+            onValueChange={(v) => put(r, { ...d, merge_into: v ? Number(v) : null })}
+          >
+            <option value="">—</option>
+            {targets.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.id}
               </option>
             ))}
           </Select>
@@ -613,7 +669,11 @@ function StationsSection({ policy, reload }: { policy: Policy; reload: () => voi
               },
               { label: '기본 규칙 → 정책으로 옮기기…', run: dryMigrate, testid: 'sched-migrate' },
               dirty.length
-                ? { label: '편집 버리기', run: () => setDrafts({}), testid: 'sched-stations-discard' }
+                ? {
+                    label: '편집 버리기',
+                    run: () => setDrafts({}),
+                    testid: 'sched-stations-discard',
+                  }
                 : null,
             ])}
           />
@@ -660,9 +720,13 @@ function StationsSection({ policy, reload }: { policy: Policy; reload: () => voi
               </span>
             ))}
             <span className="text-content-muted">끄는 규칙 {lines.rules.length}</span>
-            {lines.rules.length ? <span className="font-mono text-2xs">{lines.rules.join(' · ')}</span> : null}
+            {lines.rules.length ? (
+              <span className="font-mono text-2xs">{lines.rules.join(' · ')}</span>
+            ) : null}
             {policyChanges.length ? (
-              <span className="text-content-muted">정책 {policyChanges.map(pascal).join(' · ')}</span>
+              <span className="text-content-muted">
+                정책 {policyChanges.map(pascal).join(' · ')}
+              </span>
             ) : null}
           </div>
         ) : null}
@@ -717,7 +781,9 @@ function RulesSection({
         <Switch
           checked={r.enabled}
           title={r.enabled ? '규칙 켜짐' : '규칙 꺼짐'}
-          onCheckedChange={(v) => saveRules(rules.map((x) => (x.id === r.id ? { ...x, enabled: v } : x)))}
+          onCheckedChange={(v) =>
+            saveRules(rules.map((x) => (x.id === r.id ? { ...x, enabled: v } : x)))
+          }
         />
       ),
     },
@@ -744,7 +810,11 @@ function RulesSection({
             testid="sched-rules-more"
             items={menuItems([
               { label: '우선순위 가중치…', run: () => setWeights(true), testid: 'sched-weights' },
-              { label: '제출 · 스케줄링 파라미터…', run: () => setParams(true), testid: 'sched-params' },
+              {
+                label: '제출 · 스케줄링 파라미터…',
+                run: () => setParams(true),
+                testid: 'sched-params',
+              },
             ])}
           />
         </span>

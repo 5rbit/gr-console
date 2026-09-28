@@ -85,6 +85,8 @@ pub struct CellPick {
     pub near: Option<u16>,
     /// 도착: 같은 품목이 이미 있는 셀만(빈 셀 제외) — 빈 시간 정리(같은 품목 모으기).
     pub same_item_only: bool,
+    /// 도착: 빈 셀만 — 멀티 피킹 2개는 빈 셀에 내리고 빈 시간 정리(Split)로 max 스택을 만든다.
+    pub empty_only: bool,
 }
 
 /// 만들 것.
@@ -106,6 +108,10 @@ pub enum Action {
         /// 도착이 팔렛 스테이션 — 다음 슬롯을 compose 가 고른다(자리 없으면 후보 아님).
         #[serde(default)]
         pallet_auto: bool,
+        /// 멀티 피킹 합치기 — 출발 스테이션의 타이어를 도착 스테이션 타이어 **위(2단)** 에 내린다(PLC DoublePicking:
+        /// 두 스텝 모두 LiftUpPartial). 도착은 PICK 스테이션이라 DROP 준비 대신 PICK 준비(화물 있음)를 본다.
+        #[serde(default)]
+        merge: bool,
     },
     Move {
         to: Target,
@@ -241,6 +247,8 @@ pub struct World {
     pub ready: BTreeMap<u16, ready::TargetReady>,
     pub profiles: BTreeMap<u16, profile::StationProfile>,
     pub items: HashMap<u32, ready::ItemFacts>,
+    /// 멀티 피킹 최대 개수(정책, 0 = 2).
+    pub multi_pick_max: u32,
 }
 
 #[cfg(test)]
@@ -273,16 +281,44 @@ fn station_gate(w: &World, t: &Target, op: &str) -> Option<Term> {
     })
 }
 
+/// 멀티 피킹 합치기가 되나 — 두 스테이션의 품목을 콘솔이 알고 같으며, 출발 1개를 도착 스택(1개 이상) 위에 얹어도
+/// 최대 개수(`multi_pick_max`)와 품목 StackMax(0 = 제한 없음) 안이다. 되면 품목 코드.
+pub fn merge_check(w: &World, from: &Target, to: &Target) -> Result<u32, String> {
+    let (si, sn) = w.stock.get(&from.id).copied().unwrap_or((0, 0));
+    let (ti, tn) = w.stock.get(&to.id).copied().unwrap_or((0, 0));
+    if si == 0 || sn == 0 {
+        return Err(format!("{} 품목을 콘솔이 모름", from.id));
+    }
+    if ti == 0 || tn == 0 {
+        return Err(format!("{} 품목을 콘솔이 모름", to.id));
+    }
+    if si != ti {
+        return Err(format!("품목 다름 ({si} ≠ {ti})"));
+    }
+    if sn != 1 {
+        return Err(format!("출발 재고 {sn} — 1개일 때만 옮겨 얹는다"));
+    }
+    let max = if w.multi_pick_max == 0 { 2 } else { w.multi_pick_max };
+    if tn + 1 > max {
+        return Err(format!("도착 {tn}개 — 얹으면 {} > 최대 {max}개", tn + 1));
+    }
+    if let Some(sm) = w.items.get(&si).map(|f| f.stack_max).filter(|m| *m > 0 && tn + 1 > *m) {
+        return Err(format!("품목 {si} StackMax {sm} — {}단 불가", tn + 1));
+    }
+    Ok(si)
+}
+
 /// 규칙 판정 한 번 — 조건 항목 목록과 전체 충족(= 모든 항목 충족). `fires` 와 판단 기준 화면이 같은 결과를 쓴다.
 pub fn evaluate(rule: &Rule, w: &World) -> (bool, Vec<Term>) {
     let mut terms = rule_terms(rule, w);
     match &rule.action {
-        Action::Transfer { from, to, from_auto, to_auto, .. } => {
+        Action::Transfer { from, to, from_auto, to_auto, merge, .. } => {
             if from_auto.is_none() {
                 terms.extend(station_gate(w, from, "pick"));
             }
+            // 멀티 피킹 합치기는 PICK 스테이션의 타이어 위에 내린다 — 도착도 PICK 준비(화물 있음)를 본다.
             if to_auto.is_none() {
-                terms.extend(station_gate(w, to, "drop"));
+                terms.extend(station_gate(w, to, if *merge { "pick" } else { "drop" }));
             }
         }
         Action::Measure { target, .. } => terms.extend(station_gate(w, target, "measure")),
@@ -375,6 +411,7 @@ pub fn default_rules(out_station: u16, in_stations: &[u16]) -> GenConfig {
                 from_auto: None,
                 to_auto: Some(CellPick { order: "nearest".into(), near: Some(out_station), ..Default::default() }),
                 pallet_auto: false,
+                merge: false,
             },
             robots: vec![],
             priority: 40.0,
@@ -398,6 +435,7 @@ pub fn default_rules(out_station: u16, in_stations: &[u16]) -> GenConfig {
             from_auto: Some(CellPick { order: "oldest".into(), ..Default::default() }),
             to_auto: None,
             pallet_auto: false,
+            merge: false,
         },
         robots: vec![],
         priority: 60.0,
@@ -471,7 +509,7 @@ pub fn rule_terms(rule: &Rule, w: &World) -> Vec<Term> {
         }
     }
     match &rule.action {
-        Action::Transfer { from, to, count, from_auto, to_auto, pallet_auto, item } => {
+        Action::Transfer { from, to, count, from_auto, to_auto, pallet_auto, item, merge } => {
             // 품목 — 규칙이 정하거나 출발의 콘솔 재고가 알아야 한다(스테이션도 같다).
             let src_code = from_auto.is_none().then(|| w.stock.get(&from.id).map(|(c, _)| *c).unwrap_or(0)).filter(|c| *c != 0);
             match (item, src_code, from_auto.is_some()) {
@@ -504,6 +542,13 @@ pub fn rule_terms(rule: &Rule, w: &World) -> Vec<Term> {
             }
             if *pallet_auto {
                 v.push(t("팔렛 다음 슬롯".into(), "작성 때 확인".into(), true));
+            }
+            if *merge {
+                let label = format!("멀티 피킹 {} → {} 위", from.id, to.id);
+                v.push(match merge_check(w, from, to) {
+                    Ok(code) => t(label, format!("품목 {code} 같음 · 도착 {}개 위", w.stock.get(&to.id).map(|(_, n)| *n).unwrap_or(0)), true),
+                    Err(why) => t(label, why, false),
+                });
             }
         }
         Action::Move { to } => v.push(t("목표".into(), format!("{} {}", to.kind, to.id), true)),
@@ -632,14 +677,22 @@ pub fn choose_source(cells: &[CellView], f: &CellPick, item: Option<u32>, count:
 #[allow(clippy::too_many_arguments)]
 pub fn choose_dest(cells: &[CellView], f: &CellPick, item: u32, count: u32, robot_x: Option<f32>, near_x: Option<f32>, exclude: Option<u16>, free: &dyn Fn(f32) -> bool) -> Option<u16> {
     let ok = |c: &&CellView| {
-        in_filter(c, f) && Some(c.id) != exclude && (c.count == 0 || (item != 0 && c.item == item)) && !(f.same_item_only && c.count == 0) && c.room.is_none_or(|r| r >= count.max(1)) && free(c.x)
+        in_filter(c, f)
+            && Some(c.id) != exclude
+            && (c.count == 0 || (item != 0 && c.item == item))
+            && !(f.same_item_only && c.count == 0)
+            && !(f.empty_only && c.count != 0)
+            && c.room.is_none_or(|r| r >= count.max(1))
+            && free(c.x)
     };
     let mut v: Vec<&CellView> = cells.iter().filter(ok).collect();
     let from = near_x.or(robot_x);
     let dist = |c: &CellView| from.map(|x| (c.x - x).abs()).unwrap_or(0.0);
     v.sort_by(|a, b| {
         let same = |c: &CellView| if f.same_item_first { (c.count == 0) as u8 } else { (c.count != 0) as u8 };
-        same(a).cmp(&same(b)).then(dist(a).total_cmp(&dist(b))).then(a.id.cmp(&b.id))
+        // 같은 품목만(빈 시간 정리)이면 가장 많이 쌓인 셀부터 채운다 — Split > Merge 로 풀스택을 만든다.
+        let fuller = if f.same_item_only { b.count.cmp(&a.count) } else { std::cmp::Ordering::Equal };
+        same(a).cmp(&same(b)).then(fuller).then(dist(a).total_cmp(&dist(b))).then(a.id.cmp(&b.id))
     });
     v.first().map(|c| c.id)
 }
@@ -881,7 +934,7 @@ mod tests {
         Target { kind: "cell".into(), id }
     }
     fn transfer(from: u16, to: u16) -> Action {
-        Action::Transfer { from: cell(from), to: cell(to), item: Some(2011), count: 1, from_auto: None, to_auto: None, pallet_auto: false }
+        Action::Transfer { from: cell(from), to: cell(to), item: Some(2011), count: 1, from_auto: None, to_auto: None, pallet_auto: false, merge: false }
     }
     fn rule(id: &str, prio: f32, from: u16, to: u16) -> Rule {
         Rule {
@@ -1002,7 +1055,7 @@ mod tests {
         w.robot.insert(2, 1.0);
         let k = Knobs { age_per_min: 0.5, distance_per_m: 2.0 };
         let mut r = rule("a", 3.0, 401, 2101);
-        r.action = Action::Transfer { from: cell(401), to: Target { kind: "station".into(), id: 2101 }, item: Some(2011), count: 1, from_auto: None, to_auto: None, pallet_auto: false };
+        r.action = Action::Transfer { from: cell(401), to: Target { kind: "station".into(), id: 2101 }, item: Some(2011), count: 1, from_auto: None, to_auto: None, pallet_auto: false, merge: false };
         let (s, b) = score(&r, &[], 2, &w, k, 4.0, 1.5);
         assert_eq!(s, 3.0 + 10.0 + 5.0 + 1.0 + 2.0 - 3.0);
         assert!(b.iter().any(|(k, _)| k == "Target 2101") && b.iter().any(|(k, v)| k == "Distance" && *v == -3.0));
@@ -1113,7 +1166,7 @@ mod tests {
 
         // 품목을 규칙이 정하지 않으면 출발의 콘솔 재고가 알아야 한다 — 스테이션도 같다.
         let no_item = Rule {
-            action: Action::Transfer { from: Target { kind: "station".into(), id: 2101 }, to: cell(402), item: None, count: 1, from_auto: None, to_auto: None, pallet_auto: false },
+            action: Action::Transfer { from: Target { kind: "station".into(), id: 2101 }, to: cell(402), item: None, count: 1, from_auto: None, to_auto: None, pallet_auto: false, merge: false },
             ..rule("noitem", 0.0, 0, 0)
         };
         let t = shown(&no_item, &w);
@@ -1154,6 +1207,7 @@ mod tests {
                 from_auto: Some(CellPick { order: "oldest".into(), ..Default::default() }),
                 to_auto: Some(CellPick::default()),
                 pallet_auto: false,
+                merge: false,
             },
             ..rule("au", 0.0, 0, 0)
         };
@@ -1196,7 +1250,7 @@ mod tests {
         assert!(fires(&all_off, &w));
         assert!(rule_terms(&all_off, &w).iter().all(|t| t.ok), "{:?}", rule_terms(&all_off, &w));
         // 품목을 규칙이 정하지 않은 채 조건을 끄면 그 줄이 "무시" 라고 말한다.
-        let no_item = Rule { action: Action::Transfer { from: cell(401), to: cell(402), item: None, count: 1, from_auto: None, to_auto: None, pallet_auto: false }, ..all_off };
+        let no_item = Rule { action: Action::Transfer { from: cell(401), to: cell(402), item: None, count: 1, from_auto: None, to_auto: None, pallet_auto: false, merge: false }, ..all_off };
         let terms = rule_terms(&no_item, &w);
         assert!(terms.iter().any(|t| t.label == "품목" && t.value.contains("무시")), "{terms:?}");
     }
@@ -1247,5 +1301,56 @@ mod tests {
         let made: Vec<&str> = boosted.generate.iter().map(|c| c.rule_id.as_str()).collect();
         assert_eq!(made, vec!["away"]);
         assert!(boosted.generate[0].breakdown.iter().any(|(k, v)| k == "Avoidance" && *v == 100.0));
+    }
+
+    /// 멀티 피킹 합치기: 같은 품목 1개씩일 때만, 도착(PICK 스테이션)은 DROP 이 아니라 PICK 준비를 본다.
+    #[test]
+    fn merge_needs_same_item_one_each_and_a_pick_ready_target() {
+        let st = |id: u16| Target { kind: "station".into(), id };
+        let mut w = World::default();
+        w.stock.insert(2102, (2011, 1));
+        w.stock.insert(2101, (2011, 1));
+        assert_eq!(merge_check(&w, &st(2102), &st(2101)), Ok(2011));
+        w.stock.insert(2101, (2013, 1));
+        assert!(merge_check(&w, &st(2102), &st(2101)).unwrap_err().contains("품목 다름"));
+        w.stock.insert(2101, (2011, 2));
+        assert!(merge_check(&w, &st(2102), &st(2101)).unwrap_err().contains("최대 2"), "기본(0) = 2");
+        w.multi_pick_max = 3;
+        assert_eq!(merge_check(&w, &st(2102), &st(2101)), Ok(2011), "최대 3이면 2개 위에 얹는다");
+        w.stock.insert(2101, (2011, 3));
+        assert!(merge_check(&w, &st(2102), &st(2101)).unwrap_err().contains("최대 3"));
+        w.multi_pick_max = 0;
+        w.stock.insert(2101, (0, 0));
+        assert!(merge_check(&w, &st(2102), &st(2101)).unwrap_err().contains("모름"));
+        w.stock.insert(2101, (2011, 1));
+        w.items.insert(2011, ready::ItemFacts { stack_max: 1, ..Default::default() });
+        assert!(merge_check(&w, &st(2102), &st(2101)).unwrap_err().contains("StackMax 1"));
+        w.items.clear();
+
+        let merge = Rule {
+            action: Action::Transfer { from: st(2102), to: st(2101), item: None, count: 1, from_auto: None, to_auto: None, pallet_auto: false, merge: true },
+            trigger: Trigger::Ready { require_measured: false },
+            ..rule("merge-2102", 0.0, 0, 0)
+        };
+        let pick_ok = |id: u16| ready::TargetReady { kind: "station".into(), id, pick: ready::Ready::yes(), drop: ready::Ready::no("역할 pick — DROP 안 함"), ..Default::default() };
+        w.ready.insert(2102, pick_ok(2102));
+        w.ready.insert(2101, pick_ok(2101));
+        let (on, terms) = evaluate(&merge, &w);
+        assert!(on, "{terms:?}");
+        assert!(terms.iter().any(|t| t.label == "STATION 2101 PICK" && t.ok));
+        assert!(!terms.iter().any(|t| t.label.contains("2101 DROP")));
+    }
+
+    /// 빈 시간 정리 도착 = 같은 품목만, 가장 많이 쌓인 셀부터(풀스택 만들기).
+    #[test]
+    fn consolidation_fills_the_fullest_stack_first() {
+        let cells = vec![cv(401, 1000.0, 2011, 1, Some(3), "a"), cv(402, 9000.0, 2011, 3, Some(1), "b"), cv(403, 2000.0, 0, 0, None, ""), cv(404, 1500.0, 2011, 4, Some(0), "c")];
+        let f = CellPick { same_item_first: true, same_item_only: true, ..Default::default() };
+        assert_eq!(choose_dest(&cells, &f, 2011, 1, Some(0.0), None, Some(401), &|_| true), Some(402), "404 is full, 403 is empty");
+        // 멀티 피킹 2개 — 빈 셀만(같은 품목 칸이 있어도).
+        let empty = CellPick { empty_only: true, ..Default::default() };
+        assert_eq!(choose_dest(&cells, &empty, 2011, 2, Some(0.0), None, None, &|_| true), Some(403));
+        let src = CellPick { order: "fewest".into(), ..Default::default() };
+        assert_eq!(choose_source(&cells, &src, Some(2011), 1, Some(0.0), &|_| true), Some(401));
     }
 }
