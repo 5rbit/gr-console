@@ -28,6 +28,7 @@ import {
   type GenState,
   type GenTrigger,
 } from '../../lib/taskgen'
+import { visibleInterval } from '../../lib/poll'
 import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
@@ -431,15 +432,26 @@ export function AutoGenPanel() {
   const [weightsOpen, setWeightsOpen] = useState(false)
   const [paramsOpen, setParamsOpen] = useState(false)
   const [confirmAuto, setConfirmAuto] = useState(false)
+  // 2 초마다 조회한다 — 실패는 **한 번만** 토스트하고 그 뒤로는 띠에 남긴다(예전에는 2 초마다 토스트가 쌓였다).
+  const [err, setErr] = useState<string | null>(null)
   const load = useCallback(() => {
     taskgenApi
       .get()
-      .then(setState)
-      .catch((e) => toast.error(`생성 엔진 — ${e instanceof Error ? e.message : String(e)}`))
+      .then((s) => {
+        setState(s)
+        setErr(null)
+      })
+      .catch((e) => {
+        const why = e instanceof Error ? e.message : String(e)
+        setErr((prev) => {
+          if (prev === null) toast.error(`생성 엔진을 읽지 못함 — ${why}`)
+          return why
+        })
+      })
   }, [])
   useEffect(() => {
     load()
-    const t = setInterval(load, 2000)
+    const t = visibleInterval(load, 2000)
     return () => clearInterval(t)
   }, [load])
 
@@ -726,8 +738,6 @@ export function AutoGenPanel() {
     },
   ]
 
-  if (!cfg) return <span className="text-content-faint">읽는 중…</span>
-
   const tools: MenuEntry[] = [
     { label: '우선순위 가중치…', run: () => setWeightsOpen(true), testid: 'taskgen-weights' },
     {
@@ -737,33 +747,71 @@ export function AutoGenPanel() {
     },
   ]
 
-  return (
-    <div className="flex min-h-0 flex-col gap-3 text-xs" data-testid="autogen-panel">
-      <div className="flex flex-wrap items-center gap-2">
-        <Switch
-          inline
-          label="자동 생성"
-          checked={cfg.auto}
-          title="켜면 조건이 참이고 영역이 비는 후보를 예정으로 만들어 보냅니다"
-          onCheckedChange={(v) => (v ? setConfirmAuto(true) : void save({ ...cfg, auto: false }))}
-          testid="taskgen-auto"
-        />
+  // 조회가 실패해도 머리띠(스위치 · 규칙 추가 · 도구)는 남는다 — 엔진을 못 읽는 동안에도 자동 생성을 끌 수 있어야 한다.
+  const head = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Switch
+        inline
+        label="자동 생성"
+        checked={!!cfg?.auto}
+        disabled={!cfg}
+        title={
+          cfg
+            ? '켜면 조건이 참이고 영역이 비는 후보를 예정으로 만들어 보냅니다'
+            : '생성 엔진을 읽지 못해 지금 값을 모릅니다'
+        }
+        onCheckedChange={(v) =>
+          v ? setConfirmAuto(true) : cfg && void save({ ...cfg, auto: false })
+        }
+        testid="taskgen-auto"
+      />
+      {cfg ? (
         <span className="text-2xs text-content-faint">
           v{cfg.version} · {sepText}
         </span>
-        {state?.note ? <span className="text-warn-fg">{state.note}</span> : null}
-        <span className="flex-1" />
-        <Button
-          size="sm"
-          intent="outline"
-          icon={<Plus className="h-3.5 w-3.5" />}
-          onClick={() => setEditing(newRule(cfg.rules))}
-          data-testid="taskgen-add"
-        >
-          규칙 추가
-        </Button>
-        <OverflowMenu items={menuItems(tools)} title="도구" testid="taskgen-more" />
+      ) : null}
+      {state?.note ? <span className="text-warn-fg">{state.note}</span> : null}
+      <span className="flex-1" />
+      <Button
+        size="sm"
+        intent="outline"
+        icon={<Plus className="h-3.5 w-3.5" />}
+        disabled={!cfg}
+        onClick={() => cfg && setEditing(newRule(cfg.rules))}
+        data-testid="taskgen-add"
+      >
+        규칙 추가
+      </Button>
+      <OverflowMenu items={menuItems(tools)} title="도구" testid="taskgen-more" />
+    </div>
+  )
+
+  const errBand = err ? (
+    <div className="flex items-center gap-2 rounded border border-warn-border bg-warn-soft px-2 py-1 text-2xs text-warn-fg">
+      <span className="min-w-0 flex-1 truncate" title={err}>
+        생성 엔진을 읽지 못함 — {err} (2초마다 다시 시도
+        {state ? ', 아래 값은 마지막으로 읽은 것' : ''})
+      </span>
+      <Button size="sm" intent="ghost" onClick={load} data-testid="taskgen-retry">
+        다시 시도
+      </Button>
+    </div>
+  ) : null
+
+  if (!cfg) {
+    return (
+      <div className="flex min-h-0 flex-col gap-3 text-xs" data-testid="autogen-panel">
+        {head}
+        {errBand ?? <span className="text-content-faint">읽는 중…</span>}
+        {paramsOpen ? <ParamsDialog onClose={() => setParamsOpen(false)} /> : null}
       </div>
+    )
+  }
+
+  return (
+    <div className="flex min-h-0 flex-col gap-3 text-xs" data-testid="autogen-panel">
+      {head}
+      {errBand}
 
       {cfg.rules.length === 0 ? (
         <EmptyState
