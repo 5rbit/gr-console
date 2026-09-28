@@ -523,6 +523,13 @@ pub fn guess(meaning: &str) -> Option<(String, ValFmt)> {
     if let ValFmt::Raw(Some(u)) = &fmt {
         name = name.trim_end_matches(u.as_str()).trim().to_string();
     }
+    // a PLC member path reads by its last part (Axis["X"].PV.LagError → LagError)
+    if name.chars().count() > 20
+        && !name.contains(' ')
+        && let Some((_, last)) = name.rsplit_once('.')
+    {
+        name = last.to_string();
+    }
     Some((name, fmt))
 }
 
@@ -599,6 +606,7 @@ mod tests {
         assert_eq!(guess("대기 ms"), Some(("대기".into(), ValFmt::Raw(Some("ms".into())))));
         assert_eq!(guess("On/Off (Src = bit)"), Some(("On/Off".into(), ValFmt::OnOff)));
         assert_eq!(guess("  "), None);
+        assert_eq!(guess("Axis[\"X\"].PV.LagError (mm×10)").map(|g| g.0), Some("LagError".into()));
         assert_eq!(src_hint("Cell.Id (Src = task type)").as_deref(), Some("task type"));
         assert_eq!(src_hint("STATUS (Src = 1 BSEND, 2 BRCV)").as_deref(), Some("1 BSEND"));
         assert_eq!(src_hint("WorkId"), None);

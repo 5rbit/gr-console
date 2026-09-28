@@ -925,11 +925,17 @@ impl Side {
                 let roll = self.rng.random_range(0..1000);
                 if roll < 5 {
                     let num = WARNS[self.rng.random_range(0..WARNS.len())];
-                    evt_v2(&mut self.models, ntp, Level::Warn, Trans::Raise, num, 0, 0, 300, 0);
+                    // values as the ErrorList attaches them (W1101 LagError ×10, W4028 temperature ×10 · load %), else B = step
+                    let (a, b) = match num {
+                        1101 => (1_850, 0),
+                        4028 => (652, 87),
+                        _ => (0, 300),
+                    };
+                    evt_v2(&mut self.models, ntp, Level::Warn, Trans::Raise, num, 0, a, b, 0);
                     self.evt_alarm = Some((ev::WARN, num as i32, tick + self.rng.random_range(10..200)));
                     self.evt_alarm_since = tick;
                 } else if roll < 6 {
-                    evt_v2(&mut self.models, ntp, Level::Alarm, Trans::Raise, 1101, 0, 2_150, 300, 0);
+                    evt_v2(&mut self.models, ntp, Level::Alarm, Trans::Raise, 1101, 0, 2_150, 0, 0);
                     evt_v2(&mut self.models, ntp, Level::Info, Trans::Momentary, 108, 0, 0x80, 0x20, 0);
                     self.evt_alarm = Some((ev::FAULT, 1101, tick + self.rng.random_range(25..75)));
                     self.evt_alarm_since = tick;
