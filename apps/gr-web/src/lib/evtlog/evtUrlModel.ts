@@ -4,6 +4,7 @@
 // 링크가 짧고, 빈 화면의 URL 은 `?tab=events` 그대로다.
 import { EMPTY_FILTER, RANGE_PRESETS, type EvtFilter, type RangePreset } from './evtFilterModel'
 import { EMPTY_STATS, type StatsPeriod, type StatsState } from './evtStatsModel'
+import { parseTypes } from './evtTypeModel'
 import { EMPTY_SWIM, type SwimState } from './swimlaneModel'
 
 export type EvtViewId = 'list' | 'alarms' | 'steps' | 'ilock'
@@ -55,6 +56,7 @@ export function toQuery(st: EvtUrlState): string {
   const f = st.filter
   if (f.plcs.length) set('plc', f.plcs.join(','))
   if (f.cats.length) set('cat', f.cats.join(','))
+  if (f.types.length) set('type', f.types.join(','))
   set('lvl', f.minLvl)
   set('code', f.code.trim())
   set('ctx', f.ctx.trim())
@@ -71,6 +73,7 @@ export function toQuery(st: EvtUrlState): string {
     set('sto', s.to)
   }
   if (s.plcs.length) set('splc', s.plcs.join(','))
+  if (s.types.length) set('stype', s.types.join(','))
   if (s.split) set('split', 1)
   const w = st.swim
   set('st', w.station)
@@ -94,6 +97,7 @@ export function fromQuery(search: string): EvtUrlState | null {
   const filter: EvtFilter = {
     plcs: listOf(g('plc')),
     cats: listOf(g('cat')),
+    types: parseTypes(listOf(g('type'))),
     minLvl: intOrNull(g('lvl')),
     code: g('code') ?? '',
     ctx: g('ctx') ?? '',
@@ -109,6 +113,7 @@ export function fromQuery(search: string): EvtUrlState | null {
     from: sp === 'custom' ? intOrNull(g('sfrom')) : null,
     to: sp === 'custom' ? intOrNull(g('sto')) : null,
     plcs: listOf(g('splc')),
+    types: parseTypes(listOf(g('stype'))),
     split: g('split') === '1',
   }
   const station = intOrNull(g('st'))

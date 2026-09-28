@@ -12,7 +12,7 @@ import { FormDialog } from '../../lib/ui/Dialog'
 import { Input } from '../../lib/ui/Input'
 import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
-import { EvtMultiPick, type PickOption } from './EventFilters'
+import { EvtMultiPick, TYPE_OPTIONS, type PickOption } from './EventFilters'
 
 function short(ms: number): string {
   return msToLocalInput(ms).slice(5, 16).replace('T', ' ')
@@ -25,6 +25,7 @@ export function StatsControls({
   metric,
   onMetric,
   split,
+  types,
 }: {
   value: StatsState
   onChange: (s: StatsState) => void
@@ -34,6 +35,8 @@ export function StatsControls({
   onMetric?: (m: ParetoMetric) => void
   /** 스텝 통계 — TaskType 나누기 스위치를 보인다. */
   split?: boolean
+  /** 알람 통계 — ErrorList 유형 고르기를 보인다(비면 Alarm, Warn). */
+  types?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [from, setFrom] = useState('')
@@ -88,6 +91,16 @@ export function StatsControls({
         onChange={(p) => onChange({ ...value, plcs: p })}
         testid="evt-stats-plc"
       />
+      {types ? (
+        <EvtMultiPick
+          label="Type"
+          allLabel="Alarm · Warn"
+          options={TYPE_OPTIONS}
+          value={value.types}
+          onChange={(t) => onChange({ ...value, types: t })}
+          testid="evt-stats-type"
+        />
+      ) : null}
       {metric && onMetric ? (
         // 보기 전환이 이미 채운 세그먼트라 기준은 선택 칸으로 — 초록 면을 둘 세우지 않는다
         <Select

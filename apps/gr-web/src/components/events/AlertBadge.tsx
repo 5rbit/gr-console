@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Bell, Check } from 'lucide-react'
 import { alerts } from '../../lib/evtlog/alerts'
 import { fmtEvtTime } from '../../lib/evtlog/evtRowsModel'
+import { rowText } from '../../lib/evtlog/evtTypeModel'
 import { evtView } from '../../lib/evtlog/store'
 import { nav } from '../../lib/nav'
 import { useStore } from '../../lib/store'
@@ -71,7 +72,11 @@ export function AlertBadge() {
                 <button
                   type="button"
                   className="min-w-0 flex-1 text-left"
-                  title={a.event ? `${a.event.ts} ${a.event.plc} ${a.event.text}` : a.rule_name}
+                  title={
+                    a.event
+                      ? `${a.event.ts} ${a.event.plc} ${rowText(a.event, evtView.lang)}`
+                      : a.rule_name
+                  }
                   disabled={!a.event}
                   onClick={() => {
                     if (!a.event) return
@@ -86,7 +91,9 @@ export function AlertBadge() {
                     {a.event ? <span className="font-mono">{a.event.plc}</span> : null}
                   </span>
                   <span className="block truncate">
-                    {a.event?.text ?? '(보존 기간으로 지워진 이벤트)'}
+                    {a.event
+                      ? `${a.event.ecode ? `${a.event.ecode} ` : ''}${rowText(a.event, evtView.lang)}`
+                      : '(보존 기간으로 지워진 이벤트)'}
                   </span>
                 </button>
                 <Button

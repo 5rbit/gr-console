@@ -1,6 +1,8 @@
 // 이벤트 화면의 작은 조각 — 레벨 표시 · PLC 색 칩.
 import type { EventRow } from '../../lib/evtlog/api'
 import { lvlTone } from '../../lib/evtlog/evtRowsModel'
+import { typeTone } from '../../lib/evtlog/evtTypeModel'
+import { statusTone } from '../../lib/ui/status'
 import { robotColor, robots } from '../../lib/robots'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
 
@@ -12,6 +14,24 @@ export function EvtLevel({ row }: { row: Pick<EventRow, 'lvl_name'> }) {
     <StatusBadge status={tone} dot={false}>
       {row.lvl_name}
     </StatusBadge>
+  )
+}
+
+/** ErrorList 유형 + 코드 — 색 글자(캡슐은 Level 열 하나뿐), ErrorList 밖의 행은 `-`. */
+export function EvtType({ row }: { row: Pick<EventRow, 'etype' | 'ecode'> }) {
+  if (!row.etype) return <span className="text-2xs text-content-disabled">-</span>
+  const tone = typeTone(row.etype)
+  return (
+    <span className="inline-flex min-w-0 items-baseline gap-1.5">
+      <span
+        className={`text-2xs ${tone === 'neutral' ? 'text-content-muted' : statusTone(tone).text}`}
+      >
+        {row.etype}
+      </span>
+      {row.ecode ? (
+        <span className="font-mono text-2xs text-content-secondary">{row.ecode}</span>
+      ) : null}
+    </span>
   )
 }
 

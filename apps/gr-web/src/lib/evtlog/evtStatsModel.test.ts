@@ -14,6 +14,7 @@ import {
 
 const row = (p: Partial<AlarmStatRow>): AlarmStatRow => ({
   plc: 'GR2',
+  type: 'Warn',
   area: 2,
   area_name: 'WARN',
   bit: 320,
@@ -25,9 +26,11 @@ const row = (p: Partial<AlarmStatRow>): AlarmStatRow => ({
   mean_ms: 1000,
   max_ms: 1000,
   open: 0,
+  flicker: 0,
   last_ts: 0,
   last: '',
   search: 'W1101 X Axis - Lag Error',
+  by_code: false,
   ...p,
 })
 
@@ -62,6 +65,12 @@ describe('periodRange', () => {
     expect(q).toContain('plc=GR1%2CGR2')
     expect(q).not.toContain('split')
     expect(statsQuery(s, now, { split: true })).toContain('split=type')
+  })
+  it('alarm types go to the alarm query only', () => {
+    const s = { ...EMPTY_STATS, types: ['Alarm', 'Operator'] }
+    expect(statsQuery(s, now)).toContain('type=Alarm%2COperator')
+    expect(statsQuery(s, now, { split: true })).not.toContain('type=')
+    expect(statsQuery(EMPTY_STATS, now)).not.toContain('type=')
   })
 })
 
@@ -105,6 +114,13 @@ describe('formats and links', () => {
       from: 1,
       to: 2,
     })
+  })
+  it('a v2 alarm row opens the list by its ErrorList code', () => {
+    const f = alarmListFilter(row({ plc: 'GR2', search: 'W1101', by_code: true }), {
+      from: 1,
+      to: 2,
+    })
+    expect(f).toMatchObject({ plcs: ['GR2'], code: 'W1101', q: '', cats: [], range: 'custom' })
   })
   it('step keys separate task types', () => {
     const a = stepRowKey({ plc: 'GR2', proc: 20, step: 300, task_type: null })

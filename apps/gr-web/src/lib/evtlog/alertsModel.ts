@@ -1,6 +1,7 @@
 // 알림 — 규칙 편집 폼 ↔ API 본문, 규칙 요약, 받은 알림 목록 합치기·확인.
 import type { AlertRec, AlertRule, AlertRuleBody, EvtCatalog, RuleMatch } from './api'
 import { codeTokens } from './evtFilterModel'
+import { EVT_TRANS, isErrorCode } from './evtTypeModel'
 
 export interface RuleForm {
   name: string
@@ -14,6 +15,10 @@ export interface RuleForm {
   text: string
   /** A 값 조건, 빈 값 = 무관 (on/off 이벤트는 1 = ON). */
   aEq: string
+  /** ErrorList 유형, 비면 무관. */
+  types: string[]
+  /** 전이(raise · clear · momentary · summary), 빈 값 = 무관. */
+  trans: string
   cooldown: string
 }
 
@@ -26,6 +31,8 @@ export const EMPTY_RULE_FORM: RuleForm = {
   minLvl: '',
   text: '',
   aEq: '',
+  types: [],
+  trans: '',
   cooldown: '60',
 }
 
@@ -40,6 +47,8 @@ export function ruleToForm(r: AlertRule): RuleForm {
     minLvl: m.min_lvl ?? '',
     text: m.text_contains ?? '',
     aEq: m.a_eq === undefined ? '' : String(m.a_eq),
+    types: m.types ?? [],
+    trans: m.trans ?? '',
     cooldown: String(r.cooldown_s),
   }
 }
@@ -53,6 +62,8 @@ export function formToBody(f: RuleForm): AlertRuleBody {
   if (f.minLvl.trim()) match.min_lvl = f.minLvl.trim()
   if (f.text.trim()) match.text_contains = f.text.trim()
   if (f.aEq.trim()) match.a_eq = Number(f.aEq.trim())
+  if (f.types.length) match.types = [...f.types]
+  if (f.trans) match.trans = f.trans
   return { name: f.name.trim(), enabled: f.enabled, match, cooldown_s: Number(f.cooldown) }
 }
 
@@ -64,7 +75,7 @@ export function ruleFormWhy(f: RuleForm, catalog?: EvtCatalog | null): string | 
     return 'cooldown 은 0~86400 초입니다'
   if (catalog) {
     const bad = codeTokens(f.codes).find(
-      (t) => !/^\d+$/.test(t) && !catalog.events.some((e) => e.name === t),
+      (t) => !/^\d+$/.test(t) && !isErrorCode(t) && !catalog.events.some((e) => e.name === t),
     )
     if (bad) return `모르는 이벤트: ${bad}`
   }
@@ -75,6 +86,8 @@ export function ruleFormWhy(f: RuleForm, catalog?: EvtCatalog | null): string | 
 export function matchSummary(m: RuleMatch): string {
   const parts: string[] = []
   if (m.plc) parts.push(m.plc)
+  if (m.types?.length) parts.push(m.types.join('/'))
+  if (m.trans) parts.push(EVT_TRANS.find((t) => t.id === m.trans)?.label ?? m.trans)
   if (m.cat) parts.push(m.cat)
   if (m.min_lvl) parts.push(`≥ ${m.min_lvl}`)
   if (m.codes?.length) parts.push(m.codes.join(', '))
@@ -110,5 +123,5 @@ export function applyAck(cur: readonly AlertRec[], ids: readonly number[]): Aler
 /** 브라우저 알림의 본문 — 이벤트가 남아 있으면 그 문구. */
 export function alertBody(a: AlertRec): string {
   const e = a.event
-  return e ? `${e.plc} ${e.text}` : a.rule_name
+  return e ? `${e.plc} ${e.ecode ? `${e.ecode} ` : ''}${e.text}` : a.rule_name
 }

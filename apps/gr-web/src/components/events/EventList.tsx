@@ -13,10 +13,11 @@ import {
 import { ArrowUp } from 'lucide-react'
 import type { EventRow } from '../../lib/evtlog/api'
 import { fmtEvtTime } from '../../lib/evtlog/evtRowsModel'
+import { rowText, type EvtLang } from '../../lib/evtlog/evtTypeModel'
 import { Button } from '../../lib/ui/Button'
 import { columnLevel } from '../../lib/ui/table'
 import { cn } from '../../lib/utils'
-import { EvtLevel, EvtPlcChip } from './EvtBits'
+import { EvtLevel, EvtPlcChip, EvtType } from './EvtBits'
 
 const ROW_H = 24
 const OVERSCAN = 12
@@ -37,6 +38,7 @@ const COLS: Col[] = [
   { key: 'ts', label: 'Time', width: '8.5rem', level: 1 },
   { key: 'plc', label: 'PLC', width: '4.5rem', level: 2 },
   { key: 'lvl', label: 'Level', width: '4.5rem', level: 1 },
+  { key: 'type', label: 'Type', width: '7.5rem', level: 1 },
   { key: 'cat', label: 'Cat', width: '5rem', level: 3 },
   { key: 'text', label: 'Text', width: 'minmax(0,1fr)', level: 1 },
   { key: 'ctx', label: 'WorkId', width: '4.5rem', level: 2, cls: 'text-right' },
@@ -50,6 +52,7 @@ export interface EventListProps {
   hasMore: boolean
   loadingMore: boolean
   trimmed: boolean
+  lang: EvtLang
   onPick: (r: EventRow) => void
   onCtx: (ctx: number) => void
   onMore: () => void
@@ -65,6 +68,7 @@ export function EventList({
   hasMore,
   loadingMore,
   trimmed,
+  lang,
   onPick,
   onCtx,
   onMore,
@@ -179,10 +183,10 @@ export function EventList({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') onPick(r)
                 }}
-                title={r.detail ? `${r.text}\n${r.detail}` : r.text}
+                title={r.detail ? `${rowText(r, lang)}\n${r.detail}` : rowText(r, lang)}
               >
                 {cols.map((c) => (
-                  <Cell key={c.key} col={c.key} r={r} now={now} onCtx={onCtx} />
+                  <Cell key={c.key} col={c.key} r={r} now={now} lang={lang} onCtx={onCtx} />
                 ))}
               </div>
             )
@@ -229,11 +233,13 @@ function Cell({
   col,
   r,
   now,
+  lang,
   onCtx,
 }: {
   col: string
   r: EventRow
   now: number
+  lang: EvtLang
   onCtx: (ctx: number) => void
 }) {
   switch (col) {
@@ -251,6 +257,12 @@ function Cell({
           <EvtLevel row={r} />
         </span>
       )
+    case 'type':
+      return (
+        <span className="truncate">
+          <EvtType row={r} />
+        </span>
+      )
     case 'cat':
       return <span className="truncate font-mono text-2xs text-content-muted">{r.cat_name}</span>
     case 'text':
@@ -259,7 +271,7 @@ function Cell({
           {r.name ? (
             <span className="mr-1.5 font-mono text-2xs text-content-faint">{r.name}</span>
           ) : null}
-          {r.text}
+          {rowText(r, lang)}
         </span>
       )
     case 'ctx':

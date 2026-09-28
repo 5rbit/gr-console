@@ -245,6 +245,11 @@ function EventsScreen() {
       testid: 'evt-menu-cfg',
     },
     { label: '알림 규칙…', run: () => setRulesOpen(true), testid: 'evt-menu-rules' },
+    {
+      label: v.lang === 'en' ? '한국어 문구로 보기' : '영어 문구로 보기',
+      run: () => v.setLang(v.lang === 'en' ? 'ko' : 'en'),
+      testid: 'evt-menu-lang',
+    },
     { label: '일일 보고서…', run: () => setReportOpen(true), testid: 'evt-menu-report' },
     {
       label: 'CSV 내보내기',
@@ -309,6 +314,7 @@ function EventsScreen() {
         hasMore={v.hasMore}
         loadingMore={v.loadingMore}
         trimmed={v.trimmed}
+        lang={v.lang}
         onPick={setPicked}
         onCtx={setCtx}
         onMore={() => void v.more()}
@@ -363,6 +369,7 @@ function EventsScreen() {
         metric={view === 'alarms' ? metric : undefined}
         onMetric={view === 'alarms' ? setMetric : undefined}
         split={view === 'steps'}
+        types={view === 'alarms'}
       />
     )
 

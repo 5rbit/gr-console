@@ -84,6 +84,21 @@ describe('rule form', () => {
       ruleFormWhy({ ...EMPTY_RULE_FORM, name: 'a', codes: 'ALM_TO_FAULT, 9' }, catalog),
     ).toBeUndefined()
   })
+  it('carries ErrorList types, the transition and codes', () => {
+    const body = formToBody({
+      ...EMPTY_RULE_FORM,
+      name: 'Alarm 발생',
+      types: ['Alarm'],
+      trans: 'raise',
+      codes: 'f0202',
+    })
+    expect(body.match).toEqual({ types: ['Alarm'], trans: 'raise', codes: ['F0202'] })
+    expect(formToBody(ruleToForm({ id: 1, updated_at: '', ...body }))).toEqual(body)
+    expect(
+      ruleFormWhy({ ...EMPTY_RULE_FORM, name: 'a', codes: 'F0202, W1101' }, catalog),
+    ).toBeUndefined()
+    expect(matchSummary(body.match)).toBe('Alarm · 발생 · F0202')
+  })
   it('summarises the match', () => {
     expect(matchSummary({})).toBe('전체')
     expect(
@@ -105,5 +120,9 @@ describe('alert list', () => {
   it('notification body', () => {
     expect(alertBody(rec(1, 'EMS ON'))).toBe('GRM EMS ON')
     expect(alertBody({ ...rec(1), event: null })).toBe('EMS')
+    const r = rec(2, 'Emergency Stop 발생')
+    expect(alertBody({ ...r, event: r.event && { ...r.event, ecode: 'F0202' } })).toBe(
+      'GRM F0202 Emergency Stop 발생',
+    )
   })
 })

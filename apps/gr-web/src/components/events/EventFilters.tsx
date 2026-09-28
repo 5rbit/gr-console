@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
 import type { EvtCatalog } from '../../lib/evtlog/api'
+import { EVT_TYPES } from '../../lib/evtlog/evtTypeModel'
 import {
   EMPTY_FILTER,
   RANGE_PRESETS,
@@ -23,6 +24,7 @@ import { cn } from '../../lib/utils'
 
 const TEXT_DEBOUNCE_MS = 350
 const CODE_LIST_ID = 'evt-code-suggest'
+export const TYPE_OPTIONS: PickOption[] = EVT_TYPES.map((t) => ({ id: t.id, label: t.id }))
 
 export interface PickOption {
   id: string
@@ -37,12 +39,15 @@ export function EvtMultiPick({
   value,
   onChange,
   testid,
+  allLabel = '전체',
 }: {
   label: string
   options: readonly PickOption[]
   value: readonly string[]
   onChange: (next: string[]) => void
   testid?: string
+  /** 아무것도 안 골랐을 때의 뜻(기본 `전체`). */
+  allLabel?: string
 }) {
   const [open, setOpen] = useState(false)
   const close = useCallback(() => setOpen(false), [])
@@ -57,7 +62,7 @@ export function EvtMultiPick({
         size="sm"
         intent={value.length ? 'outline' : 'ghost'}
         aria-expanded={open}
-        title={value.length ? shown : `${label} 전체`}
+        title={value.length ? shown : `${label} ${allLabel}`}
         data-testid={testid}
         onClick={() => setOpen((o) => !o)}
       >
@@ -78,7 +83,7 @@ export function EvtMultiPick({
             )}
             onClick={() => onChange([])}
           >
-            전체
+            {allLabel}
           </button>
           {options.map((o) => (
             <label
@@ -173,6 +178,13 @@ export function EventFilters({ value, onChange, plcs, catalog }: EventFiltersPro
         testid="evt-f-plc"
       />
       <EvtMultiPick
+        label="Type"
+        options={TYPE_OPTIONS}
+        value={value.types}
+        onChange={(types) => onChange({ ...value, types })}
+        testid="evt-f-type"
+      />
+      <EvtMultiPick
         label="Cat"
         options={cats}
         value={value.cats}
@@ -200,7 +212,7 @@ export function EventFilters({ value, onChange, plcs, catalog }: EventFiltersPro
         className="w-36"
         aria-label="code"
         placeholder="code / NAME"
-        title="코드 번호나 이벤트 이름, 쉼표로 여럿"
+        title="코드 번호, 이벤트 이름, ErrorList 코드(F3119), 쉼표로 여럿"
         list={CODE_LIST_ID}
         value={code}
         onValueChange={setCode}

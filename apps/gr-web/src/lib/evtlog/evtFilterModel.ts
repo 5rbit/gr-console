@@ -3,6 +3,7 @@
 // 서버 필터와 클라이언트 판정이 갈리면 라이브로 붙은 행이 새로고침 뒤에 사라지거나(서버는 거른다)
 // 반대로 나타난다. 그래서 두 함수를 한 파일에 두고 같은 테스트 표로 묶는다.
 import type { EventRow, EvtCatalogEvent } from './api'
+import { isErrorCode } from './evtTypeModel'
 
 export type RangePreset = '15m' | '1h' | '24h' | '7d' | 'all' | 'custom'
 
@@ -19,9 +20,11 @@ export interface EvtFilter {
   plcs: string[]
   /** 카테고리 이름. 비면 전부. */
   cats: string[]
+  /** ErrorList 유형(Alarm · Warn · Operator · Info · Task). 비면 전부. */
+  types: string[]
   /** 최소 레벨 id, `null` = 전부. */
   minLvl: number | null
-  /** 쉼표 목록 — 숫자 또는 이벤트 이름. */
+  /** 쉼표 목록 — 숫자, 이벤트 이름, ErrorList 코드(`F3119`). */
   code: string
   /** Task ctx(정수). */
   ctx: string
@@ -35,6 +38,7 @@ export interface EvtFilter {
 export const EMPTY_FILTER: EvtFilter = {
   plcs: [],
   cats: [],
+  types: [],
   minLvl: null,
   code: '',
   ctx: '',
@@ -49,6 +53,7 @@ export function activeCount(f: EvtFilter): number {
   let n = 0
   if (f.plcs.length) n++
   if (f.cats.length) n++
+  if (f.types.length) n++
   if (f.minLvl !== null) n++
   if (codeTokens(f.code).length) n++
   if (parseCtx(f.ctx) !== null) n++
@@ -93,6 +98,7 @@ export function buildQuery(f: EvtFilter, o: QueryOpts): string {
   const q = new URLSearchParams()
   if (f.plcs.length) q.set('plc', f.plcs.join(','))
   if (f.cats.length) q.set('cat', f.cats.join(','))
+  if (f.types.length) q.set('type', f.types.join(','))
   if (f.minLvl !== null) q.set('lvl', String(f.minLvl))
   const codes = codeTokens(f.code)
   if (codes.length) q.set('code', codes.join(','))
@@ -113,11 +119,14 @@ export function buildQuery(f: EvtFilter, o: QueryOpts): string {
 export function matchesFilter(r: EventRow, f: EvtFilter, now: number): boolean {
   if (f.plcs.length && !f.plcs.includes(r.plc)) return false
   if (f.cats.length && !f.cats.some((c) => c === r.cat_name || c === String(r.cat))) return false
+  if (f.types.length && !(r.etype && f.types.includes(r.etype))) return false
   if (f.minLvl !== null && r.lvl < f.minLvl) return false
   const codes = codeTokens(f.code)
   if (codes.length) {
     const name = (r.name ?? '').toUpperCase()
-    const hit = codes.some((t) => (/^\d+$/.test(t) ? Number(t) === r.code : t === name))
+    const hit = codes.some((t) =>
+      /^\d+$/.test(t) ? Number(t) === r.code : isErrorCode(t) ? t === r.ecode : t === name,
+    )
     if (!hit) return false
   }
   const ctx = parseCtx(f.ctx)
@@ -127,7 +136,8 @@ export function matchesFilter(r: EventRow, f: EvtFilter, now: number): boolean {
   if (w.to !== null && r.ts_ms > w.to) return false
   const text = f.q.trim().toLowerCase()
   if (text) {
-    const hay = `${r.text}\n${r.name ?? ''}\n${r.detail ?? ''}`.toLowerCase()
+    const hay =
+      `${r.text}\n${r.text_en ?? ''}\n${r.name ?? ''}\n${r.ecode ?? ''}\n${r.detail ?? ''}`.toLowerCase()
     if (!hay.includes(text)) return false
   }
   return true
