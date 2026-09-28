@@ -47,7 +47,7 @@ impl Level {
             _ => None,
         }
     }
-    /// PLC byte area (`alarm_area` enum id: 1 FAULT, 2 WARN, 3 EVENT, 4 INFO — the old TASK area).
+    /// PLC byte area (`alarm_area` enum id: 1 FAULT, 2 WARN, 3 OPERATOR, 4 INFO).
     pub fn area(self) -> &'static str {
         match self {
             Level::Alarm => "FAULT",

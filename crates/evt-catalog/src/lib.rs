@@ -288,7 +288,7 @@ mod tests {
         assert_eq!(c.capacity, 1000);
         assert_eq!(c.cat_mask_all(), 0x000F_FFFE);
         assert_eq!((c.cat_id("ALARM"), c.cat_id("OPERATOR"), c.cat_id("INFO")), (Some(errorlist::CAT_ALARM), Some(errorlist::CAT_OPERATOR), Some(errorlist::CAT_INFO)));
-        assert_eq!(c.enums.get("trans").map(|e| e.values.len()), Some(4));
+        assert_eq!(c.enums.get("trans").map(|e| e.values.len()), Some(5));
         assert_eq!(c.event(3, 300).map(|e| e.name.as_str()), Some("STEP_CHANGED"));
         assert_eq!(c.event(7, 704).map(|e| e.name.as_str()), Some("GRIP_ERROR"));
         assert!(c.event(7, 9999).is_none());

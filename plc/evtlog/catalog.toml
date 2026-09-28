@@ -31,7 +31,7 @@
 # v2 rows — ErrorList items (Alarm / Warn / Operator / Info, gr-console docs/evtlog/encoding-v2.md is the spec):
 #   Cat  = 6 ALARM (Alarm + Warn) | 18 OPERATOR | 19 INFO
 #   Code = Trans * 10000 + ErrorList number   (Trans 1 raise, 2 clear, 3 momentary, 4 suppressed summary;
-#          EVT_TRANS_*, EVT_V2_TRANS_MUL). F3119 raised = 13119, W1101 cleared = 21101, I0301 = 30301.
+#          EVT_TRANS_*, EVT_TRANS_MUL). F3119 raised = 13119, W1101 cleared = 21101, I0301 = 30301.
 #   Src  = ALARM: 1 FAULT / 2 WARN (EVT_ALARM_AREA_*) · OPERATOR / INFO: the ErrorList "Src = ..." value, else 0
 #   A, B = ErrorList value A / B (raise, momentary) · clear: A = flicker count, B = active ms · summary: A = rows
 #          suppressed since the last row of this code, B = 0
@@ -157,23 +157,17 @@ from_const = "GRIP_E_"
 [enum.grip_timeout]
 from_const = "GRIP_TO_"
 
+# ALARM bit areas the PLC watches (ALARM.FAULT / WARN / EVENT / INFO). Row Src of Cat ALARM = the area (1 / 2).
+# 3 / 4 were named EVENT / TASK (the DB members; the alarm table still uses those names). GRM v1 UL_EvtWatch
+# writes Src 3 with EVT_ALARM_AREA_EVENT -> rename it to _OPERATOR when GRM's constants are regenerated.
 [enum.alarm_area]
 plc_const = true
-values = { 1 = "FAULT", 2 = "WARN", 3 = "EVENT", 4 = "TASK" }
+values = { 1 = "FAULT", 2 = "WARN", 3 = "OPERATOR", 4 = "INFO" }
 
-# v2 row transition (Code / 10000)
+# ErrorList row transition (Code / 10000); 10000 = MUL is the multiplier itself (EVT_TRANS_MUL)
 [enum.trans]
 plc_const = true
-values = { 1 = "RAISE", 2 = "CLEAR", 3 = "MOMENT", 4 = "SUPPRESSED" }
-
-[enum.v2]
-plc_const = true
-values = { 10000 = "TRANS_MUL" }
-
-# v2 bit area the PLC watches (ALARM.FAULT / WARN / EVENT / INFO). Row Src stays the alarm area for FAULT / WARN.
-[enum.v2_area]
-plc_const = true
-values = { 1 = "FAULT", 2 = "WARN", 3 = "OPERATOR", 4 = "INFO" }
+values = { 1 = "RAISE", 2 = "CLEAR", 3 = "MOMENT", 4 = "SUPPRESSED", 10000 = "MUL" }
 
 # ProcNo start values (PROC / TASK.Proc). 0 = not assigned.
 [enum.proc]

@@ -73,7 +73,7 @@ pub enum AlarmId {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AlarmKey {
     pub plc: String,
-    /// `alarm_area`: 1 FAULT, 2 WARN, 3 EVENT (Operator), 4 TASK / INFO.
+    /// `alarm_area`: 1 FAULT, 2 WARN, 3 OPERATOR, 4 INFO.
     pub area: u32,
     pub id: AlarmId,
 }

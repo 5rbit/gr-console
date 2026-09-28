@@ -45,7 +45,7 @@ Ctx  = 지금과 같다 (로봇: 현재 WorkId, GRM: 0 또는 호출이 준 값)
 | 3 | `EVT_TRANS_MOMENT` | 순간형 항목 한 번 |
 | 4 | `EVT_TRANS_SUPPRESSED` | 억제 요약 (아래 4 절) |
 
-`EVT_V2_TRANS_MUL` = 10000. 상수는 `plc/evtlog/catalog.toml` 의 `[enum.trans]` · `[enum.v2]` → `just gen-evt`.
+`EVT_TRANS_MUL` = 10000. 상수는 `plc/evtlog/catalog.toml` 의 `[enum.trans]` → `just gen-evt`.
 
 ## 3. 무엇이 v2 행인가
 
@@ -90,9 +90,9 @@ Ctx  = 지금과 같다 (로봇: 현재 WorkId, GRM: 0 또는 호출이 준 값)
 ## 6. PLC 쪽 준비
 
 - `EVT_Const_Gen` 다시 생성(`just gen-evt`): `EVT_CAT_OPERATOR` 18, `EVT_CAT_INFO` 19, `EVT_TRANS_*`,
-  `EVT_V2_TRANS_MUL`, **`EVT_CATMASK_ALL` = 16#000FFFFE**. `EVTLOG.Cfg.CatMask` 의 시작값이 옛 16#0003FFFE 로 남으면
+  `EVT_TRANS_MUL`, **`EVT_CATMASK_ALL` = 16#000FFFFE**. `EVTLOG.Cfg.CatMask` 의 시작값이 옛 16#0003FFFE 로 남으면
   카테고리 18 · 19 가 걸러져 Operator / Info 가 **하나도 기록되지 않는다** — 다운로드 뒤 콘솔 로거 설정에서도 확인.
-- 한 줄 쓰기의 모양: `"EvtWrite"(Cat := …, Lvl := …, Src := …, Code := Trans * "EVT_V2_TRANS_MUL" + N, A := …, B := …)`.
+- 한 줄 쓰기의 모양: `"EvtWrite"(Cat := …, Lvl := …, Src := …, Code := Trans * "EVT_TRANS_MUL" + N, A := …, B := …)`.
   상태형 항목은 비트 배열(ALARM.FAULT / WARN / EVENT / INFO, GRM FAULT / WARN / EVENT DB · INFO DB803)을 이전값과
   비교하는 한 곳에서 4 절 규칙으로 쓰는 것이 단순하다 — 호출 지점마다 로그를 부르지 않는다.
 - HMI Operator / Info / Task 이산 알람 초안: `plc/generated/hmi/<unit>-{operator,info,task}.json`

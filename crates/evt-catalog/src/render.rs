@@ -284,9 +284,15 @@ impl Renderer {
         self.enums.get(name)
     }
 
+    /// `area` = `alarm_area` id. The alarm table keeps the ALARM DB member names (3 EVENT, 4 TASK),
+    /// not the ErrorList level names of the enum.
     pub fn alarm(&self, area: u32, bit: u32) -> Option<&AlarmEntry> {
-        let area = self.enum_label("alarm_area", i64::from(area))?;
-        self.alarms.find(area, bit)
+        let member = match area {
+            3 => "EVENT",
+            4 => "TASK",
+            _ => self.enum_label("alarm_area", i64::from(area))?,
+        };
+        self.alarms.find(member, bit)
     }
 
     /// Text of one event; an unknown (cat, code) renders as `CAT code src=.. a=.. b=..`.
@@ -489,7 +495,7 @@ mod tests {
         assert_eq!(r.render(&ev(6, 601, 1, 594, 400)), "F3119 스테이션 인터록 타임아웃 발생 (step 400)");
         assert_eq!(r.render(&ev(6, 602, 2, 17, 0)), "WARN bit 17 (2.1) 해제");
         assert_eq!(r.render(&ev(6, 602, 1, 8, 0)), "F0101 EMS 해제", "4-digit code, English when no Korean");
-        assert_eq!(r.render(&ev(6, 601, 3, 3, 0)), "EVENT Robot auto allowed 발생 (step 0)", "code 0 is not shown");
+        assert_eq!(r.render(&ev(6, 601, 3, 3, 0)), "OPERATOR Robot auto allowed 발생 (step 0)", "code 0 is not shown");
         // bits
         assert_eq!(r.render(&ev(2, 205, 0, 0b1010, 0)), "AUTO 시작 불가 : PowerOnDrive, GRM_Connected");
         assert_eq!(r.render(&ev(12, 1202, 0, 0b1000_0001, 0)), "PI CVOK, SpareX7 (이전 -)");
