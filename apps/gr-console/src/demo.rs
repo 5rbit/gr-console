@@ -547,12 +547,15 @@ impl DemoWorld {
             set_db(&mut models, "PARA", "/Machine/ID", json!(r.machine_id));
             // a per-robot PARA value so the PARA page visibly changes with the robot
             set_db(&mut models, "PARA", "/Machine/XLength", json!(28_000 + 4_000 * r.gr_index as u32));
-            // 그리퍼 인치 구간 기본 창(p1040~p1059, TIA V1.6.1 시작값) — % 는 0(자동), 구간 2 만 예시로 파지 35 %
-            for (n, (lo, hi)) in [(12.0, 14.5), (14.5, 16.5), (16.5, 18.5), (18.5, 20.5), (20.5, 24.5)].into_iter().enumerate() {
-                let n = n + 1;
-                set_db(&mut models, "PARA", &format!("/Timeout/G_Inch{n}_Min"), json!(lo));
-                set_db(&mut models, "PARA", &format!("/Timeout/G_Inch{n}_Max"), json!(hi));
-                set_db(&mut models, "PARA", &format!("/Timeout/G_Inch{n}_OpenPct"), json!(if n == 2 { 35.0 } else { 0.0 }));
+            // 그리퍼 인치별 수동 토크(PARA Sensor p450~p475, TIA V1.6.1) — 0 = 자동(사양 환산); 15" 파지 35 %, 20" 파지 20 % 만 예시
+            for inch in 12..=24 {
+                let open = match inch {
+                    15 => 35.0,
+                    20 => 20.0,
+                    _ => 0.0,
+                };
+                set_db(&mut models, "PARA", &format!("/Sensor/G_Inch{inch}_OpenPct"), json!(open));
+                set_db(&mut models, "PARA", &format!("/Sensor/G_Inch{inch}_MeasPct"), json!(0.0));
             }
             set_db(&mut grm_models, "OPCUA", &format!("/GR/{}/STAT/ComponentID", r.gr_index), json!(r.dst));
             if let Some(db) = models.get_mut("CELL") {
@@ -1262,6 +1265,8 @@ impl Side {
             });
             json!({
                 "Code": code, "Timeout": 0, "Mode": mode, "Step": if learning { 20 } else if gripping { 40 } else { 0 }, "ErrorCode": 0, "Inch": inch,
+                // PLC 가 적용한 인치(규격 내경/25.4 반올림, 12..24 로 끝값 처리) — Task 없이는 0(자동)
+                "Band": if inch > 0 { inch.clamp(12, 24) } else { 0 },
                 "Busy": learning || !g_settled || step == 500, "Done": g_settled && !learning && step != 500, "Error": false, "GripOk": gripping,
                 "ItemPresent": gripping, "Obstacle": false, "Thermal": false, "AtSpeed": !g_settled, "Contact": gripping,
                 "LimitNow": limit, "Mech": mech, "Rise": rise, "TorqPct": mech + rise,

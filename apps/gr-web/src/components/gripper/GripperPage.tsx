@@ -4,7 +4,7 @@
 //  - 실시간(`WEBMON.Gripper` + G 축 위치)은 이미 열려 있는 **상태 스트림**(`useSelectedStatus`)에서 — 폴을 하나 더
 //    열지 않는다. 화면 머리의 숫자 띠·상태 카드·곡선 위 G 마커가 이것을 쓴다.
 //  - 학습 곡선(`GRIP_TUNE.Tune`)·PARA 는 `GET /api/robots/{id}/gripper` 2 초 폴(숨은 탭 스킵). 느린 주기 DB 라 그걸로 충분하다.
-// 조작은 띠 하나(LEARN 버튼 + `?` + `⋯`)뿐이다. 인치 구간 수동 토크(PARA p1040~p1059)는 읽기 전용 — 편집은 HMI/CSV.
+// 조작은 띠 하나(LEARN 버튼 + `?` + `⋯`)뿐이다. 인치별 수동 토크(PARA Sensor p450~p475)는 읽기 전용 — 편집은 HMI/CSV.
 // (GRIP_TUNE.Tune.ScaleByInch 는 TIA V1.6.1 부터 FB 가 안 쓴다 — 표·편집을 뺐다. 백엔드 PUT 은 남아 있다.)
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Hand } from 'lucide-react'
@@ -18,7 +18,7 @@ import { robots } from '../../lib/robots'
 import { robotChip } from '../../lib/robotContext'
 import { sendRobotAction } from '../../lib/robotCommand'
 import { useStore } from '../../lib/store'
-import type { GripperInchBand, GripperSnapshot, WebMonGripper } from '../../lib/types'
+import type { GripperInchRow, GripperSnapshot, WebMonGripper } from '../../lib/types'
 import { Button } from '../../lib/ui/Button'
 import { Card } from '../../lib/ui/Card'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
@@ -66,7 +66,7 @@ const CURVE_HELP =
   'x = G 위치(mm, RangeMin~RangeMax 를 34 칸), y = 기구 부하 토크(%). 파지 속도 곡선과 측정 느린 속도 곡선이 따로 있고 LearnedSpd 가 지금 속도 등급과 다르면 그 곡선은 무효입니다. 세로선이 지금 G 위치.'
 
 const INCH_HELP =
-  'PARA p1040~p1059. 규격 내경 인치(내경/25.4)가 Min ≤ inch ≤ Max 인 첫 구간(Min < Max 인 것만)이 적용되고, 그 %가 0 보다 크면 그 값이 토크 총량입니다(파지 = OpenPct, 측정 = MeasPct, 재파지 = OpenPct × p977). 0 = 자동(사양 Nm 환산). 우선순위: Req.TorqPct > 인치 구간 > 사양 환산 > p941/p940/p952. 여기 판정은 WEBMON.Gripper.Inch(반올림) 근사입니다. 편집은 HMI/CSV.'
+  'PARA Sensor p450~p462(OpenPct) · p463~p475(MeasPct). 인치 = 규격 내경/25.4 를 반올림(FLOOR(x+0.5)), 12 미만·24 초과는 끝값. 그 인치의 %가 0 보다 크면 그 값이 토크 총량입니다(파지 = OpenPct, 측정 = MeasPct, 재파지 = OpenPct × p977). 0 = 자동(사양 Nm 환산). 우선순위: Req.TorqPct > 인치별 % > 사양 환산 > p941/p940/p952. 적용 인치는 PLC 판정(WEBMON.Gripper.Band, 0 = 자동). 편집은 HMI/CSV.'
 
 function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -74,20 +74,9 @@ function errText(e: unknown): string {
 
 const pct = (v: number | null | undefined) => (v === null || v === undefined ? null : delta(v))
 
-/** 인치 구간 표 — Min ≥ Max 인 구간은 흐리게(미사용), 활성 구간은 점+글자로. */
-const INCH_COLS: Column<GripperInchBand>[] = [
-  { key: 'n', label: 'n', get: (r) => r.n, numeric: true },
-  {
-    key: 'range',
-    label: 'Min – Max (inch)',
-    get: (r) => `${f1(r.min)} – ${f1(r.max)}`,
-    cell: (r) => (
-      <span className={r.valid ? 'tabular-nums' : 'text-content-faint tabular-nums'}>
-        {f1(r.min)} – {f1(r.max)}
-        {r.valid ? null : ' (미사용)'}
-      </span>
-    ),
-  },
+/** 인치별 토크 표 — 13 행. 적용 인치(PLC Band)는 점+글자로. */
+const INCH_COLS: Column<GripperInchRow>[] = [
+  { key: 'inch', label: 'Inch', get: (r) => r.inch, numeric: true },
   { key: 'open', label: 'OpenPct (%)', get: (r) => delta(r.open_pct), numeric: true },
   { key: 'meas', label: 'MeasPct (%)', get: (r) => delta(r.meas_pct), numeric: true },
   {
@@ -96,9 +85,9 @@ const INCH_COLS: Column<GripperInchBand>[] = [
     get: (r) => (r.applied ? 2 : r.active ? 1 : 0),
     cell: (r) =>
       r.applied ? (
-        <StatusDot status="ok" size="sm" label="구간 적용 중" />
+        <StatusDot status="ok" size="sm" label="% 적용 중" />
       ) : r.active ? (
-        <StatusDot status="info" size="sm" label="해당 구간 (% 0 = 자동)" />
+        <StatusDot status="info" size="sm" label="적용 인치 (% 0 = 자동)" />
       ) : (
         <span className="text-content-muted">-</span>
       ),
@@ -296,6 +285,7 @@ function GripperScreen() {
                 ['Owner', `${live?.Owner ?? 0} ${ownerName(live?.Owner ?? 0)}`, 'GRIP_OWNER_* — 지금 그리퍼를 쥔 주체'],
                 ['Reject', `${live?.Reject ?? 0} ${errorName(live?.Reject)}`, '마지막 거부 사유 (GRIP_E_*)'],
                 ['SpdIdx', String(live?.SpdIdx ?? 0), '사용 중 Mech 곡선 (0 없음)'],
+                ['Band (inch)', String(live?.Band ?? 0), 'PLC 가 적용한 인치 12..24 (p450~p475), 0 = 자동 환산'],
                 [
                   'Fallback / ErrorHold / Disabled',
                   <Bits
@@ -414,25 +404,26 @@ function GripperScreen() {
 
         <Card padded={false}>
           <div className="flex items-baseline gap-2 border-b border-line-default px-3 py-1.5">
-            <h3 className="text-xs font-semibold text-content-muted">인치 구간 (PARA p1040~p1059)</h3>
-            <HelpTip title="인치 구간 수동 토크" text={INCH_HELP} />
+            <h3 className="text-xs font-semibold text-content-muted">인치별 토크 (PARA Sensor p450~p475)</h3>
+            <HelpTip title="인치별 수동 토크" text={INCH_HELP} />
             <span className="ml-auto text-2xs text-content-faint tabular-nums">
-              읽기 전용 · Inch {snap?.inch_bands?.inch ?? '-'} (WEBMON.Gripper.Inch 근사)
+              읽기 전용 · Band {live?.Band ?? snap?.inch_table?.band ?? '-'} (PLC 판정, 0 = 자동)
             </span>
           </div>
           <DataTable
-            rows={snap?.inch_bands?.bands ?? []}
+            rows={snap?.inch_table?.rows ?? []}
             columns={INCH_COLS}
-            rowKey={(r) => String(r.n)}
+            rowKey={(r) => String(r.inch)}
             density="compact"
-            empty="인치 구간 없음"
-            emptyHint="PARA 에 p1040~p1059 가 없는 레이아웃이거나 아직 읽지 못했습니다."
+            fit
+            empty="인치별 토크 없음"
+            emptyHint="PARA 에 p450~p475 가 없는 레이아웃이거나 아직 읽지 못했습니다."
           />
         </Card>
 
         <Card padded={false}>
           <div className="flex items-baseline gap-2 border-b border-line-default px-3 py-1.5">
-            <h3 className="text-xs font-semibold text-content-muted">PARA (Machine.G_* · Task.G_* · Timeout.G_Inch*)</h3>
+            <h3 className="text-xs font-semibold text-content-muted">PARA (Machine.G_* · Task.G_* · Sensor.G_Inch*)</h3>
             <span className="ml-auto text-2xs text-content-faint">읽기 전용 · 0 = PLC 기본값</span>
           </div>
           <DataTable
