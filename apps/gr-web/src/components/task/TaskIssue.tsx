@@ -67,7 +67,8 @@ import type {
   Target,
   TaskType,
 } from '../../lib/types'
-import { AutoGenDialog, AutoGenPanel } from './AutoGenPanel'
+import { AutoGenStrip } from './AutoGenStrip'
+import { nav } from '../../lib/nav'
 import { menuItems } from '../../lib/task/menuEntries'
 import { OverflowMenu } from '../../lib/ui/OverflowMenu'
 import { ComposeCard } from './ComposeCard'
@@ -261,8 +262,6 @@ export default function TaskIssue() {
   const gateError = polled.error
   const [defaults, setDefaults] = useState<Defaults | null>(null)
   const [defaultsOpen, setDefaultsOpen] = useState(false)
-  // 화면 머리띠 오른쪽 도구 — 자동 생성 규칙·판단 기준을 어느 탭에서나 팝업으로 본다.
-  const [genOpen, setGenOpen] = useState(false)
   const [side, setSide] = useState<Side>('plan')
   // 단일 명령: 레이아웃/팔레트에서 고른 대상. nonce 로 같은 대상을 다시 눌러도 전달된다.
   const [picked, setPicked] = useState<{ target: Target; type?: TaskType; nonce: number } | null>(
@@ -581,9 +580,9 @@ export default function TaskIssue() {
             <OverflowMenu
               items={menuItems([
                 {
-                  label: '자동 생성 — 규칙 · 판단 기준…',
-                  run: () => setGenOpen(true),
-                  testid: 'task-open-autogen',
+                  label: '스케줄러 열기',
+                  run: () => nav.go('scheduler'),
+                  testid: 'task-open-scheduler',
                 },
               ])}
               title="도구"
@@ -681,7 +680,7 @@ export default function TaskIssue() {
                 onGripRefChange={(g) => void setGripRef(g)}
                 mode={side}
                 onModeChange={setSide}
-                autoGen={<AutoGenPanel />}
+                autoGen={<AutoGenStrip />}
                 single={
                   <ComposeCard
                     chrome={false}
@@ -703,7 +702,6 @@ export default function TaskIssue() {
           )}
         </section>
       </div>
-      <AutoGenDialog open={genOpen} onOpenChange={setGenOpen} />
       <ConfirmDialog
         open={teachAsk !== null}
         onOpenChange={(v) => !v && setTeachAsk(null)}

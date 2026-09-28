@@ -321,6 +321,54 @@ struct Inner {
     cmd_zero: Json,
     /// GRM→CV bits per station slot (EVTLOG demo, index = slot).
     cv_out: [i32; 33],
+    /// 데모 컨베이어(슬롯 1 = 2101 PICK 스테이션, 2 = 2102 DROP 스테이션) — 스케줄러 준비 상태를 돌려 보게.
+    conv: [DemoConv; 2],
+}
+
+/// 데모 컨베이어 한 칸: 화물 유무와 다음 바뀔 때, 앞 tick 의 로봇 Comp.
+#[derive(Clone, Copy, Default)]
+struct DemoConv {
+    present: bool,
+    until: u64,
+    comp: bool,
+}
+
+/// 한 tick — 슬롯 1(PICK): 화물이 오면 Req, 로봇 Comp(PICK 인계)에 화물이 사라지고 10 s 뒤 다음 화물.
+/// 슬롯 2(DROP): 비어 있으면 Req, 로봇 Comp(DROP 인계)에 화물이 생기고 7.5 s 뒤 흘러 나간다. 결과 `(CVOK, Req, ItemExist)`.
+fn demo_conv_step(c: &mut DemoConv, pick: bool, tick: u64, out: i32) -> (bool, bool, bool) {
+    let comp = out & 0b10 != 0;
+    if comp && !c.comp {
+        c.present = !pick;
+        c.until = tick + if pick { 200 } else { 150 };
+    }
+    c.comp = comp;
+    if tick >= c.until && c.present != pick {
+        c.present = pick;
+    }
+    let req = (if pick { c.present } else { !c.present }) && out == 0;
+    (true, req, c.present)
+}
+
+#[cfg(test)]
+mod conv_tests {
+    use super::*;
+
+    #[test]
+    fn demo_conveyor_follows_the_handover() {
+        // PICK 스테이션: 화물 있음 → Req, 로봇이 일하는 동안(CVNO) Req 없음, Comp 에 화물이 사라지고 10 s 뒤 다음 화물.
+        let mut p = DemoConv { present: true, ..Default::default() };
+        assert_eq!(demo_conv_step(&mut p, true, 1, 0), (true, true, true));
+        assert_eq!(demo_conv_step(&mut p, true, 2, 0b01), (true, false, true));
+        assert_eq!(demo_conv_step(&mut p, true, 3, 0b10), (true, false, false));
+        assert_eq!(demo_conv_step(&mut p, true, 10, 0), (true, false, false));
+        assert_eq!(demo_conv_step(&mut p, true, 203, 0), (true, true, true));
+        // DROP 스테이션: 비면 Req, Comp 에 화물이 생기고 7.5 s 뒤 흘러 나간다.
+        let mut d = DemoConv::default();
+        assert_eq!(demo_conv_step(&mut d, false, 1, 0), (true, true, false));
+        assert_eq!(demo_conv_step(&mut d, false, 2, 0b10), (true, false, true));
+        assert_eq!(demo_conv_step(&mut d, false, 100, 0), (true, false, true));
+        assert_eq!(demo_conv_step(&mut d, false, 152, 0), (true, true, false));
+    }
 }
 
 fn ring_push(ring: &mut VecDeque<TaskData>, t: TaskData) {
@@ -613,7 +661,8 @@ impl DemoWorld {
             sides.push(side);
         }
         evt_init(&mut grm_models, &grm, 11);
-        let mut inner = Inner { sides, grm: grm_models, grm_encoded: HashMap::new(), cmd_id: 1, seq: 1, tick: 0, cmd_zero, cv_out: [0; 33] };
+        let conv = [DemoConv { present: true, ..Default::default() }, DemoConv::default()];
+        let mut inner = Inner { sides, grm: grm_models, grm_encoded: HashMap::new(), cmd_id: 1, seq: 1, tick: 0, cmd_zero, cv_out: [0; 33], conv };
         encode_models(&grm, &grm_store, &mut inner.grm, &mut inner.grm_encoded);
         let world = Arc::new(DemoWorld { inner: Mutex::new(inner), grm_store, grm, grm_addr: servers[0].addr, addrs, _servers: servers });
         let w = world.clone();
@@ -771,11 +820,20 @@ impl DemoWorld {
         g.tick += 1;
         let tick = g.tick;
         let ntp = now_str().replace('T', " ").chars().take(23).collect::<String>();
-        let Inner { sides, grm, grm_encoded, cmd_zero, cv_out, .. } = &mut *g;
-        // 스테이션 요청 흉내: 2101 Req 는 10 s 켜짐 · 5 s 꺼짐, 2102 ItemExist 는 7.5 s 마다 바뀐다(50 ms tick 기준).
+        let Inner { sides, grm, grm_encoded, cmd_zero, cv_out, conv, .. } = &mut *g;
+        // 스테이션 인터록 흉내(50 ms tick): 2101 은 화물이 오는 PICK 스테이션, 2102 는 비면 요청하는 DROP 스테이션.
+        // PO(CVNO · Comp)는 로봇이 그 스테이션에서 일하는 동안의 GRM→CV 비트 그대로 — 인계가 끝나야 다음 준비가 선다.
         if let Some(db) = grm.get_mut("OPCUA") {
-            set(db, "/STATION/0/Interlock/PI/Req", json!(tick % 300 < 200));
-            set(db, "/STATION/1/Interlock/PI/ItemExist", json!((tick / 150).is_multiple_of(2)));
+            for (i, c) in conv.iter_mut().enumerate() {
+                // CVNO · Comp 만 — 측정 비트(MeasComp · MeasErr)는 인계와 무관하다.
+                let out = cv_out[i + 1] & 0b11;
+                let (cvok, req, item) = demo_conv_step(c, i == 0, tick, out);
+                set(db, &format!("/STATION/{i}/Interlock/PI/CVOK"), json!(cvok));
+                set(db, &format!("/STATION/{i}/Interlock/PI/Req"), json!(req));
+                set(db, &format!("/STATION/{i}/Interlock/PI/ItemExist"), json!(item));
+                set(db, &format!("/STATION/{i}/Interlock/PO/CVNO"), json!(out & 0b01 != 0));
+                set(db, &format!("/STATION/{i}/Interlock/PO/Comp"), json!(out & 0b10 != 0));
+            }
         }
         // GRM's logger scan first (begin_scan): the robots add GRM rows of their station in the same tick
         grm_evt_tick(grm, tick, &ntp, sides.len());

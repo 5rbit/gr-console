@@ -363,8 +363,8 @@ PARA 슬롯 `p973`.
 | `avoid` | 9999 | 켬 | 불필요 | 상단에서 **X 만** 이동, Y 는 지금 위치 유지 (회피) |
 | `stack` (요청에 없을 때) | 바닥 + 스택 높이 + `move_clearance`(기본 500) | 끔 | 선택(없으면 셀 재고 품목) | 그 Z 까지 내려갔다 올라와 끝 |
 
-근거(GR2_PLC): `isValidTaskData` 34행(MOVE ∧ Z=9999 는 Z 범위 검사 면제) · 38행(MOVE 는 G 범위 면제) ·
-85행(MOVE 는 ItemCode 0 허용), `isValidTaskArea` 83행(Avoid 또는 MOVE ∧ Z=9999 면 영역 검사 전체 면제),
+근거(GR2_PLC): `isValidTaskData` 34행(MOVE & Z=9999 는 Z 범위 검사 면제) · 38행(MOVE 는 G 범위 면제) ·
+85행(MOVE 는 ItemCode 0 허용), `isValidTaskArea` 83행(Avoid 또는 MOVE & Z=9999 면 영역 검사 전체 면제),
 `PL_Task_V2` 299행 `isTaskMove` → 300 스텝 XY 이동 뒤 999(937·958행), Avoid 면 Y = 현재 위치(859–865행).
 `stack` 에서 하강 MOVE 는 400 스텝 FLD 검사(6006)를 받으므로 여유를 너무 작게 잡지 않는다.
 요청에 모드가 없으면 예전과 같은 `stack` 이고, 빈 셀이면 옛 "바닥 + 500" 과 값이 같다(재고가 있으면 그 위로 올라간다).

@@ -38,6 +38,7 @@ import { CommandPalette } from './components/CommandPalette'
 import { WorkspaceShell } from './components/workspace/WorkspaceShell'
 import { PANES } from './components/workspace/paneRegistry'
 import TaskIssue from './components/task/TaskIssue'
+import SchedulerPage from './components/sched/SchedulerPage'
 import ItemsPage from './components/items/ItemsPage'
 import TaskManager from './components/taskmgr/TaskManager'
 import MeasureMonitor from './components/measure/MeasureMonitor'
@@ -64,6 +65,8 @@ function groupCls(active: boolean, open: boolean): string {
 /** 탭 id → 화면. 탭이 늘 때 손댈 자리가 한 곳이다. */
 function Screen({ tab }: { tab: Tab }) {
   switch (tab) {
+    case 'scheduler':
+      return <SchedulerPage />
     case 'items':
       return <ItemsPage />
     case 'taskmgr':

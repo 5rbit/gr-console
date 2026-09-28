@@ -8,7 +8,7 @@ type Handler = (data: unknown) => void
 
 const MUX_URL = '/api/stream'
 /** 이 연결이 실어 나르는 이벤트 — 여기 없는 이름(trace · 이벤트 로그)은 제 스트림을 연다. */
-export const MUX_EVENTS = new Set(['tasks', 'stock', 'run', 'stations'])
+export const MUX_EVENTS = new Set(['tasks', 'stock', 'run', 'stations', 'ready'])
 
 /** 로봇별 상태는 한 연결에 섞이므로 이름에 id 가 붙는다. */
 export function muxStatusEvent(robot: number | null | undefined): string {

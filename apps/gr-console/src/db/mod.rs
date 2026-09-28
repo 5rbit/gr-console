@@ -30,6 +30,8 @@ const MIGRATIONS: Migrations = &[
     ("0012_transfer_orders", include_str!("migrations/0012_transfer_orders.sql")),
     // Task 생성 규칙·가중치 · 스케줄링 파라미터 · 생성 예정 큐, 2026-09-22
     ("0013_taskgen", include_str!("migrations/0013_taskgen.sql")),
+    // 스케줄러: 스테이션 프로파일 · 요청 목록 · 판정 기록 · 이송 지시 출처, 2026-09-28
+    ("0014_scheduler", include_str!("migrations/0014_scheduler.sql")),
 ];
 
 /// `ALTER TABLE … ADD COLUMN …` 중 **이미 있는 열**을 주석으로 지운 사본.
@@ -302,7 +304,8 @@ mod tests {
                 "0010_stock_snapshots",
                 "0011_hand",
                 "0012_transfer_orders",
-                "0013_taskgen"
+                "0013_taskgen",
+                "0014_scheduler"
             ]
         );
         // 합친 마이그레이션이 만든 것들이 다 있다

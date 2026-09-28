@@ -348,9 +348,11 @@ pub fn pair_cancel(entries: &[LedgerEntry], e: &LedgerEntry) -> (Vec<LedgerEntry
             None if done_pick() => (
                 Vec::new(),
                 Some(if e.state == TaskState::Running {
-                    format!("짝 PICK 은 이미 완료 — 실행 중 DROP 을 지우면 PLC 가 그리퍼 화물 데이터를 지우므로 콘솔 Hand 도 비우고 이송 지시 {to} 를 중단합니다")
+                    format!("짝 PICK 은 이미 완료 — 사람이 화물을 들어낸 것으로 봅니다: 재고 반영 없이 Hand 를 비우고 이송 지시 {to} 를 중단합니다")
                 } else {
-                    format!("짝 PICK 은 이미 완료 — 대기 중 DROP 을 지워도 PLC 는 화물 데이터를 유지합니다. 타이어는 Hand 에 남고 이송 지시 {to} 는 in_hand")
+                    format!(
+                        "짝 PICK 은 이미 완료 — 사람이 화물을 들어낸 것으로 봅니다: 재고 반영 없이 Hand 를 비우고 이송 지시 {to} 를 중단합니다. 대기 중 DROP 이라 PLC 그리퍼 화물 데이터는 남으니 HMI 에서 정리하세요"
+                    )
                 }),
             ),
             None => (Vec::new(), None),

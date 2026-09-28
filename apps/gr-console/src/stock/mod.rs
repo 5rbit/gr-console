@@ -331,19 +331,24 @@ impl Stock {
         let picked = o.pick_state == Some(TaskState::Completed);
         if transfer::apply_task_state(&mut o, tt, &e.id, e.state) {
             transfer::save(&self.db, &o)?;
-            // PLC 는 **실행 중(TASK.Now)인 DROP** 을 지울 때만 그리퍼 화물 데이터(GRIPPER.Item)를 지운다(CL_Common_Command).
-            // 그때만 콘솔 Hand 도 비운다. 대기 중이던 DROP 을 지우면 PLC 는 계속 들고 있다 — 지시는 in_hand 로 되돌린다.
+            // 짝이 깨진 DROP 취소 = 사람이 그리퍼의 화물을 들어낸다(운전자 규칙 2026-09-28) — 셀 재고에는 반영하지 않고
+            // Hand 를 비우고 지시를 중단한다. PLC 는 **실행 중(TASK.Now)인 DROP** 을 지울 때만 그리퍼 화물 데이터
+            // (GRIPPER.Item)를 지운다(CL_Common_Command) — 대기 중 DROP 이면 PLC 쪽 데이터는 HMI 에서 지워야 한다.
             if tt == TaskType::Drop && e.state == TaskState::Canceled && picked {
-                if dropped_while_running(e) {
-                    let h = self.hand(&e.plc_name)?;
-                    if h.count > 0 && h.transfer_order_id.as_deref().is_none_or(|x| x == id) {
-                        let reason = format!("task-delete: 실행 중 DROP #{}:{} 취소 — PLC 가 그리퍼 화물 데이터를 지움", e.work_id, e.task_id);
-                        self.set_hand(&e.plc_name, 0, 0, &reason, Some(&e.id), Some(id))?;
-                    }
-                } else {
-                    transfer::set_state(&mut o, transfer::OrderState::InHand, "대기 중 DROP 취소 — PLC 가 그리퍼 화물 데이터를 유지, 타이어는 Hand 에");
-                    transfer::save(&self.db, &o)?;
+                let running = dropped_while_running(e);
+                let h = self.hand(&e.plc_name)?;
+                if h.count > 0 && h.transfer_order_id.as_deref().is_none_or(|x| x == id) {
+                    let reason = format!(
+                        "task-delete: {} DROP #{}:{} 취소 — 사람이 화물 제거, 재고 반영 없음{}",
+                        if running { "실행 중" } else { "대기 중" },
+                        e.work_id,
+                        e.task_id,
+                        if running { "" } else { " (PLC 그리퍼 화물 데이터는 HMI 에서 정리)" }
+                    );
+                    self.set_hand(&e.plc_name, 0, 0, &reason, Some(&e.id), Some(id))?;
                 }
+                transfer::set_state(&mut o, transfer::OrderState::Aborted, "짝 DROP 취소 — 사람이 화물 제거(재고 반영 없음)");
+                transfer::save(&self.db, &o)?;
             }
             return Ok(Some(o));
         }
@@ -562,6 +567,17 @@ impl Projection {
 /// 취소 직전 상태가 `Running`(PLC `TASK.Now`)이었나 — 원장 이력의 마지막 `→ Canceled` 전이의 출발 상태.
 pub fn dropped_while_running(e: &LedgerEntry) -> bool {
     e.history.iter().rev().find(|t| t.to == TaskState::Canceled && t.from != Some(TaskState::Canceled)).and_then(|t| t.from) == Some(TaskState::Running)
+}
+
+/// 미래 재고 한 걸음 — `count` +n DROP · −n PICK 을 (품목, 개수) 에 접는다(완료 반영과 같은 규칙).
+pub fn fold_step(cur: (u32, u32), item_code: u32, count: i32) -> (u32, u32) {
+    let (code, n) = fold(cur.0, cur.1, &Delta { cell_id: 0, item_code, count });
+    (if n == 0 { 0 } else { code }, n)
+}
+
+/// 작업이 재고에 주는 변화 (셀·스테이션 id, 품목, +n DROP / −n PICK) — PICK/DROP 이 아니면 `None`.
+pub fn task_step(t: &TaskData) -> Option<(u16, u32, i32)> {
+    task_delta(t).map(|d| (d.cell_id, d.item_code, d.count))
 }
 
 /// 재고에 아직 없는, 끝나면 접힐 상태.
@@ -902,7 +918,7 @@ mod tests {
         let last = s.order_changes(&o.id).unwrap().pop().unwrap();
         assert!(last.reason.starts_with("task-delete") && last.kind == "hand" && last.count_after == 0, "{last:?}");
 
-        // 대기 중(Queued) DROP 을 지우면 PLC 는 계속 들고 있다 — Hand 그대로, 지시는 in_hand
+        // 대기 중(Queued) DROP 을 지워도 짝이 깨진 것 — 사람이 화물을 들어낸다: Hand 를 비우고 지시 중단, 셀 재고는 그대로
         let o2 = s.open_order(transfer::NewOrder { plc: "GR2".into(), item_code: 2011, count: 1, ..Default::default() }).unwrap();
         let with2 = |mut e: LedgerEntry| {
             e.transfer_order_id = Some(o2.id.clone());
@@ -914,8 +930,10 @@ mod tests {
         let mut canceled = with2(entry("d2", 4, TaskType::Drop, 402, 2011, 1, TaskState::Canceled));
         canceled.history.push(crate::ledger::Transition { from: Some(TaskState::Queued), to: TaskState::Canceled, at: now_str(), by: crate::ledger::Actor::Plc, note: None });
         s.on_task(&canceled).unwrap();
-        assert_eq!(s.order(&o2.id).unwrap().unwrap().state, O::InHand);
-        assert_eq!(s.hand("GR2").unwrap().count, 1);
+        assert_eq!(s.order(&o2.id).unwrap().unwrap().state, O::Aborted);
+        assert_eq!(s.hand("GR2").unwrap().count, 0);
+        assert_eq!(s.get(401).unwrap().unwrap().count, 2, "no stock change on cancel");
+        assert!(s.order_changes(&o2.id).unwrap().pop().unwrap().reason.contains("HMI"), "queued DROP: PLC keeps its gripper data");
     }
 
     /// 완료 반영: Task id 로 정확히 한 번, 원장 순서로, 완료 뒤 손 정정이 있으면 멈추고(가드) 사람이 반영/무시.

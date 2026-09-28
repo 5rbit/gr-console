@@ -10,11 +10,18 @@
 //!   간격(+ 로봇별 여유) 안이면 지금은 만들지 않는다. 겹치지 않는 후보를 먼저 골라 두 로봇이 동시에 돈다.
 //!   막힌 로봇은 상대가 비켜 가는 작업을 만들면 그 명령이 PLC 에 **받아진 뒤**(`area::reservation` 의 committed)
 //!   다음 판정에서 풀리고, 비켜 줄 것이 없으면 사유와 함께 기다린다. 자동 회피 MOVE 는 만들지 않는다.
+//! - 스케줄러(docs/scheduler.md): 사용자 규칙 말고도 **요청 목록**과 **정책**이 판정마다 규칙을 파생한다(`policy::derive`).
+//!   스테이션 작업은 어느 규칙이든 준비 상태(`ready`: `CVOK & Req` · 화물 유무 · 인계 · 예약)가 있어야 만든다.
 
+pub mod log;
+pub mod policy;
+pub mod profile;
+pub mod ready;
+pub mod requests;
 pub mod routes;
 pub mod run;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 
@@ -49,6 +56,12 @@ pub enum Trigger {
         #[serde(default = "one")]
         min: u32,
     },
+    /// 파생 규칙용 — 조건은 대상의 준비 상태(스테이션 게이트)가 본다. `require_measured` 면 출발 품목에 비드
+    /// 프로파일이 있어야(측정 먼저 정책이 먼저 돈다).
+    Ready {
+        #[serde(default)]
+        require_measured: bool,
+    },
 }
 
 fn one() -> u32 {
@@ -70,6 +83,8 @@ pub struct CellPick {
     pub same_item_first: bool,
     /// 도착: 이 대상(보통 출고 스테이션)에 **가까운 셀 먼저**. 없으면 로봇에 가까운 순.
     pub near: Option<u16>,
+    /// 도착: 같은 품목이 이미 있는 셀만(빈 셀 제외) — 빈 시간 정리(같은 품목 모으기).
+    pub same_item_only: bool,
 }
 
 /// 만들 것.
@@ -130,6 +145,23 @@ pub struct Rule {
     /// 켜고 끌 수 있는 생성 조건.
     #[serde(default)]
     pub cond: Conditions,
+    /// 출처 — 저장된 규칙은 늘 `user`, 정책 · 요청 규칙은 판정마다 파생된다(저장 안 함).
+    #[serde(default)]
+    pub origin: RuleOrigin,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    /// 이 수요가 겨냥한 스테이션(표시 · KPI).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub station: Option<u16>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuleOrigin {
+    #[default]
+    User,
+    Policy,
+    Request,
 }
 
 /// 규칙마다 켜고 끄는 생성 조건 — 기본은 모두 켜짐. 끈 항목은 판단에서 빠지고 판단 기준 목록에 "무시" 로 남는다.
@@ -181,6 +213,8 @@ pub struct GenConfig {
     pub auto: bool,
     pub weights: Weights,
     pub rules: Vec<Rule>,
+    /// 모든 셀 · 스테이션에 공통으로 도는 정책(요청 목록 포함).
+    pub policy: policy::Policy,
 }
 
 /// 스테이션 인터록 입력(GRM `LGR_Interface_CV_PI`).
@@ -195,36 +229,66 @@ pub struct StationPi {
 #[derive(Clone, Debug, Default)]
 pub struct World {
     pub stations: BTreeMap<u16, StationPi>,
-    /// 셀 id → (품목, 개수) — 예상 재고.
+    /// 셀·스테이션 id → (품목, 개수) — **미래** 재고(진행 중 · 짝 초안 · 예정 큐까지 접은 값).
     pub stock: BTreeMap<u16, (u32, u32)>,
-    /// 셀 id → 남은 칸(StackMax − 예상 재고). 없으면 제한 없음.
+    /// 셀 id → 남은 칸(StackMax − 미래 재고). 없으면 제한 없음.
     pub room: BTreeMap<u16, u32>,
     /// 셀·스테이션 id → Use(사용) 플래그.
     pub usable: BTreeMap<u16, bool>,
     /// 아직 측정되지 않은 품목 코드(비드 프로파일 없음).
     pub unmeasured: std::collections::BTreeSet<u32>,
+    /// 대상 id → 준비 상태(스테이션 게이트).
+    pub ready: BTreeMap<u16, ready::TargetReady>,
+    pub profiles: BTreeMap<u16, profile::StationProfile>,
+    pub items: HashMap<u32, ready::ItemFacts>,
 }
 
+#[cfg(test)]
 pub fn fires(rule: &Rule, w: &World) -> bool {
-    if !rule.enabled {
-        return false;
+    evaluate(rule, w).0
+}
+
+/// 스테이션 대상의 준비 한 줄 — 스테이션 작업은 어느 규칙이든 `CVOK & Req`(+ 화물 · 인계 · 예약)가 있어야 만든다.
+fn station_gate(w: &World, t: &Target, op: &str) -> Option<Term> {
+    if t.kind != "station" {
+        return None;
     }
-    let pi = |s: &u16| w.stations.get(s).copied().unwrap_or_default();
-    let base = match &rule.trigger {
-        Trigger::Manual => rule.manual_requests > 0,
-        Trigger::StationReq { station, require_cvok } => pi(station).req && (!require_cvok || pi(station).cvok),
-        Trigger::StationItem { station, require_cvok } => pi(station).item_exist && (!require_cvok || pi(station).cvok),
-        Trigger::Unmeasured { target } => w.stock.get(&target.id).is_some_and(|(code, n)| *n > 0 && *code != 0 && w.unmeasured.contains(code)),
-        Trigger::CellStock { cell, item, min } => w.stock.get(cell).is_some_and(|(code, n)| *n >= *min && item.is_none_or(|i| i == *code)),
-    };
-    // 출발에 재고(= 콘솔이 품목을 안다)가, 도착에 칸이 있어야 한다. 스테이션도 셀과 같게 본다 — 콘솔 재고가
-    // 곧 GCS 의 지식이다(컨베이어 트래킹이 옮긴다). 자동 셀은 고를 때(`resolve`) 본다.
-    base && match &rule.action {
-        Action::Transfer { from, to, count, from_auto, to_auto, .. } => {
-            (from_auto.is_some() || source_ready(w, from, *count, rule.item(), &rule.cond).is_none()) && (to_auto.is_some() || dest_ready(w, to, *count, &rule.cond).is_none())
+    let label = format!("STATION {} {}", t.id, op.to_uppercase());
+    Some(match w.ready.get(&t.id) {
+        None => Term { label, value: "준비 상태 모름 (등록 안 됨)".into(), ok: false },
+        Some(r) => {
+            let x = match op {
+                "pick" => &r.pick,
+                "drop" => &r.drop,
+                _ => &r.measure,
+            };
+            let value = match (&x.why, x.ok) {
+                (Some(w), true) => format!("가능 — {w}"),
+                (None, true) => "가능".into(),
+                (Some(w), false) => w.clone(),
+                (None, false) => "불가".into(),
+            };
+            Term { label, value, ok: x.ok }
         }
-        _ => true,
+    })
+}
+
+/// 규칙 판정 한 번 — 조건 항목 목록과 전체 충족(= 모든 항목 충족). `fires` 와 판단 기준 화면이 같은 결과를 쓴다.
+pub fn evaluate(rule: &Rule, w: &World) -> (bool, Vec<Term>) {
+    let mut terms = rule_terms(rule, w);
+    match &rule.action {
+        Action::Transfer { from, to, from_auto, to_auto, .. } => {
+            if from_auto.is_none() {
+                terms.extend(station_gate(w, from, "pick"));
+            }
+            if to_auto.is_none() {
+                terms.extend(station_gate(w, to, "drop"));
+            }
+        }
+        Action::Measure { target, .. } => terms.extend(station_gate(w, target, "measure")),
+        Action::Move { .. } => {}
     }
+    (rule.enabled && terms.iter().all(|t| t.ok), terms)
 }
 
 /// 출발이 준비됐나 — Use · 재고 · 품목(규칙에서 켠 것만). 안 됐으면 사유.
@@ -235,7 +299,11 @@ pub fn source_ready(w: &World, t: &Target, count: u8, want: Option<u32>, c: &Con
     if let Some(why) = use_off(w, t, c) {
         return Some(why);
     }
-    let (code, n) = w.stock.get(&t.id).copied().unwrap_or((0, 0));
+    let (code, mut n) = w.stock.get(&t.id).copied().unwrap_or((0, 0));
+    // 스테이션 화물은 GRM `ItemExist` 가 사실이다 — 콘솔 재고(트래킹이 옮긴 코드)가 비어 있어도 한 개는 있다.
+    if t.kind == "station" && w.stations.get(&t.id).is_some_and(|p| p.item_exist) {
+        n = n.max(1);
+    }
     let need = count.max(1) as u32;
     if c.source_stock && n < need {
         return Some(format!("재고 {n} < 필요 {need}"));
@@ -267,16 +335,6 @@ fn use_off(w: &World, t: &Target, c: &Conditions) -> Option<String> {
     (c.target_use && w.usable.get(&t.id) == Some(&false)).then(|| "Use 꺼짐".to_string())
 }
 
-impl Rule {
-    /// 규칙이 정한 품목(있으면).
-    pub fn item(&self) -> Option<u32> {
-        match &self.action {
-            Action::Transfer { item, .. } | Action::Measure { item, .. } => *item,
-            Action::Move { .. } => None,
-        }
-    }
-}
-
 /// 기본 규칙 한 벌 — 현장에서 바로 고쳐 쓰라고 심는 시작점(운전자 규칙 다섯 가지).
 ///
 /// 1. 미측정 규격은 **측정 먼저** — 입고 스테이션에 올라온 화물의 품목에 비드 프로파일이 없으면 MEASURE.
@@ -300,6 +358,9 @@ pub fn default_rules(out_station: u16, in_stations: &[u16]) -> GenConfig {
             priority: 80.0,
             manual_requests: 0,
             cond: Conditions::default(),
+            origin: RuleOrigin::User,
+            request_id: None,
+            station: None,
         });
         rules.push(Rule {
             id: format!("store-near-out-{inb}"),
@@ -319,6 +380,9 @@ pub fn default_rules(out_station: u16, in_stations: &[u16]) -> GenConfig {
             priority: 40.0,
             manual_requests: 0,
             cond: Conditions::default(),
+            origin: RuleOrigin::User,
+            request_id: None,
+            station: None,
         });
     }
     rules.push(Rule {
@@ -339,10 +403,13 @@ pub fn default_rules(out_station: u16, in_stations: &[u16]) -> GenConfig {
         priority: 60.0,
         manual_requests: 0,
         cond: Conditions::default(),
+        origin: RuleOrigin::User,
+        request_id: None,
+        station: None,
     });
     let mut weights = Weights::default();
     weights.target.insert(out_station, 20.0);
-    GenConfig { version: 0, auto: false, weights, rules }
+    GenConfig { version: 0, auto: false, weights, rules, policy: policy::Policy::default() }
 }
 
 /// 판단 기준 한 줄 — 무엇을 보는지(`label`), 지금 값(`value`), 그 값이 조건을 만족하는가(`ok`).
@@ -392,6 +459,16 @@ pub fn rule_terms(rule: &Rule, w: &World) -> Vec<Term> {
                 v.push(t(format!("셀 {cell} 품목"), format!("{code} / 조건 {want}"), code == *want));
             }
         }
+        Trigger::Ready { require_measured } => {
+            if *require_measured && let Action::Transfer { from, from_auto: None, item, .. } = &rule.action {
+                let code = item.or_else(|| w.stock.get(&from.id).map(|(c, _)| *c).filter(|c| *c != 0));
+                v.push(match code {
+                    None => t("품목 측정".into(), "품목을 모름".into(), false),
+                    Some(c) if w.unmeasured.contains(&c) => t("품목 측정".into(), format!("{c} — 비드 프로파일 없음 (측정 먼저)"), false),
+                    Some(c) => t("품목 측정".into(), format!("{c} — 측정 있음"), true),
+                });
+            }
+        }
     }
     match &rule.action {
         Action::Transfer { from, to, count, from_auto, to_auto, pallet_auto, item } => {
@@ -436,6 +513,7 @@ pub fn rule_terms(rule: &Rule, w: &World) -> Vec<Term> {
 }
 
 /// 판단 기준을 한 줄로(툴팁·좁은 화면).
+#[cfg(test)]
 pub fn trigger_inputs(rule: &Rule, w: &World) -> String {
     rule_terms(rule, w).iter().map(|x| format!("{} {}{}", x.label, x.value, if x.ok { "" } else { " ✗" })).collect::<Vec<_>>().join(" · ")
 }
@@ -500,6 +578,11 @@ pub struct RuleStatus {
     /// 엔진이 도는 동안의 누적.
     pub generated: u64,
     pub last_generated_at: Option<String>,
+    /// 사용자 규칙 · 정책 수요 · 요청.
+    pub origin: RuleOrigin,
+    pub name: String,
+    pub request_id: Option<String>,
+    pub station: Option<u16>,
 }
 
 /// 자동 선택에 쓰는 셀 하나.
@@ -529,12 +612,15 @@ fn in_filter(c: &CellView, f: &CellPick) -> bool {
         && f.col_max.is_none_or(|v| c.col <= v)
 }
 
-/// 출발 셀 — 품목(있으면 같은 품목) · 개수 충분 · 영역 밖(`free`) 중 `oldest`(재고 갱신이 가장 오래된) 또는 `nearest`.
+/// 출발 셀 — 품목(있으면 같은 품목) · 개수 충분 · 영역 밖(`free`) 중 `oldest`(재고 갱신이 가장 오래된) · `nearest`
+/// · `fewest`(가장 적게 쌓인 — 빈 시간 정리).
 pub fn choose_source(cells: &[CellView], f: &CellPick, item: Option<u32>, count: u32, robot_x: Option<f32>, free: &dyn Fn(f32) -> bool) -> Option<u16> {
     let mut v: Vec<&CellView> = cells.iter().filter(|c| in_filter(c, f) && c.count >= count.max(1) && c.item != 0 && item.is_none_or(|i| i == c.item) && free(c.x)).collect();
     let dist = |c: &CellView| robot_x.map(|x| (c.x - x).abs()).unwrap_or(0.0);
     if f.order == "nearest" {
         v.sort_by(|a, b| dist(a).total_cmp(&dist(b)).then(a.id.cmp(&b.id)));
+    } else if f.order == "fewest" {
+        v.sort_by(|a, b| a.count.cmp(&b.count).then(dist(a).total_cmp(&dist(b))).then(a.id.cmp(&b.id)));
     } else {
         v.sort_by(|a, b| a.updated_at.cmp(&b.updated_at).then(a.id.cmp(&b.id)));
     }
@@ -545,7 +631,9 @@ pub fn choose_source(cells: &[CellView], f: &CellPick, item: Option<u32>, count:
 /// `near_x` 가 있으면 그 자리(보통 출고 스테이션)에 가까운 순, 없으면 로봇에 가까운 순.
 #[allow(clippy::too_many_arguments)]
 pub fn choose_dest(cells: &[CellView], f: &CellPick, item: u32, count: u32, robot_x: Option<f32>, near_x: Option<f32>, exclude: Option<u16>, free: &dyn Fn(f32) -> bool) -> Option<u16> {
-    let ok = |c: &&CellView| in_filter(c, f) && Some(c.id) != exclude && (c.count == 0 || (item != 0 && c.item == item)) && c.room.is_none_or(|r| r >= count.max(1)) && free(c.x);
+    let ok = |c: &&CellView| {
+        in_filter(c, f) && Some(c.id) != exclude && (c.count == 0 || (item != 0 && c.item == item)) && !(f.same_item_only && c.count == 0) && c.room.is_none_or(|r| r >= count.max(1)) && free(c.x)
+    };
     let mut v: Vec<&CellView> = cells.iter().filter(ok).collect();
     let from = near_x.or(robot_x);
     let dist = |c: &CellView| from.map(|x| (c.x - x).abs()).unwrap_or(0.0);
@@ -577,6 +665,12 @@ pub struct Candidate {
     /// 조건이 처음 참이 된 순서(같은 점수의 결정적 순서).
     pub order: u64,
     pub age_min: f32,
+    /// 이 후보가 쓰는 스테이션 — 한 판정에서 한 스테이션은 한 후보만(인터록 인계가 Task 하나 단위).
+    #[serde(skip)]
+    pub stations: Vec<u16>,
+    /// 파생 규칙의 요청 id — 한 판정에서 요청의 남은 수보다 많이 만들지 않는다.
+    #[serde(skip)]
+    pub request_id: Option<String>,
 }
 
 /// 로봇 하나의 지금 모습(영역 판단용).
@@ -687,10 +781,11 @@ pub struct Selection {
 /// **회피가 먼저다** — 막힌 로봇이 있으면 막은 로봇의 후보 중 그 자리를 비켜 주는 것(도착점이 막힌 후보
 /// 영역에서 간격 밖)에 `avoid_bonus`(파라미터 `gen_avoid_bonus`)를 얹어 다시 고른다. 얹지 않으면 점수가
 /// 높은 다른 일이 먼저 나가 교착이 길어진다.
-pub fn select_with(mut cands: Vec<Candidate>, robots: &[RobotView], sep: f32, avoid_bonus: f32) -> Selection {
+/// `caps` = 요청 id → 이번에 더 만들 수 있는 수(남은 수).
+pub fn select_with(mut cands: Vec<Candidate>, robots: &[RobotView], sep: f32, avoid_bonus: f32, caps: &BTreeMap<String, u32>) -> Selection {
     if avoid_bonus > 0.0 {
         let mut boosted = false;
-        for (blocked, by) in select_once(cands.clone(), robots, sep).blocked {
+        for (blocked, by) in select_once(cands.clone(), robots, sep, caps).blocked {
             for c in cands.iter_mut().filter(|c| c.robot == by) {
                 let frees = Interval::point(c.drop_x.unwrap_or(c.target_x)).gap(blocked.area) >= sep;
                 if frees && !c.breakdown.iter().any(|(k, _)| k == "Avoidance") {
@@ -704,23 +799,41 @@ pub fn select_with(mut cands: Vec<Candidate>, robots: &[RobotView], sep: f32, av
             rank(&mut cands);
         }
     }
-    select_once(cands, robots, sep)
+    select_once(cands, robots, sep, caps)
 }
 
-fn select_once(mut cands: Vec<Candidate>, robots: &[RobotView], sep: f32) -> Selection {
+fn select_once(mut cands: Vec<Candidate>, robots: &[RobotView], sep: f32, caps: &BTreeMap<String, u32>) -> Selection {
     rank(&mut cands);
     let mut out = Selection::default();
     let mut picked: BTreeMap<u8, Interval> = BTreeMap::new();
     let mut used_rules: Vec<String> = Vec::new();
+    let mut used_stations: std::collections::BTreeSet<u16> = std::collections::BTreeSet::new();
+    let mut req_used: BTreeMap<String, u32> = BTreeMap::new();
     let mut blocked: Vec<(Candidate, u8)> = Vec::new();
     for c in cands {
         let Some(me) = robots.iter().find(|r| r.id == c.robot) else { continue };
-        if me.busy || picked.contains_key(&c.robot) {
+        if me.busy {
             out.waiting.push((c, "이 로봇에 예정·진행 중 생성 작업 있음".into()));
+            continue;
+        }
+        if picked.contains_key(&c.robot) {
+            out.waiting.push((c, "이번 판정에서 이 로봇에 더 앞선 작업을 맡김".into()));
             continue;
         }
         if used_rules.contains(&c.rule_id) {
             out.waiting.push((c, "같은 규칙을 다른 로봇이 맡음".into()));
+            continue;
+        }
+        if let Some(s) = c.stations.iter().find(|s| used_stations.contains(s)) {
+            let why = format!("같은 스테이션 {s} 을 이번 판정에서 다른 작업이 맡음");
+            out.waiting.push((c, why));
+            continue;
+        }
+        if let Some(r) = &c.request_id
+            && req_used.get(r).copied().unwrap_or(0) >= caps.get(r).copied().unwrap_or(u32::MAX)
+        {
+            let why = format!("요청 {r} 의 남은 수만큼 이미 맡김");
+            out.waiting.push((c, why));
             continue;
         }
         let others: Vec<Reservation> = robots.iter().filter(|o| o.id != c.robot).filter_map(|o| reserved(o, picked.get(&o.id).copied())).collect();
@@ -733,6 +846,10 @@ fn select_once(mut cands: Vec<Candidate>, robots: &[RobotView], sep: f32) -> Sel
             None => {
                 picked.insert(c.robot, c.area);
                 used_rules.push(c.rule_id.clone());
+                used_stations.extend(c.stations.iter().copied());
+                if let Some(r) = &c.request_id {
+                    *req_used.entry(r.clone()).or_default() += 1;
+                }
                 out.generate.push(c);
             }
         }
@@ -767,7 +884,20 @@ mod tests {
         Action::Transfer { from: cell(from), to: cell(to), item: Some(2011), count: 1, from_auto: None, to_auto: None, pallet_auto: false }
     }
     fn rule(id: &str, prio: f32, from: u16, to: u16) -> Rule {
-        Rule { id: id.into(), name: id.into(), enabled: true, trigger: Trigger::Manual, action: transfer(from, to), robots: vec![], priority: prio, manual_requests: 1, cond: Conditions::default() }
+        Rule {
+            id: id.into(),
+            name: id.into(),
+            enabled: true,
+            trigger: Trigger::Manual,
+            action: transfer(from, to),
+            robots: vec![],
+            priority: prio,
+            manual_requests: 1,
+            cond: Conditions::default(),
+            origin: RuleOrigin::User,
+            request_id: None,
+            station: None,
+        }
     }
     fn cand(rule_id: &str, robot: u8, lo: f32, hi: f32, score: f32, order: u64) -> Candidate {
         Candidate {
@@ -784,6 +914,8 @@ mod tests {
             breakdown: vec![],
             order,
             age_min: 0.0,
+            stations: vec![],
+            request_id: None,
         }
     }
     fn robot(id: u8, x: f32) -> RobotView {
@@ -888,17 +1020,17 @@ mod tests {
     #[test]
     fn zone_aware_selection_maximises_concurrency() {
         let robots = vec![robot(1, 2000.0), robot(2, 14000.0)];
-        let s = select_with(vec![cand("a", 1, 2000.0, 5000.0, 5.0, 1), cand("b", 2, 10000.0, 14000.0, 4.0, 2)], &robots, SEP, 0.0);
+        let s = select_with(vec![cand("a", 1, 2000.0, 5000.0, 5.0, 1), cand("b", 2, 10000.0, 14000.0, 4.0, 2)], &robots, SEP, 0.0, &BTreeMap::new());
         assert_eq!(s.generate.len(), 2);
-        let s = select_with(vec![cand("b", 2, 9000.0, 14000.0, 9.0, 1), cand("a1", 1, 2000.0, 8000.0, 8.0, 2), cand("a2", 1, 2000.0, 5000.0, 1.0, 3)], &robots, SEP, 0.0);
+        let s = select_with(vec![cand("b", 2, 9000.0, 14000.0, 9.0, 1), cand("a1", 1, 2000.0, 8000.0, 8.0, 2), cand("a2", 1, 2000.0, 5000.0, 1.0, 3)], &robots, SEP, 0.0, &BTreeMap::new());
         assert_eq!(s.generate.iter().map(|c| c.rule_id.as_str()).collect::<Vec<_>>(), vec!["b", "a2"]);
         assert!(s.waiting.iter().any(|(c, why)| c.rule_id == "a1" && why.contains("영역 겹침")));
-        let s = select_with(vec![cand("r", 1, 2000.0, 3000.0, 5.0, 1), cand("r", 2, 12000.0, 14000.0, 5.0, 1)], &robots, SEP, 0.0);
+        let s = select_with(vec![cand("r", 1, 2000.0, 3000.0, 5.0, 1), cand("r", 2, 12000.0, 14000.0, 5.0, 1)], &robots, SEP, 0.0, &BTreeMap::new());
         assert_eq!(s.generate.len(), 1);
         // 로봇 여유가 간격에 더해진다
         let mut wide = robots.clone();
         wide[1].margin = 3000.0;
-        let s = select_with(vec![cand("b", 2, 10000.0, 14000.0, 9.0, 1), cand("a", 1, 2000.0, 5000.0, 1.0, 2)], &wide, SEP, 0.0);
+        let s = select_with(vec![cand("b", 2, 10000.0, 14000.0, 9.0, 1), cand("a", 1, 2000.0, 5000.0, 1.0, 2)], &wide, SEP, 0.0, &BTreeMap::new());
         assert_eq!(s.generate.len(), 1, "5000..10000 gap < 2403 + 3000");
     }
 
@@ -908,27 +1040,27 @@ mod tests {
         let mut robots = vec![robot(1, 2000.0), robot(2, 8000.0)];
         let need = cand("a", 1, 2000.0, 7000.0, 9.0, 1);
         let away = cand("b", 2, 8000.0, 13000.0, 1.0, 2);
-        let s = select_with(vec![need.clone(), away.clone()], &robots, SEP, 0.0);
+        let s = select_with(vec![need.clone(), away.clone()], &robots, SEP, 0.0, &BTreeMap::new());
         assert_eq!(s.generate.iter().map(|c| c.rule_id.as_str()).collect::<Vec<_>>(), vec!["b"]);
         let why = &s.waiting.iter().find(|(c, _)| c.rule_id == "a").unwrap().1;
         assert!(why.contains("PLC 수령(Accepted) 뒤"), "{why}");
         robots[1].scheduled = Some(away.area);
         robots[1].busy = true;
-        assert!(select_with(vec![need.clone()], &robots, SEP, 0.0).generate.is_empty());
+        assert!(select_with(vec![need.clone()], &robots, SEP, 0.0, &BTreeMap::new()).generate.is_empty());
         robots[1].scheduled = None;
         robots[1].pending = vec![13000.0];
-        assert!(select_with(vec![need.clone()], &robots, SEP, 0.0).generate.is_empty());
+        assert!(select_with(vec![need.clone()], &robots, SEP, 0.0, &BTreeMap::new()).generate.is_empty());
         robots[1].committed = true;
-        assert_eq!(select_with(vec![need.clone()], &robots, SEP, 0.0).generate.len(), 1);
+        assert_eq!(select_with(vec![need.clone()], &robots, SEP, 0.0, &BTreeMap::new()).generate.len(), 1);
     }
 
     #[test]
     fn no_deadlock_no_overlap() {
         let robots = vec![robot(1, 4000.0), robot(2, 7000.0)];
-        let s = select_with(vec![cand("a", 1, 4000.0, 7500.0, 5.0, 1)], &robots, SEP, 0.0);
+        let s = select_with(vec![cand("a", 1, 4000.0, 7500.0, 5.0, 1)], &robots, SEP, 0.0, &BTreeMap::new());
         assert!(s.generate.is_empty());
         assert!(s.waiting[0].1.contains("비켜 줄 작업 없음"));
-        let s = select_with(vec![cand("a", 1, 4000.0, 7500.0, 5.0, 1), cand("b", 2, 3500.0, 7000.0, 4.0, 2)], &robots, SEP, 0.0);
+        let s = select_with(vec![cand("a", 1, 4000.0, 7500.0, 5.0, 1), cand("b", 2, 3500.0, 7000.0, 4.0, 2)], &robots, SEP, 0.0, &BTreeMap::new());
         assert!(s.generate.is_empty() && s.waiting.len() == 2);
     }
 
@@ -986,13 +1118,20 @@ mod tests {
         };
         let t = shown(&no_item, &w);
         assert_eq!(t[t.len() - 3], ("품목".into(), "콘솔이 모름".into(), false));
-        assert_eq!(t[t.len() - 2], ("출발 station 2101 준비".into(), "재고 0 < 필요 1".into(), false));
+        // 스테이션 화물은 GRM ItemExist 가 사실 — 콘솔 재고가 0 이어도 수량은 있고, 품목만 모른다.
+        assert_eq!(t[t.len() - 2], ("출발 station 2101 준비".into(), "품목을 콘솔이 모름".into(), false));
         assert!(!fires(&Rule { trigger: Trigger::Manual, manual_requests: 1, ..no_item.clone() }, &w), "품목·재고를 모르면 조건이 참이 아니다");
 
         // 콘솔 재고가 품목을 알면 통과한다(스테이션 재고는 컨베이어 트래킹이 적는다).
         w.stock.insert(2101, (2013, 1));
         let t = shown(&no_item, &w);
         assert_eq!(t[t.len() - 3], ("품목".into(), "2013 (출발 재고)".into(), true));
+        // 스테이션 PICK 은 준비 상태(CVOK & Req & ItemExist · 인계 · 예약)도 있어야 한다.
+        assert!(!fires(&Rule { trigger: Trigger::Manual, manual_requests: 1, ..no_item.clone() }, &w), "준비 상태 모름");
+        w.ready.insert(2101, ready::TargetReady { kind: "station".into(), id: 2101, pick: ready::Ready::no("Req 0"), ..Default::default() });
+        let (on, terms) = evaluate(&Rule { trigger: Trigger::Manual, manual_requests: 1, ..no_item.clone() }, &w);
+        assert!(!on && terms.last().unwrap() == &Term { label: "STATION 2101 PICK".into(), value: "Req 0".into(), ok: false }, "{terms:?}");
+        w.ready.insert(2101, ready::TargetReady { kind: "station".into(), id: 2101, pick: ready::Ready::yes(), ..Default::default() });
         assert!(fires(&Rule { trigger: Trigger::Manual, manual_requests: 1, ..no_item }, &w));
 
         let c = Rule { trigger: Trigger::CellStock { cell: 409, item: Some(2013), min: 2 }, action: Action::Measure { target: cell(409), item: None }, ..rule("cs", 0.0, 0, 0) };
@@ -1100,11 +1239,11 @@ mod tests {
         let away = cand("away", 2, 9000.0, 12000.0, 1.0, 3);
 
         // 보너스가 없으면 점수 높은 제자리 일(stay)이 나간다.
-        let none = select_with(vec![want.clone(), stay.clone(), away.clone()], &robots, SEP, 0.0);
+        let none = select_with(vec![want.clone(), stay.clone(), away.clone()], &robots, SEP, 0.0, &BTreeMap::new());
         assert_eq!(none.generate.iter().map(|c| c.rule_id.as_str()).collect::<Vec<_>>(), vec!["stay"]);
 
         // 보너스를 얹으면 비켜 가는 일(away)이 먼저 — 다음 판정에서 1 호기가 풀린다.
-        let boosted = select_with(vec![want, stay, away], &robots, SEP, 100.0);
+        let boosted = select_with(vec![want, stay, away], &robots, SEP, 100.0, &BTreeMap::new());
         let made: Vec<&str> = boosted.generate.iter().map(|c| c.rule_id.as_str()).collect();
         assert_eq!(made, vec!["away"]);
         assert!(boosted.generate[0].breakdown.iter().any(|(k, v)| k == "Avoidance" && *v == 100.0));

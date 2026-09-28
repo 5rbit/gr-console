@@ -61,7 +61,7 @@ fn inch_keys() -> Vec<String> {
 
 /// 인치별 수동 토크 표(p450~p475). 적용 인치는 PLC 판정 `WEBMON.Gripper.Band`(규격 내경/25.4 반올림, 12..24 끝값, 0 = 자동)를
 /// 그대로 쓴다 — 콘솔이 다시 계산하지 않는다. 그 인치의 % 가 0 이면 자동(사양 Nm 환산).
-/// `applied` = active ∧ `Fallback` ∧ (OpenPct > 0 ∨ MeasPct > 0).
+/// `applied` = active & `Fallback` & (OpenPct > 0 | MeasPct > 0).
 pub fn inch_table(para: Option<&Json>, band: i64, fallback: bool) -> Json {
     let s = para.and_then(|p| p.get("Sensor"));
     let f = |k: &str| s.and_then(|s| s.get(k)).and_then(Json::as_f64).unwrap_or(0.0);

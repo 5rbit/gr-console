@@ -11,6 +11,7 @@ import { ALL_TABS, type TabDef } from '../../lib/tabs'
 import type { ZoneId } from '../../lib/workspace/model'
 
 import TaskIssue from '../task/TaskIssue'
+import SchedulerPage from '../sched/SchedulerPage'
 import ItemsPage from '../items/ItemsPage'
 import TaskManager from '../taskmgr/TaskManager'
 import MeasureMonitor from '../measure/MeasureMonitor'
@@ -46,6 +47,7 @@ export interface PaneDef {
 /** 화면 id → 컴포넌트. 탭이 늘면 `lib/tabs.ts`와 여기 둘을 손댄다(라벨은 저쪽이 진실원). */
 const SCREEN_COMPONENT: Record<string, ComponentType> = {
   task: TaskIssue,
+  scheduler: SchedulerPage,
   items: ItemsPage,
   taskmgr: TaskManager,
   measure: MeasureMonitor,
@@ -58,6 +60,7 @@ const SCREEN_COMPONENT: Record<string, ComponentType> = {
 
 const SCREEN_KEYWORDS: Record<string, string> = {
   task: 'issue command 명령 작성 제출',
+  scheduler: 'scheduler taskgen 스케줄러 자동 생성 요청 수요 정책 입고 출고',
   items: 'item tire spec 품목 타이어 규격 코드 치수 내경 외경',
   taskmgr: 'manager 목록 이력 history',
   measure: 'monitor 측정 트렌드 trend',

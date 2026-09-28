@@ -12,6 +12,7 @@ import { Store } from './store'
  *  이 유니온의 정의는 여기 하나뿐이다(컴포넌트에서 다시 선언하지 않는다). */
 export type Tab =
   | 'task'
+  | 'scheduler'
   | 'items'
   | 'taskmgr'
   | 'measure'

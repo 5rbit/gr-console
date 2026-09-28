@@ -18,6 +18,8 @@
 //   윤곽 = **한 줄**, 겹치면 우선순위 하나만: 선택(흐르는 점선) > 로봇 작업(로봇 색) > 계획(파랑) >
 //          품목 강조 > 못 쓰는 칸(주황) > 로컬 수정(편집 모드, 점선) > 호버.
 //   구역 = 칸 색이 아니라 바탕의 옅은 영역 + "S2" 이름.
+// 모니터링 모드 준비 표시(`ready`): PICK ▲ · DROP ▼ — 초록 가능 · 주황 품목 미정 · 로봇 색 예약 · 속 빈 회색 막힘
+//   (`lib/task/readyMarkModel`). 셀은 원 밖 위 두 귀(▲ 왼쪽 · ▼ 오른쪽), 스테이션은 몸체 안 오른쪽 위(왼쪽 위 = 번호).
 // 셀 바닥 Z ≤ 0 은 정상이다 — PLC 는 스테이션(Id > 2000)에만 INVALID_CELL_POSZ 를 낸다.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Crosshair, Maximize2, Minus, MoreHorizontal, Plus } from 'lucide-react'
@@ -65,6 +67,14 @@ import {
   type StationRing,
 } from '../../lib/task/stationLiveModel'
 import type { StationLive } from '../../lib/task/types'
+import {
+  readyGlyphs,
+  readyLines,
+  type ReadyGlyph,
+  type ReadyTone,
+} from '../../lib/task/readyMarkModel'
+import { readyMark, targetKey, type TargetReady } from '../../lib/sched'
+import CondExpr from '../sched/CondExpr'
 import { EmptyState } from '../../lib/ui/EmptyState'
 import { IconPopover, MapIconButton } from '../../lib/ui/IconPopover'
 import { Input } from '../../lib/ui/Input'
@@ -173,6 +183,13 @@ const LAMP_ON: Record<string, string> = {
   meas_comp: 'bg-ok',
   meas_err: 'bg-fault',
 }
+/** 준비 표식 색 — 로봇 예약은 로봇 색을 `fill` 로 따로 싣는다. 막힘은 속 빈 회색. */
+const READY_CLS: Record<ReadyTone, string> = {
+  ok: 'fill-ok stroke-surface-panel',
+  warn: 'fill-warn stroke-surface-panel',
+  robot: 'stroke-surface-panel',
+  muted: 'fill-surface-panel stroke-content-muted',
+}
 const TYPE_SHORT: Record<TaskType, string> = {
   UP: 'U',
   PICK: 'P',
@@ -231,6 +248,8 @@ export interface CellMapProps {
   robots?: readonly RobotMarker[]
   /** 범례에 보일 로봇 색. */
   robotLegend?: readonly { name: string; color: string }[]
+  /** 스케줄러 준비 상태(`targetKey` → 대상) — 있으면 PICK ▲ · DROP ▼ 표식과 호버 줄을 그린다(모니터링 모드). */
+  ready?: ReadonlyMap<string, TargetReady>
   /** 플롯 왼쪽 위(모드 토글 등). */
   topLeft?: ReactNode
   /** 이 대상으로 화면을 옮긴다(nonce 가 바뀔 때마다). */
@@ -257,6 +276,7 @@ export function CellMap({
   work,
   robots,
   robotLegend = [],
+  ready,
   topLeft,
   focus,
   children,
@@ -450,6 +470,7 @@ export function CellMap({
           st={stock?.get(hover.id) ?? null}
           items={items}
           work={work?.get(`${hover.kind}-${hover.id}`)}
+          ready={ready?.get(targetKey(hover))}
         />
       </div>
     )
@@ -890,6 +911,25 @@ export function CellMap({
           )
         })}
 
+        {/* 준비 표식 — 도형·윤곽 위 한 층(이웃 칸 윤곽이 가리지 않게). */}
+        {ready && ready.size
+          ? shapes.map((s) => {
+              if (s.kind === 'cell' && rr < 6) return null
+              const gs = readyGlyphs(ready.get(targetKey(s)))
+              if (!gs.length) return null
+              const half = s.kind === 'station' ? stationHalfPx(s) : ([rr, rr] as [number, number])
+              return (
+                <ReadyMarks
+                  key={`ready-${s.kind}-${s.id}`}
+                  s={s}
+                  c={centre(s)}
+                  half={half}
+                  glyphs={gs}
+                />
+              )
+            })
+          : null}
+
         {/* 계획 순번 태그 — 모든 도형·윤곽 **위** 한 층(이웃 칸 윤곽이 가리지 않게). 색은 "계획" 윤곽과 같은
             보라 하나 — 태그와 윤곽이 한 표시로 읽힌다. 글자로 종류(P/D/M…)를 가른다. */}
         {ov
@@ -1301,6 +1341,36 @@ export function CellMap({
                   text={`${rb.name} 작업 중 (점선 = 대기)`}
                 />
               ))}
+              {ready ? (
+                <>
+                  <li className="mt-1 text-3xs font-semibold text-content-muted">
+                    준비 — ▲ PICK · ▼ DROP (모니터링)
+                  </li>
+                  {(
+                    [
+                      ['ok', '가능'],
+                      ['warn', 'PICK 가능 · 품목 미정'],
+                      ['robot', '예약 — 로봇 색'],
+                      ['muted', '막힘 — 역할이 있는 스테이션만'],
+                    ] as const
+                  ).map(([tone, text]) => (
+                    <LegendRow
+                      key={tone}
+                      swatch={
+                        <svg width={16} height={16} aria-hidden>
+                          <path
+                            d={triangle(8, 8, 11, true)}
+                            className={READY_CLS[tone]}
+                            style={tone === 'robot' ? { fill: robotLegend[0]?.color } : undefined}
+                            strokeWidth={tone === 'muted' ? 1.3 : 0}
+                          />
+                        </svg>
+                      }
+                      text={text}
+                    />
+                  ))}
+                </>
+              ) : null}
               <LegendRow
                 swatch={
                   <span className="rounded bg-pending-fg px-1 text-3xs font-semibold text-content-on-accent">
@@ -1362,6 +1432,7 @@ function HoverBody({
   st,
   items,
   work,
+  ready,
 }: {
   s: Shape
   cell?: Cell
@@ -1370,7 +1441,9 @@ function HoverBody({
   st: StockEntry | null
   items?: readonly Item[]
   work?: WorkMark
+  ready?: TargetReady
 }) {
+  const readyRows = readyLines(ready)
   const it = st?.item_code ? items?.find((i) => i.code === st.item_code) : undefined
   const n = st?.count ?? 0
 
@@ -1452,6 +1525,44 @@ function HoverBody({
         </span>
         {top}
       </section>
+      {readyRows.length ? (
+        <section
+          className="flex flex-col gap-0.5 border-t border-line-default px-2.5 py-2"
+          data-testid="hover-ready"
+        >
+          <span className="text-3xs font-semibold tracking-wide text-content-muted">
+            PICK · DROP
+          </span>
+          {readyRows.map((l, i) => (
+            <span
+              key={i}
+              className={cn(
+                'truncate',
+                i < 2 &&
+                  ((i === 0 ? ready?.pick.ok : ready?.drop.ok)
+                    ? 'text-content-primary'
+                    : 'text-content-muted'),
+              )}
+            >
+              {l}
+            </span>
+          ))}
+          {(['pick', 'drop'] as const)
+            .filter(
+              (op) =>
+                ready &&
+                ready.kind === 'station' &&
+                readyMark(ready, op) !== 'none' &&
+                ready[op].expr?.length,
+            )
+            .map((op) => (
+              <span key={op} className="flex min-w-0 items-center gap-1.5">
+                <span className="text-content-muted">{op.toUpperCase()}</span>
+                <CondExpr expr={ready?.[op].expr} />
+              </span>
+            ))}
+        </section>
+      ) : null}
       {s.kind === 'station' && live?.live ? <InterlockLamps l={live} /> : null}
       <section
         className="flex flex-col gap-1 border-t border-line-default bg-surface-inset px-2.5 py-2"
@@ -1619,6 +1730,65 @@ function StationMarks({
           {s.id}
         </text>
       ) : null}
+    </g>
+  )
+}
+
+/** 정삼각형 경로 — 가운데(x, y), 폭 w, 위(▲) / 아래(▼). */
+function triangle(x: number, y: number, w: number, up: boolean): string {
+  const h = w * 0.87
+  const tip = up ? y - h / 2 : y + h / 2
+  const base = up ? y + h / 2 : y - h / 2
+  return `M${x},${tip} L${x + w / 2},${base} L${x - w / 2},${base} Z`
+}
+
+/**
+ * 준비 표식 ▲ PICK · ▼ DROP — 자리가 곧 뜻이다(▲ 왼쪽 · ▼ 오른쪽, 하나만 있어도 자리는 그대로).
+ * 셀: 원 밖 위 두 귀(가운데 개수와 안 겹친다). 스테이션: 몸체 안 오른쪽 위(왼쪽 위 = 번호, 벽은 몸체 밖).
+ * 화면 방향 고정 — 지도를 돌려도 ▲ 는 위를 가리킨다.
+ */
+function ReadyMarks({
+  s,
+  c: [cx, cy],
+  half: [hw, hh],
+  glyphs,
+}: {
+  s: Shape
+  c: [number, number]
+  half: [number, number]
+  glyphs: ReadyGlyph[]
+}) {
+  let g: number
+  const at: Record<'pick' | 'drop', [number, number]> = { pick: [0, 0], drop: [0, 0] }
+  if (s.kind === 'cell') {
+    g = Math.min(Math.max(hw * 0.45, 7), 14)
+    const d = hw * 0.72 + g * 0.3
+    at.pick = [cx - d, cy - d]
+    at.drop = [cx + d, cy - d]
+  } else {
+    g = Math.min(Math.max(Math.min(hw, hh) * 0.4, 7), 13)
+    const y = cy - hh + g / 2 + 3
+    const xd = cx + hw - g / 2 - 3
+    at.drop = [xd, y]
+    at.pick = [xd - g - 2, y]
+  }
+  return (
+    <g className="pointer-events-none" data-testid={`map-ready-${s.kind}-${s.id}`}>
+      {glyphs.map((m) => (
+        <path
+          key={m.op}
+          d={triangle(at[m.op][0], at[m.op][1], g, m.op === 'pick')}
+          className={READY_CLS[m.tone]}
+          style={m.color ? { fill: m.color } : undefined}
+          strokeWidth={m.tone === 'muted' ? 1.3 : 2.5}
+          strokeLinejoin="round"
+          paintOrder="stroke"
+          data-testid={`map-ready-${s.kind}-${s.id}-${m.op}`}
+          data-mark={m.mark}
+        >
+          <title>{m.title}</title>
+        </path>
+      ))}
     </g>
   )
 }

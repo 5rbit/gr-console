@@ -33,6 +33,11 @@ pub struct Params {
     pub gen_avoid_bonus: f32,
     /// 새 스테이션 요청 규칙의 기본값 — Req AND CVOK.
     pub station_require_cvok: bool,
+    /// 실패 냉각 — 같은 키(파생 규칙)가 중단되면 이만큼 × 2^(n−1) 초 쉰다(최대 `gen_fail_cooldown_max_s`).
+    pub gen_fail_cooldown_s: u32,
+    pub gen_fail_cooldown_max_s: u32,
+    /// 연속 실패가 이 횟수에 닿으면 이벤트 로그 경고(0 = 안 함).
+    pub gen_fail_alert: u32,
     /// PLC 에 실행 중 + 이만큼만(고정 1).
     pub issue_queue_depth: u32,
     /// 영역 교착으로 보기 전 기다림(ms).
@@ -59,12 +64,15 @@ impl Default for Params {
             anticol_enabled: true,
             robot_margin_mm: BTreeMap::new(),
             gen_tick_ms: 1000,
-            gen_distance_per_m: 0.0,
+            gen_distance_per_m: 0.5,
             gen_max_distance_m: 0.0,
-            gen_age_per_min: 0.0,
+            gen_age_per_min: 1.0,
             gen_blocked_penalty: 0.0,
             gen_avoid_bonus: 100.0,
             station_require_cvok: true,
+            gen_fail_cooldown_s: 30,
+            gen_fail_cooldown_max_s: 300,
+            gen_fail_alert: 3,
             issue_queue_depth: 1,
             area_deadlock_ms: 10_000,
             echo_timeout_ms: None,
@@ -126,6 +134,9 @@ pub fn spec() -> Vec<Spec> {
         s("gen_blocked_penalty", "Generation", "score", Some(0.0), Some(1000.0), false, None, "영역에 막힌 후보의 표시 감점(막힌 후보는 어차피 만들지 않는다)."),
         s("gen_avoid_bonus", "Generation", "score", Some(0.0), Some(10000.0), false, None, "회피 우선 — 막힌 로봇의 자리를 비켜 주는 후보에 얹는 점수. 0 이면 회피를 우선하지 않는다."),
         s("station_require_cvok", "Generation", "", None, None, false, None, "새 스테이션 요청 규칙의 기본: Req AND CVOK(컨베이어 준비)."),
+        s("gen_fail_cooldown_s", "Generation", "s", Some(0.0), Some(3600.0), false, None, "같은 수요(스테이션 · 요청)가 중단되면 이만큼 쉬고 다시 만든다 — 실패할 때마다 두 배."),
+        s("gen_fail_cooldown_max_s", "Generation", "s", Some(0.0), Some(86400.0), false, None, "실패 냉각의 최대값."),
+        s("gen_fail_alert", "Generation", "회", Some(0.0), Some(100.0), false, None, "연속 실패가 이 횟수에 닿으면 이벤트 로그(CON_SCHED) 경고. 0 = 안 함."),
         s("issue_queue_depth", "Issue", "건", Some(1.0), Some(1.0), true, None, "PLC 에는 실행 중 + 다음 1 건까지만(안전 규칙, 고정)."),
         s("area_deadlock_ms", "Issue", "ms", Some(1000.0), Some(600000.0), false, None, "서 있는 로봇이 영역을 막을 때 교착으로 보고 멈추기까지(시나리오 실행기)."),
         s("echo_timeout_ms", "Issue", "ms", Some(500.0), Some(60000.0), false, Some("gr-console.toml cmd.echo_timeout_ms (비우면 그 값)"), "제출 뒤 PLC 에코를 기다리는 한계 — 넘으면 Failed."),

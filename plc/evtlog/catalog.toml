@@ -1849,6 +1849,20 @@ lvl = "INFO"
 text = "설정 저장 {detail}"
 
 [[console]]
+code = 9016
+name = "CON_SCHED"
+cat = "CMD"
+lvl = "WARN"
+text = "스케줄러 {detail}"
+
+[[console]]
+code = 9017
+name = "CON_REQUEST"
+cat = "CMD"
+lvl = "INFO"
+text = "이송 요청 {detail}"
+
+[[console]]
 code = 9020
 name = "CON_EVT_GAP"
 cat = "SYS"

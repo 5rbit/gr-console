@@ -3,6 +3,7 @@
 //   모니터링:      좌클릭 = 셀·화물 정보 카드(플롯 안), 우클릭 = 명령 팔레트
 //   레이아웃 편집: 좌클릭 = 우측 사이드바 셀/스테이션 리스트에서 선택, 생성 예정 셀 표시
 // 로봇이 작업 중인 셀은 그 로봇 색 테두리(대기 = 점선), 로봇 위치는 같은 색 십자.
+// 모니터링 모드는 스케줄러 준비 상태(PICK ▲ · DROP ▼)를 그린다 — 켜고 끄기는 모드 토글 옆, 브라우저에 저장.
 import { useEffect, useMemo, useState } from 'react'
 import { Eye, ListPlus, Wand2, X } from 'lucide-react'
 import { allStatus } from '../../lib/feeds'
@@ -12,6 +13,10 @@ import type { Registry } from '../../lib/registry'
 import { robotColor, robots } from '../../lib/robots'
 import { stock as stockStore } from '../../lib/stock'
 import { stationLive } from '../../lib/task/stationLiveStore'
+import { useReady } from '../../lib/task/readyStore'
+import { holdLine, readyShort } from '../../lib/task/readyMarkModel'
+import { readyMark, targetKey, type TargetReady } from '../../lib/sched'
+import CondExpr from '../sched/CondExpr'
 import { stationAsCell } from '../../lib/task/stationCell'
 import { useStore } from '../../lib/store'
 import { tasks } from '../../lib/tasks'
@@ -24,6 +29,7 @@ import { f1 } from '../../lib/meas/format'
 import { ctxMenu, type MenuItem } from '../../lib/ui/menu'
 import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
+import { cn } from '../../lib/utils'
 import type { Cell, GripRef, Item, Station, Target, TaskType } from '../../lib/types'
 import { PlcStructView } from '../shared/PlcStructView'
 import { CellMap, type RobotMarker, type WorkMark } from './CellMap'
@@ -38,6 +44,15 @@ const TYPE_NAME: Record<number, string> = Object.fromEntries(
   Object.entries(TASK_TYPE_CODE).map(([k, v]) => [v, k]),
 )
 const isStation = (id: number) => id >= 2001 && id <= 2999
+const READY_KEY = 'gr-map-ready'
+
+function loadShowReady(): boolean {
+  try {
+    return localStorage.getItem(READY_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
 
 export interface LayoutTabProps {
   cells: Registry<Cell>
@@ -104,6 +119,18 @@ export function LayoutTab({
   useEffect(() => allStatus.start(), [])
   useEffect(() => tasks.start(), [])
   const [info, setInfo] = useState<Shape | null>(null)
+  const [showReady, setShowReady] = useState(loadShowReady)
+  // 준비 상태는 모니터링 모드에서만 받는다(정보 카드는 표식을 꺼도 보인다).
+  const { index: ready } = useReady(mode === 'monitor')
+  const toggleReady = () => {
+    const b = !showReady
+    setShowReady(b)
+    try {
+      localStorage.setItem(READY_KEY, b ? '1' : '0')
+    } catch {
+      /* 저장 못 해도 동작 */
+    }
+  }
   const stockVer = stockStore.getSnapshot()
   const highlight = useMemo(() => {
     if (highlightItem === null) return undefined
@@ -176,6 +203,7 @@ export function LayoutTab({
     ? items.find((i) => i.code === infoStock.item_code)
     : undefined
   const infoWork = info ? work.get(`${info.kind}-${info.id}`) : undefined
+  const infoReady = info ? ready.get(targetKey(info)) : undefined
 
   /**
    * 한 대상에 걸 수 있는 명령 목록 — 우클릭 팔레트와 정보 카드의 ⋯ 가 **같은 것**을 쓴다.
@@ -319,6 +347,22 @@ export function LayoutTab({
       </Button>
     ) : null
 
+  const readyToggle =
+    mode === 'monitor' ? (
+      <Button
+        size="sm"
+        intent="outline"
+        active={showReady}
+        aria-pressed={showReady}
+        className={cn('bg-surface-panel shadow-sm', !showReady && 'text-content-faint')}
+        title={`PICK·DROP 표시 ${showReady ? '끄기' : '켜기'} — ▲ PICK · ▼ DROP · 초록 가능 · 주황 품목 미정 · 로봇 색 예약 · 속 빈 회색 막힘`}
+        onClick={toggleReady}
+        data-testid="map-ready-toggle"
+      >
+        ▲▼
+      </Button>
+    ) : null
+
   const g = infoItem ? gripOffset(gripRef, infoItem) : 0
 
   return (
@@ -329,6 +373,7 @@ export function LayoutTab({
         selected={mode === 'monitor' && info ? { kind: info.kind, id: info.id } : selected}
         stock={stockStore.map}
         stationLive={stationLive.map}
+        ready={mode === 'monitor' && showReady ? ready : undefined}
         items={items}
         showDirty={mode === 'edit'}
         highlight={highlight}
@@ -343,6 +388,7 @@ export function LayoutTab({
             {modeToggle}
             {kindSelect}
             {teachAllButton}
+            {readyToggle}
           </>
         }
         onPick={(t, shape) => {
@@ -385,6 +431,7 @@ export function LayoutTab({
               />
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3 text-xs">
+              {infoReady && (infoCell || infoStation) ? <ReadyRow t={infoReady} /> : null}
               {infoCell ? (
                 <>
                   {/* 라벨+값 짝은 킷의 `InfoRows` 하나다(손으로 짠 `<table>` 이었다) — 좁은 정보
@@ -522,6 +569,48 @@ export function LayoutTab({
         onClose={() => setStockEdit(null)}
         onItemsChanged={onItemsChanged}
       />
+    </div>
+  )
+}
+
+const READY_TONE_CLS = {
+  ok: 'text-ok-fg',
+  warn: 'text-warn-fg',
+  bad: 'text-content-muted',
+} as const
+
+/** 정보 카드의 준비 한 줄 — `PICK ✓ · DROP ✗ 이유` + 예약. */
+function ReadyRow({ t }: { t: TargetReady }) {
+  const ready = t
+  const pick = readyShort(t, 'pick')
+  const drop = readyShort(t, 'drop')
+  return (
+    <div className="flex flex-col gap-0.5 text-2xs" data-testid="info-ready">
+      <div className="flex min-w-0 flex-wrap gap-x-1.5">
+        <span className={READY_TONE_CLS[pick.tone]}>{pick.text}</span>
+        <span className="text-content-faint">·</span>
+        <span className={READY_TONE_CLS[drop.tone]}>{drop.text}</span>
+      </div>
+      {(['pick', 'drop'] as const)
+        .filter(
+          (op) =>
+            ready &&
+            ready.kind === 'station' &&
+            readyMark(ready, op) !== 'none' &&
+            ready[op].expr?.length,
+        )
+        .map((op) => (
+          <span key={op} className="flex min-w-0 items-center gap-1.5">
+            <span className="text-content-muted">{op.toUpperCase()}</span>
+            <CondExpr expr={ready?.[op].expr} />
+          </span>
+        ))}
+
+      {t.holds.map((h, i) => (
+        <span key={i} className="truncate text-content-muted">
+          {holdLine(h)}
+        </span>
+      ))}
     </div>
   )
 }

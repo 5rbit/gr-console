@@ -4,6 +4,7 @@
 // 화면이 늘어 축이 필요해지면 여기서 그룹을 가른다(App은 그룹 수에 매이지 않는다).
 import {
   Activity,
+  CalendarClock,
   Grid3x3,
   Hand,
   ListChecks,
@@ -47,6 +48,8 @@ export const TAB_GROUPS: TabGroupDef[] = [{ id: 'engineering', label: '엔지니
 /** 전 탭 — 그룹 순서대로 늘어놓는다(단축키 1~9가 보이는 탭의 이 순서를 쓴다). */
 export const ALL_TABS: TabDef[] = [
   { id: 'task', label: '작업 명령', icon: Send, group: 'engineering' },
+  // 백엔드 console_info 에 실리기 전에도 닿게 local.
+  { id: 'scheduler', label: '스케줄러', icon: CalendarClock, group: 'engineering', local: true },
   { id: 'items', label: '화물 규격', icon: Ruler, group: 'engineering' },
   { id: 'taskmgr', label: 'Task 관리', icon: ListChecks, group: 'engineering' },
   { id: 'measure', label: '측정 모니터', icon: Activity, group: 'engineering' },

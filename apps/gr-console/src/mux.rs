@@ -4,7 +4,7 @@
 //! Task · 재고 · 시나리오 · 스테이션 · 알림) 그 수를 넘겨서, 새 조회(GET)가 실패도 하지 않고 영원히 줄을
 //! 선다 — 화면이 "읽는 중…" 에 멈춘다. 그래서 이름 붙은 이벤트를 하나의 연결로 모아 보낸다.
 //!
-//! 이벤트 이름은 낱개 스트림과 **같다**(`status` · `tasks` · `stock` · `run` · `stations` · `alert` ·
+//! 이벤트 이름은 낱개 스트림과 **같다**(`status` · `tasks` · `stock` · `run` · `stations` · `ready`(스케줄러 준비 상태) · `alert` ·
 //! `alert_ack`). 로봇별 상태만 이름이 `status:<robot>` 이다 — 한 연결에 여러 로봇이 섞이기 때문이다.
 //! 화면은 이 연결이 없으면(옛 콘솔) 낱개 스트림으로 돌아간다.
 
@@ -54,6 +54,7 @@ async fn stream(State(st): State<AppState>, Query(q): Query<MuxQuery>) -> Sse<im
     parts.push(Box::pin(named(st.stock.events.subscribe(), "stock".into(), st.stock.list().ok().map(|stock| crate::stock::StockEvent::Snapshot { stock }))));
     parts.push(Box::pin(named(st.scenario.events.subscribe(), "run".into(), Some(st.scenario.current()))));
     parts.push(Box::pin(named(crate::issue::station_live::subscribe(), "stations".into(), Some(crate::issue::station_live::snapshot()))));
+    parts.push(Box::pin(named(crate::taskgen::ready::subscribe(), "ready".into(), Some(crate::taskgen::ready::snapshot()))));
     Sse::new(futures::stream::select_all(parts)).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)).text("ping"))
 }
 
