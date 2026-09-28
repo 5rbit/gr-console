@@ -28,6 +28,7 @@ import {
   type GenState,
   type GenTrigger,
 } from '../../lib/taskgen'
+import { loadFailureText } from '../../lib/api'
 import { visibleInterval } from '../../lib/poll'
 import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
 import { Button } from '../../lib/ui/Button'
@@ -463,10 +464,10 @@ export function AutoGenPanel() {
         setState(s)
         setErr(null)
       })
-      .catch((e) => {
-        const why = e instanceof Error ? e.message : String(e)
+      .catch((e: unknown) => {
         setErr((prev) => {
-          if (prev === null) toast.error(`생성 엔진을 읽지 못함 — ${why}`)
+          const why = loadFailureText(e, '생성 규칙', false)
+          if (prev === null) toast.error(why)
           return why
         })
       })
@@ -811,8 +812,7 @@ export function AutoGenPanel() {
   const errBand = err ? (
     <div className="flex items-center gap-2 rounded border border-warn-border bg-warn-soft px-2 py-1 text-2xs text-warn-fg">
       <span className="min-w-0 flex-1 truncate" title={err}>
-        생성 엔진을 읽지 못함 — {err} (2초마다 다시 시도
-        {state ? ', 아래 값은 마지막으로 읽은 것' : ''})
+        {err} · 2초마다 다시 시도{state ? ' · 아래는 마지막으로 읽은 값' : ''}
       </span>
       <Button size="sm" intent="ghost" onClick={load} data-testid="taskgen-retry">
         다시 시도

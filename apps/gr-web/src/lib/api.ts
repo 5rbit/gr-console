@@ -427,3 +427,25 @@ export const api = {
   scenarioRunNow: () => getJson<ScenarioRun | null>('/api/scenarios/run'),
   runsStream: (): EventSource => new EventSource(STREAM_URL.runs),
 }
+
+/**
+ * 조회 실패를 사람 말로 — **브라우저가 콘솔에 닿지 못한 것**(transport)과 콘솔이 낸 사유를 가른다.
+ *
+ * `Failed to fetch` 는 서버 안의 엔진이 아니라 **연결**이 실패한 것이다. 둘을 같은 문구로 말하면
+ * "엔진이 죽었나" 로 읽힌다 — 실제로는 콘솔이 꺼졌거나 이 탭이 다른 주소를 보고 있는 경우다.
+ */
+export function loadFailure(e: unknown): { transport: boolean; text: string } {
+  const raw = e instanceof Error ? e.message : String(e)
+  const transport =
+    /failed to fetch|networkerror|load failed|fetch failed|err_connection|refused/i.test(raw)
+  return { transport, text: raw }
+}
+
+/** 화면 띠 한 줄 — `what` 은 못 읽은 것의 이름(예: "생성 규칙"). */
+export function loadFailureText(e: unknown, what: string, stale: boolean): string {
+  const { transport, text } = loadFailure(e)
+  const tail = stale ? ' · 아래는 마지막으로 읽은 값' : ''
+  return transport
+    ? `콘솔에 연결하지 못해 ${what} 갱신이 멈췄습니다 — 콘솔이 꺼졌거나 이 탭이 다른 주소를 봅니다 (${text})${tail}`
+    : `${what}을 읽지 못함 — ${text}${tail}`
+}

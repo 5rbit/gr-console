@@ -2,6 +2,7 @@
 // 저장하고, 누가/언제/무엇을 바꿨는지는 이력으로 남는다. PLC PARA 를 따라가는 값은 로봇별 실측과 나란히 보인다.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
+import { loadFailureText } from '../../lib/api'
 import {
   fromText,
   paramsApi,
@@ -37,10 +38,10 @@ export function ParamsPanel() {
         setEdits({})
         setErr(null)
       })
-      .catch((e) => {
-        const why = e instanceof Error ? e.message : String(e)
+      .catch((e: unknown) => {
         setErr((prev) => {
-          if (prev === null) toast.error(`파라미터를 읽지 못함 — ${why}`)
+          const why = loadFailureText(e, '파라미터', false)
+          if (prev === null) toast.error(why)
           return why
         })
       })
@@ -74,8 +75,8 @@ export function ParamsPanel() {
       data-testid="params-error"
     >
       <span className="min-w-0 flex-1 truncate" title={err}>
-        파라미터를 읽지 못함 — {err}
-        {state ? ' (아래 값은 마지막으로 읽은 것)' : ''}
+        {err}
+        {state ? ' · 아래는 마지막으로 읽은 값' : ''}
       </span>
       <Button size="sm" intent="ghost" onClick={load} data-testid="params-retry">
         다시 시도
