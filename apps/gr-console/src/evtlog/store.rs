@@ -12,6 +12,8 @@ pub const MIGRATIONS: Migrations = &[
     ("0002_alerts", include_str!("migrations/0002_alerts.sql")),
     // 이벤트 화면의 저장된 필터, 2026-09-27
     ("0003_saved_filters", include_str!("migrations/0003_saved_filters.sql")),
+    // 알림 규칙 types · trans, 기본 규칙 Alarm 발생, 2026-09-28
+    ("0004_alert_types", include_str!("migrations/0004_alert_types.sql")),
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,6 +87,10 @@ pub struct Filter {
     pub origin: Option<Origin>,
     pub from: Option<i64>,
     pub to: Option<i64>,
+    /// ErrorList codes (`Texts::code_cond`), OR-ed with `codes`.
+    pub code_or: Option<(String, Vec<Value>)>,
+    /// ErrorList types (`Texts::type_cond`), AND-ed.
+    pub types: Option<(String, Vec<Value>)>,
 }
 
 const COLS: &str = "id, plc, epoch, seq, plc_ts, rx_ts, cat, lvl, src, code, a, b, ctx, origin, detail";
@@ -189,8 +195,8 @@ impl Store {
         };
         list(&mut sql, "plc", f.plcs.iter().map(|p| Value::Text(p.clone())).collect());
         list(&mut sql, "cat", f.cats.iter().map(|c| Value::Integer(i64::from(*c))).collect());
-        if !f.codes.is_empty() {
-            let parts: Vec<String> = f
+        if !f.codes.is_empty() || f.code_or.is_some() {
+            let mut parts: Vec<String> = f
                 .codes
                 .iter()
                 .map(|(cat, code)| match (cat, code) {
@@ -200,7 +206,15 @@ impl Store {
                     (None, None) => "1=1".to_string(),
                 })
                 .collect();
+            if let Some((cond, a)) = &f.code_or {
+                parts.push(cond.clone());
+                args.extend(a.iter().cloned());
+            }
             sql.push_str(&format!(" AND ({})", parts.join(" OR ")));
+        }
+        if let Some((cond, a)) = &f.types {
+            sql.push_str(&format!(" AND {cond}"));
+            args.extend(a.iter().cloned());
         }
         let mut push = |cond: &str, v: Value| {
             sql.push_str(cond);

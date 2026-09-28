@@ -7,6 +7,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::Catalog;
+use crate::errorlist::{self, ElEntry, ElRow, ErrorList, Formats, Level, Trans, Ty, ValFmt};
 
 /// One stored event, as numbers.
 #[derive(Clone, Debug, Default)]
@@ -177,6 +178,30 @@ pub struct Renderer {
     enums: HashMap<String, BTreeMap<i64, String>>,
     alarms: AlarmTable,
     templates: HashMap<String, Vec<Tok>>,
+    errorlist: ErrorList,
+    formats: Arc<Formats>,
+}
+
+/// What a row is in ErrorList terms (Events tab Type column / filter).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Class {
+    pub ty: Ty,
+    pub trans: Option<Trans>,
+    /// `F3119`; `None` when the row maps to several ErrorList rows or the alarm bit has no code.
+    pub code: Option<String>,
+}
+
+/// `850 ms`, `4.2 s`, `3 m 05 s`, `1 h 02 m`.
+pub fn fmt_ms(ms: i64) -> String {
+    let ms = ms.max(0);
+    if ms < 1000 {
+        return format!("{ms} ms");
+    }
+    if ms < 60_000 {
+        return format!("{:.1} s", ms as f64 / 1000.0);
+    }
+    let s = ms / 1000;
+    if s < 3600 { format!("{} m {:02} s", s / 60, s % 60) } else { format!("{} h {:02} m", s / 3600, (s % 3600) / 60) }
 }
 
 impl Renderer {
@@ -200,7 +225,54 @@ impl Renderer {
             enums.insert(name.clone(), map);
         }
         let templates = cat.events.iter().map(|e| (e.name.clone(), parse(&e.text))).collect();
-        Renderer { cat, enums, alarms, templates }
+        Renderer { cat, enums, alarms, templates, errorlist: ErrorList::default(), formats: Arc::new(Formats::default()) }
+    }
+
+    /// ErrorList of this PLC (`errorlist.json`) + the console's value hints (`errorlist-format.toml`).
+    pub fn with_errorlist(mut self, errorlist: ErrorList, formats: Arc<Formats>) -> Renderer {
+        self.errorlist = errorlist;
+        self.formats = formats;
+        self
+    }
+
+    pub fn errorlist(&self) -> &ErrorList {
+        &self.errorlist
+    }
+
+    /// Bit indexes (alarms.json) of an alarm code in an area — bit alarm rows carry the bit, not the code.
+    pub fn alarm_bits(&self, area: &str, code: u32) -> Vec<u32> {
+        self.alarms.entries.iter().filter(|e| e.code == code && e.area.eq_ignore_ascii_case(area)).map(|e| e.bit).collect()
+    }
+
+    /// ErrorList row → its type and code; bit alarm rows by area; other catalog rows by the ErrorList's catalog reference.
+    pub fn classify(&self, ev: &Ev) -> Option<Class> {
+        if let Some(v) = errorlist::decode(ev.cat, ev.src, ev.code) {
+            let ty = self.errorlist.get(v.level, v.num).map(ElEntry::ty).unwrap_or(match v.level {
+                Level::Alarm => Ty::Alarm,
+                Level::Warn => Ty::Warn,
+                Level::Operator => Ty::Operator,
+                Level::Info => Ty::Info,
+            });
+            return Some(Class { ty, trans: Some(v.trans), code: Some(v.label()) });
+        }
+        if ev.cat == errorlist::CAT_ALARM && (ev.code == errorlist::ALM_RAISED || ev.code == errorlist::ALM_CLEARED) {
+            let ty = match ev.src {
+                1 => Ty::Alarm,
+                2 => Ty::Warn,
+                3 => Ty::Operator,
+                4 => Ty::Task,
+                _ => return None,
+            };
+            let code = u32::try_from(ev.a).ok().and_then(|bit| self.alarm(ev.src, bit)).filter(|a| a.code != 0 && matches!(ty, Ty::Alarm | Ty::Warn)).map(|a| {
+                let level = if ty == Ty::Alarm { Level::Alarm } else { Level::Warn };
+                errorlist::label(level, a.code)
+            });
+            let trans = if ev.code == errorlist::ALM_RAISED { Trans::Raise } else { Trans::Clear };
+            return Some(Class { ty, trans: Some(trans), code });
+        }
+        let def = self.cat.event(ev.cat, ev.code)?;
+        let (ty, e) = self.errorlist.for_catalog(&def.name, ev.src)?;
+        Some(Class { ty, trans: None, code: e.map(|e| e.code.clone()) })
     }
 
     pub fn enum_label(&self, name: &str, v: i64) -> Option<&str> {
@@ -212,13 +284,27 @@ impl Renderer {
         self.enums.get(name)
     }
 
+    /// `area` = `alarm_area` id. The alarm table keeps the ALARM DB member names (3 EVENT, 4 TASK),
+    /// not the ErrorList level names of the enum.
     pub fn alarm(&self, area: u32, bit: u32) -> Option<&AlarmEntry> {
-        let area = self.enum_label("alarm_area", i64::from(area))?;
-        self.alarms.find(area, bit)
+        let member = match area {
+            3 => "EVENT",
+            4 => "TASK",
+            _ => self.enum_label("alarm_area", i64::from(area))?,
+        };
+        self.alarms.find(member, bit)
     }
 
     /// Text of one event; an unknown (cat, code) renders as `CAT code src=.. a=.. b=..`.
     pub fn render(&self, ev: &Ev) -> String {
+        self.render_lang(ev, false)
+    }
+
+    /// `en`: ErrorList / alarm texts in English (catalog templates have one language).
+    pub fn render_lang(&self, ev: &Ev, en: bool) -> String {
+        if let Some(v) = errorlist::decode(ev.cat, ev.src, ev.code) {
+            return self.render_el(ev, v, en);
+        }
         let Some(def) = self.cat.event(ev.cat, ev.code) else { return self.fallback(ev) };
         let Some(toks) = self.templates.get(&def.name) else { return self.fallback(ev) };
         let mut s = String::new();
@@ -227,7 +313,7 @@ impl Renderer {
                 Tok::Lit(l) => s.push_str(l),
                 Tok::Plc => s.push_str(ev.plc),
                 Tok::Detail => s.push_str(ev.detail.unwrap_or("")),
-                Tok::Alarm => s.push_str(&self.alarm_text(ev)),
+                Tok::Alarm => s.push_str(&self.alarm_text(ev, en)),
                 Tok::Val(f, fmt) => {
                     let v = match f {
                         Field::Src => i64::from(ev.src),
@@ -261,18 +347,102 @@ impl Renderer {
     }
 
     /// `F3119 Station interlock timeout`; unknown bit → `FAULT bit 594 (74.2)`.
-    fn alarm_text(&self, ev: &Ev) -> String {
+    fn alarm_text(&self, ev: &Ev, en: bool) -> String {
         let bit = u32::try_from(ev.a).unwrap_or(u32::MAX);
         let area = self.enum_label("alarm_area", i64::from(ev.src)).unwrap_or("area?").to_string();
         match self.alarm(ev.src, bit) {
             Some(a) => {
                 // HMI / ErrorList spelling: F0101. EVENT / TASK bits have no code.
-                let text = if a.text_ko.is_empty() { &a.text_en } else { &a.text_ko };
+                let text = if (en && !a.text_en.is_empty()) || a.text_ko.is_empty() { &a.text_en } else { &a.text_ko };
                 let head = if a.code == 0 { area.clone() } else { format!("{}{:04}", area.chars().next().unwrap_or('?'), a.code) };
                 format!("{head} {text}").trim_end().to_string()
             }
             None => format!("{area} bit {} ({}.{})", ev.a, ev.a.div_euclid(8), ev.a.rem_euclid(8)),
         }
+    }
+
+    /// `<ErrorList text> 발생 · <values>` — the code is not in the text (the Type column shows it).
+    fn render_el(&self, ev: &Ev, v: ElRow, en: bool) -> String {
+        let code = v.label();
+        let e = self.errorlist.get(v.level, v.num);
+        let mut s = e.map(|e| e.text(en).to_string()).filter(|t| !t.is_empty()).unwrap_or_else(|| if en { format!("{code} (not in the ErrorList)") } else { format!("{code} (ErrorList 에 없음)") });
+        let word = match (v.trans, en) {
+            (Trans::Raise, false) => "발생",
+            (Trans::Raise, true) => "raised",
+            (Trans::Clear, false) => "해제",
+            (Trans::Clear, true) => "cleared",
+            (Trans::Momentary, _) => "",
+            (Trans::Summary, false) => "반복 억제",
+            (Trans::Summary, true) => "repeats suppressed",
+        };
+        if !word.is_empty() {
+            s.push(' ');
+            s.push_str(word);
+        }
+        let parts = match v.trans {
+            Trans::Clear => {
+                let mut p = vec![format!("{} {}", if en { "active" } else { "지속" }, fmt_ms(ev.b))];
+                if ev.a > 0 {
+                    p.push(format!("flicker {}", ev.a));
+                }
+                p
+            }
+            Trans::Summary => vec![if en { format!("{} rows", ev.a) } else { format!("{} 건", ev.a) }],
+            Trans::Raise | Trans::Momentary => self.el_values(ev, v.level, &code, e),
+        };
+        if !parts.is_empty() {
+            s.push_str(" · ");
+            s.push_str(&parts.join(" · "));
+        }
+        s
+    }
+
+    /// Src (Operator / Info only — ALARM rows carry the area there), A, B by the format hint, else guessed from the
+    /// ErrorList meaning. A value without a meaning shows only when it is not 0 (an ALARM without values: B = the step).
+    fn el_values(&self, ev: &Ev, level: Level, code: &str, e: Option<&ElEntry>) -> Vec<String> {
+        let none = errorlist::FormatHint::default();
+        let h = self.formats.get(code).unwrap_or(&none);
+        let (am, bm) = e.map(|e| (e.a_meaning.as_str(), e.b_meaning.as_str())).unwrap_or(("", ""));
+        let alarm = matches!(level, Level::Alarm | Level::Warn);
+        let mut out = Vec::new();
+        if !alarm {
+            let g = errorlist::src_hint(am).or_else(|| errorlist::src_hint(bm)).map(|l| (l, ValFmt::Raw(None)));
+            out.extend(self.one(i64::from(ev.src), h.src.as_deref(), h.src_label.as_deref(), g, "Src"));
+        }
+        out.extend(self.one(ev.a, h.a.as_deref(), h.a_label.as_deref(), errorlist::guess(am), "A"));
+        // an alarm with no attached value carries the step in B (like the bit alarm row ALM_RAISED)
+        let gb = errorlist::guess(bm).or_else(|| (alarm && am.trim().is_empty() && ev.b != 0).then(|| ("step".to_string(), ValFmt::Raw(None))));
+        out.extend(self.one(ev.b, h.b.as_deref(), h.b_label.as_deref(), gb, "B"));
+        out
+    }
+
+    fn one(&self, v: i64, spec: Option<&str>, label: Option<&str>, guessed: Option<(String, ValFmt)>, fallback: &str) -> Option<String> {
+        let fmt = match spec.and_then(errorlist::parse_spec) {
+            Some(f) => f,
+            None => match &guessed {
+                Some((_, f)) => f.clone(),
+                None if v == 0 => return None,
+                None => ValFmt::Raw(None),
+            },
+        };
+        // an explicit empty label prints the value alone (`ON`)
+        let name = match label {
+            Some("") => String::new(),
+            Some(l) => l.to_string(),
+            None => guessed.map(|g| g.0).filter(|n| !n.is_empty() && n.chars().count() <= 20).unwrap_or_else(|| fallback.to_string()),
+        };
+        let val = match &fmt {
+            ValFmt::None => return None,
+            ValFmt::Raw(None) => v.to_string(),
+            ValFmt::Raw(Some(u)) => format!("{v} {u}"),
+            ValFmt::Hex => hex(v),
+            ValFmt::OnOff => self.value(v, &Fmt::OnOff),
+            ValFmt::Enum(e) => self.value(v, &Fmt::Enum(e.clone())),
+            ValFmt::Bits(e) => self.value(v, &Fmt::Bits(e.clone())),
+            ValFmt::Div(d, None) => scaled(v, *d),
+            ValFmt::Div(d, Some(u)) => format!("{} {u}", scaled(v, *d)),
+        };
+        Some(if name.is_empty() { val } else { format!("{name} {val}") })
     }
 
     fn fallback(&self, ev: &Ev) -> String {
@@ -325,7 +495,7 @@ mod tests {
         assert_eq!(r.render(&ev(6, 601, 1, 594, 400)), "F3119 스테이션 인터록 타임아웃 발생 (step 400)");
         assert_eq!(r.render(&ev(6, 602, 2, 17, 0)), "WARN bit 17 (2.1) 해제");
         assert_eq!(r.render(&ev(6, 602, 1, 8, 0)), "F0101 EMS 해제", "4-digit code, English when no Korean");
-        assert_eq!(r.render(&ev(6, 601, 3, 3, 0)), "EVENT Robot auto allowed 발생 (step 0)", "code 0 is not shown");
+        assert_eq!(r.render(&ev(6, 601, 3, 3, 0)), "OPERATOR Robot auto allowed 발생 (step 0)", "code 0 is not shown");
         // bits
         assert_eq!(r.render(&ev(2, 205, 0, 0b1010, 0)), "AUTO 시작 불가 : PowerOnDrive, GRM_Connected");
         assert_eq!(r.render(&ev(12, 1202, 0, 0b1000_0001, 0)), "PI CVOK, SpareX7 (이전 -)");
@@ -340,6 +510,73 @@ mod tests {
         assert_eq!(r.render(&ev(3, 410, 999, 5, 400)), "999 400→410  (400 체류 5 ms)");
         assert_eq!(r.render(&ev(7, 799, 1, 2, 3)), "GRIP 799 src=1 a=2 b=3");
         assert_eq!(r.render(&ev(99, 1, 0, 0, 0)), "cat99 1 src=0 a=0 b=0");
+    }
+
+    fn el_entry(code: &str, class: &str, en: &str, ko: &str, a: &str, b: &str, catalog: Option<(&str, Option<u32>)>) -> ElEntry {
+        let (level, num) = errorlist::parse_label(code).unwrap();
+        ElEntry {
+            level: Some(level),
+            code: code.into(),
+            num,
+            hmi_class: class.into(),
+            text_en: en.into(),
+            text_ko: ko.into(),
+            a_meaning: a.into(),
+            b_meaning: b.into(),
+            catalog: catalog.map(|c| c.0.to_string()),
+            catalog_src: catalog.and_then(|c| c.1),
+            ..Default::default()
+        }
+    }
+
+    fn el_renderer() -> Renderer {
+        let el = ErrorList::new(vec![
+            el_entry("F3119", "FAULT", "Station Interlock Timeout", "스테이션 인터록 타임아웃", "step (400 / 600)", "", None),
+            el_entry("W1101", "WARN", "X Axis - Lag Error", "X축 Lag", "", "", None),
+            el_entry("O0101", "OPERATOR", "X Axis - Jog Speed Forward", "X 축 Jog Speed 전진", "시작 위치 (mm×10)", "0 (Jog)", Some(("CMD_JOG", Some(1)))),
+            el_entry("I0301", "TASK", "Task - Accepted to Buffer", "작업 수락 (Buff)", "Cell.Id (Src = task type)", "WorkId", Some(("TASK_ACCEPTED", None))),
+            el_entry("I5101", "INFO", "Step - Changed", "Step 변경", "", "", Some(("STEP_CHANGED", None))),
+        ]);
+        let fmt = Formats::parse("[gr.I0301]\nsrc = \"enum:task_type\"\nsrc_label = \"Type\"\na_label = \"Cell\"\n[gr.O0101]\nb = \"none\"\n", false).unwrap();
+        Renderer::new(Arc::new(crate::tests::repo_catalog()), &consts(), alarms()).with_errorlist(el, Arc::new(fmt))
+    }
+
+    #[test]
+    fn errorlist_rows_render_text_and_values() {
+        let r = el_renderer();
+        let en = |e: Ev| r.render_lang(&e, true);
+        assert_eq!(r.render(&ev(6, 13119, 1, 400, 0)), "스테이션 인터록 타임아웃 발생 · step 400");
+        assert_eq!(en(ev(6, 13119, 1, 400, 0)), "Station Interlock Timeout raised · step 400");
+        assert_eq!(r.render(&ev(6, 11101, 2, 0, 600)), "X축 Lag 발생 · step 600", "no meaning: B is the step when set");
+        assert_eq!(r.render(&ev(6, 21101, 2, 3, 4200)), "X축 Lag 해제 · 지속 4.2 s · flicker 3");
+        assert_eq!(en(ev(6, 21101, 2, 0, 125_000)), "X Axis - Lag Error cleared · active 2 m 05 s");
+        assert_eq!(r.render(&ev(6, 41101, 2, 12, 0)), "X축 Lag 반복 억제 · 12 건");
+        assert_eq!(r.render(&ev(18, 10101, 0, 5984, 0)), "X 축 Jog Speed 전진 발생 · 시작 위치 598.4 mm");
+        assert_eq!(r.render(&ev(19, 30301, 0x50, 101, 55)), "작업 수락 (Buff) · Type PICK · Cell 101 · WorkId 55");
+        assert_eq!(en(ev(19, 30999, 0, 0, 7)), "I0999 (not in the ErrorList) · B 7");
+        // bit alarm rows are unchanged, the English text only swaps the alarm text
+        assert_eq!(r.render(&ev(6, 601, 1, 594, 400)), "F3119 스테이션 인터록 타임아웃 발생 (step 400)");
+        assert_eq!(en(ev(6, 601, 1, 594, 400)), "F3119 Station interlock timeout 발생 (step 400)");
+        assert_eq!(fmt_ms(850), "850 ms");
+        assert_eq!(fmt_ms(3_723_000), "1 h 02 m");
+    }
+
+    #[test]
+    fn classify_errorlist_bit_alarm_and_catalog_rows() {
+        let r = el_renderer();
+        let c = |e: Ev| r.classify(&e).map(|c| (c.ty, c.trans, c.code));
+        assert_eq!(c(ev(6, 13119, 1, 400, 0)), Some((Ty::Alarm, Some(Trans::Raise), Some("F3119".into()))));
+        assert_eq!(c(ev(6, 21101, 2, 0, 0)), Some((Ty::Warn, Some(Trans::Clear), Some("W1101".into()))));
+        assert_eq!(c(ev(19, 30301, 1, 0, 0)), Some((Ty::Task, Some(Trans::Momentary), Some("I0301".into()))), "HMI class TASK");
+        assert_eq!(c(ev(19, 30999, 1, 0, 0)), Some((Ty::Info, Some(Trans::Momentary), Some("I0999".into()))), "unknown Info code");
+        assert_eq!(c(ev(6, 601, 1, 594, 0)), Some((Ty::Alarm, Some(Trans::Raise), Some("F3119".into()))), "bit alarm row: code from alarms.json");
+        assert_eq!(c(ev(6, 602, 3, 3, 0)), Some((Ty::Operator, Some(Trans::Clear), None)), "EVENT bits have no code");
+        assert_eq!(c(ev(6, 601, 4, 9, 0)), Some((Ty::Task, Some(Trans::Raise), None)), "bit alarm row, TASK area");
+        assert_eq!(c(ev(5, 513, 1, 1, 0)), Some((Ty::Operator, None, Some("O0101".into()))), "CMD_JOG Src=1");
+        assert_eq!(c(ev(3, 300, 20, 900, 200)), Some((Ty::Info, None, Some("I5101".into()))), "STEP (\"*\") by name");
+        assert_eq!(c(ev(4, 401, 1, 101, 7)), Some((Ty::Task, None, Some("I0301".into()))));
+        assert_eq!(c(ev(7, 701, 1, 0, 0)), None, "not in the ErrorList");
+        assert_eq!(c(ev(6, 603, 1, 2, 0)), None);
     }
 
     #[test]

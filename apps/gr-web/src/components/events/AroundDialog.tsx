@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { evtApi, type EventRow } from '../../lib/evtlog/api'
 import { buildQuery, EMPTY_FILTER } from '../../lib/evtlog/evtFilterModel'
 import { aroundWindow, fmtEvtTime, fmtOffset, newestFirst } from '../../lib/evtlog/evtRowsModel'
+import { evtView } from '../../lib/evtlog/store'
+import { rowText } from '../../lib/evtlog/evtTypeModel'
 import { swimEntry, type SwimState } from '../../lib/evtlog/swimlaneModel'
 import { Button } from '../../lib/ui/Button'
 import { Dialog } from '../../lib/ui/Dialog'
@@ -123,7 +125,9 @@ export function AroundDialog({
                   me && 'bg-accent-soft',
                 )}
                 style={{ gridTemplateColumns: '4.5rem 7.5rem 4.5rem 4.5rem minmax(0,1fr) 3.5rem' }}
-                title={r.detail ? `${r.text}\n${r.detail}` : r.text}
+                title={
+                  r.detail ? `${rowText(r, evtView.lang)}\n${r.detail}` : rowText(r, evtView.lang)
+                }
               >
                 <span className="text-right font-mono text-2xs text-content-faint tabular-nums">
                   {row ? fmtOffset(r.ts_ms - row.ts_ms) : ''}
@@ -136,10 +140,12 @@ export function AroundDialog({
                   <EvtLevel row={r} />
                 </span>
                 <span className="truncate">
-                  {r.name ? (
-                    <span className="mr-1.5 font-mono text-2xs text-content-faint">{r.name}</span>
+                  {r.ecode || r.name ? (
+                    <span className="mr-1.5 font-mono text-2xs text-content-faint">
+                      {r.ecode ?? r.name}
+                    </span>
                   ) : null}
-                  {r.text}
+                  {rowText(r, evtView.lang)}
                 </span>
                 {r.ctx ? (
                   <button

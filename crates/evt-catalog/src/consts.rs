@@ -123,7 +123,11 @@ mod tests {
         let get = |n: &str| k.iter().find(|x| x.name == n).map(|x| (x.data_type, x.value.as_str()));
         assert_eq!(get("EVT_CAPACITY"), Some(("Int", "1000")));
         assert_eq!(get("EVT_LAST"), Some(("Int", "999")));
-        assert_eq!(get("EVT_CATMASK_ALL"), Some(("DWord", "16#0003FFFE")));
+        assert_eq!(get("EVT_CATMASK_ALL"), Some(("DWord", "16#000FFFFE")));
+        assert_eq!(get("EVT_CAT_OPERATOR"), Some(("USInt", "18")));
+        assert_eq!(get("EVT_CAT_INFO"), Some(("USInt", "19")));
+        assert_eq!(get("EVT_TRANS_CLEAR"), Some(("UInt", "2")));
+        assert_eq!(get("EVT_TRANS_MUL"), Some(("UInt", "10000")));
         assert_eq!(get("EVT_MIN_LEVEL_DEFAULT"), Some(("USInt", "2")));
         assert_eq!(get("EVT_MAX_PER_SCAN_DEFAULT"), Some(("Int", "32")));
         assert_eq!(get("EVT_LVL_WARN"), Some(("USInt", "3")));
@@ -133,6 +137,7 @@ mod tests {
         assert_eq!(get("EVT_PENDING_END_AUTO_FORCED_W6024"), Some(("UInt", "2")));
         assert_eq!(get("EVT_PARA_DRIVE_MCS_TO_ACS_Z_0"), Some(("UInt", "41")));
         assert_eq!(get("EVT_ALARM_AREA_FAULT"), Some(("UInt", "1")));
+        assert_eq!(get("EVT_ALARM_AREA_INFO"), Some(("UInt", "4")));
         assert!(get("EVT_STEP_CHANGED").is_none(), "code \"*\" has no constant");
         assert!(get("EVT_CON_EVT_GAP").is_none(), "console events stay in the console");
         // GR1 does not emit GR2-only events, GRM none of the robot ones

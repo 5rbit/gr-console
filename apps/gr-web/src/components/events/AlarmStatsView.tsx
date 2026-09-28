@@ -8,7 +8,7 @@ import { Button } from '../../lib/ui/Button'
 import { DataTable } from '../../lib/ui/DataTable'
 import { EmptyState } from '../../lib/ui/EmptyState'
 import type { Column } from '../../lib/ui/table'
-import { EvtPlcChip } from './EvtBits'
+import { EvtPlcChip, EvtType } from './EvtBits'
 
 export function AlarmStatsView({
   data,
@@ -44,7 +44,7 @@ export function AlarmStatsView({
     return (
       <EmptyState
         title="이 기간에 알람 없음"
-        hint="기간을 넓히거나 PLC 조건을 풀어 보세요."
+        hint="기간을 넓히거나 PLC · Type 조건을 풀어 보세요."
         testid="evt-alarms-empty"
       />
     )
@@ -55,6 +55,13 @@ export function AlarmStatsView({
       label: 'PLC',
       get: (r) => r.plc,
       cell: (r) => <EvtPlcChip plc={r.plc} />,
+      priority: 2,
+    },
+    {
+      key: 'type',
+      label: 'Type',
+      get: (r) => r.type,
+      cell: (r) => <EvtType row={{ etype: r.type }} />,
       priority: 2,
     },
     {
@@ -98,6 +105,15 @@ export function AlarmStatsView({
       help: '기간 끝에 아직 켜져 있던 발생 — 길이는 기간 끝(또는 지금)까지로 셉니다.',
     },
     {
+      key: 'flicker',
+      label: 'Flicker',
+      get: (r) => r.flicker,
+      cell: (r) => (r.flicker ? r.flicker : ''),
+      numeric: true,
+      priority: 3,
+      help: 'PLC 해제 지연(2 s)이 삼킨 깜빡임 수 — 해제 행의 A 를 더한 값(ErrorList 행만).',
+    },
+    {
       key: 'last',
       label: 'Last',
       get: (r) => r.last_ts,
@@ -130,7 +146,7 @@ export function AlarmStatsView({
     <DataTable
       rows={rows}
       columns={cols}
-      rowKey={(r) => `${r.plc}/${r.area}/${r.bit}`}
+      rowKey={(r) => `${r.plc}/${r.area}/${r.bit ?? `c${r.code}`}`}
       onPick={onPick}
       density="compact"
       stickyHeader

@@ -22,6 +22,8 @@ use serde_json::{Value as Json, json};
 
 use crate::cmd::{CommandBit, TaskOp};
 use crate::util::now_str;
+use evt_catalog::errorlist;
+use evt_catalog::{Level, Trans};
 
 const RING: usize = 10;
 const QUEUE: usize = 4;
@@ -80,6 +82,15 @@ fn evt(models: &mut HashMap<String, Json>, time: &str, (cat, lvl, code): (u8, u8
     }
 }
 
+/// One ErrorList row (docs/evtlog/errorlist-rows.md): Cat by level, Code = transition × 10000 + number, Src = area for
+/// ALARM rows, Lvl by level.
+#[allow(clippy::too_many_arguments)]
+fn evt_el(models: &mut HashMap<String, Json>, time: &str, level: Level, trans: Trans, num: u32, src: u16, a: i32, b: i32, ctx: u32) {
+    let (cat, area, code) = errorlist::encode(level, trans, num);
+    let src = area.map_or(src, |a| a as u16);
+    evt(models, time, (cat, level.lvl(), code as u16), src, a, b, ctx);
+}
+
 /// Logger start values after a "download": LayoutSig, BootId, Cfg defaults.
 fn evt_init(models: &mut HashMap<String, Json>, contract: &Contract, boot_id: u16) {
     if let (Some(m), Ok(sig)) = (models.get_mut("EVTLOG"), contract.layout_sig("EVTLOG")) {
@@ -127,7 +138,9 @@ fn grm_station_tick(grm: &mut HashMap<String, Json>, tick: u64, now: &str, cv_ou
         if slot == 2 && new & 0b1000 == 0 && old & 0b1000 != 0 {
             cv_out_set(grm, now, cv_out, 2, 0, 0b1100);
             if meas_err {
-                evt(grm, now, ev::ALM_CLEARED, ev::WARN, 321, 0, 0);
+                // W1102 up since the measurement (tick % 300 == 20): one flicker, then the off-delay
+                let active = (tick % 300).saturating_sub(20) as i32 * 50;
+                evt_el(grm, now, Level::Warn, Trans::Clear, 1102, 0, 1, active, 0);
             }
         }
     }
@@ -136,7 +149,7 @@ fn grm_station_tick(grm: &mut HashMap<String, Json>, tick: u64, now: &str, cv_ou
         if meas_err {
             evt(grm, now, ev::ST_MEAS, 2, 5, 0, 0);
             cv_out_set(grm, now, cv_out, 2, 0b1000, 0);
-            evt(grm, now, ev::ALM_RAISED_WARN, ev::WARN, 321, 0, 0);
+            evt_el(grm, now, Level::Warn, Trans::Raise, 1102, 0, 5, 7_600, 0);
         } else {
             evt(grm, now, ev::ST_MEAS, 2, 2, od, 0);
             evt(grm, now, ev::ST_TRACKING, 2, 1, od, 0);
@@ -144,11 +157,13 @@ fn grm_station_tick(grm: &mut HashMap<String, Json>, tick: u64, now: &str, cv_ou
         }
     }
     if tick % 1500 == 700 {
-        evt(grm, now, ev::ALM_RAISED_FAULT, ev::FAULT, 128, 0, 0);
+        evt_el(grm, now, Level::Alarm, Trans::Raise, 501, 0, 0, 0, 0);
         evt(grm, now, ev::ALM_TO_FAULT, 0, 501, 0, 0);
     }
     if tick % 1500 == 760 {
         evt(grm, now, ev::ALM_RESET, ev::FAULT, 1, 0, 0);
+        evt_el(grm, now, Level::Alarm, Trans::Clear, 501, 0, 0, 60 * 50, 0);
+        evt_el(grm, now, Level::Operator, Trans::Momentary, 106, 0, 0, 0, 0);
     }
 }
 
@@ -308,6 +323,12 @@ struct Side {
     evt_ilk_fault: bool,
     /// EVTLOG demo: slot whose CVNO reason (next occupied) is up until the robot's Comp.
     evt_cvno_held: Option<u16>,
+    /// EVTLOG demo: the PLC program writes ErrorList rows (GR1 still writes bit alarm rows and catalog rows, so both show).
+    el_rows: bool,
+    /// EVTLOG demo: tick the open alarm was raised at.
+    evt_alarm_since: u64,
+    /// EVTLOG demo: an operator jog (O0101) runs until this tick.
+    evt_jog: Option<(u64, u64)>,
 }
 
 struct Inner {
@@ -642,7 +663,11 @@ impl DemoWorld {
                 evt_alarm: None,
                 evt_ilk_fault: false,
                 evt_cvno_held: None,
+                el_rows: false,
+                evt_alarm_since: 0,
+                evt_jog: None,
             };
+            side.el_rows = !side.plc.eq_ignore_ascii_case("GR1");
             evt_init(&mut side.models, &side.contract, 1 + side.gr_index as u16);
             // seed some history so the measurement screens have content — a different amount and tire size per robot
             let (count, id_base, work_base) = (25 + 15 * r.gr_index as u32, 355.6 + 25.4 * gi, 3000 + 1000 * r.gr_index as u32);
@@ -901,9 +926,9 @@ impl Side {
         if self.tasks_run > 2 && self.rng.random_range(0..16) == 0 { self.rng.random_range(2600..3600) } else { self.rng.random_range(450..950) }
     }
 
-    /// Background alarms of the demo robot: a WARN now and then that clears after 2–40 s, rarely a FAULT
-    /// (FAULT transition, then a reset 5–15 s later). Ticks are 200 ms in `--demo`.
-    fn evt_alarm_tick(&mut self, tick: u64, ntp: &str) {
+    /// Background alarms of a demo robot that writes bit alarm rows: a WARN now and then that clears after 2–40 s,
+    /// rarely a FAULT (FAULT transition, then a reset 5–15 s later). Ticks are 200 ms in `--demo`.
+    fn evt_bit_alarm_tick(&mut self, tick: u64, ntp: &str) {
         const WARN_BITS: [i32; 4] = [160, 347, 348, 475];
         match self.evt_alarm {
             Some((area, bit, until)) if tick >= until => {
@@ -927,6 +952,62 @@ impl Side {
                     self.evt_alarm = Some((ev::FAULT, 320, tick + self.rng.random_range(25..75)));
                 }
             }
+        }
+    }
+
+    /// Background alarms as ErrorList rows: a WARN now and then that clears after 2–40 s with a flicker count, rarely a FAULT
+    /// (Mode FAULT, the reset, then the clear), an operator jog (O0101 state) and the heartbeat Info (I0110).
+    fn evt_alarm_tick(&mut self, tick: u64, ntp: &str) {
+        const WARNS: [u32; 4] = [1101, 3208, 4028, 6021];
+        const TICK_MS: u64 = 200;
+        match self.evt_alarm {
+            Some((area, num, until)) if tick >= until => {
+                let active = ((until - self.evt_alarm_since) * TICK_MS) as i32;
+                let flicker = self.rng.random_range(0..4);
+                if area == ev::FAULT {
+                    evt_el(&mut self.models, ntp, Level::Info, Trans::Momentary, 404, 0, 0, num, 0);
+                    evt_el(&mut self.models, ntp, Level::Alarm, Trans::Clear, num as u32, 0, 0, active, 0);
+                } else {
+                    evt_el(&mut self.models, ntp, Level::Warn, Trans::Clear, num as u32, 0, flicker, active, 0);
+                }
+                self.evt_alarm = None;
+            }
+            Some(_) => {}
+            None => {
+                let roll = self.rng.random_range(0..1000);
+                if roll < 5 {
+                    let num = WARNS[self.rng.random_range(0..WARNS.len())];
+                    // values as the ErrorList attaches them (W1101 LagError ×10, W4028 temperature ×10 · load %), else B = step
+                    let (a, b) = match num {
+                        1101 => (1_850, 0),
+                        4028 => (652, 87),
+                        _ => (0, 300),
+                    };
+                    evt_el(&mut self.models, ntp, Level::Warn, Trans::Raise, num, 0, a, b, 0);
+                    self.evt_alarm = Some((ev::WARN, num as i32, tick + self.rng.random_range(10..200)));
+                    self.evt_alarm_since = tick;
+                } else if roll < 6 {
+                    evt_el(&mut self.models, ntp, Level::Alarm, Trans::Raise, 1101, 0, 2_150, 0, 0);
+                    evt_el(&mut self.models, ntp, Level::Info, Trans::Momentary, 108, 0, 0x80, 0x20, 0);
+                    self.evt_alarm = Some((ev::FAULT, 1101, tick + self.rng.random_range(25..75)));
+                    self.evt_alarm_since = tick;
+                }
+            }
+        }
+        match self.evt_jog {
+            Some((since, until)) if tick >= until => {
+                evt_el(&mut self.models, ntp, Level::Operator, Trans::Clear, 101, 0, 0, ((until - since) * TICK_MS) as i32, 0);
+                self.evt_jog = None;
+            }
+            Some(_) => {}
+            None if tick % 900 == 300 + 150 * self.gr_index as u64 => {
+                evt_el(&mut self.models, ntp, Level::Operator, Trans::Raise, 101, 0, (self.axis[0] * 10.0) as i32, 0, 0);
+                self.evt_jog = Some((tick, tick + 15));
+            }
+            None => {}
+        }
+        if tick % 1200 == 600 {
+            evt_el(&mut self.models, ntp, Level::Info, Trans::Momentary, 110, 0, 7, 1, 0);
         }
     }
 
@@ -955,7 +1036,11 @@ impl Side {
             self.evt_warn_until = None;
             evt(&mut self.models, ntp, ev::DRV_FAULT_CLEARED, 3, 0, 0, 0);
         }
-        self.evt_alarm_tick(tick, ntp);
+        if self.el_rows {
+            self.evt_alarm_tick(tick, ntp);
+        } else {
+            self.evt_bit_alarm_tick(tick, ntp);
+        }
         // ---- command intake (GR UL_ParseOpcUaCommand semantics, simplified)
         if let Some((h, task)) = self.pending.take() {
             let mut data = [0u8; 16];
@@ -999,7 +1084,10 @@ impl Side {
             }
             let (ty, cell, work) = (u16::from(task.task_type), i32::from(task.cell.id), task.work_id);
             evt(&mut self.models, ntp, ev::CMD_RESPONSE, 0, i32::from(h.seq), i32::from(task.task_type), work);
-            if accepted {
+            if accepted && self.el_rows {
+                evt_el(&mut self.models, ntp, Level::Info, Trans::Momentary, 301, ty, cell, work as i32, work);
+                self.queue.push(task);
+            } else if accepted {
                 evt(&mut self.models, ntp, ev::TASK_ACCEPTED, ty, cell, work as i32, work);
                 self.queue.push(task);
             } else {
@@ -1066,7 +1154,11 @@ impl Side {
             let t = self.queue[0].clone();
             self.target = [t.position[0], t.position[1], t.position[2], t.position[3]];
             let (ty, cell, work) = (u16::from(t.task_type), i32::from(t.cell.id), t.work_id);
-            evt(&mut self.models, ntp, ev::TASK_LOADED, ty, cell, work as i32, work);
+            if self.el_rows {
+                evt_el(&mut self.models, ntp, Level::Info, Trans::Momentary, 302, ty, cell, work as i32, work);
+            } else {
+                evt(&mut self.models, ntp, ev::TASK_LOADED, ty, cell, work as i32, work);
+            }
             evt(&mut self.models, ntp, ev::ILK_TARGET, 0, cell, i32::from(t.task_type), work);
             if let Some(slot) = demo_slot(&t.cell) {
                 evt(&mut self.models, ntp, ev::ILK_PI, 0, demo_cv_in(slot, tick), 0, work);
@@ -1113,7 +1205,11 @@ impl Side {
                         // 1 in 12 (after the first tasks): the interlock times out → FAULT, reset when the task ends
                         if self.tasks_run > 2 && self.rng.random_range(0..12) == 0 {
                             evt(&mut self.models, ntp, ev::ILK_TIMEOUT, 400, 3118, 0, work);
-                            evt(&mut self.models, ntp, ev::ALM_RAISED_FAULT, ev::FAULT, 593, 400, work);
+                            if self.el_rows {
+                                evt_el(&mut self.models, ntp, Level::Alarm, Trans::Raise, 3118, 0, 400, work as i32, work);
+                            } else {
+                                evt(&mut self.models, ntp, ev::ALM_RAISED_FAULT, ev::FAULT, 593, 400, work);
+                            }
                             evt(&mut self.models, ntp, ev::ALM_TO_FAULT, 0, 3118, 0, work);
                             self.evt_ilk_fault = true;
                         }
@@ -1154,7 +1250,11 @@ impl Side {
         if let Some(t) = finished.as_ref() {
             let (ty, cell, work) = (u16::from(t.task_type), i32::from(t.cell.id), t.work_id);
             evt(&mut self.models, ntp, (ev::STEP, 2, 0), ev::PROC_TASK, 700, 999, work);
-            evt(&mut self.models, ntp, ev::TASK_COMPLETED, ty, cell, work as i32, work);
+            if self.el_rows {
+                evt_el(&mut self.models, ntp, Level::Info, Trans::Momentary, 303, ty, cell, work as i32, work);
+            } else {
+                evt(&mut self.models, ntp, ev::TASK_COMPLETED, ty, cell, work as i32, work);
+            }
             evt(&mut self.models, ntp, ev::TASK_CYCLE, 0, 700 * STEPS.len() as i32, 1400, work);
             if let Some(s) = demo_slot(&t.cell) {
                 evt(&mut self.models, ntp, ev::ILK_PO, 0, 0, 0b10, work);
@@ -1163,6 +1263,9 @@ impl Side {
             }
             if std::mem::take(&mut self.evt_ilk_fault) {
                 evt(&mut self.models, ntp, ev::ALM_RESET, ev::FAULT, 1, 0, 0);
+                if self.el_rows {
+                    evt_el(&mut self.models, ntp, Level::Alarm, Trans::Clear, 3118, 0, 0, 700 * 3, work);
+                }
             }
         }
         if let Some(t) = finished {

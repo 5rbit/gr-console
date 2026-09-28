@@ -74,3 +74,18 @@
 | ![](53_row_actions.png) | Task 목록·종결 이력 — **같은 열**(WorkId · TaskId · 로봇 · 셀 · 종류 · 품목 · 명령시간 · 완료시각 · 상태), 열 폭은 내용에 맞춰 왼쪽으로 붙는다(`fit`). 목록에는 취소·완료 버튼(아이콘+글자, 고정 너비 둘 — 안 되는 쪽은 사유를 달고 비활성) |
 | ![](54_row_action_confirm.png) | 확인 대화상자 — **질문 한 줄** + 어떤 Task인지 알아볼 라벨+값 짝(종류·대상·품목·로봇·상태·Id·메모). 규칙 안내문은 없다 |
 | ![](42_view_menu_fixed.png) | `보기` 메뉴 — 라벨이 줄어들지 않고 힌트가 먼저 잘린다(예전에는 `명령 중 / 심`으로 끊겼다) |
+
+## 이벤트 — ErrorList 유형 (2026-09-28)
+
+`gr-console --demo`(GR1 = 비트 알람 행 · 카탈로그 행, GR2 · GRM = ErrorList 행, `GR_DEMO_GCS_MS=4000`)을 헤드리스 Edge 로 캡처.
+인코딩은 `docs/evtlog/errorlist-rows.md`.
+
+| 파일 | 내용 |
+|---|---|
+| ![](evtlog-errorlist-list.png) | 목록 — Type 열(유형 + ErrorList 코드). 비트 알람 행(W0113 · W1129)과 ErrorList 행(F0501 · F1101 발생/해제, O0106, I0108)이 같이 읽힌다 |
+| ![](evtlog-errorlist-type-filter.png) | Type 필터(Alarm · Warn · Operator · Info · Task) — URL `e.type` · 저장된 필터에 실린다 |
+| ![](evtlog-errorlist-operator-task-en.png) | Operator + Task, 영어 문구(⋯ → 영어 문구로 보기). GR1 의 카탈로그 행 TASK_ACCEPTED 도 I0301 Task 로 읽힌다 |
+| ![](evtlog-errorlist-alarm-stats.png) | 알람 통계 — ErrorList 행은 (PLC, 레벨, 번호)로 짝짓고 길이 = 해제 행의 active ms, Flicker 열, Type 고르기(기본 Alarm · Warn) |
+| ![](evtlog-errorlist-alert-rules.png) | 알림 규칙 — 기본 규칙 Alarm 발생 · EMS (FAULT 전환은 꺼짐) |
+| ![](evtlog-errorlist-alert-rule-edit.png) | 규칙 편집 — Types · Trans · ErrorList 코드 |
+| ![](evtlog-errorlist-around.png) | ErrorList 알람 행의 전후 ±30 s |

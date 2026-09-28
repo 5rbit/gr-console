@@ -12,8 +12,11 @@ use axum::routing::get;
 use rusqlite::types::Value;
 use serde::{Deserialize, Serialize};
 
+use evt_catalog::errorlist::{self, CAT_INFO, CAT_OPERATOR, TRANS_MUL};
+use evt_catalog::{Level, Trans, Ty};
+
 use super::catalog::{Texts, now_ms};
-use super::routes::{list, log, num, opt};
+use super::routes::{list, log, num, opt, types};
 use super::store::Store;
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
@@ -46,7 +49,8 @@ pub(super) fn plc_clause(plcs: &[String], args: &mut Vec<Value>) -> String {
 
 // ---------------------------------------------------------------- alarms
 
-/// ALARM row (or the console's CON_EVT_EPOCH, which ends every open alarm of that PLC).
+/// Alarm row (bit alarm rows and ErrorList rows of any level), or the console's CON_EVT_EPOCH, which ends every
+/// open alarm of that PLC.
 #[derive(Clone, Debug)]
 pub struct AlarmEv {
     pub plc: String,
@@ -56,13 +60,22 @@ pub struct AlarmEv {
     pub code: u32,
     pub src: u32,
     pub a: i64,
+    pub b: i64,
+}
+
+/// Bit alarm rows name a bit of the area, ErrorList rows the ErrorList number.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum AlarmId {
+    Bit(u32),
+    Code(u32),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AlarmKey {
     pub plc: String,
+    /// `alarm_area`: 1 FAULT, 2 WARN, 3 OPERATOR, 4 INFO.
     pub area: u32,
-    pub bit: u32,
+    pub id: AlarmId,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -79,24 +92,34 @@ pub struct Interval {
     /// `None` = still active at the end of the rows.
     pub end: Option<(i64, EndKind)>,
     epoch: i64,
+    /// ErrorList clear row: B = active ms (raise to the last drop, without the PLC's off-delay).
+    pub active_ms: Option<i64>,
+    /// ErrorList clear row: A = drops absorbed by the off-delay while it was raised.
+    pub flicker: u32,
 }
 
+/// Bit alarm rows, ErrorList raise / clear rows of every level, and epoch changes — each term on the
+/// `(cat, code)` index.
 pub fn alarm_rows(store: &Store, from: i64, to: i64, plcs: &[String]) -> rusqlite::Result<Vec<AlarmEv>> {
     let mut args = vec![Value::Integer(from), Value::Integer(to)];
+    let el = [CAT_ALARM, CAT_OPERATOR, CAT_INFO].map(|c| format!("(cat = {c} AND code >= {} AND code < {})", TRANS_MUL, 3 * TRANS_MUL)).join(" OR ");
     let sql = format!(
-        "SELECT plc, epoch, plc_ts, cat, code, src, a FROM events WHERE ((cat = {CAT_ALARM} AND code IN ({ALM_RAISED}, {ALM_CLEARED}, {ALM_RESET})) OR (cat = {CAT_SYS} AND code = {CON_EVT_EPOCH})) AND plc_ts >= ? AND plc_ts <= ?{} ORDER BY plc_ts, id",
+        "SELECT plc, epoch, plc_ts, cat, code, src, a, b FROM events WHERE ((cat = {CAT_ALARM} AND code IN ({ALM_RAISED}, {ALM_CLEARED}, {ALM_RESET})) OR (cat = {CAT_SYS} AND code = {CON_EVT_EPOCH}) OR {el}) AND plc_ts >= ? AND plc_ts <= ?{} ORDER BY plc_ts, id",
         plc_clause(plcs, &mut args)
     );
     store.db().with(|c| {
         let mut st = c.prepare(&sql)?;
-        let it = st.query_map(rusqlite::params_from_iter(args), |r| Ok(AlarmEv { plc: r.get(0)?, epoch: r.get(1)?, ts: r.get(2)?, cat: r.get(3)?, code: r.get(4)?, src: r.get(5)?, a: r.get(6)? }))?;
+        let it = st.query_map(rusqlite::params_from_iter(args), |r| {
+            Ok(AlarmEv { plc: r.get(0)?, epoch: r.get(1)?, ts: r.get(2)?, cat: r.get(3)?, code: r.get(4)?, src: r.get(5)?, a: r.get(6)?, b: r.get(7)? })
+        })?;
         it.collect()
     })
 }
 
-/// Raise → clear per (plc, area, bit). A reset of an area ends every open alarm of that area on that PLC (a FAULT
-/// reset clears all FAULT bits at once), a new epoch (PLC restart) every open alarm of the PLC. A second raise of an
-/// open alarm and a clear without a raise in the rows are ignored. Rows must be oldest first.
+/// Raise → clear per (plc, area, bit) for bit alarm rows and per (plc, level, ErrorList number) for ErrorList rows. A
+/// reset of an area ends every open **bit** alarm of that area on that PLC (a FAULT reset clears all FAULT bits at once;
+/// ErrorList rows log their own clear), a new epoch (PLC restart) every open alarm of the PLC. A second raise of an open alarm and a
+/// clear without a raise in the rows are ignored. Rows must be oldest first.
 pub fn pair_alarms(rows: &[AlarmEv]) -> Vec<Interval> {
     let mut out: Vec<Interval> = Vec::new();
     let mut open: HashMap<AlarmKey, usize> = HashMap::new();
@@ -110,6 +133,12 @@ pub fn pair_alarms(rows: &[AlarmEv]) -> Vec<Interval> {
             }
         });
     };
+    let raise = |out: &mut Vec<Interval>, open: &mut HashMap<AlarmKey, usize>, key: AlarmKey, r: &AlarmEv| {
+        if !open.contains_key(&key) {
+            open.insert(key.clone(), out.len());
+            out.push(Interval { key, start: r.ts, end: None, epoch: r.epoch, active_ms: None, flicker: 0 });
+        }
+    };
     for r in rows {
         if r.cat == CAT_SYS {
             if r.code == CON_EVT_EPOCH {
@@ -121,16 +150,31 @@ pub fn pair_alarms(rows: &[AlarmEv]) -> Vec<Interval> {
         if r.epoch > 0 {
             close(&mut out, &mut open, r.ts, EndKind::Epoch, &|iv| iv.key.plc == r.plc && iv.epoch > 0 && iv.epoch < r.epoch);
         }
+        if let Some(v) = errorlist::decode(r.cat, r.src, r.code) {
+            let key = AlarmKey { plc: r.plc.clone(), area: v.level.area_id(), id: AlarmId::Code(v.num) };
+            match v.trans {
+                Trans::Raise => raise(&mut out, &mut open, key, r),
+                Trans::Clear => {
+                    if let Some(i) = open.remove(&key) {
+                        out[i].end = Some((r.ts, EndKind::Clear));
+                        out[i].active_ms = Some(r.b.max(0));
+                        out[i].flicker = u32::try_from(r.a).unwrap_or(0);
+                    }
+                }
+                Trans::Momentary | Trans::Summary => {}
+            }
+            continue;
+        }
+        if r.cat != CAT_ALARM {
+            continue;
+        }
         match r.code {
-            ALM_RESET => close(&mut out, &mut open, r.ts, EndKind::Reset, &|iv| iv.key.plc == r.plc && iv.key.area == r.src),
+            ALM_RESET => close(&mut out, &mut open, r.ts, EndKind::Reset, &|iv| iv.key.plc == r.plc && iv.key.area == r.src && matches!(iv.key.id, AlarmId::Bit(_))),
             ALM_RAISED | ALM_CLEARED => {
                 let Ok(bit) = u32::try_from(r.a) else { continue };
-                let key = AlarmKey { plc: r.plc.clone(), area: r.src, bit };
+                let key = AlarmKey { plc: r.plc.clone(), area: r.src, id: AlarmId::Bit(bit) };
                 if r.code == ALM_RAISED {
-                    if !open.contains_key(&key) {
-                        open.insert(key.clone(), out.len());
-                        out.push(Interval { key, start: r.ts, end: None, epoch: r.epoch });
-                    }
+                    raise(&mut out, &mut open, key, r);
                 } else if let Some(i) = open.remove(&key) {
                     out[i].end = Some((r.ts, EndKind::Clear));
                 }
@@ -142,17 +186,19 @@ pub fn pair_alarms(rows: &[AlarmEv]) -> Vec<Interval> {
 }
 
 /// Per-alarm totals; an open interval counts up to `end` (the end of the range, or now when the range is still
-/// running). Most frequent first.
+/// running), an ErrorList clear by its own active time. Most frequent first.
 pub fn aggregate(ivs: &[Interval], end: i64) -> Vec<(AlarmKey, AlarmAgg)> {
     let mut m: HashMap<&AlarmKey, AlarmAgg> = HashMap::new();
     for iv in ivs {
         let stop = iv.end.map(|(t, _)| t).unwrap_or(end).max(iv.start);
+        let dur = iv.active_ms.unwrap_or(stop - iv.start);
         let a = m.entry(&iv.key).or_default();
         a.count += 1;
-        a.total_ms += stop - iv.start;
-        a.max_ms = a.max_ms.max(stop - iv.start);
+        a.total_ms += dur;
+        a.max_ms = a.max_ms.max(dur);
         a.open += u32::from(iv.end.is_none());
         a.last_ts = a.last_ts.max(iv.start);
+        a.flicker += iv.flicker;
     }
     let mut v: Vec<(AlarmKey, AlarmAgg)> = m.into_iter().map(|(k, a)| (k.clone(), a)).collect();
     v.sort_by(|(ka, a), (kb, b)| b.count.cmp(&a.count).then(b.total_ms.cmp(&a.total_ms)).then(ka.cmp(kb)));
@@ -166,13 +212,53 @@ pub struct AlarmAgg {
     pub max_ms: i64,
     pub open: u32,
     pub last_ts: i64,
+    pub flicker: u32,
 }
 
-/// How an alarm reads in the event list: (area name, code, `F0501`, text, the exact rendered `{alarm}` text).
-/// Same spelling as the renderer, so the last one finds that alarm's rows with the text search.
-pub fn alarm_label(texts: &Texts, plc: &str, area: u32, bit: u32) -> (String, u32, String, String, String) {
+fn level_of_area(area: u32) -> Level {
+    match area {
+        1 => Level::Alarm,
+        2 => Level::Warn,
+        3 => Level::Operator,
+        _ => Level::Info,
+    }
+}
+
+/// ErrorList type of a paired alarm (TASK-area bits are task records).
+pub fn key_ty(texts: &Texts, k: &AlarmKey) -> Ty {
+    match k.id {
+        AlarmId::Bit(_) => match k.area {
+            1 => Ty::Alarm,
+            2 => Ty::Warn,
+            3 => Ty::Operator,
+            _ => Ty::Task,
+        },
+        AlarmId::Code(n) => {
+            let level = level_of_area(k.area);
+            texts.renderer(&k.plc).errorlist().get(level, n).map(|e| e.ty()).unwrap_or(match level {
+                Level::Alarm => Ty::Alarm,
+                Level::Warn => Ty::Warn,
+                Level::Operator => Ty::Operator,
+                Level::Info => Ty::Info,
+            })
+        }
+    }
+}
+
+/// How an alarm reads in the event list: (area name, code, `F0501`, text, what selects its rows in the list).
+/// Bits: the exact rendered `{alarm}` text (a text search); ErrorList codes: the code itself (a code filter).
+pub fn alarm_label(texts: &Texts, plc: &str, area: u32, id: AlarmId) -> (String, u32, String, String, String) {
     let r = texts.renderer(plc);
     let area_name = r.enum_label("alarm_area", i64::from(area)).unwrap_or("area?").to_string();
+    let bit = match id {
+        AlarmId::Code(n) => {
+            let level = level_of_area(area);
+            let code = errorlist::label(level, n);
+            let text = r.errorlist().get(level, n).map(|e| e.text(false).to_string()).unwrap_or_default();
+            return (level.area().to_string(), n, code.clone(), text, code);
+        }
+        AlarmId::Bit(b) => b,
+    };
     match r.alarm(area, bit) {
         Some(a) => {
             let text = if a.text_ko.is_empty() { a.text_en.clone() } else { a.text_ko.clone() };
@@ -190,9 +276,12 @@ pub fn alarm_label(texts: &Texts, plc: &str, area: u32, bit: u32) -> (String, u3
 #[derive(Clone, Debug, Serialize)]
 pub struct AlarmStat {
     pub plc: String,
+    #[serde(rename = "type")]
+    pub ty: &'static str,
     pub area: u32,
     pub area_name: String,
-    pub bit: u32,
+    /// Bit alarm rows only (ErrorList rows name the code).
+    pub bit: Option<u32>,
     pub code: u32,
     pub label: String,
     pub text: String,
@@ -202,10 +291,13 @@ pub struct AlarmStat {
     pub max_ms: i64,
     /// Occurrences still active at the end of the range.
     pub open: u32,
+    /// Drops the PLC's off-delay absorbed (ErrorList clear rows).
+    pub flicker: u32,
     pub last_ts: i64,
     pub last: String,
-    /// Text search that selects this alarm's rows in `/api/events`.
+    /// Selects this alarm's rows in `/api/events`: a text search (`q`), or the ErrorList code (`code`) when `by_code`.
     pub search: String,
+    pub by_code: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -226,34 +318,48 @@ pub struct AlarmStats {
     pub rows: Vec<AlarmStat>,
 }
 
-pub fn alarm_stats(texts: &Texts, rows: &[AlarmEv], from: i64, to: i64, now: i64) -> AlarmStats {
+/// Types counted when a request names none.
+pub const DEFAULT_TYPES: [Ty; 2] = [Ty::Alarm, Ty::Warn];
+
+pub fn alarm_stats(texts: &Texts, rows: &[AlarmEv], from: i64, to: i64, now: i64, types: &[Ty]) -> AlarmStats {
+    let types = if types.is_empty() { &DEFAULT_TYPES[..] } else { types };
     let aggs = aggregate(&pair_alarms(rows), to.min(now));
     let mut by_plc: BTreeMap<String, PlcTotal> = BTreeMap::new();
     let rows: Vec<AlarmStat> = aggs
         .into_iter()
-        .map(|(k, a)| {
+        .filter_map(|(k, a)| {
+            let ty = key_ty(texts, &k);
+            if !types.contains(&ty) {
+                return None;
+            }
             let p = by_plc.entry(k.plc.clone()).or_insert_with(|| PlcTotal { plc: k.plc.clone(), alarms: 0, count: 0, total_ms: 0 });
             p.alarms += 1;
             p.count += a.count;
             p.total_ms += a.total_ms;
-            let (area_name, code, label, text, search) = alarm_label(texts, &k.plc, k.area, k.bit);
-            AlarmStat {
+            let (area_name, code, label, text, search) = alarm_label(texts, &k.plc, k.area, k.id);
+            Some(AlarmStat {
+                ty: ty.name(),
                 area_name,
                 code,
                 label,
                 text,
                 search,
+                by_code: matches!(k.id, AlarmId::Code(_)),
                 count: a.count,
                 total_ms: a.total_ms,
                 mean_ms: a.total_ms / i64::from(a.count.max(1)),
                 max_ms: a.max_ms,
                 open: a.open,
+                flicker: a.flicker,
                 last_ts: a.last_ts,
                 last: texts.fmt_ms(a.last_ts),
                 plc: k.plc,
                 area: k.area,
-                bit: k.bit,
-            }
+                bit: match k.id {
+                    AlarmId::Bit(b) => Some(b),
+                    AlarmId::Code(_) => None,
+                },
+            })
         })
         .collect();
     AlarmStats { from, to, count: rows.iter().map(|r| r.count).sum(), total_ms: rows.iter().map(|r| r.total_ms).sum(), by_plc: by_plc.into_values().collect(), rows }
@@ -289,11 +395,27 @@ pub fn step_rows(store: &Store, from: i64, to: i64, plcs: &[String], proc: Optio
     })
 }
 
-/// (plc, WorkId) → task type, from TASK_ACCEPTED / TASK_LOADED (Src = task type, B = WorkId).
-pub fn task_types(store: &Store, from: i64, to: i64, plcs: &[String]) -> rusqlite::Result<HashMap<(String, u32), u32>> {
-    let mut args = vec![Value::Integer(from - TYPE_LOOKBACK_MS), Value::Integer(to)];
-    let sql =
-        format!("SELECT plc, src, b FROM events WHERE cat = {CAT_TASK} AND code IN ({TASK_ACCEPTED}, {TASK_LOADED}) AND plc_ts >= ? AND plc_ts <= ?{} ORDER BY plc_ts", plc_clause(plcs, &mut args));
+/// ErrorList task rows with the TASK_ACCEPTED / TASK_LOADED payload (Src = task type, A = Cell, B = WorkId).
+pub const EL_TASK_ACCEPTED: u32 = 3 * TRANS_MUL + 301;
+pub const EL_TASK_STARTED: u32 = 3 * TRANS_MUL + 302;
+pub const EL_TASK_COMPLETED: u32 = 3 * TRANS_MUL + 303;
+
+/// (plc, WorkId) → task type, from TASK_ACCEPTED / TASK_LOADED (Src = task type, B = WorkId) and their ErrorList rows
+/// I0301 / I0302 — `task` = `Texts::type_cond(&[Ty::Task])` keeps a PLC whose I0301 is something else (GRM) out.
+pub fn task_types(store: &Store, from: i64, to: i64, plcs: &[String], task: Option<&(String, Vec<Value>)>) -> rusqlite::Result<HashMap<(String, u32), u32>> {
+    let mut args = Vec::new();
+    let el = match task {
+        Some((cond, a)) => {
+            args.extend(a.iter().cloned());
+            format!(" OR (cat = {CAT_INFO} AND code IN ({EL_TASK_ACCEPTED}, {EL_TASK_STARTED}) AND {cond})")
+        }
+        None => String::new(),
+    };
+    args.extend([Value::Integer(from - TYPE_LOOKBACK_MS), Value::Integer(to)]);
+    let sql = format!(
+        "SELECT plc, src, b FROM events WHERE ((cat = {CAT_TASK} AND code IN ({TASK_ACCEPTED}, {TASK_LOADED})){el}) AND plc_ts >= ? AND plc_ts <= ?{} ORDER BY plc_ts",
+        plc_clause(plcs, &mut args)
+    );
     store.db().with(|c| {
         let mut st = c.prepare(&sql)?;
         let it = st.query_map(rusqlite::params_from_iter(args), |r| Ok((r.get::<_, String>(0)?, r.get::<_, u32>(1)?, r.get::<_, i64>(2)?)))?;
@@ -439,6 +561,9 @@ pub struct StatsQ {
     pub plc: Option<String>,
     proc: Option<String>,
     split: Option<String>,
+    /// Alarm statistics: ErrorList types (default Alarm, Warn).
+    #[serde(rename = "type")]
+    pub ty: Option<String>,
 }
 
 /// Local midnight of the day `ms` falls on.
@@ -465,9 +590,10 @@ async fn alarms(State(st): State<AppState>, Query(q): Query<StatsQ>) -> ApiResul
     let log = log(&st)?.clone();
     let (from, to) = range(&log.texts, &q.from, &q.to)?;
     let plcs: Vec<String> = list(&q.plc).into_iter().map(str::to_string).collect();
+    let tys = types(&q.ty)?;
     let out = tokio::task::spawn_blocking(move || -> Result<AlarmStats, ApiError> {
         let rows = alarm_rows(&log.store, from, to, &plcs)?;
-        Ok(alarm_stats(&log.texts, &rows, from, to, now_ms()))
+        Ok(alarm_stats(&log.texts, &rows, from, to, now_ms(), &tys))
     })
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))??;
@@ -482,7 +608,7 @@ async fn steps(State(st): State<AppState>, Query(q): Query<StatsQ>) -> ApiResult
     let split = opt(&q.split).is_some_and(|s| s == "type" || s == "task_type");
     let out = tokio::task::spawn_blocking(move || -> Result<StepStats, ApiError> {
         let samples = step_rows(&log.store, from, to, &plcs, proc)?;
-        let types = if split { Some(task_types(&log.store, from, to, &plcs)?) } else { None };
+        let types = if split { Some(task_types(&log.store, from, to, &plcs, log.texts.type_cond(&[Ty::Task]).as_ref())?) } else { None };
         Ok(step_stats(&log.texts, samples, types.as_ref(), from, to))
     })
     .await
@@ -497,8 +623,9 @@ pub fn router() -> Router<AppState> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::evtlog::catalog::PlcTexts;
     use crate::evtlog::store::{Origin, Row};
-    use evt_catalog::{AlarmEntry, AlarmTable, Catalog};
+    use evt_catalog::{AlarmEntry, AlarmTable, Catalog, ErrorList};
     use std::sync::Arc;
 
     pub(crate) fn texts() -> Texts {
@@ -510,9 +637,47 @@ pub(crate) mod tests {
             ],
         };
         let consts: HashMap<String, i64> = [("CMD_TASK_PICK".to_string(), 1), ("CMD_TASK_DROP".to_string(), 2)].into_iter().collect();
-        let mut t = Texts::new(cat, vec![("GR2".into(), &consts, alarms.clone()), ("GRM".into(), &HashMap::new(), alarms)]);
+        let empty = HashMap::new();
+        let mut gr2 = PlcTexts::new("GR2", &consts, alarms.clone());
+        gr2.errorlist = errorlist_fixture(false);
+        let mut grm = PlcTexts::new("GRM", &empty, alarms);
+        grm.errorlist = errorlist_fixture(true);
+        let mut t = Texts::new(cat, vec![gr2, grm], "[gr.I0301]\nsrc = \"enum:task_type\"\nsrc_label = \"Type\"\na_label = \"Cell\"\n");
         t.offset = time::UtcOffset::from_hms(9, 0, 0).unwrap();
         t
+    }
+
+    /// A few ErrorList rows: GR2 F3118 / W1101 / O0101 (CMD_JOG Src 1) / I0301 (TASK) / I5101 (STEP_CHANGED);
+    /// GRM W1101 (Station 01) / I0301 (heartbeat, INFO class — the same number as GR's task row).
+    pub(crate) fn errorlist_fixture(grm: bool) -> ErrorList {
+        let e = |code: &str, class: &str, en: &str, ko: &str, a: &str, catalog: Option<(&str, Option<u32>)>| {
+            let (level, num) = evt_catalog::errorlist::parse_label(code).unwrap();
+            evt_catalog::ElEntry {
+                level: Some(level),
+                code: code.into(),
+                num,
+                hmi_class: class.into(),
+                text_en: en.into(),
+                text_ko: ko.into(),
+                a_meaning: a.into(),
+                catalog: catalog.map(|c| c.0.to_string()),
+                catalog_src: catalog.and_then(|c| c.1),
+                ..Default::default()
+            }
+        };
+        if grm {
+            return ErrorList::new(vec![
+                e("W1101", "WARN", "Station 01 - Measuring Error", "스테이션 01 - 측정 오류", "", None),
+                e("I0301", "INFO", "Robot Heartbeat Stopped", "로봇 heartbeat 멈춤", "멈춘 시간 ms", None),
+            ]);
+        }
+        ErrorList::new(vec![
+            e("F3118", "FAULT", "Z Axis - Station Interlock Complete Timeout", "Z축 - 스테이션 인터록 완료 시간 초과", "", None),
+            e("W1101", "WARN", "X Axis - Lag Error", "X축 - Lag 오류", "", None),
+            e("O0101", "OPERATOR", "X Axis - Jog Speed Forward", "X 축 Jog Speed 전진", "시작 위치 (mm×10)", Some(("CMD_JOG", Some(1)))),
+            evt_catalog::ElEntry { b_meaning: "WorkId".into(), ..e("I0301", "TASK", "Task - Accepted to Buffer", "작업 수락 (Buff)", "Cell.Id (Src = task type)", Some(("TASK_ACCEPTED", None))) },
+            e("I5101", "INFO", "Step - Changed", "Step 변경", "", Some(("STEP_CHANGED", None))),
+        ])
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -521,7 +686,20 @@ pub(crate) mod tests {
     }
 
     fn ev(plc: &str, epoch: i64, ts: i64, code: u32, src: u32, a: i64) -> AlarmEv {
-        AlarmEv { plc: plc.into(), epoch, ts, cat: if code == CON_EVT_EPOCH { CAT_SYS } else { CAT_ALARM }, code, src, a }
+        AlarmEv { plc: plc.into(), epoch, ts, cat: if code == CON_EVT_EPOCH { CAT_SYS } else { CAT_ALARM }, code, src, a, b: 0 }
+    }
+
+    /// ErrorList row: (level, trans, number) → (cat, src, code), A = flicker / value, B = active ms / value.
+    fn el(plc: &str, ts: i64, level: Level, trans: Trans, num: u32, a: i64, b: i64) -> AlarmEv {
+        let (cat, src, code) = evt_catalog::errorlist::encode(level, trans, num);
+        AlarmEv { plc: plc.into(), epoch: 1, ts, cat, code, src: src.unwrap_or(0), a, b }
+    }
+
+    fn bit(k: &AlarmKey) -> u32 {
+        match k.id {
+            AlarmId::Bit(b) => b,
+            AlarmId::Code(n) => 100_000 + n,
+        }
     }
 
     #[test]
@@ -560,7 +738,7 @@ pub(crate) mod tests {
         ];
         let ivs = pair_alarms(&rows);
         type Got<'a> = (&'a str, u32, u32, i64, Option<(i64, EndKind)>);
-        let got: Vec<Got> = ivs.iter().map(|i| (i.key.plc.as_str(), i.key.area, i.key.bit, i.start, i.end)).collect();
+        let got: Vec<Got> = ivs.iter().map(|i| (i.key.plc.as_str(), i.key.area, bit(&i.key), i.start, i.end)).collect();
         assert_eq!(
             got,
             vec![
@@ -574,25 +752,65 @@ pub(crate) mod tests {
             ]
         );
         let agg = aggregate(&ivs, 1000);
-        let warn = agg.iter().find(|(k, _)| k.plc == "GR2" && k.bit == 320).unwrap().1;
-        assert_eq!(warn, AlarmAgg { count: 2, total_ms: 50 + 180, max_ms: 180, open: 0, last_ts: 220 });
-        let open = agg.iter().find(|(k, _)| k.plc == "GRM" && k.bit == 8).unwrap().1;
+        let warn = agg.iter().find(|(k, _)| k.plc == "GR2" && bit(k) == 320).unwrap().1;
+        assert_eq!(warn, AlarmAgg { count: 2, total_ms: 50 + 180, max_ms: 180, open: 0, last_ts: 220, flicker: 0 });
+        let open = agg.iter().find(|(k, _)| k.plc == "GRM" && bit(k) == 8).unwrap().1;
         assert_eq!((open.count, open.total_ms, open.open), (1, 300, 1), "open until the end of the range");
-        assert_eq!(agg[0].0.bit, 320, "most frequent first");
+        assert_eq!(bit(&agg[0].0), 320, "most frequent first");
+    }
+
+    #[test]
+    fn errorlist_rows_pair_by_code_with_active_ms_and_flicker() {
+        let rows = vec![
+            el("GR2", 100, Level::Warn, Trans::Raise, 1101, 0, 0),
+            el("GR2", 150, Level::Alarm, Trans::Raise, 1101, 0, 0),      // same number, other level: its own alarm
+            el("GR2", 160, Level::Warn, Trans::Raise, 1101, 0, 0),       // repeated raise: ignored
+            ev("GR2", 1, 200, ALM_RESET, 2, 1),                          // a reset does not end ErrorList alarms (they log a clear)
+            el("GR2", 2_300, Level::Warn, Trans::Clear, 1101, 3, 1_700), // T_off 2 s after the last drop: B = active ms
+            el("GR2", 2_400, Level::Warn, Trans::Clear, 1101, 0, 50),    // clear without raise: ignored
+            el("GR2", 2_500, Level::Operator, Trans::Raise, 101, 5984, 0),
+            el("GR2", 3_000, Level::Operator, Trans::Clear, 101, 0, 500),
+            el("GR2", 3_100, Level::Info, Trans::Momentary, 301, 101, 7), // momentary: not an interval
+            ev("GR2", 1, 3_200, ALM_RAISED, 2, 320),                      // a bit alarm row next to ErrorList rows
+            el("GR2", 3_300, Level::Warn, Trans::Summary, 1101, 12, 0),
+        ];
+        let ivs = pair_alarms(&rows);
+        type Got = (u32, AlarmId, i64, Option<i64>, Option<i64>, u32);
+        let got: Vec<Got> = ivs.iter().map(|i| (i.key.area, i.key.id, i.start, i.end.map(|e| e.0), i.active_ms, i.flicker)).collect();
+        assert_eq!(
+            got,
+            vec![
+                (2, AlarmId::Code(1101), 100, Some(2_300), Some(1_700), 3),
+                (1, AlarmId::Code(1101), 150, None, None, 0),
+                (3, AlarmId::Code(101), 2_500, Some(3_000), Some(500), 0),
+                (2, AlarmId::Bit(320), 3_200, None, None, 0),
+            ]
+        );
+        let agg = aggregate(&ivs, 4_000);
+        let w = agg.iter().find(|(k, _)| k.id == AlarmId::Code(1101) && k.area == 2).unwrap().1;
+        assert_eq!((w.total_ms, w.flicker), (1_700, 3), "the clear row's active time, not raise → clear");
+        // statistics: default Alarm + Warn; the Operator state item only when asked for; labels = ErrorList
+        let t = texts();
+        let s = alarm_stats(&t, &rows, 0, 4_000, 10_000, &[]);
+        let labels: Vec<(&str, &str, bool, Option<u32>)> = s.rows.iter().map(|r| (r.label.as_str(), r.ty, r.by_code, r.bit)).collect();
+        assert_eq!(labels, vec![("F1101", "Alarm", true, None), ("W1101", "Warn", true, None), ("W1101", "Warn", false, Some(320))], "the open F1101 is the longest");
+        assert_eq!((s.rows[1].text.as_str(), s.rows[1].search.as_str()), ("X축 - Lag 오류", "W1101"), "ErrorList rows are found by code");
+        let op = alarm_stats(&t, &rows, 0, 4_000, 10_000, &[Ty::Operator]);
+        assert_eq!(op.rows.iter().map(|r| (r.label.as_str(), r.total_ms)).collect::<Vec<_>>(), vec![("O0101", 500)]);
     }
 
     #[test]
     fn alarm_stats_label_like_the_renderer_and_select_their_rows() {
         let t = texts();
         let rows = vec![ev("GR2", 1, 0, ALM_RAISED, 2, 320), ev("GR2", 1, 4_000, ALM_CLEARED, 2, 320), ev("GR2", 1, 5_000, ALM_RAISED, 1, 7), ev("GRM", 1, 6_000, ALM_RAISED, 1, 593)];
-        let s = alarm_stats(&t, &rows, 0, 10_000, 8_000);
+        let s = alarm_stats(&t, &rows, 0, 10_000, 8_000, &[]);
         assert_eq!((s.count, s.total_ms), (3, 4_000 + 3_000 + 2_000), "open ones count up to now inside a running range");
-        let w = s.rows.iter().find(|r| r.bit == 320).unwrap();
+        let w = s.rows.iter().find(|r| r.bit == Some(320)).unwrap();
         assert_eq!((w.label.as_str(), w.code, w.text.as_str(), w.area_name.as_str()), ("W1101", 1101, "스테이션 01 - 측정 오류", "WARN"));
         // the search is exactly what the renderer writes for the ALARM rows
         let rendered = t.text(&raw("GR2", 1, 0, CAT_ALARM, 3, ALM_RAISED, 2, 320, 0, 0));
         assert!(rendered.contains(&w.search), "{rendered} / {}", w.search);
-        let unknown = s.rows.iter().find(|r| r.bit == 7).unwrap();
+        let unknown = s.rows.iter().find(|r| r.bit == Some(7)).unwrap();
         assert!(t.text(&raw("GR2", 1, 0, CAT_ALARM, 4, ALM_RAISED, 1, 7, 0, 0)).contains(&unknown.search));
         assert_eq!(s.by_plc.iter().map(|p| (p.plc.as_str(), p.alarms, p.count)).collect::<Vec<_>>(), vec![("GR2", 2, 2), ("GRM", 1, 1)]);
     }
@@ -640,7 +858,12 @@ pub(crate) mod tests {
         let s = step_rows(&store, 0, 5000, &[], None).unwrap();
         assert_eq!(s.len(), 2, "step 0 (idle) left out");
         assert_eq!(step_rows(&store, 0, 5000, &["GR2".into()], Some(20)).unwrap().len(), 1);
-        assert_eq!(task_types(&store, 0, 5000, &[]).unwrap().get(&("GR2".to_string(), 555)), Some(&1));
+        assert_eq!(task_types(&store, 0, 5000, &[], None).unwrap().get(&("GR2".to_string(), 555)), Some(&1));
+        // ErrorList rows: I0301 of GR2 is a task row, GRM's I0301 (an Info item there) is not
+        let t = texts();
+        store.write(vec![raw("GR2", 1, 150, CAT_INFO, 2, EL_TASK_ACCEPTED, 2, 101, 556, 556), raw("GRM", 1, 160, CAT_INFO, 2, EL_TASK_ACCEPTED, 1, 3000, 9, 0)], &[]).unwrap();
+        let m = task_types(&store, 0, 5000, &[], t.type_cond(&[Ty::Task]).as_ref()).unwrap();
+        assert_eq!((m.get(&("GR2".to_string(), 556)), m.get(&("GRM".to_string(), 9))), (Some(&2), None));
         let a = alarm_rows(&store, 0, 5000, &[]).unwrap();
         assert_eq!(a.iter().map(|r| r.code).collect::<Vec<_>>(), vec![ALM_RAISED, CON_EVT_EPOCH]);
         // the planner uses an index for each of them (no full scan of events)

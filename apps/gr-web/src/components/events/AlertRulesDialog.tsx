@@ -13,6 +13,8 @@ import {
   type RuleForm,
 } from '../../lib/evtlog/alertsModel'
 import { codeSuggestions } from '../../lib/evtlog/evtFilterModel'
+import { EVT_TRANS } from '../../lib/evtlog/evtTypeModel'
+import { EvtMultiPick, TYPE_OPTIONS } from './EventFilters'
 import { useStore } from '../../lib/store'
 import { Button } from '../../lib/ui/Button'
 import { DataTable } from '../../lib/ui/DataTable'
@@ -258,6 +260,24 @@ export function AlertRulesDialog({
               </option>
             ))}
           </Select>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-content-secondary">Types</span>
+            <EvtMultiPick
+              label="Type"
+              options={TYPE_OPTIONS}
+              value={form.types}
+              onChange={(types) => set({ types })}
+              testid="evt-rule-types"
+            />
+          </div>
+          <Select label="Trans" value={form.trans} onValueChange={(v) => set({ trans: v })}>
+            <option value="">전체</option>
+            {EVT_TRANS.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.id} · {t.label}
+              </option>
+            ))}
+          </Select>
           <Select label="Cat" value={form.cat} onValueChange={(v) => set({ cat: v })}>
             <option value="">전체</option>
             {(catalog?.cats ?? []).map((c) => (
@@ -278,10 +298,10 @@ export function AlertRulesDialog({
             label="Codes"
             mono
             list={CODE_LIST_ID}
-            placeholder="CMD_EMS, 601"
+            placeholder="CMD_EMS, F0202"
             value={form.codes}
             onValueChange={(v) => set({ codes: v })}
-            hint="이벤트 이름이나 코드, 쉼표로 여럿"
+            hint="이벤트 이름 · 코드 · ErrorList 코드, 쉼표로 여럿"
           />
           <datalist id={CODE_LIST_ID}>
             {suggestions.map((s) => (

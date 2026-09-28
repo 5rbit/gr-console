@@ -5,7 +5,8 @@
 import { useMemo, useRef, useState, type MouseEvent } from 'react'
 import type { SwimLane, SwimMarker, Swimlane } from '../../lib/evtlog/api'
 import { msToStamp } from '../../lib/evtlog/evtRowsModel'
-import type { Loaded } from '../../lib/evtlog/store'
+import { evtView, type Loaded } from '../../lib/evtlog/store'
+import { rowText } from '../../lib/evtlog/evtTypeModel'
 import {
   MARKER_LABEL,
   MARKER_TONE,
@@ -247,7 +248,7 @@ export function SwimlaneView({
                   onClick={() => onMarker(m)}
                   data-testid="evt-swim-marker"
                 >
-                  <title>{`${hms(m.ts_ms)} ${MARKER_LABEL[m.kind]} · ${m.plc} ${m.text}`}</title>
+                  <title>{`${hms(m.ts_ms)} ${MARKER_LABEL[m.kind]} · ${m.plc} ${m.ecode ? `${m.ecode} ` : ''}${rowText(m, evtView.lang)}`}</title>
                   <line
                     x1={x}
                     x2={x}

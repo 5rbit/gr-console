@@ -3,6 +3,7 @@
 // PLC 의 EVTLOG 링을 콘솔이 긁어 SQLite 에 쌓고, 콘솔 자신의 사건도 같은 표에 `origin: 'console'` 로 남긴다.
 // 문구(`text`)는 서버가 카탈로그로 렌더한다 — 화면은 다시 조립하지 않는다.
 import { del, getJson, postJson, putJson } from '../api'
+import type { EvtTrans, EvtType } from './evtTypeModel'
 
 export interface EventRow {
   id: number
@@ -29,6 +30,13 @@ export interface EventRow {
   ctx: number
   detail: string | null
   text: string
+  /** ErrorList 유형 — ErrorList 밖의 행은 `null`. */
+  etype?: EvtType | null
+  /** ErrorList 코드(`F3119`) — 여러 항목에 걸리면 `null`. */
+  ecode?: string | null
+  trans?: EvtTrans | null
+  /** 영어 문구 — 한국어와 다를 때만. */
+  text_en?: string
 }
 
 export interface EventPage {
@@ -130,9 +138,11 @@ export interface TaskEvents {
 
 export interface AlarmStatRow {
   plc: string
+  type: EvtType
   area: number
   area_name: string
-  bit: number
+  /** 비트 알람 행만 — ErrorList 행은 코드로 짝짓는다. */
+  bit: number | null
   code: number
   /** `F0501` · 코드 없는 비트는 `FAULT bit 7`. */
   label: string
@@ -143,10 +153,13 @@ export interface AlarmStatRow {
   max_ms: number
   /** 범위 끝에 아직 켜져 있던 발생 수. */
   open: number
+  /** PLC 해제 지연이 삼킨 깜빡임 수(ErrorList 해제 행). */
+  flicker: number
   last_ts: number
   last: string
-  /** 이벤트 목록 검색(`q`)에 넣으면 이 알람의 행만 남는다. */
+  /** 이 알람의 행만 남기는 것 — `by_code` 면 코드 칸(`F3119`), 아니면 검색(`q`). */
   search: string
+  by_code: boolean
 }
 
 export interface AlarmStats {
@@ -243,6 +256,9 @@ export interface RuleMatch {
   min_lvl?: string
   text_contains?: string
   a_eq?: number
+  /** ErrorList 유형, 어느 하나. */
+  types?: string[]
+  trans?: string
 }
 
 export interface AlertRule {

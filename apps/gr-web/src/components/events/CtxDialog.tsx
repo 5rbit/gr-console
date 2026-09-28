@@ -13,7 +13,9 @@ import type { Column } from '../../lib/ui/table'
 import { nav } from '../../lib/nav'
 import { tasks } from '../../lib/tasks'
 import { Button } from '../../lib/ui/Button'
-import { EvtLevel, EvtPlcChip } from './EvtBits'
+import { EvtLevel, EvtPlcChip, EvtType } from './EvtBits'
+import { rowText } from '../../lib/evtlog/evtTypeModel'
+import { evtView } from '../../lib/evtlog/store'
 
 const LIMIT = 2000
 
@@ -83,7 +85,8 @@ export function CtxDialog({
     { key: 'plc', label: 'PLC', cell: (r) => <EvtPlcChip plc={r.plc} />, priority: 2 },
     { key: 'lvl', label: 'Level', cell: (r) => <EvtLevel row={r} /> },
     { key: 'cat', label: 'Cat', get: (r) => r.cat_name, priority: 3 },
-    { key: 'text', label: 'Text', get: (r) => r.text },
+    { key: 'type', label: 'Type', cell: (r) => <EvtType row={r} />, priority: 2 },
+    { key: 'text', label: 'Text', get: (r) => rowText(r, evtView.lang) },
   ]
 
   return (

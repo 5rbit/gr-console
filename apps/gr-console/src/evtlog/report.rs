@@ -1,4 +1,5 @@
-//! Daily event report (xlsx): Summary · Alarms · Steps · Events (WARN and above) · Tasks.
+//! Daily event report (xlsx): Summary · Alarms · Steps · Events (WARN and above) · Tasks · Operator · Info · Task
+//! (the last three: ErrorList rows of that type, docs/evtlog/errorlist-rows.md).
 //! `GET /api/events/report.xlsx?date=` and, with `[evtlog] daily_report = true`, `data/reports/events-<date>.xlsx`
 //! for the previous day shortly after midnight (pruned with `keep_days`).
 
@@ -12,18 +13,22 @@ use axum::extract::{Query, State};
 use axum::http::header;
 use axum::response::IntoResponse;
 use axum::routing::get;
+use evt_catalog::Ty;
+use evt_catalog::errorlist::{CAT_INFO, CAT_OPERATOR, TRANS_MUL};
 use rust_xlsxwriter::{Format, Workbook, Worksheet, XlsxError};
 use serde::Deserialize;
 
 use super::catalog::{EventRow, Texts, now_ms};
 use super::routes::{log, opt};
-use super::stats::{self, AlarmStats, StepStats};
+use super::stats::{self, AlarmStats, EL_TASK_COMPLETED, StepStats};
 use super::store::Filter;
 use super::{EvtLog, stats::CAT_SYS};
 use crate::error::ApiError;
 use crate::state::AppState;
 
-pub const SHEETS: [&str; 5] = ["Summary", "Alarms", "Steps", "Events", "Tasks"];
+pub const SHEETS: [&str; 8] = ["Summary", "Alarms", "Steps", "Events", "Tasks", "Operator", "Info", "Task"];
+/// Sheets 5.. and the ErrorList rows they list.
+const TYPE_SHEETS: [(Ty, u8); 3] = [(Ty::Operator, CAT_OPERATOR), (Ty::Info, CAT_INFO), (Ty::Task, CAT_INFO)];
 const DAY_MS: i64 = 86_400_000;
 const MAX_ROWS: usize = 200_000;
 const CAT_TASK: u8 = 4;
@@ -57,6 +62,8 @@ pub struct ReportData {
     pub steps: StepStats,
     pub events: Vec<EventRow>,
     pub tasks: Vec<EventRow>,
+    /// Operator, Info, Task (ErrorList rows).
+    pub typed: [Vec<EventRow>; 3],
 }
 
 /// Blocking: every table of the report for `[from, to]`.
@@ -65,6 +72,7 @@ pub fn gather(log: &EvtLog, from: i64, to: i64) -> rusqlite::Result<ReportData> 
     let levels: Vec<String> = (0..=t.catalog.levels.iter().map(|l| l.id).max().unwrap_or(4)).map(|i| t.catalog.level_name(i).map(str::to_string).unwrap_or_else(|| format!("L{i}"))).collect();
     let n_lvl = levels.len();
     let mut counts: BTreeMap<String, Vec<i64>> = BTreeMap::new();
+    let task_cond = t.type_cond(&[Ty::Task]);
     let mut gaps: HashMap<String, (i64, i64)> = HashMap::new();
     let (mut tasks_completed, mut alarms_raised) = (0, 0);
     log.store.db().with(|c| {
@@ -81,7 +89,21 @@ pub fn gather(log: &EvtLog, from: i64, to: i64) -> rusqlite::Result<ReportData> 
             c.query_row("SELECT COUNT(*) FROM events WHERE cat = ?1 AND code = ?2 AND plc_ts >= ?3 AND plc_ts <= ?4", rusqlite::params![cat, code, from, to], |r| r.get(0))
         };
         tasks_completed = count(CAT_TASK, TASK_COMPLETED)?;
-        alarms_raised = count(stats::CAT_ALARM, stats::ALM_RAISED)?;
+        if let Some((cond, a)) = &task_cond {
+            let mut args: Vec<rusqlite::types::Value> = a.clone();
+            args.extend([rusqlite::types::Value::Integer(from), rusqlite::types::Value::Integer(to)]);
+            tasks_completed += c.query_row(
+                &format!("SELECT COUNT(*) FROM events WHERE cat = {CAT_INFO} AND code = {EL_TASK_COMPLETED} AND {cond} AND plc_ts >= ? AND plc_ts <= ?"),
+                rusqlite::params_from_iter(args),
+                |r| r.get::<_, i64>(0),
+            )?;
+        }
+        alarms_raised = count(stats::CAT_ALARM, stats::ALM_RAISED)?
+            + c.query_row(
+                "SELECT COUNT(*) FROM events WHERE cat = ?1 AND code >= ?2 AND code < ?3 AND src IN (1, 2) AND plc_ts >= ?4 AND plc_ts <= ?5",
+                rusqlite::params![stats::CAT_ALARM, TRANS_MUL, 2 * TRANS_MUL, from, to],
+                |r| r.get::<_, i64>(0),
+            )?;
         let mut st = c.prepare("SELECT plc, COUNT(*), COALESCE(SUM(a), 0) FROM events WHERE cat = ?1 AND code = ?2 AND plc_ts >= ?3 AND plc_ts <= ?4 GROUP BY plc")?;
         let it = st.query_map(rusqlite::params![CAT_SYS, CON_EVT_GAP, from, to], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?)))?;
         for x in it {
@@ -98,12 +120,16 @@ pub fn gather(log: &EvtLog, from: i64, to: i64) -> rusqlite::Result<ReportData> 
         }
     }
     loggers.sort_by(|a, b| a.plc.cmp(&b.plc));
-    let alarms = stats::alarm_stats(t, &stats::alarm_rows(&log.store, from, to, &[])?, from, to, now_ms());
+    let alarms = stats::alarm_stats(t, &stats::alarm_rows(&log.store, from, to, &[])?, from, to, now_ms(), &[]);
     let steps = stats::step_stats(t, stats::step_rows(&log.store, from, to, &[], None)?, None, from, to);
     let render = |f: Filter| -> rusqlite::Result<Vec<EventRow>> { Ok(log.store.query(&f, None, MAX_ROWS, true)?.iter().map(|(id, r)| t.row(*id, r)).collect()) };
     let events = render(Filter { min_lvl: Some(LVL_WARN), from: Some(from), to: Some(to), ..Default::default() })?;
-    let tasks = render(Filter { codes: vec![(Some(CAT_TASK), Some(TASK_COMPLETED)), (Some(CAT_TASK), Some(TASK_CYCLE))], from: Some(from), to: Some(to), ..Default::default() })?;
-    Ok(ReportData { from: t.fmt_ms(from), to: t.fmt_ms(to), levels, counts, tasks_completed, alarms_raised, loggers, alarms, steps, events, tasks })
+    // PLCs that write ErrorList rows log I0303 instead of TASK_COMPLETED (same payload)
+    let el_done = task_cond.as_ref().map(|(c, a)| (format!("(cat = {CAT_INFO} AND code = {EL_TASK_COMPLETED} AND {c})"), a.clone()));
+    let tasks = render(Filter { codes: vec![(Some(CAT_TASK), Some(TASK_COMPLETED)), (Some(CAT_TASK), Some(TASK_CYCLE))], code_or: el_done, from: Some(from), to: Some(to), ..Default::default() })?;
+    let typed = TYPE_SHEETS.map(|(ty, cat)| render(Filter { cats: vec![cat], types: t.type_cond(&[ty]), from: Some(from), to: Some(to), ..Default::default() }));
+    let [op, info, task] = typed;
+    Ok(ReportData { from: t.fmt_ms(from), to: t.fmt_ms(to), levels, counts, tasks_completed, alarms_raised, loggers, alarms, steps, events, tasks, typed: [op?, info?, task?] })
 }
 
 enum Cell<'a> {
@@ -134,7 +160,7 @@ fn secs(ms: i64) -> f64 {
 }
 
 fn event_sheet(ws: &mut Worksheet, rows: &[EventRow], bold: &Format) -> Result<(), XlsxError> {
-    header(ws, 0, &["Time", "PLC", "Level", "Cat", "Code", "Name", "Src", "A", "B", "Ctx", "Text", "Detail"], bold)?;
+    header(ws, 0, &["Time", "PLC", "Level", "Type", "ErrorCode", "Cat", "Code", "Name", "Src", "A", "B", "Ctx", "Text", "Detail"], bold)?;
     for (i, e) in rows.iter().enumerate() {
         let name = e.name.as_deref().unwrap_or("");
         let detail = e.detail.as_deref().unwrap_or("");
@@ -142,6 +168,8 @@ fn event_sheet(ws: &mut Worksheet, rows: &[EventRow], bold: &Format) -> Result<(
             Cell::S(&e.ts),
             Cell::S(&e.plc),
             Cell::S(&e.lvl_name),
+            Cell::S(e.etype.unwrap_or("")),
+            Cell::S(e.ecode.as_deref().unwrap_or("")),
             Cell::S(&e.cat_name),
             Cell::N(f64::from(e.code)),
             Cell::S(name),
@@ -186,6 +214,9 @@ pub fn build(d: &ReportData) -> Result<Vec<u8>, XlsxError> {
         ("StepSamples", i64::from(d.steps.samples)),
         ("StepOutliers", i64::from(d.steps.outliers_total)),
         ("WarnOrAbove", d.events.len() as i64),
+        ("OperatorRows", d.typed[0].len() as i64),
+        ("InfoRows", d.typed[1].len() as i64),
+        ("TaskRows", d.typed[2].len() as i64),
     ] {
         r += 1;
         row(ws, r, &[Cell::S(k), Cell::N(v as f64)], None)?;
@@ -199,12 +230,13 @@ pub fn build(d: &ReportData) -> Result<Vec<u8>, XlsxError> {
     ws.autofit();
 
     let ws = wb.add_worksheet().set_name(SHEETS[1])?;
-    header(ws, 0, &["PLC", "Area", "Bit", "Code", "Label", "Text", "Count", "TotalSec", "MeanSec", "MaxSec", "Open", "Last"], &bold)?;
+    header(ws, 0, &["PLC", "Type", "Area", "Bit", "Code", "Label", "Text", "Count", "TotalSec", "MeanSec", "MaxSec", "Open", "Flicker", "Last"], &bold)?;
     for (i, a) in d.alarms.rows.iter().enumerate() {
         let cells = [
             Cell::S(&a.plc),
+            Cell::S(a.ty),
             Cell::S(&a.area_name),
-            Cell::N(f64::from(a.bit)),
+            a.bit.map(|b| Cell::N(f64::from(b))).unwrap_or(Cell::E),
             Cell::N(f64::from(a.code)),
             Cell::S(&a.label),
             Cell::S(&a.text),
@@ -213,6 +245,7 @@ pub fn build(d: &ReportData) -> Result<Vec<u8>, XlsxError> {
             Cell::N(secs(a.mean_ms)),
             Cell::N(secs(a.max_ms)),
             Cell::N(f64::from(a.open)),
+            Cell::N(f64::from(a.flicker)),
             Cell::S(&a.last),
         ];
         row(ws, i as u32 + 1, &cells, None)?;
@@ -266,7 +299,7 @@ pub fn build(d: &ReportData) -> Result<Vec<u8>, XlsxError> {
     let ws = wb.add_worksheet().set_name(SHEETS[4])?;
     header(ws, 0, &["Time", "PLC", "Name", "TaskType", "Cell", "WorkId", "ProcessTimeMs", "TravelMm", "Text"], &bold)?;
     for (i, e) in d.tasks.iter().enumerate() {
-        let done = e.code == TASK_COMPLETED;
+        let done = e.code == TASK_COMPLETED || (e.cat == CAT_INFO && e.code == EL_TASK_COMPLETED);
         let cells = [
             Cell::S(&e.ts),
             Cell::S(&e.plc),
@@ -282,6 +315,27 @@ pub fn build(d: &ReportData) -> Result<Vec<u8>, XlsxError> {
     }
     ws.autofit();
     ws.set_freeze_panes(1, 0)?;
+
+    for (k, rows) in d.typed.iter().enumerate() {
+        let ws = wb.add_worksheet().set_name(SHEETS[5 + k])?;
+        header(ws, 0, &["Time", "PLC", "Code", "Trans", "Text", "Src", "A", "B", "WorkId"], &bold)?;
+        for (i, e) in rows.iter().enumerate() {
+            let cells = [
+                Cell::S(&e.ts),
+                Cell::S(&e.plc),
+                Cell::S(e.ecode.as_deref().unwrap_or("")),
+                Cell::S(e.trans.unwrap_or("")),
+                Cell::S(&e.text),
+                Cell::N(f64::from(e.src)),
+                Cell::N(e.a as f64),
+                Cell::N(e.b as f64),
+                Cell::N(f64::from(e.ctx)),
+            ];
+            row(ws, i as u32 + 1, &cells, None)?;
+        }
+        ws.autofit();
+        ws.set_freeze_panes(1, 0)?;
+    }
 
     wb.save_to_buffer()
 }
@@ -396,7 +450,7 @@ mod tests {
     use calamine::{Reader, Xlsx};
 
     #[tokio::test]
-    async fn report_has_five_sheets_with_the_rows_of_the_period() {
+    async fn report_has_its_sheets_with_the_rows_of_the_period() {
         let cat = Arc::new(crate::evtlog::catalog::embedded());
         let log = EvtLog::memory(cat);
         let rows = vec![
@@ -409,22 +463,29 @@ mod tests {
             raw("GR2", 1, 6_000, CAT_TASK, 2, TASK_CYCLE, 0, 4900, 1400, 7),
             raw("GRM", 1, 6_500, 9, 4, 905, 1, 1, 0, 0),
             raw("GR2", 0, 7_000, CAT_SYS, 3, CON_EVT_GAP, 0, 12, 99, 0),
-            raw("GR2", 1, 99_000, 6, 4, 601, 1, 7, 0, 0), // outside the period
+            raw("GR2", 1, 99_000, 6, 4, 601, 1, 7, 0, 0),      // outside the period
+            raw("GR2", 1, 8_000, 6, 4, 13118, 1, 400, 0, 7),   // ErrorList F3118 raise
+            raw("GR2", 1, 8_500, 18, 2, 10101, 0, 5984, 0, 0), // ErrorList O0101 raise
+            raw("GR2", 1, 9_000, 18, 2, 20101, 0, 0, 500, 0),  // ErrorList O0101 clear
         ];
         log.store.write(rows, &[]).unwrap();
         let d = gather(&log, 0, 10_000).unwrap();
-        assert_eq!((d.tasks_completed, d.alarms_raised), (1, 1));
-        assert_eq!(d.counts["GR2"].iter().sum::<i64>(), 8);
+        assert_eq!((d.tasks_completed, d.alarms_raised), (1, 2), "bit alarm + ErrorList raise");
+        assert_eq!(d.counts["GR2"].iter().sum::<i64>(), 11);
+        assert_eq!(d.typed.iter().map(Vec::len).collect::<Vec<_>>(), vec![2, 0, 0]);
         assert_eq!(d.counts["GRM"][4], 1);
         assert_eq!(d.loggers, vec![LoggerRow { plc: "GR2".into(), dropped: None, gaps: 1, lost: 12 }]);
-        assert_eq!(d.events.len(), 4, "WARN and above: raise, GRIP_ERROR, EMS, gap");
+        assert_eq!(d.events.len(), 5, "WARN and above: raise, GRIP_ERROR, EMS, gap, ErrorList raise");
         assert_eq!(d.tasks.len(), 2);
         let bytes = build(&d).unwrap();
         let mut x: Xlsx<_> = calamine::open_workbook_from_rs(std::io::Cursor::new(bytes)).unwrap();
         assert_eq!(x.sheet_names(), SHEETS.to_vec());
         let height = |x: &mut Xlsx<_>, s: &str| x.worksheet_range(s).unwrap().height();
-        assert_eq!(height(&mut x, "Alarms"), 2);
-        assert_eq!(height(&mut x, "Events"), 5);
+        assert_eq!(height(&mut x, "Alarms"), 3, "bit 320 + ErrorList F3118");
+        assert_eq!(height(&mut x, "Events"), 6);
+        assert_eq!(height(&mut x, "Operator"), 3);
+        let ev = x.worksheet_range("Events").unwrap();
+        assert_eq!(ev.get_value((0, 3)).map(|v| v.to_string()).as_deref(), Some("Type"));
         assert_eq!(height(&mut x, "Tasks"), 3);
         assert_eq!(height(&mut x, "Steps"), 4, "one step row + blank + outlier header");
         let summary = x.worksheet_range("Summary").unwrap();

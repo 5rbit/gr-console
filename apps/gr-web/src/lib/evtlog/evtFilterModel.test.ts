@@ -109,6 +109,39 @@ describe('codeTokens / activeCount', () => {
   })
 })
 
+describe('ErrorList types and codes', () => {
+  const alarm = row({
+    cat: 6,
+    cat_name: 'ALARM',
+    code: 13119,
+    name: null,
+    etype: 'Alarm',
+    ecode: 'F3119',
+    trans: 'raise',
+    text: '스테이션 인터록 타임아웃 발생',
+    text_en: 'Station Interlock Timeout raised',
+  })
+  it('the type filter goes to the query and counts as a condition', () => {
+    expect(params(buildQuery(f({ types: ['Alarm', 'Task'] }), { now: NOW }))).toEqual({
+      type: 'Alarm,Task',
+    })
+    expect(activeCount(f({ types: ['Warn'] }))).toBe(1)
+  })
+  it('live rows match by type — rows outside the ErrorList never do', () => {
+    expect(matchesFilter(alarm, f({ types: ['Alarm'] }), NOW)).toBe(true)
+    expect(matchesFilter(alarm, f({ types: ['Warn', 'Task'] }), NOW)).toBe(false)
+    expect(matchesFilter(row(), f({ types: ['Info'] }), NOW)).toBe(false)
+  })
+  it('an ErrorList code in the code box matches ecode, the search sees ecode and the English text', () => {
+    expect(codeTokens('f3119, 701')).toEqual(['F3119', '701'])
+    expect(matchesFilter(alarm, f({ code: 'f3119' }), NOW)).toBe(true)
+    expect(matchesFilter(alarm, f({ code: 'F3118' }), NOW)).toBe(false)
+    expect(matchesFilter(row(), f({ code: 'F3119,701' }), NOW)).toBe(true)
+    expect(matchesFilter(alarm, f({ q: 'f3119' }), NOW)).toBe(true)
+    expect(matchesFilter(alarm, f({ q: 'interlock' }), NOW)).toBe(true)
+  })
+})
+
 describe('matchesFilter (live matcher)', () => {
   it('passes everything with the empty filter', () => {
     expect(matchesFilter(row(), EMPTY_FILTER, NOW)).toBe(true)

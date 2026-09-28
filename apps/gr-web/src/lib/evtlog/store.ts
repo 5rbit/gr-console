@@ -15,6 +15,7 @@ import { EMPTY_FILTER, buildQuery, matchesFilter, type EvtFilter } from './evtFi
 import { PAGE_SIZE, ROW_CAP, mergeRows } from './evtRowsModel'
 import { EMPTY_STATS, statsQuery, type StatsState } from './evtStatsModel'
 import { type EvtUrlState, type EvtViewId } from './evtUrlModel'
+import { loadLang, saveLang, type EvtLang } from './evtTypeModel'
 import { EMPTY_SWIM, swimQuery, type SwimState } from './swimlaneModel'
 import { evtStream } from './stream'
 
@@ -58,6 +59,19 @@ class EvtView extends Store {
   #focus: EventRow | null = null
   #saved: SavedFilter[] = []
   #subReq = 0
+  #lang: EvtLang = typeof localStorage === 'undefined' ? 'ko' : loadLang()
+
+  /** 문구 언어(이 브라우저) — ErrorList 문구만 바뀐다. */
+  get lang(): EvtLang {
+    return this.#lang
+  }
+
+  setLang(l: EvtLang): void {
+    if (l === this.#lang) return
+    this.#lang = l
+    saveLang(l)
+    this.notify()
+  }
 
   get view(): EvtViewId {
     return this.#view

@@ -16,6 +16,7 @@ use super::{DB, EventRow, EvtLog};
 use crate::error::{ApiError, ApiResult};
 use crate::plc::{PlcHandle, ensure_db};
 use crate::state::AppState;
+use evt_catalog::Ty;
 
 const MAX_LIMIT: usize = 5000;
 const CSV_MAX: usize = 200_000;
@@ -39,6 +40,9 @@ pub struct Q {
     from: Option<String>,
     to: Option<String>,
     q: Option<String>,
+    /// ErrorList types: Alarm, Warn, Operator, Info, Task
+    #[serde(rename = "type")]
+    ty: Option<String>,
     limit: Option<String>,
     before: Option<String>,
     order: Option<String>,
@@ -71,15 +75,19 @@ fn filter(log: &EvtLog, q: &Q, default_limit: usize, max_limit: usize) -> Result
         Some(l) => Some(l.parse::<u8>().ok().or_else(|| cat.level_id(l)).ok_or_else(|| ApiError::BadRequest(format!("lvl: {l} 를 모릅니다")))?),
         None => None,
     };
+    let mut ecodes = Vec::new();
     for c in list(&q.code) {
         match c.parse::<u32>() {
             Ok(n) => f.codes.push((None, Some(n))),
+            Err(_) if evt_catalog::errorlist::parse_label(c).is_some() => ecodes.extend(evt_catalog::errorlist::parse_label(c)),
             Err(_) => {
                 let e = cat.event_by_name(c).ok_or_else(|| ApiError::BadRequest(format!("code: {c} 이벤트를 모릅니다")))?;
                 f.codes.push((Some(e.cat), e.code.map(u32::from)));
             }
         }
     }
+    f.code_or = log.texts.code_cond(&ecodes);
+    f.types = log.texts.type_cond(&types(&q.ty)?);
     f.src = num(&q.src, "src")?;
     f.ctx = num(&q.ctx, "ctx")?;
     f.origin = match opt(&q.origin) {
@@ -102,8 +110,13 @@ fn filter(log: &EvtLog, q: &Q, default_limit: usize, max_limit: usize) -> Result
     Ok((f, opt(&q.q).map(str::to_lowercase), limit, cursor, asc))
 }
 
+/// `type=Alarm,Warn` → types (case-insensitive).
+pub(super) fn types(s: &Option<String>) -> Result<Vec<Ty>, ApiError> {
+    list(s).into_iter().map(|t| Ty::parse(t).ok_or_else(|| ApiError::BadRequest(format!("type: {t} (Alarm | Warn | Operator | Info | Task)")))).collect()
+}
+
 fn matches(r: &EventRow, needle: &str) -> bool {
-    [Some(r.text.as_str()), r.name.as_deref(), r.detail.as_deref(), Some(r.plc.as_str())].into_iter().flatten().any(|s| s.to_lowercase().contains(needle))
+    [Some(r.text.as_str()), r.text_en.as_deref(), r.name.as_deref(), r.ecode.as_deref(), r.detail.as_deref(), Some(r.plc.as_str())].into_iter().flatten().any(|s| s.to_lowercase().contains(needle))
 }
 
 /// One page (newest first unless `order=asc`). Blocking — call from `spawn_blocking`.
@@ -198,7 +211,11 @@ async fn export_csv(State(st): State<AppState>, Query(q): Query<Q>) -> Result<im
         let (rows, _, _) = page(&log, &f, needle.as_deref(), limit, cursor, asc)?;
         let mut w = csv::Writer::from_writer(vec![0xEF, 0xBB, 0xBF]);
         let err = |e: csv::Error| ApiError::Internal(format!("csv: {e}"));
-        w.write_record(["id", "time", "rx_time", "plc", "origin", "epoch", "seq", "cat", "cat_name", "lvl", "lvl_name", "src", "code", "name", "a", "b", "ctx", "detail", "text"]).map_err(err)?;
+        w.write_record([
+            "id", "time", "rx_time", "plc", "origin", "epoch", "seq", "cat", "cat_name", "lvl", "lvl_name", "type", "ecode", "trans", "src", "code", "name", "a", "b", "ctx", "detail", "text",
+            "text_en",
+        ])
+        .map_err(err)?;
         for r in rows {
             w.write_record([
                 r.id.to_string(),
@@ -212,6 +229,9 @@ async fn export_csv(State(st): State<AppState>, Query(q): Query<Q>) -> Result<im
                 r.cat_name,
                 r.lvl.to_string(),
                 r.lvl_name,
+                r.etype.unwrap_or_default().to_string(),
+                r.ecode.unwrap_or_default(),
+                r.trans.unwrap_or_default().to_string(),
                 r.src.to_string(),
                 r.code.to_string(),
                 r.name.unwrap_or_default(),
@@ -220,6 +240,7 @@ async fn export_csv(State(st): State<AppState>, Query(q): Query<Q>) -> Result<im
                 r.ctx.to_string(),
                 r.detail.unwrap_or_default(),
                 r.text,
+                r.text_en.unwrap_or_default(),
             ])
             .map_err(err)?;
         }
@@ -434,5 +455,56 @@ mod tests {
         let (f, n, limit, cur, asc) = filter(&log, &q(&[("from", "1005"), ("to", "1008"), ("order", "asc")]), 200, MAX_LIMIT).unwrap();
         let rows = page(&log, &f, n.as_deref(), limit, cur, asc).unwrap().0;
         assert_eq!(rows.iter().map(|r| r.ts_ms).collect::<Vec<_>>(), vec![1005, 1006, 1007, 1008]);
+    }
+
+    /// The SQL type / ErrorList code filters select exactly the rows the classifier labels so.
+    #[test]
+    fn type_and_errorlist_code_filters_match_the_classifier() {
+        use crate::evtlog::stats::tests::{raw, texts};
+        let log = EvtLog::memory_with(texts());
+        let rows = vec![
+            raw("GR2", 1, 1, 6, 4, 13118, 1, 400, 0, 0),   // 1 F3118 raise (ErrorList row)
+            raw("GR2", 1, 2, 6, 3, 21101, 2, 1, 900, 0),   // 2 W1101 clear (ErrorList row)
+            raw("GR2", 1, 3, 6, 4, 601, 1, 593, 400, 0),   // 3 bit alarm row, FAULT bit 593 = F3118
+            raw("GR2", 1, 4, 18, 2, 10101, 0, 5984, 0, 0), // 4 O0101 raise (ErrorList row)
+            raw("GR2", 1, 5, 19, 2, 30301, 1, 101, 7, 7),  // 5 I0301 = Task on the robot
+            raw("GRM", 1, 6, 19, 2, 30301, 1, 3000, 0, 0), // 6 I0301 = Info on GRM
+            raw("GR2", 1, 7, 4, 2, 401, 1, 101, 7, 7),     // 7 catalog TASK_ACCEPTED → I0301
+            raw("GR2", 1, 8, 3, 2, 300, 20, 900, 200, 7),  // 8 STEP → I5101 (log-only Info)
+            raw("GR2", 1, 9, 7, 2, 701, 1, 0, 0, 0),       // 9 GRIP_REQ: not in the ErrorList
+            raw("GR2", 1, 10, 5, 1, 513, 1, 1, 0, 0),      // 10 CMD_JOG Src 1 → O0101
+            raw("GRM", 1, 11, 3, 2, 300, 20, 900, 200, 0), // 11 GRM STEP: GRM's list has no reference
+        ];
+        log.store.write(rows, &[]).unwrap();
+        let ids = |pairs: &[(&str, &str)]| -> Vec<i64> {
+            let (f, n, limit, cur, asc) = filter(&log, &q(pairs), 200, MAX_LIMIT).unwrap();
+            let mut v: Vec<i64> = page(&log, &f, n.as_deref(), limit, cur, asc).unwrap().0.iter().map(|r| r.ts_ms).collect();
+            v.sort_unstable();
+            v
+        };
+        let all = page(&log, &Filter::default(), None, 100, None, false).unwrap().0;
+        for ty in ["Alarm", "Warn", "Operator", "Info", "Task"] {
+            let mut want: Vec<i64> = all.iter().filter(|r| r.etype == Some(ty)).map(|r| r.ts_ms).collect();
+            want.sort_unstable();
+            assert_eq!(ids(&[("type", ty)]), want, "{ty}");
+        }
+        assert_eq!(ids(&[("type", "alarm")]), vec![1, 3]);
+        assert_eq!(ids(&[("type", "Operator")]), vec![4, 10]);
+        assert_eq!(ids(&[("type", "Info")]), vec![6, 8]);
+        assert_eq!(ids(&[("type", "Task")]), vec![5, 7]);
+        assert_eq!(ids(&[("type", "Alarm,Task"), ("plc", "GR2")]), vec![1, 3, 5, 7]);
+        assert_eq!(ids(&[("code", "F3118")]), vec![1, 3], "ErrorList row + bit alarm row at the code's bit");
+        assert_eq!(ids(&[("code", "I0301")]), vec![5, 6, 7]);
+        assert_eq!(ids(&[("code", "w1101,701")]), vec![2, 9], "ErrorList codes OR catalog codes");
+        assert!(filter(&log, &q(&[("type", "Loud")]), 200, MAX_LIMIT).is_err());
+        // what a row carries
+        let task = all.iter().find(|r| r.ts_ms == 5).unwrap();
+        assert_eq!((task.etype, task.ecode.as_deref(), task.trans), (Some("Task"), Some("I0301"), Some("momentary")));
+        assert_eq!(task.text, "작업 수락 (Buff) · Type PICK · Cell 101 · WorkId 7");
+        assert_eq!(task.text_en.as_deref(), Some("Task - Accepted to Buffer · Type PICK · Cell 101 · WorkId 7"));
+        let grip = all.iter().find(|r| r.ts_ms == 9).unwrap();
+        assert_eq!((grip.etype, grip.ecode.as_deref(), grip.text_en.as_deref()), (None, None, None));
+        // the search sees the ErrorList code
+        assert_eq!(page(&log, &Filter::default(), Some("o0101"), 100, None, false).unwrap().0.len(), 2);
     }
 }

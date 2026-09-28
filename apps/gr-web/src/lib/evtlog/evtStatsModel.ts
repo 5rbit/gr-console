@@ -19,6 +19,8 @@ export interface StatsState {
   from: number | null
   to: number | null
   plcs: string[]
+  /** 알람 통계의 ErrorList 유형 — 비면 서버 기본(Alarm, Warn). */
+  types: string[]
   /** 스텝 통계를 Task 종류로 나눈다. */
   split: boolean
 }
@@ -28,6 +30,7 @@ export const EMPTY_STATS: StatsState = {
   from: null,
   to: null,
   plcs: [],
+  types: [],
   split: false,
 }
 
@@ -45,11 +48,12 @@ export function periodRange(s: StatsState, now: number): { from: number; to: num
   return { from: d.getTime(), to: now }
 }
 
-/** `?from=…&to=…[&plc=…][&split=type]`. */
+/** `?from=…&to=…[&plc=…][&split=type]` — 스텝 통계(`split`)에는 유형을 싣지 않는다. */
 export function statsQuery(s: StatsState, now: number, opts: { split?: boolean } = {}): string {
   const r = periodRange(s, now)
   const q = new URLSearchParams({ from: String(r.from), to: String(r.to) })
   if (s.plcs.length) q.set('plc', s.plcs.join(','))
+  if (!opts.split && s.types.length) q.set('type', s.types.join(','))
   if (opts.split && s.split) q.set('split', 'type')
   return `?${q.toString()}`
 }
@@ -107,20 +111,13 @@ export function fmtDuration(ms: number): string {
   return `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')} m`
 }
 
-/** 알람 한 줄 → 그 알람의 ALARM 행만 남는 목록 필터(같은 기간). */
+/** 알람 한 줄 → 그 알람의 행만 남는 목록 필터(같은 기간). ErrorList 행은 코드로, 비트 알람 행은 문구 검색으로. */
 export function alarmListFilter(
-  row: Pick<AlarmStatRow, 'plc' | 'search'>,
+  row: Pick<AlarmStatRow, 'plc' | 'search' | 'by_code'>,
   range: { from: number; to: number },
 ): EvtFilter {
-  return {
-    ...EMPTY_FILTER,
-    plcs: [row.plc],
-    cats: ['ALARM'],
-    q: row.search,
-    range: 'custom',
-    from: range.from,
-    to: range.to,
-  }
+  const base = { ...EMPTY_FILTER, plcs: [row.plc], range: 'custom' as const, ...range }
+  return row.by_code ? { ...base, code: row.search } : { ...base, cats: ['ALARM'], q: row.search }
 }
 
 /** Task 종류로 나눈 표에서 같은 (PLC, proc, step) 줄이 모이게 — 종류 없는 줄이 먼저. */

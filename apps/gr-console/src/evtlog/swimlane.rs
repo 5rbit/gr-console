@@ -17,6 +17,8 @@ use super::stats::{ALM_CLEARED, ALM_RAISED, CAT_ALARM};
 use super::store::{Cursor, Filter, Row};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
+use evt_catalog::Trans;
+use evt_catalog::errorlist::{self, TRANS_MUL};
 
 pub const CAT_ILOCK: u8 = 12;
 pub const ILK_TARGET: u32 = 1201;
@@ -110,8 +112,13 @@ fn bit(v: Option<i64>, n: u32) -> Option<u8> {
     v.map(|v| u8::from(v >> n & 1 == 1))
 }
 
-/// `station_alarm(plc, is_robot, area, bit)` decides which ALARM rows are markers.
-pub fn build(slot: u32, from: i64, to: i64, robots: &[RobotIn], grm: Option<&GrmIn>, station_alarm: &dyn Fn(&str, bool, u32, u32) -> bool) -> Built {
+/// Bit alarm rows (ALM_RAISED / ALM_CLEARED) and ErrorList ALARM raise / clear rows.
+fn alarm_edge(row: &Row) -> bool {
+    row.cat == CAT_ALARM && (matches!(row.code, ALM_RAISED | ALM_CLEARED) || errorlist::decode(row.cat, row.src, row.code).is_some_and(|v| matches!(v.trans, Trans::Raise | Trans::Clear)))
+}
+
+/// `station_alarm(plc, is_robot, row)` decides which ALARM rows are markers.
+pub fn build(slot: u32, from: i64, to: i64, robots: &[RobotIn], grm: Option<&GrmIn>, station_alarm: &dyn Fn(&str, bool, &Row) -> bool) -> Built {
     let mut out = Built::default();
     for r in robots {
         let mut lanes: Vec<Lane> = PO_BITS.iter().map(|(n, _)| Lane::new(format!("{}.PO.{n}", r.plc), &r.name, format!("PO.{n}"))).collect();
@@ -141,7 +148,7 @@ pub fn build(slot: u32, from: i64, to: i64, robots: &[RobotIn], grm: Option<&Grm
                 (CAT_ILOCK, ILK_PI) => pi = Some(row.a),
                 (CAT_ILOCK, ILK_PO) => po = Some(row.a),
                 (CAT_ILOCK, ILK_TIMEOUT) if on_before => out.markers.push((*id, "ilk_timeout")),
-                (CAT_ALARM, ALM_RAISED | ALM_CLEARED) if on_before && u32::try_from(row.a).is_ok_and(|b| station_alarm(&r.plc, true, row.src, b)) => out.markers.push((*id, "alarm")),
+                (CAT_ALARM, _) if on_before && alarm_edge(row) && station_alarm(&r.plc, true, row) => out.markers.push((*id, "alarm")),
                 _ => continue,
             }
             apply(row.plc_ts, target, pi, po, &mut lanes, &mut span, &mut out.spans);
@@ -169,7 +176,7 @@ pub fn build(slot: u32, from: i64, to: i64, robots: &[RobotIn], grm: Option<&Grm
                 (CAT_STATION, ST_CVNO_REASON) if row.src == slot => out.markers.push((*id, "cvno_reason")),
                 (CAT_STATION, ST_MEAS) if row.src == slot => out.markers.push((*id, "meas")),
                 (CAT_STATION, ST_TRACKING) if row.src == slot => out.markers.push((*id, "tracking")),
-                (CAT_ALARM, ALM_RAISED | ALM_CLEARED) if u32::try_from(row.a).is_ok_and(|b| station_alarm(&g.plc, false, row.src, b)) => out.markers.push((*id, "alarm")),
+                (CAT_ALARM, _) if alarm_edge(row) && station_alarm(&g.plc, false, row) => out.markers.push((*id, "alarm")),
                 _ => {}
             }
             apply(row.plc_ts, cv_in, cv_out, &mut lanes);
@@ -186,11 +193,17 @@ fn station_no(text: &str) -> Option<u32> {
     digits.parse().ok()
 }
 
-/// GRM alarms named after the slot's station, robot alarms about the station interlock.
-pub fn station_alarm_of(texts: &Texts, slot: u32) -> impl Fn(&str, bool, u32, u32) -> bool + '_ {
-    move |plc, robot, area, bit| {
-        texts.renderer(plc).alarm(area, bit).is_some_and(|a| {
-            let t = a.text_en.to_ascii_lowercase();
+/// GRM alarms named after the slot's station, robot alarms about the station interlock (English text: alarms.json
+/// for bit alarm rows, the ErrorList for ErrorList rows).
+pub fn station_alarm_of(texts: &Texts, slot: u32) -> impl Fn(&str, bool, &Row) -> bool + '_ {
+    move |plc, robot, row| {
+        let r = texts.renderer(plc);
+        let text = match errorlist::decode(row.cat, row.src, row.code) {
+            Some(v) => r.errorlist().get(v.level, v.num).map(|e| e.text_en.clone()),
+            None => u32::try_from(row.a).ok().and_then(|bit| r.alarm(row.src, bit)).map(|a| a.text_en.clone()),
+        };
+        text.is_some_and(|t| {
+            let t = t.to_ascii_lowercase();
             if robot { t.contains("station interlock") } else { station_no(&t) == Some(slot) }
         })
     }
@@ -220,7 +233,9 @@ fn last_before(log: &EvtLog, plc: &str, cat: u8, code: u32, src: Option<u32>, be
 }
 
 fn window(log: &EvtLog, plc: &str, codes: Vec<(Option<u8>, Option<u32>)>, src: Option<u32>, from: i64, to: i64) -> rusqlite::Result<Vec<(i64, Row)>> {
-    let f = Filter { plcs: vec![plc.to_string()], codes, src, from: Some(from), to: Some(to), ..Default::default() };
+    // ALARM windows also take the ErrorList raise / clear rows
+    let code_or = codes.contains(&(Some(CAT_ALARM), Some(ALM_RAISED))).then(|| (format!("(cat = {CAT_ALARM} AND code >= {TRANS_MUL} AND code < {})", 3 * TRANS_MUL), Vec::new()));
+    let f = Filter { plcs: vec![plc.to_string()], codes, src, from: Some(from), to: Some(to), code_or, ..Default::default() };
     log.store.query(&f, None, MAX_ROWS, true)
 }
 

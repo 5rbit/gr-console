@@ -15,6 +15,7 @@ describe('evt url', () => {
         ...EMPTY_FILTER,
         plcs: ['GR2', 'GRM'],
         cats: ['ALARM'],
+        types: ['Warn', 'Task'],
         minLvl: 3,
         code: 'ALM_RAISED, 602',
         ctx: '777',
@@ -23,11 +24,20 @@ describe('evt url', () => {
         to: 2000,
         q: 'W1101 스테이션',
       },
-      stats: { period: '7d', from: null, to: null, plcs: ['GR1'], split: true },
+      stats: {
+        period: '7d',
+        from: null,
+        to: null,
+        plcs: ['GR1'],
+        types: ['Alarm', 'Operator'],
+        split: true,
+      },
       swim: { station: 2101, slot: null, event: null, from: 5, to: 6 },
     }
     const q = toQuery(st)
     expect(q).toContain('e.view=alarms')
+    expect(q).toContain('e.type=Warn%2CTask')
+    expect(q).toContain('e.stype=Alarm%2COperator')
     expect(fromQuery(`?tab=events&${q}`)).toEqual(st)
   })
 

@@ -7,8 +7,10 @@
 //! * `gen-link` generate the PLC link SCL / constant table / test vector DB and the PC artifacts
 //! * `gen-evt`  generate the `EVT_Const_Gen` constant table from the event log catalog
 //! * `alarms`   build `plc/contract/<PLC>/alarms.json` (alarm area + bit -> code / text)
+//! * `errorlist` build `plc/contract/<PLC>/errorlist.json` + HMI discrete-alarm drafts from the ErrorList workbook
 
 mod alarms;
+mod errorlist;
 mod gen_evt;
 mod gen_link;
 
@@ -133,6 +135,8 @@ enum Cmd {
     },
     /// Build plc/contract/<PLC>/alarms.json: (area, bit index) -> alarm code, class and texts.
     Alarms(alarms::Args),
+    /// Build plc/contract/<PLC>/errorlist.json (Alarm / Warn / Operator / Info) + HMI Operator / Info / Task drafts from the ErrorList workbook.
+    Errorlist(errorlist::Args),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -204,6 +208,7 @@ fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Cmd::Alarms(args) => alarms::run(&args),
+        Cmd::Errorlist(args) => errorlist::run(&args),
     }
 }
 
