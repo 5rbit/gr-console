@@ -420,6 +420,28 @@ function ParamsDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
+/** 자동 생성 탭과 같은 내용을 팝업으로 — 다른 탭에서 작업하다가 규칙·판단 기준을 볼 때. */
+export function AutoGenDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="자동 생성 — 규칙 · 판단 기준"
+      size="lg"
+      closeLabel="닫기"
+      testid="autogen-dialog"
+    >
+      {open ? <AutoGenPanel /> : null}
+    </Dialog>
+  )
+}
+
 const TONE = {
   ok: 'text-ok-fg',
   warn: 'text-warn-fg',
