@@ -1,9 +1,10 @@
 //! ErrorList registry (`plc/contract/<PLC>/errorlist.json`, written by `gr-contract errorlist` from the ErrorList
-//! workbook) and the v2 EVTLOG row encoding (`docs/evtlog/encoding-v2.md`).
+//! workbook) and the EVTLOG ErrorList row encoding (`docs/evtlog/errorlist-rows.md`).
 //!
-//! v2 rows keep the 34 B entry: `Cat` 6 ALARM (Src = 1 FAULT / 2 WARN) · 18 OPERATOR · 19 INFO,
+//! ErrorList rows keep the 34 B entry: `Cat` 6 ALARM (Src = 1 FAULT / 2 WARN) · 18 OPERATOR · 19 INFO,
 //! `Code = transition × 10000 + ErrorList number`, Src / A / B = values (clear rows: A = flicker count, B = active ms).
-//! Old catalog rows keep their meaning: a v2 ALARM row is told apart by `Code >= 10000` (catalog codes are < 10000).
+//! Catalog rows keep their meaning: an ErrorList ALARM row is told apart from a bit alarm row (ALM_RAISED 601 …) by
+//! `Code >= 10000` (catalog codes are < 10000).
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -14,7 +15,7 @@ pub const CAT_OPERATOR: u8 = 18;
 pub const CAT_INFO: u8 = 19;
 /// `Code = trans * TRANS_MUL + num`.
 pub const TRANS_MUL: u32 = 10_000;
-/// Old catalog ALARM rows (`{alarm}` = (area Src, bit A) through alarms.json).
+/// Bit alarm rows (catalog ALARM, `{alarm}` = (area Src, bit A) through alarms.json).
 pub const ALM_RAISED: u32 = 601;
 pub const ALM_CLEARED: u32 = 602;
 
@@ -80,7 +81,7 @@ impl Level {
             Level::Operator | Level::Info => 2,
         }
     }
-    /// v2 category.
+    /// Category of the ErrorList row.
     pub fn cat(self) -> u8 {
         match self {
             Level::Alarm | Level::Warn => CAT_ALARM,
@@ -143,7 +144,7 @@ impl Ty {
     }
 }
 
-/// v2 row transition (`Code / 10000`).
+/// ErrorList row transition (`Code / 10000`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Trans {
@@ -176,22 +177,22 @@ impl Trans {
     }
 }
 
-/// A decoded v2 row.
+/// A decoded ErrorList row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct V2 {
+pub struct ElRow {
     pub level: Level,
     pub trans: Trans,
     pub num: u32,
 }
 
-impl V2 {
+impl ElRow {
     pub fn label(&self) -> String {
         label(self.level, self.num)
     }
 }
 
-/// `(cat, src, code)` of a v2 row, `None` for catalog rows.
-pub fn decode_v2(cat: u8, src: u32, code: u32) -> Option<V2> {
+/// `(cat, src, code)` of an ErrorList row, `None` for catalog rows (bit alarm rows included).
+pub fn decode(cat: u8, src: u32, code: u32) -> Option<ElRow> {
     let trans = Trans::from_id(code / TRANS_MUL)?;
     let num = code % TRANS_MUL;
     if num == 0 {
@@ -207,11 +208,11 @@ pub fn decode_v2(cat: u8, src: u32, code: u32) -> Option<V2> {
         CAT_INFO => Level::Info,
         _ => return None,
     };
-    Some(V2 { level, trans, num })
+    Some(ElRow { level, trans, num })
 }
 
-/// `(cat, src for ALARM rows, code)` — the PLC side of [`decode_v2`] (demo, tests).
-pub fn encode_v2(level: Level, trans: Trans, num: u32) -> (u8, Option<u32>, u32) {
+/// `(cat, src for ALARM rows, code)` — the PLC side of [`decode`] (demo, tests).
+pub fn encode(level: Level, trans: Trans, num: u32) -> (u8, Option<u32>, u32) {
     let src = matches!(level, Level::Alarm | Level::Warn).then(|| level.area_id());
     (level.cat(), src, trans as u32 * TRANS_MUL + num)
 }
@@ -253,7 +254,7 @@ pub struct ElEntry {
     pub at: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub condition: String,
-    /// Catalog event this row replaces (old rows of that event read as this type).
+    /// Catalog event this row replaces (catalog rows of that event read as this type).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalog: Option<String>,
     /// `Src=N` of the catalog reference, when the row names one.
@@ -307,7 +308,7 @@ pub struct ErrorListFile {
     pub entries: Vec<ElEntry>,
 }
 
-/// What a catalog event name reads as (old rows).
+/// What a catalog event name reads as (catalog rows).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CatalogRef {
     pub event: String,
@@ -356,7 +357,7 @@ impl ErrorList {
         self.get(l, n)
     }
 
-    /// Type (and code when unique) of an old catalog row: every row naming the event agrees on the type, or the
+    /// Type (and code when unique) of a catalog row: every row naming the event agrees on the type, or the
     /// row's Src picks one.
     pub fn for_catalog(&self, event: &str, src: u32) -> Option<(Ty, Option<&ElEntry>)> {
         let idx = self.by_catalog.get(&event.to_ascii_uppercase())?;
@@ -370,7 +371,7 @@ impl ErrorList {
         Some((ty, (pick.len() == 1).then(|| pick[0])))
     }
 
-    /// Every (event, src) → type this list gives old rows (SQL for the type filter).
+    /// Every (event, src) → type this list gives catalog rows (SQL for the type filter).
     pub fn catalog_refs(&self) -> Vec<CatalogRef> {
         let mut out = Vec::new();
         let mut names: Vec<&String> = self.by_catalog.keys().collect();
@@ -552,22 +553,22 @@ mod tests {
     }
 
     #[test]
-    fn v2_round_trip_and_old_rows_stay_old() {
+    fn errorlist_round_trip_and_bit_alarm_rows_unchanged() {
         for level in Level::ALL {
             for trans in [Trans::Raise, Trans::Clear, Trans::Momentary, Trans::Summary] {
-                let (cat, src, code) = encode_v2(level, trans, 3119);
-                assert_eq!(decode_v2(cat, src.unwrap_or(7), code), Some(V2 { level, trans, num: 3119 }));
+                let (cat, src, code) = encode(level, trans, 3119);
+                assert_eq!(decode(cat, src.unwrap_or(7), code), Some(ElRow { level, trans, num: 3119 }));
                 assert!(code <= u32::from(u16::MAX), "Code is a UInt");
             }
         }
-        assert_eq!(encode_v2(Level::Warn, Trans::Clear, 1101), (6, Some(2), 21101));
-        assert_eq!(encode_v2(Level::Info, Trans::Momentary, 301), (19, None, 30301));
-        // catalog rows: ALM_RAISED 601 (Src = area), STEP 300, unknown transition, number 0, other categories
-        assert_eq!(decode_v2(6, 1, 601), None);
-        assert_eq!(decode_v2(6, 3, 10101), None, "cat 6 v2 needs Src 1/2");
-        assert_eq!(decode_v2(19, 0, 50301), None);
-        assert_eq!(decode_v2(19, 0, 20000), None);
-        assert_eq!(decode_v2(3, 20, 10300), None);
+        assert_eq!(encode(Level::Warn, Trans::Clear, 1101), (6, Some(2), 21101));
+        assert_eq!(encode(Level::Info, Trans::Momentary, 301), (19, None, 30301));
+        // catalog rows: bit alarm ALM_RAISED 601 (Src = area), STEP 300, unknown transition, number 0, other categories
+        assert_eq!(decode(6, 1, 601), None);
+        assert_eq!(decode(6, 3, 10101), None, "an ErrorList ALARM row needs Src 1/2");
+        assert_eq!(decode(19, 0, 50301), None);
+        assert_eq!(decode(19, 0, 20000), None);
+        assert_eq!(decode(3, 20, 10300), None);
         assert_eq!(parse_label("f0101"), Some((Level::Alarm, 101)));
         assert_eq!(parse_label("I5101"), Some((Level::Info, 5101)));
         assert_eq!(parse_label("X0101"), None);

@@ -518,17 +518,17 @@ mod tests {
         let task = compile(&rule(2, RuleMatch { types: vec!["Task".into()], ..Default::default() }, 0), &cat).unwrap();
         let by_code = compile(&rule(3, RuleMatch { codes: vec!["f3118".into(), "CMD_EMS".into()], ..Default::default() }, 0), &cat).unwrap();
         let m = |c: &Compiled, r: &Row| c.matches(r, &mut || String::new(), &mut || t.classify(r));
-        let v2_raise = raw("GR2", 1, 0, 6, 4, 13118, 1, 400, 0, 0);
-        let v2_clear = raw("GR2", 1, 0, 6, 4, 23118, 1, 2, 5_000, 0);
-        let old_raise = raw("GR2", 1, 0, 6, 4, 601, 1, 593, 0, 0); // F3118 by alarms.json
+        let el_raise = raw("GR2", 1, 0, 6, 4, 13118, 1, 400, 0, 0);
+        let el_clear = raw("GR2", 1, 0, 6, 4, 23118, 1, 2, 5_000, 0);
+        let bit_raise = raw("GR2", 1, 0, 6, 4, 601, 1, 593, 0, 0); // bit alarm row, F3118 by alarms.json
         let warn = raw("GR2", 1, 0, 6, 3, 11101, 2, 0, 0, 0);
-        let task_v2 = raw("GR2", 1, 0, 19, 2, 30301, 1, 101, 7, 7);
+        let el_task = raw("GR2", 1, 0, 19, 2, 30301, 1, 101, 7, 7);
         let grm_i0301 = raw("GRM", 1, 0, 19, 2, 30301, 1, 3000, 0, 0); // GRM I0301 is an INFO row
-        let accepted = raw("GR2", 1, 0, 4, 2, 401, 1, 101, 7, 7); // old TASK_ACCEPTED → I0301
-        assert!(m(&alarm_raise, &v2_raise) && m(&alarm_raise, &old_raise));
-        assert!(!m(&alarm_raise, &v2_clear) && !m(&alarm_raise, &warn), "clear / other type");
-        assert!(m(&task, &task_v2) && m(&task, &accepted) && !m(&task, &grm_i0301));
-        assert!(m(&by_code, &v2_raise) && m(&by_code, &v2_clear) && m(&by_code, &old_raise), "ErrorList code on v2 and old rows");
+        let accepted = raw("GR2", 1, 0, 4, 2, 401, 1, 101, 7, 7); // catalog TASK_ACCEPTED → I0301
+        assert!(m(&alarm_raise, &el_raise) && m(&alarm_raise, &bit_raise));
+        assert!(!m(&alarm_raise, &el_clear) && !m(&alarm_raise, &warn), "clear / other type");
+        assert!(m(&task, &el_task) && m(&task, &accepted) && !m(&task, &grm_i0301));
+        assert!(m(&by_code, &el_raise) && m(&by_code, &el_clear) && m(&by_code, &bit_raise), "ErrorList code on ErrorList and bit alarm rows");
         assert!(!m(&by_code, &warn));
         assert!(m(&by_code, &raw("GR2", 1, 0, 5, 4, 502, 0, 1, 0, 0)), "catalog names still match");
         assert!(compile(&rule(4, RuleMatch { types: vec!["Loud".into()], ..Default::default() }, 0), &cat).is_err());
@@ -537,7 +537,7 @@ mod tests {
         let e = Engine::default();
         e.set_rules(vec![alarm_raise, task]);
         let calls = std::cell::Cell::new(0);
-        let f = e.evaluate(&[(1, v2_raise.clone()), (2, task_v2.clone())], &|_, _| String::new(), &|r| {
+        let f = e.evaluate(&[(1, el_raise.clone()), (2, el_task.clone())], &|_, _| String::new(), &|r| {
             calls.set(calls.get() + 1);
             t.classify(r)
         });

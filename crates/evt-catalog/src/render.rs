@@ -7,7 +7,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::Catalog;
-use crate::errorlist::{self, ElEntry, ErrorList, Formats, Level, Trans, Ty, V2, ValFmt};
+use crate::errorlist::{self, ElEntry, ElRow, ErrorList, Formats, Level, Trans, Ty, ValFmt};
 
 /// One stored event, as numbers.
 #[derive(Clone, Debug, Default)]
@@ -239,14 +239,14 @@ impl Renderer {
         &self.errorlist
     }
 
-    /// Bit indexes (alarms.json) of an alarm code in an area — old ALARM rows carry the bit, not the code.
+    /// Bit indexes (alarms.json) of an alarm code in an area — bit alarm rows carry the bit, not the code.
     pub fn alarm_bits(&self, area: &str, code: u32) -> Vec<u32> {
         self.alarms.entries.iter().filter(|e| e.code == code && e.area.eq_ignore_ascii_case(area)).map(|e| e.bit).collect()
     }
 
-    /// v2 row → its type and code; old ALARM rows by area; other catalog rows by the ErrorList's catalog reference.
+    /// ErrorList row → its type and code; bit alarm rows by area; other catalog rows by the ErrorList's catalog reference.
     pub fn classify(&self, ev: &Ev) -> Option<Class> {
-        if let Some(v) = errorlist::decode_v2(ev.cat, ev.src, ev.code) {
+        if let Some(v) = errorlist::decode(ev.cat, ev.src, ev.code) {
             let ty = self.errorlist.get(v.level, v.num).map(ElEntry::ty).unwrap_or(match v.level {
                 Level::Alarm => Ty::Alarm,
                 Level::Warn => Ty::Warn,
@@ -302,8 +302,8 @@ impl Renderer {
 
     /// `en`: ErrorList / alarm texts in English (catalog templates have one language).
     pub fn render_lang(&self, ev: &Ev, en: bool) -> String {
-        if let Some(v) = errorlist::decode_v2(ev.cat, ev.src, ev.code) {
-            return self.render_v2(ev, v, en);
+        if let Some(v) = errorlist::decode(ev.cat, ev.src, ev.code) {
+            return self.render_el(ev, v, en);
         }
         let Some(def) = self.cat.event(ev.cat, ev.code) else { return self.fallback(ev) };
         let Some(toks) = self.templates.get(&def.name) else { return self.fallback(ev) };
@@ -362,7 +362,7 @@ impl Renderer {
     }
 
     /// `<ErrorList text> 발생 · <values>` — the code is not in the text (the Type column shows it).
-    fn render_v2(&self, ev: &Ev, v: V2, en: bool) -> String {
+    fn render_el(&self, ev: &Ev, v: ElRow, en: bool) -> String {
         let code = v.label();
         let e = self.errorlist.get(v.level, v.num);
         let mut s = e.map(|e| e.text(en).to_string()).filter(|t| !t.is_empty()).unwrap_or_else(|| if en { format!("{code} (not in the ErrorList)") } else { format!("{code} (ErrorList 에 없음)") });
@@ -388,7 +388,7 @@ impl Renderer {
                 p
             }
             Trans::Summary => vec![if en { format!("{} rows", ev.a) } else { format!("{} 건", ev.a) }],
-            Trans::Raise | Trans::Momentary => self.v2_values(ev, v.level, &code, e),
+            Trans::Raise | Trans::Momentary => self.el_values(ev, v.level, &code, e),
         };
         if !parts.is_empty() {
             s.push_str(" · ");
@@ -399,7 +399,7 @@ impl Renderer {
 
     /// Src (Operator / Info only — ALARM rows carry the area there), A, B by the format hint, else guessed from the
     /// ErrorList meaning. A value without a meaning shows only when it is not 0 (an ALARM without values: B = the step).
-    fn v2_values(&self, ev: &Ev, level: Level, code: &str, e: Option<&ElEntry>) -> Vec<String> {
+    fn el_values(&self, ev: &Ev, level: Level, code: &str, e: Option<&ElEntry>) -> Vec<String> {
         let none = errorlist::FormatHint::default();
         let h = self.formats.get(code).unwrap_or(&none);
         let (am, bm) = e.map(|e| (e.a_meaning.as_str(), e.b_meaning.as_str())).unwrap_or(("", ""));
@@ -410,7 +410,7 @@ impl Renderer {
             out.extend(self.one(i64::from(ev.src), h.src.as_deref(), h.src_label.as_deref(), g, "Src"));
         }
         out.extend(self.one(ev.a, h.a.as_deref(), h.a_label.as_deref(), errorlist::guess(am), "A"));
-        // an alarm with no attached value carries the step in B (like the old ALM_RAISED)
+        // an alarm with no attached value carries the step in B (like the bit alarm row ALM_RAISED)
         let gb = errorlist::guess(bm).or_else(|| (alarm && am.trim().is_empty() && ev.b != 0).then(|| ("step".to_string(), ValFmt::Raw(None))));
         out.extend(self.one(ev.b, h.b.as_deref(), h.b_label.as_deref(), gb, "B"));
         out
@@ -529,7 +529,7 @@ mod tests {
         }
     }
 
-    fn v2_renderer() -> Renderer {
+    fn el_renderer() -> Renderer {
         let el = ErrorList::new(vec![
             el_entry("F3119", "FAULT", "Station Interlock Timeout", "스테이션 인터록 타임아웃", "step (400 / 600)", "", None),
             el_entry("W1101", "WARN", "X Axis - Lag Error", "X축 Lag", "", "", None),
@@ -542,8 +542,8 @@ mod tests {
     }
 
     #[test]
-    fn v2_rows_render_from_the_errorlist() {
-        let r = v2_renderer();
+    fn errorlist_rows_render_text_and_values() {
+        let r = el_renderer();
         let en = |e: Ev| r.render_lang(&e, true);
         assert_eq!(r.render(&ev(6, 13119, 1, 400, 0)), "스테이션 인터록 타임아웃 발생 · step 400");
         assert_eq!(en(ev(6, 13119, 1, 400, 0)), "Station Interlock Timeout raised · step 400");
@@ -554,7 +554,7 @@ mod tests {
         assert_eq!(r.render(&ev(18, 10101, 0, 5984, 0)), "X 축 Jog Speed 전진 발생 · 시작 위치 598.4 mm");
         assert_eq!(r.render(&ev(19, 30301, 0x50, 101, 55)), "작업 수락 (Buff) · Type PICK · Cell 101 · WorkId 55");
         assert_eq!(en(ev(19, 30999, 0, 0, 7)), "I0999 (not in the ErrorList) · B 7");
-        // the old catalog rows are unchanged, the English text only swaps the alarm text
+        // bit alarm rows are unchanged, the English text only swaps the alarm text
         assert_eq!(r.render(&ev(6, 601, 1, 594, 400)), "F3119 스테이션 인터록 타임아웃 발생 (step 400)");
         assert_eq!(en(ev(6, 601, 1, 594, 400)), "F3119 Station interlock timeout 발생 (step 400)");
         assert_eq!(fmt_ms(850), "850 ms");
@@ -562,16 +562,16 @@ mod tests {
     }
 
     #[test]
-    fn classify_v2_old_alarm_rows_and_catalog_refs() {
-        let r = v2_renderer();
+    fn classify_errorlist_bit_alarm_and_catalog_rows() {
+        let r = el_renderer();
         let c = |e: Ev| r.classify(&e).map(|c| (c.ty, c.trans, c.code));
         assert_eq!(c(ev(6, 13119, 1, 400, 0)), Some((Ty::Alarm, Some(Trans::Raise), Some("F3119".into()))));
         assert_eq!(c(ev(6, 21101, 2, 0, 0)), Some((Ty::Warn, Some(Trans::Clear), Some("W1101".into()))));
         assert_eq!(c(ev(19, 30301, 1, 0, 0)), Some((Ty::Task, Some(Trans::Momentary), Some("I0301".into()))), "HMI class TASK");
         assert_eq!(c(ev(19, 30999, 1, 0, 0)), Some((Ty::Info, Some(Trans::Momentary), Some("I0999".into()))), "unknown Info code");
-        assert_eq!(c(ev(6, 601, 1, 594, 0)), Some((Ty::Alarm, Some(Trans::Raise), Some("F3119".into()))), "old row: code from alarms.json");
+        assert_eq!(c(ev(6, 601, 1, 594, 0)), Some((Ty::Alarm, Some(Trans::Raise), Some("F3119".into()))), "bit alarm row: code from alarms.json");
         assert_eq!(c(ev(6, 602, 3, 3, 0)), Some((Ty::Operator, Some(Trans::Clear), None)), "EVENT bits have no code");
-        assert_eq!(c(ev(6, 601, 4, 9, 0)), Some((Ty::Task, Some(Trans::Raise), None)), "old TASK area");
+        assert_eq!(c(ev(6, 601, 4, 9, 0)), Some((Ty::Task, Some(Trans::Raise), None)), "bit alarm row, TASK area");
         assert_eq!(c(ev(5, 513, 1, 1, 0)), Some((Ty::Operator, None, Some("O0101".into()))), "CMD_JOG Src=1");
         assert_eq!(c(ev(3, 300, 20, 900, 200)), Some((Ty::Info, None, Some("I5101".into()))), "STEP (\"*\") by name");
         assert_eq!(c(ev(4, 401, 1, 101, 7)), Some((Ty::Task, None, Some("I0301".into()))));

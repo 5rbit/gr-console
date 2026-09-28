@@ -1,10 +1,10 @@
-# PLC event log catalog (single source of truth, v1 2026-09-27).
+# PLC event log catalog (single source of truth, 2026-09-27).
 #
 # PLC side : "EvtWrite"(Cat, Lvl, Src, Code, A, B)  (FC; TIA names are case-insensitive, so not "EvtLog" next to DB "EVTLOG") appends one EVT_Entry to DB "EVTLOG" (DB950, standard access).
 #            The PLC stores numbers only. Constants EVT_* are generated from this file
 #            (`gr-contract gen-evt --plc <PLC>` -> <export>/<PLC>/tags/Const/EVT_Const_Gen.xml).
 # PC side  : gr-console reads the ring by Seq and renders `text` at display time. Raw values are kept, so editing a
-#            text re-renders old rows; an unknown (cat, code) renders as "CAT code src=.. a=.. b=..".
+#            text re-renders stored rows; an unknown (cat, code) renders as "CAT code src=.. a=.. b=..".
 #
 # Entry (EVT_Entry, 34 B): Seq UDInt | Time DTL | Cat USInt | Lvl USInt | Src UInt | Code UInt | A DInt | B DInt | Ctx UDInt
 #   Ctx = current task WorkId (robots: TASK.Now.WorkId, else Buff[0].WorkId, filled once per scan by UL_EvtPre;
@@ -28,7 +28,7 @@
 # `plc` = PLCs that emit the event (GR1, GR2, GRM). `lvl` = default level the PLC writes.
 # CatMask bit n enables category id n. Levels below Cfg.MinLevel are not written.
 #
-# v2 rows — ErrorList items (Alarm / Warn / Operator / Info, gr-console docs/evtlog/encoding-v2.md is the spec):
+# ErrorList rows — ErrorList items (Alarm / Warn / Operator / Info, gr-console docs/evtlog/errorlist-rows.md is the spec):
 #   Cat  = 6 ALARM (Alarm + Warn) | 18 OPERATOR | 19 INFO
 #   Code = Trans * 10000 + ErrorList number   (Trans 1 raise, 2 clear, 3 momentary, 4 suppressed summary;
 #          EVT_TRANS_*, EVT_TRANS_MUL). F3119 raised = 13119, W1101 cleared = 21101, I0301 = 30301.
@@ -37,7 +37,8 @@
 #          suppressed since the last row of this code, B = 0
 #   Lvl  = per ErrorList level, the same on every transition: Alarm ERROR, Warn WARN, Operator / Info INFO
 #   ErrorList log-only Info items (I51xx..I55xx) are the catalog events below, unchanged; the console reads their type
-#   from errorlist.json (`catalog`). A v2 ALARM row has Code >= 10000, so old ALM_RAISED / ALM_CLEARED rows still read.
+#   from errorlist.json (`catalog`). An ErrorList ALARM row has Code >= 10000, so bit alarm rows
+#   (ALM_RAISED / ALM_CLEARED below) still read.
 #   Texts come from plc/contract/<PLC>/errorlist.json (`gr-contract errorlist`), value hints from errorlist-format.toml.
 
 version = 1
@@ -120,7 +121,7 @@ name = "STATION"
 [[cat]]
 id = 17
 name = "SCEN"
-# v2 ErrorList rows (ALARM 6 carries Alarm + Warn)
+# ErrorList rows (ALARM 6 carries Alarm + Warn)
 [[cat]]
 id = 18
 name = "OPERATOR"
@@ -158,7 +159,7 @@ from_const = "GRIP_E_"
 from_const = "GRIP_TO_"
 
 # ALARM bit areas the PLC watches (ALARM.FAULT / WARN / EVENT / INFO). Row Src of Cat ALARM = the area (1 / 2).
-# 3 / 4 were named EVENT / TASK (the DB members; the alarm table still uses those names). GRM v1 UL_EvtWatch
+# 3 / 4 were named EVENT / TASK (the DB members; the alarm table still uses those names). GRM UL_EvtWatch (bit alarm rows)
 # writes Src 3 with EVT_ALARM_AREA_EVENT -> rename it to _OPERATOR when GRM's constants are regenerated.
 [enum.alarm_area]
 plc_const = true
@@ -859,7 +860,8 @@ lvl = "DEBUG"
 plc = ["GR1", "GR2"]
 text = "{src:axis} Jog {a:hex}"
 
-# ALARM (v1 rows, PLC programs up to V1.6.1; v2 ALARM rows have Code >= 10000, see the header) :
+# ALARM bit alarm rows (PLC programs that still watch ALARM bits, e.g. GR1 and GRM UL_EvtWatch; ErrorList ALARM rows have
+# Code >= 10000, see the header) :
 # Src = area, A = bit index (byte * 8 + bit), B = TASK.Proc.Step.Now. Lvl = ERROR (FAULT) / WARN (WARN) / INFO
 [[event]]
 code = 601

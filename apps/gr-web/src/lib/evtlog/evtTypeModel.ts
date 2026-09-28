@@ -1,6 +1,6 @@
 // ErrorList 유형(Alarm · Warn · Operator · Info · Task)과 문구 언어.
 //
-// 유형 · 코드 · 전이는 서버가 행마다 붙인다(`etype` · `ecode` · `trans`, docs/evtlog/encoding-v2.md) — 화면은
+// 유형 · 코드 · 전이는 서버가 행마다 붙인다(`etype` · `ecode` · `trans`, docs/evtlog/errorlist-rows.md) — 화면은
 // 다시 판정하지 않는다. 영어 문구(`text_en`)는 한국어와 다를 때만 온다.
 import type { Status } from '../ui/status'
 import type { EventRow } from './api'

@@ -463,13 +463,13 @@ mod tests {
         use crate::evtlog::stats::tests::{raw, texts};
         let log = EvtLog::memory_with(texts());
         let rows = vec![
-            raw("GR2", 1, 1, 6, 4, 13118, 1, 400, 0, 0),   // 1 F3118 raise (v2)
-            raw("GR2", 1, 2, 6, 3, 21101, 2, 1, 900, 0),   // 2 W1101 clear (v2)
-            raw("GR2", 1, 3, 6, 4, 601, 1, 593, 400, 0),   // 3 old row, FAULT bit 593 = F3118
-            raw("GR2", 1, 4, 18, 2, 10101, 0, 5984, 0, 0), // 4 O0101 raise (v2)
+            raw("GR2", 1, 1, 6, 4, 13118, 1, 400, 0, 0),   // 1 F3118 raise (ErrorList row)
+            raw("GR2", 1, 2, 6, 3, 21101, 2, 1, 900, 0),   // 2 W1101 clear (ErrorList row)
+            raw("GR2", 1, 3, 6, 4, 601, 1, 593, 400, 0),   // 3 bit alarm row, FAULT bit 593 = F3118
+            raw("GR2", 1, 4, 18, 2, 10101, 0, 5984, 0, 0), // 4 O0101 raise (ErrorList row)
             raw("GR2", 1, 5, 19, 2, 30301, 1, 101, 7, 7),  // 5 I0301 = Task on the robot
             raw("GRM", 1, 6, 19, 2, 30301, 1, 3000, 0, 0), // 6 I0301 = Info on GRM
-            raw("GR2", 1, 7, 4, 2, 401, 1, 101, 7, 7),     // 7 old TASK_ACCEPTED → I0301
+            raw("GR2", 1, 7, 4, 2, 401, 1, 101, 7, 7),     // 7 catalog TASK_ACCEPTED → I0301
             raw("GR2", 1, 8, 3, 2, 300, 20, 900, 200, 7),  // 8 STEP → I5101 (log-only Info)
             raw("GR2", 1, 9, 7, 2, 701, 1, 0, 0, 0),       // 9 GRIP_REQ: not in the ErrorList
             raw("GR2", 1, 10, 5, 1, 513, 1, 1, 0, 0),      // 10 CMD_JOG Src 1 → O0101
@@ -493,7 +493,7 @@ mod tests {
         assert_eq!(ids(&[("type", "Info")]), vec![6, 8]);
         assert_eq!(ids(&[("type", "Task")]), vec![5, 7]);
         assert_eq!(ids(&[("type", "Alarm,Task"), ("plc", "GR2")]), vec![1, 3, 5, 7]);
-        assert_eq!(ids(&[("code", "F3118")]), vec![1, 3], "v2 row + old row at the code's bit");
+        assert_eq!(ids(&[("code", "F3118")]), vec![1, 3], "ErrorList row + bit alarm row at the code's bit");
         assert_eq!(ids(&[("code", "I0301")]), vec![5, 6, 7]);
         assert_eq!(ids(&[("code", "w1101,701")]), vec![2, 9], "ErrorList codes OR catalog codes");
         assert!(filter(&log, &q(&[("type", "Loud")]), 200, MAX_LIMIT).is_err());

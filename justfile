@@ -66,7 +66,7 @@ gen-evt:
 alarms:
     cargo run -p gr-contract -- alarms --export ../siemens/export --xlsx ../siemens/E13398_GR_V1.5.2_ErrorList_260926.xlsx
 
-# ErrorList 워크북(정본) → plc/contract/<PLC>/errorlist.json + HMI Operator/Info/Task 초안 plc/generated/hmi (docs/evtlog/encoding-v2.md)
+# ErrorList 워크북(정본) → plc/contract/<PLC>/errorlist.json + HMI Operator/Info/Task 초안 plc/generated/hmi (docs/evtlog/errorlist-rows.md)
 errorlist:
     cargo run -p gr-contract -- errorlist --xlsx ../siemens/E13398_GR_V1.6.2_ErrorList_260928.xlsx --export ../siemens/export
 

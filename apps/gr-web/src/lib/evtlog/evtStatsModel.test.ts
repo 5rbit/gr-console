@@ -104,7 +104,7 @@ describe('formats and links', () => {
     expect(fmtDuration(185_000)).toBe('3 m 05 s')
     expect(fmtDuration(7_560_000)).toBe('2 h 06 m')
   })
-  it('an alarm row opens the list on its rows in the same period', () => {
+  it('a bit alarm row opens the list by its text in the same period', () => {
     const f = alarmListFilter(row({ plc: 'GRM', search: 'F0501 Station 01' }), { from: 1, to: 2 })
     expect(f).toMatchObject({
       plcs: ['GRM'],
@@ -115,7 +115,7 @@ describe('formats and links', () => {
       to: 2,
     })
   })
-  it('a v2 alarm row opens the list by its ErrorList code', () => {
+  it('an ErrorList alarm row opens the list by its code', () => {
     const f = alarmListFilter(row({ plc: 'GR2', search: 'W1101', by_code: true }), {
       from: 1,
       to: 2,

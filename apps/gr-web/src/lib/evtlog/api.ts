@@ -141,7 +141,7 @@ export interface AlarmStatRow {
   type: EvtType
   area: number
   area_name: string
-  /** 옛 행만 — v2 행은 코드로 짝짓는다. */
+  /** 비트 알람 행만 — ErrorList 행은 코드로 짝짓는다. */
   bit: number | null
   code: number
   /** `F0501` · 코드 없는 비트는 `FAULT bit 7`. */
@@ -153,7 +153,7 @@ export interface AlarmStatRow {
   max_ms: number
   /** 범위 끝에 아직 켜져 있던 발생 수. */
   open: number
-  /** PLC 해제 지연이 삼킨 깜빡임 수(v2 해제 행). */
+  /** PLC 해제 지연이 삼킨 깜빡임 수(ErrorList 해제 행). */
   flicker: number
   last_ts: number
   last: string

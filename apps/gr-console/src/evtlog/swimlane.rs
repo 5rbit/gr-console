@@ -18,7 +18,7 @@ use super::store::{Cursor, Filter, Row};
 use crate::error::{ApiError, ApiResult};
 use crate::state::AppState;
 use evt_catalog::Trans;
-use evt_catalog::errorlist::{TRANS_MUL, decode_v2};
+use evt_catalog::errorlist::{self, TRANS_MUL};
 
 pub const CAT_ILOCK: u8 = 12;
 pub const ILK_TARGET: u32 = 1201;
@@ -112,9 +112,9 @@ fn bit(v: Option<i64>, n: u32) -> Option<u8> {
     v.map(|v| u8::from(v >> n & 1 == 1))
 }
 
-/// Old ALM_RAISED / ALM_CLEARED rows and v2 ALARM raise / clear rows.
+/// Bit alarm rows (ALM_RAISED / ALM_CLEARED) and ErrorList ALARM raise / clear rows.
 fn alarm_edge(row: &Row) -> bool {
-    row.cat == CAT_ALARM && (matches!(row.code, ALM_RAISED | ALM_CLEARED) || decode_v2(row.cat, row.src, row.code).is_some_and(|v| matches!(v.trans, Trans::Raise | Trans::Clear)))
+    row.cat == CAT_ALARM && (matches!(row.code, ALM_RAISED | ALM_CLEARED) || errorlist::decode(row.cat, row.src, row.code).is_some_and(|v| matches!(v.trans, Trans::Raise | Trans::Clear)))
 }
 
 /// `station_alarm(plc, is_robot, row)` decides which ALARM rows are markers.
@@ -194,11 +194,11 @@ fn station_no(text: &str) -> Option<u32> {
 }
 
 /// GRM alarms named after the slot's station, robot alarms about the station interlock (English text: alarms.json
-/// for old rows, the ErrorList for v2 rows).
+/// for bit alarm rows, the ErrorList for ErrorList rows).
 pub fn station_alarm_of(texts: &Texts, slot: u32) -> impl Fn(&str, bool, &Row) -> bool + '_ {
     move |plc, robot, row| {
         let r = texts.renderer(plc);
-        let text = match decode_v2(row.cat, row.src, row.code) {
+        let text = match errorlist::decode(row.cat, row.src, row.code) {
             Some(v) => r.errorlist().get(v.level, v.num).map(|e| e.text_en.clone()),
             None => u32::try_from(row.a).ok().and_then(|bit| r.alarm(row.src, bit)).map(|a| a.text_en.clone()),
         };
@@ -233,7 +233,7 @@ fn last_before(log: &EvtLog, plc: &str, cat: u8, code: u32, src: Option<u32>, be
 }
 
 fn window(log: &EvtLog, plc: &str, codes: Vec<(Option<u8>, Option<u32>)>, src: Option<u32>, from: i64, to: i64) -> rusqlite::Result<Vec<(i64, Row)>> {
-    // ALARM windows also take the v2 raise / clear rows
+    // ALARM windows also take the ErrorList raise / clear rows
     let code_or = codes.contains(&(Some(CAT_ALARM), Some(ALM_RAISED))).then(|| (format!("(cat = {CAT_ALARM} AND code >= {TRANS_MUL} AND code < {})", 3 * TRANS_MUL), Vec::new()));
     let f = Filter { plcs: vec![plc.to_string()], codes, src, from: Some(from), to: Some(to), code_or, ..Default::default() };
     log.store.query(&f, None, MAX_ROWS, true)

@@ -30,7 +30,7 @@ pub fn load_formats(catalog_path: &Path) -> String {
     }
 }
 
-/// `plc/contract/<PLC>/errorlist.json` (missing → empty: only old rows render then).
+/// `plc/contract/<PLC>/errorlist.json` (missing → empty: ErrorList rows then render as their code only).
 pub fn load_errorlist(path: &Path) -> ErrorList {
     match std::fs::read_to_string(path) {
         Ok(t) => ErrorList::parse(&t).unwrap_or_else(|e| {
@@ -62,8 +62,8 @@ impl<'a> PlcTexts<'a> {
 /// SQL fragment + its arguments.
 pub type Cond = (String, Vec<Value>);
 
-/// `code` ≥ 10000 and a known transition — a v2 row of the category.
-fn v2_rows(cat: u8) -> String {
+/// `code` ≥ 10000 and a known transition — an ErrorList row of the category.
+fn el_rows(cat: u8) -> String {
     format!("(cat = {cat} AND code >= {TRANS_MUL} AND code < {})", 5 * TRANS_MUL)
 }
 
@@ -110,7 +110,7 @@ pub struct EventRow {
     pub etype: Option<&'static str>,
     /// ErrorList code (`F3119`) when the row names exactly one.
     pub ecode: Option<String>,
-    /// `raise` / `clear` / `momentary` / `summary` (v2 rows and old ALARM rows).
+    /// `raise` / `clear` / `momentary` / `summary` (ErrorList rows and bit alarm rows).
     pub trans: Option<&'static str>,
     /// English text when it differs from `text` (ErrorList / alarm texts).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -174,11 +174,11 @@ impl Texts {
         if types.is_empty() {
             return None;
         }
-        let old = |src: u32| format!("(cat = {CAT_ALARM} AND src = {src} AND code IN ({}, {}))", errorlist::ALM_RAISED, errorlist::ALM_CLEARED);
+        let bit_alarm = |src: u32| format!("(cat = {CAT_ALARM} AND src = {src} AND code IN ({}, {}))", errorlist::ALM_RAISED, errorlist::ALM_CLEARED);
         let mut args = Vec::new();
         let mut plcs: Vec<(&String, &Renderer)> = self.by_plc.iter().collect();
         plcs.sort_by_key(|(n, _)| n.as_str());
-        let task_v2 = {
+        let el_task = {
             let parts: Vec<String> = plcs
                 .iter()
                 .filter_map(|(n, r)| {
@@ -189,7 +189,7 @@ impl Texts {
                     })
                 })
                 .collect();
-            if parts.is_empty() { "0".to_string() } else { format!("({} AND ({}))", v2_rows(CAT_INFO), parts.join(" OR ")) }
+            if parts.is_empty() { "0".to_string() } else { format!("({} AND ({}))", el_rows(CAT_INFO), parts.join(" OR ")) }
         };
         // the task list's arguments are used twice (Info = NOT task, Task = task)
         let task_args = args.clone();
@@ -197,19 +197,19 @@ impl Texts {
         let mut parts: Vec<String> = Vec::new();
         for ty in types {
             match ty {
-                Ty::Alarm => parts.push(format!("({} AND src = 1) OR {}", v2_rows(CAT_ALARM), old(1))),
-                Ty::Warn => parts.push(format!("({} AND src = 2) OR {}", v2_rows(CAT_ALARM), old(2))),
-                Ty::Operator => parts.push(format!("{} OR {}", v2_rows(CAT_OPERATOR), old(3))),
+                Ty::Alarm => parts.push(format!("({} AND src = 1) OR {}", el_rows(CAT_ALARM), bit_alarm(1))),
+                Ty::Warn => parts.push(format!("({} AND src = 2) OR {}", el_rows(CAT_ALARM), bit_alarm(2))),
+                Ty::Operator => parts.push(format!("{} OR {}", el_rows(CAT_OPERATOR), bit_alarm(3))),
                 Ty::Info => {
-                    parts.push(format!("({} AND NOT {task_v2})", v2_rows(CAT_INFO)));
+                    parts.push(format!("({} AND NOT {el_task})", el_rows(CAT_INFO)));
                     args.extend(task_args.iter().cloned());
                 }
                 Ty::Task => {
-                    parts.push(format!("{task_v2} OR {}", old(4)));
+                    parts.push(format!("{el_task} OR {}", bit_alarm(4)));
                     args.extend(task_args.iter().cloned());
                 }
             }
-            // old catalog rows the ErrorList names
+            // catalog rows the ErrorList names
             for (name, r) in &plcs {
                 let refs: Vec<String> = r.errorlist().catalog_refs().into_iter().filter(|c| c.ty == *ty).filter_map(|c| self.catalog_sql(&c.event, c.src)).collect();
                 if !refs.is_empty() {
@@ -234,8 +234,8 @@ impl Texts {
         Some(format!("({s})"))
     }
 
-    /// Rows of these ErrorList codes: v2 rows of any transition, old ALARM rows at the code's bit (alarms.json),
-    /// old catalog rows the ErrorList maps to exactly that code.
+    /// Rows of these ErrorList codes: ErrorList rows of any transition, bit alarm rows at the code's bit (alarms.json),
+    /// catalog rows the ErrorList maps to exactly that code.
     pub fn code_cond(&self, codes: &[(Level, u32)]) -> Option<Cond> {
         if codes.is_empty() {
             return None;

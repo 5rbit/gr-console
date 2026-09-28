@@ -111,7 +111,7 @@ export function AlarmStatsView({
       cell: (r) => (r.flicker ? r.flicker : ''),
       numeric: true,
       priority: 3,
-      help: 'PLC 해제 지연(2 s)이 삼킨 깜빡임 수 — 해제 행의 A 를 더한 값(v2 행만).',
+      help: 'PLC 해제 지연(2 s)이 삼킨 깜빡임 수 — 해제 행의 A 를 더한 값(ErrorList 행만).',
     },
     {
       key: 'last',

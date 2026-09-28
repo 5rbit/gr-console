@@ -111,7 +111,7 @@ export function fmtDuration(ms: number): string {
   return `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')} m`
 }
 
-/** 알람 한 줄 → 그 알람의 행만 남는 목록 필터(같은 기간). v2 행은 ErrorList 코드로, 옛 행은 문구 검색으로. */
+/** 알람 한 줄 → 그 알람의 행만 남는 목록 필터(같은 기간). ErrorList 행은 코드로, 비트 알람 행은 문구 검색으로. */
 export function alarmListFilter(
   row: Pick<AlarmStatRow, 'plc' | 'search' | 'by_code'>,
   range: { from: number; to: number },

@@ -1,4 +1,4 @@
-# How Src / A / B of ErrorList items read in the console (v2 EVTLOG rows, docs/evtlog/encoding-v2.md).
+# How Src / A / B of ErrorList items read in the console (EVTLOG ErrorList rows, docs/evtlog/errorlist-rows.md).
 #
 # The ErrorList workbook stays the human document (texts, value meanings, conditions); this file only adds what a
 # machine needs to print a value: an enum name, a scale, a short English label. Anything not listed here is guessed
