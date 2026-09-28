@@ -20,7 +20,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US"> gr-contract gen-sig, do not edit</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">  gr-contract gen-sig, do not edit</MultiLanguageText>
       </Comment>
       <StartValue>16#7915_BD0A</StartValue>
     </Member>
@@ -32,7 +32,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US"> rows written since boot = Seq of the newest row</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">  rows written since boot = Seq of the newest row</MultiLanguageText>
       </Comment>
     </Member>
     <Member Name="Head" Datatype="Int" Remanence="NonRetain" Accessibility="Public">
@@ -43,7 +43,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US"> next write index (newest = Entry[Head-1])</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">  next write index (newest = Entry[Head-1])</MultiLanguageText>
       </Comment>
     </Member>
     <Member Name="BootId" Datatype="UInt" Remanence="NonRetain" Accessibility="Public">
@@ -54,7 +54,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US"> EVTWATCH.BootCount (low 16 bit), new epoch on change</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">  EVTWATCH.BootCount (low 16 bit), new epoch on change</MultiLanguageText>
       </Comment>
     </Member>
     <Member Name="Dropped" Datatype="UDInt" Remanence="NonRetain" Accessibility="Public">
@@ -65,7 +65,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US"> rows refused by Cfg.MaxPerScan</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">  rows refused by Cfg.MaxPerScan</MultiLanguageText>
       </Comment>
     </Member>
     <Member Name="Stat" Datatype="Struct" Remanence="NonRetain" Accessibility="Public">
@@ -83,7 +83,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US"> UL_EvtPre + UL_EvtWatch, last scan (µs)</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">  UL_EvtPre + UL_EvtWatch, last scan (µs)</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="MaxRunUs" Datatype="UDInt">
@@ -94,7 +94,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US"> console may reset</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">  console may reset</MultiLanguageText>
         </Comment>
       </Member>
       <Member Name="MaxPerScanHit" Datatype="UDInt">
@@ -105,7 +105,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US"> scans that reached Cfg.MaxPerScan</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">  scans that reached Cfg.MaxPerScan</MultiLanguageText>
         </Comment>
       </Member>
     </Member>
@@ -117,7 +117,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US"> console writable</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">  console writable</MultiLanguageText>
       </Comment>
       <Member Name="MinLevel" Datatype="USInt">
         <AttributeList>
@@ -127,7 +127,7 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US"> EVT_LVL_* : lower levels are not written</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">  EVT_LVL_* : lower levels are not written</MultiLanguageText>
         </Comment>
         <StartValue>2</StartValue>
       </Member>
@@ -139,9 +139,9 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
         </AttributeList>
         <Comment>
-          <MultiLanguageText Lang="en-US"> bit n = EVT_CAT id n</MultiLanguageText>
+          <MultiLanguageText Lang="en-US">  bit n = EVT_CAT id n</MultiLanguageText>
         </Comment>
-        <StartValue>16#0003_FFFE</StartValue>
+        <StartValue>16#000F_FFFE</StartValue>
       </Member>
       <Member Name="MaxPerScan" Datatype="Int">
         <AttributeList>
@@ -161,7 +161,7 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
       <Comment>
-        <MultiLanguageText Lang="en-US"> per-scan context (UL_EvtPre)</MultiLanguageText>
+        <MultiLanguageText Lang="en-US">  per-scan context (UL_EvtPre)</MultiLanguageText>
       </Comment>
       <Member Name="Time" Datatype="DTL" Version="1.0">
         <AttributeList>

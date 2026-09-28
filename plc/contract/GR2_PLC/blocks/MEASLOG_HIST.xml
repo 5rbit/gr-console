@@ -104,7 +104,108 @@
               </Section>
             </Sections>
           </Member>
-          <Member Name="Data" Datatype="Array[0..19] of Real" />
+          <Member Name="Data" Datatype="Array[0..19] of Real">
+            <Subelement Path="0,0">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Status </MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,1">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem InnerDiameter</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,2">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem upperBead Height</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,3">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Item Height</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,4">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem </MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,5">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem </MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,6">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem </MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,7">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Torq InnerDiameter</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,8">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Torq factor</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,9">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem </MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,10">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Entry InnerDiameter </MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,11">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Entry upperBead Height</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,12">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Entry Item Height</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,13">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Entry OffsetX</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,14">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Entry OffsetY</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,15">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Exit InnerDiameter </MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,16">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Exit upperBead Height</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,17">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Exit Item Height</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,18">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Exit OffsetX</MultiLanguageText>
+              </Comment>
+            </Subelement>
+            <Subelement Path="0,19">
+              <Comment>
+                <MultiLanguageText Lang="en-US">MeasureItem Exit OffsetY</MultiLanguageText>
+              </Comment>
+            </Subelement>
+          </Member>
           <Member Name="Delta" Datatype="Struct">
             <Member Name="InnerDia" Datatype="Real" />
             <Member Name="Height" Datatype="Real" />

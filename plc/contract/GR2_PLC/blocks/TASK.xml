@@ -43,7 +43,9 @@
       </AttributeList>
       <Sections>
         <Section Name="None">
-          <Member Name="ProcNo" Datatype="UInt" />
+          <Member Name="ProcNo" Datatype="UInt">
+            <StartValue>20</StartValue>
+          </Member>
           <Member Name="Step" Datatype="Struct">
             <Member Name="Now" Datatype="UInt" />
             <Member Name="Prev" Datatype="UInt" />
@@ -723,6 +725,152 @@
           <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
         </AttributeList>
       </Member>
+    </Member>
+    <Member Name="CompletePending" Datatype="&quot;LGR_Task_Data&quot;" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   수동 완료 CV 인계 대기 작업 (Buff[0] 과 같을 때만 유효, CL_Common_Command)</MultiLanguageText>
+      </Comment>
+      <Sections>
+        <Section Name="None">
+          <Member Name="WorkId" Datatype="UDInt" />
+          <Member Name="TaskId" Datatype="UDInt" />
+          <Member Name="TaskType" Datatype="Byte" />
+          <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+          <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Code" Datatype="UDInt" />
+                <Member Name="Count" Datatype="USInt" />
+                <Member Name="InnerDiameter" Datatype="Real" />
+                <Member Name="OuterDiameter" Datatype="Real" />
+                <Member Name="LowerBidHeight" Datatype="Real" />
+                <Member Name="UpperBidHeight" Datatype="Real" />
+                <Member Name="Height" Datatype="Real" />
+                <Member Name="DeflectionFactor" Datatype="Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Use" Datatype="Bool" />
+                <Member Name="BlendUse" Datatype="Bool" />
+                <Member Name="Id" Datatype="UInt" />
+                <Member Name="Section" Datatype="UInt" />
+                <Member Name="Row" Datatype="UInt" />
+                <Member Name="Col" Datatype="UInt" />
+                <Member Name="Lenth" Datatype="Real" />
+                <Member Name="Width" Datatype="Real" />
+                <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="BlendUpDistance" Datatype="UInt" />
+          <Member Name="BlendDownDistance" Datatype="UInt" />
+          <Member Name="DragOutHeight" Datatype="UInt" />
+          <Member Name="DragOutDist" Datatype="UInt" />
+          <Member Name="DragOutDir" Datatype="Byte" />
+          <Member Name="DragInHeight" Datatype="UInt" />
+          <Member Name="DragInDist" Datatype="UInt" />
+          <Member Name="DragInDir" Datatype="Byte" />
+          <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+          <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+          <Member Name="LiftUpHeight" Datatype="UInt" />
+          <Member Name="PreGripDelta" Datatype="UInt" />
+          <Member Name="GripBackDelta" Datatype="UInt" />
+          <Member Name="GripHeight" Datatype="UInt" />
+          <Member Name="UseDragOut" Datatype="Bool" />
+          <Member Name="UseDragIn" Datatype="Bool" />
+          <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+          <Member Name="LiftUpPartial" Datatype="Bool" />
+          <Member Name="MeasureFloor" Datatype="Bool" />
+          <Member Name="MeasureItem" Datatype="Bool" />
+          <Member Name="MeasureSku" Datatype="Bool" />
+          <Member Name="AdjustCenter" Datatype="Bool" />
+          <Member Name="FindStationItem" Datatype="Bool" />
+          <Member Name="Avoid" Datatype="Bool" />
+          <Member Name="Outbound" Datatype="Bool" />
+        </Section>
+      </Sections>
+    </Member>
+    <Member Name="GripPassed" Datatype="&quot;LGR_Task_Data&quot;" Remanence="Retain" Accessibility="Public">
+      <AttributeList>
+        <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
+        <BooleanAttribute Name="SetPoint" SystemDefined="true">true</BooleanAttribute>
+      </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US">   Grip(500) 을 지난 작업 - 수동 Complete 조건 (Buff[0] 과 같을 때만, PL_Task_V2)</MultiLanguageText>
+      </Comment>
+      <Sections>
+        <Section Name="None">
+          <Member Name="WorkId" Datatype="UDInt" />
+          <Member Name="TaskId" Datatype="UDInt" />
+          <Member Name="TaskType" Datatype="Byte" />
+          <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;G&quot;] of Real" />
+          <Member Name="Item" Datatype="&quot;LGR_Stock_Item&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Code" Datatype="UDInt" />
+                <Member Name="Count" Datatype="USInt" />
+                <Member Name="InnerDiameter" Datatype="Real" />
+                <Member Name="OuterDiameter" Datatype="Real" />
+                <Member Name="LowerBidHeight" Datatype="Real" />
+                <Member Name="UpperBidHeight" Datatype="Real" />
+                <Member Name="Height" Datatype="Real" />
+                <Member Name="DeflectionFactor" Datatype="Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="Cell" Datatype="&quot;LGR_Cell_Info&quot;">
+            <Sections>
+              <Section Name="None">
+                <Member Name="Use" Datatype="Bool" />
+                <Member Name="BlendUse" Datatype="Bool" />
+                <Member Name="Id" Datatype="UInt" />
+                <Member Name="Section" Datatype="UInt" />
+                <Member Name="Row" Datatype="UInt" />
+                <Member Name="Col" Datatype="UInt" />
+                <Member Name="Lenth" Datatype="Real" />
+                <Member Name="Width" Datatype="Real" />
+                <Member Name="Position" Datatype="Array[&quot;X&quot;..&quot;Z&quot;] of Real" />
+              </Section>
+            </Sections>
+          </Member>
+          <Member Name="BlendUpDistance" Datatype="UInt" />
+          <Member Name="BlendDownDistance" Datatype="UInt" />
+          <Member Name="DragOutHeight" Datatype="UInt" />
+          <Member Name="DragOutDist" Datatype="UInt" />
+          <Member Name="DragOutDir" Datatype="Byte" />
+          <Member Name="DragInHeight" Datatype="UInt" />
+          <Member Name="DragInDist" Datatype="UInt" />
+          <Member Name="DragInDir" Datatype="Byte" />
+          <Member Name="LiftUpCreepDistance" Datatype="UInt" />
+          <Member Name="LiftDownCreepDistance" Datatype="UInt" />
+          <Member Name="LiftUpHeight" Datatype="UInt" />
+          <Member Name="PreGripDelta" Datatype="UInt" />
+          <Member Name="GripBackDelta" Datatype="UInt" />
+          <Member Name="GripHeight" Datatype="UInt" />
+          <Member Name="UseDragOut" Datatype="Bool" />
+          <Member Name="UseDragIn" Datatype="Bool" />
+          <Member Name="LiftUpAfterComplete" Datatype="Bool" />
+          <Member Name="LiftUpPartial" Datatype="Bool" />
+          <Member Name="MeasureFloor" Datatype="Bool" />
+          <Member Name="MeasureItem" Datatype="Bool" />
+          <Member Name="MeasureSku" Datatype="Bool" />
+          <Member Name="AdjustCenter" Datatype="Bool" />
+          <Member Name="FindStationItem" Datatype="Bool" />
+          <Member Name="Avoid" Datatype="Bool" />
+          <Member Name="Outbound" Datatype="Bool" />
+        </Section>
+      </Sections>
     </Member>
   </Section>
 </Sections></Interface>

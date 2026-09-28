@@ -28,21 +28,27 @@
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
     </Member>
-    <Member Name="EVENT" Datatype="Array[0..29] of Byte" Remanence="NonRetain" Accessibility="Public">
+    <Member Name="EVENT" Datatype="Array[0..31] of Byte" Remanence="NonRetain" Accessibility="Public">
       <AttributeList>
         <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
         <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
         <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US"> Operator (ErrorList O), byte / bit = number rule</MultiLanguageText>
+      </Comment>
     </Member>
-    <Member Name="TASK" Datatype="Array[0..199] of Byte" Remanence="NonRetain" Accessibility="Public">
+    <Member Name="INFO" Datatype="Array[0..39] of Byte" Remanence="NonRetain" Accessibility="Public">
       <AttributeList>
         <BooleanAttribute Name="ExternalAccessible" SystemDefined="true">true</BooleanAttribute>
         <BooleanAttribute Name="ExternalVisible" SystemDefined="true">true</BooleanAttribute>
         <BooleanAttribute Name="ExternalWritable" SystemDefined="true">true</BooleanAttribute>
         <BooleanAttribute Name="SetPoint" SystemDefined="true">false</BooleanAttribute>
       </AttributeList>
+      <Comment>
+        <MultiLanguageText Lang="en-US"> Info (ErrorList I)</MultiLanguageText>
+      </Comment>
     </Member>
   </Section>
 </Sections></Interface>

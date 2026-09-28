@@ -1456,7 +1456,7 @@
               <MultilingualTextItem ID="EB" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>트레이스 최대 채널 수 (LNK_TraceCfg.Chan 상한 + 1)</Text>
+                  <Text />
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1487,7 +1487,7 @@
               <MultilingualTextItem ID="F0" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>트레이스 청크 1 개의 DWord 수 (LNK_Trace.Data)</Text>
+                  <Text />
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1518,7 +1518,7 @@
               <MultilingualTextItem ID="F5" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>트레이스 청크 링 상한 (TRACE_LNK.Chunk)</Text>
+                  <Text />
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1549,7 +1549,7 @@
               <MultilingualTextItem ID="FA" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>트레이스 FlushMs 최소값 (ms)</Text>
+                  <Text />
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1580,7 +1580,7 @@
               <MultilingualTextItem ID="FF" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>PEEK 영역 : 입력 프로세스 이미지</Text>
+                  <Text />
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1611,7 +1611,7 @@
               <MultilingualTextItem ID="104" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>PEEK 영역 : 출력 프로세스 이미지</Text>
+                  <Text />
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1642,7 +1642,7 @@
               <MultilingualTextItem ID="109" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>PEEK 영역 : 비트 메모리 (M)</Text>
+                  <Text />
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1673,7 +1673,7 @@
               <MultilingualTextItem ID="10E" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>PEEK 영역 : 데이터 블록 (표준 접근만)</Text>
+                  <Text />
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1704,7 +1704,7 @@
               <MultilingualTextItem ID="113" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>트레이스 : TraceCfg 거부 (채널 / 폭 / 영역 / 주기 오류)</Text>
+                  <Text />
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>
@@ -1735,7 +1735,7 @@
               <MultilingualTextItem ID="118" CompositionName="Items">
                 <AttributeList>
                   <Culture>ko-KR</Culture>
-                  <Text>트레이스 : 이 슬롯에서 불가 (AllowTrace FALSE 또는 FRAME 아님)</Text>
+                  <Text />
                 </AttributeList>
               </MultilingualTextItem>
             </ObjectList>

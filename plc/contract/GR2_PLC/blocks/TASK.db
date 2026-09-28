@@ -17,10 +17,13 @@ VERSION : 0.1
          Next : Array[0..9] of "LGR_Task_Data";
          "Time" {InstructionName := 'DTL'; LibVersion := '1.0'; S7_SetPoint := 'True'} : Array[0..9] of DTL;
       END_STRUCT;
+      CompletePending : "LGR_Task_Data";   //    수동 완료 CV 인계 대기 작업 (Buff[0] 과 같을 때만 유효, CL_Common_Command)
+      GripPassed : "LGR_Task_Data";   //    Grip(500) 을 지난 작업 - 수동 Complete 조건 (Buff[0] 과 같을 때만, PL_Task_V2)
    END_STRUCT;
 
 
 BEGIN
+   Proc.ProcNo := 20;
 
 END_DATA_BLOCK
 

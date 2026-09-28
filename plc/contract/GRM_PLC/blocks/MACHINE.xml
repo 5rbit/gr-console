@@ -822,7 +822,7 @@
                   <Member Name="Common" Datatype="Struct">
                     <Member Name="Reset" Datatype="Bool" />
                     <Member Name="Initializing" Datatype="Bool" />
-                    <Member Name="Spare_X2" Datatype="Bool" />
+                    <Member Name="Start" Datatype="Bool" />
                     <Member Name="Spare_X3" Datatype="Bool" />
                     <Member Name="Spare_X4" Datatype="Bool" />
                     <Member Name="Spare_X5" Datatype="Bool" />
@@ -1245,7 +1245,7 @@
                           <Member Name="Common" Datatype="Struct">
                             <Member Name="Reset" Datatype="Bool" />
                             <Member Name="Initializing" Datatype="Bool" />
-                            <Member Name="Spare_X2" Datatype="Bool" />
+                            <Member Name="Start" Datatype="Bool" />
                             <Member Name="Spare_X3" Datatype="Bool" />
                             <Member Name="Spare_X4" Datatype="Bool" />
                             <Member Name="Spare_X5" Datatype="Bool" />
@@ -1416,7 +1416,7 @@
                           <Member Name="Common" Datatype="Struct">
                             <Member Name="Reset" Datatype="Bool" />
                             <Member Name="Initializing" Datatype="Bool" />
-                            <Member Name="Spare_X2" Datatype="Bool" />
+                            <Member Name="Start" Datatype="Bool" />
                             <Member Name="Spare_X3" Datatype="Bool" />
                             <Member Name="Spare_X4" Datatype="Bool" />
                             <Member Name="Spare_X5" Datatype="Bool" />
@@ -2419,7 +2419,7 @@
                       <Member Name="Common" Datatype="Struct">
                         <Member Name="Reset" Datatype="Bool" />
                         <Member Name="Initializing" Datatype="Bool" />
-                        <Member Name="Spare_X2" Datatype="Bool" />
+                        <Member Name="Start" Datatype="Bool" />
                         <Member Name="Spare_X3" Datatype="Bool" />
                         <Member Name="Spare_X4" Datatype="Bool" />
                         <Member Name="Spare_X5" Datatype="Bool" />
