@@ -31,6 +31,7 @@ import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
 import {
   GRIP_REFS,
   move,
+  pairDropIndex,
   pairIssues,
   removeWithPair,
   patch,
@@ -56,7 +57,6 @@ import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
 import { preQueueLabel, readPreQueue, writePreQueue } from '../../lib/task/preQueue'
-import { readPairDraft, writePairDraft } from '../../lib/task/pairDraft'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
 import { robots } from '../../lib/robots'
@@ -100,7 +100,6 @@ import type {
   Station,
   StockEntry,
   SyncIssue,
-  Task,
   TaskType,
 } from '../../lib/types'
 import { SyncIssuesDialog } from './SyncIssuesDialog'
@@ -317,6 +316,8 @@ export function PlanCard({
   const editRow = editing ? (rows.find((r) => r.id === editing) ?? null) : null
   const warnCount = rows.reduce((a, r) => a + r.warnings.length, 0)
   const first = rows[0] ?? null
+  // 첫 스텝의 짝이 어긋나면 보내지 않는다(PICK 은 짝 DROP 과 함께 나간다).
+  const firstPairIssue = first ? (pairs.find((p) => p.id === first.id) ?? null) : null
   // 스텝이 제 로봇을 들고 있으면 그 호기로 간다 — 확인 창은 **실제로 갈 곳**을 말해야 한다.
   const nextRobot =
     first && first.robot !== null && first.robot !== undefined ? robots.chipOf(first.robot) : robot
@@ -329,6 +330,20 @@ export function PlanCard({
   /** 직전에 자동으로 보낸 Task — 원장(SSE)에 보일 때까지 다음을 보내지 않는다(큐 수가 낡았다). */
   const [echoId, setEchoId] = useState<string | null>(null)
   const inFlight = useRef(false)
+  // 짝 DROP 초안이 걸린 줄이 계획에서 빠지면(보내지 않고 지움) 그 초안도 지운다 — 원장에 짝 초안이 남지 않게.
+  // 보낸 초안(`sentDrafts`)과 이미 초안이 아닌 Task 는 건드리지 않는다(취소 = PLC Delete 가 되면 안 된다).
+  const sentDrafts = useRef(new Set<string>())
+  const prevDrafts = useRef<string[]>(steps.flatMap((s) => (s.draftId ? [s.draftId] : [])))
+  useEffect(() => {
+    const now = steps.flatMap((s) => (s.draftId ? [s.draftId] : []))
+    for (const id of prevDrafts.current) {
+      if (now.includes(id) || sentDrafts.current.has(id)) continue
+      if (tasks.list.find((x) => x.id === id)?.state === 'draft')
+        void api.taskCancel(id).catch(() => undefined)
+    }
+    prevDrafts.current = now
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 계획이 바뀔 때만
+  }, [steps])
   const setAutoLimit = (v: number) => {
     const n = clampLimit(v)
     setAutoLimitState(n)
@@ -620,52 +635,38 @@ export function PlanCard({
     }
   }
 
-  // PICK/DROP 은 짝으로 **만들고** 하나씩 **보낸다** — PICK 을 보낼 때 다음 DROP 을 같은 이송 지시의 초안으로 만들어
-  // 그 계획 줄에 걸어 둔다. 그 줄 차례(PICK 이 PLC 에 받아지고 큐에 자리가 날 때)에 초안을 보낸다.
-  const [pairDraft, setPairDraftState] = useState<{ stepId: string; taskId: string } | null>(
-    readPairDraft,
-  )
-  function setPairDraft(v: { stepId: string; taskId: string } | null) {
-    setPairDraftState(v)
-    writePairDraft(v)
-  }
-  // 초안이 걸린 줄이 계획에서 빠지면 초안도 지운다(보내지 않은 짝 DROP 이 원장에 남지 않게).
-  useEffect(() => {
-    if (pairDraft && !steps.some((s) => s.id === pairDraft.stepId)) {
-      void api.taskCancel(pairDraft.taskId).catch(() => undefined)
-      setPairDraft(null)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 계획이 바뀔 때만
-  }, [steps])
-
-  async function sendFirst(): Promise<Task> {
-    if (!first) throw new Error('보낼 스텝 없음')
-    if (pairDraft && pairDraft.stepId === first.id) {
-      const t = await api.taskSubmit(pairDraft.taskId)
-      setPairDraft(null)
-      return t
-    }
-    if (first.type === 'PICK') {
-      const second = rows[1]
-      if (!second || second.type !== 'DROP')
-        throw new Error('PICK 다음에 DROP 이 있어야 짝으로 보냅니다')
-      const res = await api.taskPair(
-        toRequest(first, robots.selected, first.multiPick),
-        toRequest(second, robots.selected, second.multiPick),
-      )
-      if (res.drop) setPairDraft({ stepId: second.id, taskId: res.drop.id })
-      if (res.warning) toast.warn(res.warning)
-      return res.pick
-    }
-    return api.taskCreate(toRequest(first, robots.selected, first.multiPick), true)
-  }
-
   async function submitNext(isAuto = false) {
     if (!first || inFlight.current) return
     inFlight.current = true
     setBusy(true)
     try {
-      const t = await sendFirst()
+      const req = toRequest(first, runRobot, first.multiPick)
+      // PICK/DROP 은 함께 만들고 보내기만 하나씩: PICK 을 보낼 때 짝 DROP 을 초안으로 같이 만들고(계획에 `draftId`),
+      // DROP 차례에는 그 초안을 보낼 때의 값으로 다시 작성해 보낸다.
+      let t
+      let next = remove(steps, first.id)
+      let extra = ''
+      if (first.type === 'PICK') {
+        const j = pairDropIndex(steps, 0, runRobot)
+        if (j === null)
+          throw new Error('PICK 다음 같은 로봇 스텝이 짝 DROP 이 아닙니다 — 계획을 고치세요')
+        const drop = rows[j]
+        const res = await api.taskPair(req, toRequest(drop, runRobot, drop.multiPick))
+        t = res.pick
+        next = patch(next, drop.id, { draftId: res.drop?.id ?? null })
+        if (res.drop) extra = ` · 짝 DROP #${res.drop.seq} 초안`
+        if (res.warn) toast.warn(res.warn)
+      } else if (
+        first.type === 'DROP' &&
+        first.draftId &&
+        (tasks.list.find((x) => x.id === first.draftId)?.state ?? 'draft') === 'draft'
+      ) {
+        sentDrafts.current.add(first.draftId)
+        t = await api.taskSubmit(first.draftId, { refresh: true, request: req })
+      } else {
+        // 초안이 이미 지워졌으면(되돌리기로 줄만 돌아온 경우) 그 DROP 을 새로 작성해 보낸다(Hand 의 지시를 잇는다).
+        t = await api.taskCreate(req, true)
+      }
       if (isAuto) setEchoId(t.id)
       // 스텝이 제 로봇을 들고 있으면(계획 표의 Robot 열) 그쪽, 아니면 카드 대상.
       const who =
@@ -673,10 +674,10 @@ export function PlanCard({
       toast.info(
         withRobotChip(
           who,
-          `#${t.seq} 제출됨 — ${first.type} ${first.target.kind === 'cell' ? 'Cell' : 'Station'} #${first.target.id}`,
+          `#${t.seq} 제출됨 — ${first.type} ${first.target.kind === 'cell' ? 'Cell' : 'Station'} #${first.target.id}${extra}`,
         ),
       )
-      onChange(remove(steps, first.id))
+      onChange(next)
     } catch (e) {
       // 자동 제출은 실패하면 멈춘다 — 같은 스텝을 계속 두드리지 않는다.
       if (isAuto) setAuto(false)
@@ -942,14 +943,16 @@ export function PlanCard({
             size="sm"
             intent="primary"
             icon={<Send className="h-3.5 w-3.5" />}
-            disabled={!first || busy || auto || !nextGate?.can_submit || first.type === 'PICK'}
+            disabled={!first || busy || auto || !nextGate?.can_submit || !!firstPairIssue}
             title={
-              first?.type === 'PICK'
-                ? 'PICK 은 DROP 과 짝으로만 보냅니다 — 시나리오로 저장 → 저장 후 실행'
+              firstPairIssue
+                ? `PICK/DROP 짝 — ${firstPairIssue.message}`
                 : !nextGate?.can_submit
                   ? // 비활성은 침묵하지 않고 **누가 왜** 막았는지 말한다.
                     (nextGate?.reasons.join(' · ') ?? withRobotChip(nextRobot, '게이트 확인 중'))
-                  : `첫 스텝만 지금 ${robotLabel(nextRobot)} 로 제출`
+                  : first?.type === 'PICK'
+                    ? `PICK 을 지금 ${robotLabel(nextRobot)} 로 제출 + 짝 DROP 초안(차례에 보냄)`
+                    : `첫 스텝만 지금 ${robotLabel(nextRobot)} 로 제출`
             }
             onClick={() => setConfirmNext(true)}
             data-testid="plan-next"

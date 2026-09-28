@@ -23,6 +23,7 @@ import {
   redo,
   simulateStock,
   foldStock,
+  pairDropIndex,
   pairIssues,
   removeWithPair,
   stackZ,
@@ -264,6 +265,26 @@ describe('plan', () => {
     // 짝 위반은 행 경고로도 선다
     const rows = planRows([st('a', 'PICK', 1001), st('m', 'MOVE', null)], ctx)
     expect(rows[0].warnings.some((w) => w.includes('짝 DROP'))).toBe(true)
+    // 짝 PICK 을 이미 보낸 DROP(초안) 은 앞에 PICK 이 없어도 짝이다 — 들고 있는 화물 경고도 없다
+    const sent = { ...st('b', 'DROP', 1001), draftId: 't-9' }
+    expect(pairIssues([sent, st('c', 'PICK', 1001), st('d', 'DROP', 1001)])).toEqual([])
+    expect(planRows([sent], ctx)[0].warnings.some((w) => w.includes('화물'))).toBe(false)
+  })
+
+  it('pairDropIndex: the next step of the same robot, only when it is a DROP', () => {
+    const st = (type: PlanStep['type'], robot?: number): PlanStep => ({
+      id: `${type}${robot ?? ''}`,
+      type,
+      target: { kind: 'cell', id: 101 },
+      item_code: 1,
+      count: 1,
+      note: '',
+      robot,
+    })
+    expect(pairDropIndex([st('PICK', 1), st('MOVE', 2), st('DROP', 1)], 0)).toBe(2)
+    expect(pairDropIndex([st('PICK'), st('MOVE'), st('DROP')], 0)).toBeNull()
+    expect(pairDropIndex([st('PICK'), st('DROP', 2)], 0, 1)).toBeNull()
+    expect(pairDropIndex([st('PICK'), st('DROP', 2)], 0, 2)).toBe(1)
   })
 
   it('removeWithPair deletes the pair together (same robot)', () => {

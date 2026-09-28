@@ -51,6 +51,11 @@ export interface PlanStep {
   measure?: MeasureMode | null
   /** 바닥 측정(Cell Teaching) 명령 Z = 베이스 라인 + 이만큼(mm). 없으면 `TEACH_CLEARANCE`. */
   measureClearance?: number | null
+  /**
+   * 짝 PICK 을 이미 보낸 DROP — PICK 과 함께 만든 원장 초안 id(`POST /api/tasks/pair`). 차례가 되면 이 초안을 보낸다.
+   * 짝 검사에서는 PICK 이 앞에 없어도 짝으로 본다.
+   */
+  draftId?: string | null
 }
 
 export interface PlanRow extends PlanStep {
@@ -554,8 +559,23 @@ export function pairIssues(
       robot: s.robot ?? runRobot,
       item_code: s.item_code,
       count: s.count,
+      paired: !!s.draftId,
     })),
   ).map((p) => ({ id: steps[p.index].id, no: p.index + 1, message: p.message }))
+}
+
+/** `i` 번 PICK 의 짝 DROP — 같은 로봇의 다음 스텝이 DROP 이면 그 인덱스. */
+export function pairDropIndex(
+  steps: readonly PlanStep[],
+  i: number,
+  runRobot: number | null = null,
+): number | null {
+  const r = steps[i]?.robot ?? runRobot
+  for (let j = i + 1; j < steps.length; j++) {
+    if ((steps[j].robot ?? runRobot) !== r) continue
+    return steps[j].type === 'DROP' ? j : null
+  }
+  return null
 }
 
 /** 짝 검사 본체 — 계획 표와 시나리오 편집이 같이 쓴다. `robot` 은 이미 실행 로봇으로 채운 값. */
@@ -565,6 +585,8 @@ export function pairIssuesOf(
     robot?: number | null
     item_code: number | null
     count: number
+    /** 짝 PICK 을 이미 보낸 DROP(계획의 `draftId`). */
+    paired?: boolean
   }[],
 ): { index: number; message: string }[] {
   const out: { index: number; message: string }[] = []
@@ -581,7 +603,7 @@ export function pairIssuesOf(
       else if (s.item_code !== null && n.item_code !== null && s.item_code !== n.item_code)
         push(`짝 DROP(스텝 ${j + 1}) 품목 ${n.item_code} ≠ ${s.item_code}`)
       else if (n.count !== s.count) push(`짝 DROP(스텝 ${j + 1}) 수량 ${n.count} ≠ ${s.count}`)
-    } else if (s.type === 'DROP') {
+    } else if (s.type === 'DROP' && !s.paired) {
       let p = i - 1
       while (p >= 0 && !same(i, p)) p--
       if (p < 0 || steps[p].type !== 'PICK') push('DROP 앞의 같은 로봇 스텝이 짝 PICK 이 아님')
@@ -673,7 +695,8 @@ export function planRows(steps: readonly PlanStep[], ctx: PlanContext): PlanRow[
       if (n > 0 && st!.item_code && s.item_code !== null && st!.item_code !== s.item_code)
         warnings.push(`${cell ? '셀' : '스테이션'} 품목 ${st!.item_code} ≠ ${s.item_code}`)
     }
-    if (s.type === 'DROP' && !carry) warnings.push('들고 있는 화물 없음 (앞에 PICK 없음)')
+    if (s.type === 'DROP' && !carry && !s.draftId)
+      warnings.push('들고 있는 화물 없음 (앞에 PICK 없음)')
     if (s.type === 'PICK' && carry) warnings.push('이미 들고 있음 (앞의 PICK 미완)')
     if (
       s.type === 'DROP' &&

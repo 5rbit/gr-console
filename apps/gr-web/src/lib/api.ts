@@ -370,13 +370,20 @@ export const api = {
   /** 생성(+`submit`이면 즉시 PLC로 제출). */
   taskCreate: (req: TaskRequest, submit = false) =>
     postJson<Task>(`/api/tasks${qs({ submit })}`, req),
-  /** PICK/DROP 짝 — 이송 지시를 열고 PICK 을 제출, DROP 은 같은 지시의 초안(보내기는 `taskSubmit`). */
+  /** PICK/DROP 한 짝 — PICK 은 바로 제출, 짝 DROP 은 같은 이송 지시로 초안까지(보내기는 `taskSubmit(id, {refresh})`). */
   taskPair: (pick: TaskRequest, drop: TaskRequest) =>
-    postJson<{ order: string; pick: Task; drop: Task | null; warning: string | null }>(
-      '/api/tasks/pair',
-      { pick, drop },
+    postJson<{
+      pick: Task
+      drop: Task | null
+      transfer_order_id: string
+      warn: string | null
+    }>('/api/tasks/pair', { pick, drop }),
+  /** `refresh` = 보낼 때의 값으로 다시 작성(짝 초안), `request` 가 있으면 그 내용으로(종류·로봇·이송 지시는 초안 것). */
+  taskSubmit: (id: string, opts: { refresh?: boolean; request?: TaskRequest } = {}) =>
+    postJson<Task>(
+      `/api/tasks/${id}/submit${opts.refresh ? '?refresh=true' : ''}`,
+      opts.request ? { request: opts.request } : undefined,
     ),
-  taskSubmit: (id: string) => postJson<Task>(`/api/tasks/${id}/submit`),
   taskCancel: (id: string) => postJson<Task>(`/api/tasks/${id}/cancel`),
   taskComplete: (id: string) => postJson<Task>(`/api/tasks/${id}/complete`),
   taskResubmit: (id: string) => postJson<Task>(`/api/tasks/${id}/resubmit`),
