@@ -1,4 +1,4 @@
-//! `/api/robots/{id}/gripper` — GR2 그리퍼 토크 제어(`FB_Gripper`) 모니터링.
+//! `/api/robots/{id}/gripper` — GR2 그리퍼 토크 제어(`FB_CL_Gripper`) 모니터링.
 //!
 //! - `live` : `WEBMON.Gripper`(웹몬 주기 스냅샷) 그대로 + G 축 위치(`WEBMON.Axis[G].Position`) + 코드 이름
 //!   (`CodeName`/`ModeName`/`ErrorName`/`TimeoutName` — 계약의 `LGR_Const_Gripper` 상수에서 푼다).
@@ -53,6 +53,37 @@ const PARA_TASK: [&str; 17] = [
     "G_MotorTempMax",
     "G_LoadAvgMax",
 ];
+
+/// 인치 구간 수(`PARA.Timeout.G_Inch<n>_*`, p1040~p1059).
+pub const INCH_BANDS: usize = 5;
+
+/// `PARA.Timeout.G_Inch<n>_{Min,Max,OpenPct,MeasPct}` 이름들(1..=5 순서).
+fn inch_keys() -> Vec<String> {
+    (1..=INCH_BANDS).flat_map(|n| ["Min", "Max", "OpenPct", "MeasPct"].into_iter().map(move |k| format!("G_Inch{n}_{k}"))).collect()
+}
+
+/// 인치 구간 표 — PLC `GripperInchPct` 의 규칙: `Min < Max` 이고 `Min <= inch <= Max` 인 **첫** 구간이 적용되고, 그 % 가 0 이면
+/// 자동(사양 Nm 환산). 판정 인치는 규격 내경/25.4 가 맞지만 WEBMON 에는 반올림한 `Gripper.Inch` 만 있어 그것으로 근사한다
+/// (`inch_source`). `applied` = `Fallback` 이 켜져 있고 활성 구간의 % 가 0 보다 클 때(구간 % 가 실제로 총량을 정하는 중).
+pub fn inch_bands(para: Option<&Json>, inch: Option<f64>, fallback: bool) -> Json {
+    let t = para.and_then(|p| p.get("Timeout"));
+    let f = |k: &str| t.and_then(|t| t.get(k)).and_then(Json::as_f64).unwrap_or(0.0);
+    let mut found = false;
+    let mut bands = Vec::with_capacity(INCH_BANDS);
+    for n in 1..=INCH_BANDS {
+        let (min, max, open, meas) = (f(&format!("G_Inch{n}_Min")), f(&format!("G_Inch{n}_Max")), f(&format!("G_Inch{n}_OpenPct")), f(&format!("G_Inch{n}_MeasPct")));
+        let valid = min < max;
+        let active = !found && valid && inch.is_some_and(|i| min <= i && i <= max);
+        if active {
+            found = true;
+        }
+        bands.push(json!({
+            "n": n, "min": min, "max": max, "open_pct": open, "meas_pct": meas, "valid": valid, "active": active,
+            "applied": active && fallback && (open > 0.0 || meas > 0.0),
+        }));
+    }
+    json!({ "inch": inch, "inch_source": "WEBMON.Gripper.Inch (반올림 근사)", "bands": bands })
+}
 
 /// 계약 상수 `GRIP_ST_*` 같은 접두어 묶음에서 값 → 이름. 접두어를 뗀 이름(`HOLDING`)으로 돌려주고, 없으면 숫자 그대로.
 /// `exclude` 는 같은 접두어로 시작하는 다른 묶음(`GRIP_` 모드 이름에서 `GRIP_ST_`·`GRIP_E_`·`GRIP_TO_`·`GRIP_OWNER_`)을 뺀다.
@@ -113,7 +144,9 @@ fn bins(para: Option<&Json>) -> Json {
 fn para_json(para: Option<&Json>) -> Json {
     let mut out = Map::new();
     if let Some(p) = para {
-        for (grp, keys) in [("Machine", &PARA_MACHINE[..]), ("Task", &PARA_TASK[..])] {
+        let inch: Vec<String> = inch_keys();
+        let inch_refs: Vec<&str> = inch.iter().map(String::as_str).collect();
+        for (grp, keys) in [("Machine", &PARA_MACHINE[..]), ("Task", &PARA_TASK[..]), ("Timeout", &inch_refs[..])] {
             if let Some(s) = p.get(grp) {
                 for k in keys {
                     if let Some(v) = s.get(*k) {
@@ -147,13 +180,17 @@ async fn snapshot(State(st): State<AppState>, Path(robot): Path<u8>) -> ApiResul
         Ok((t, at)) => (t, Some(at), None),
         Err(e) => (Json::Null, None, Some(e)),
     };
+    let live = live_json(&h.contract, &w.json);
+    let inch = live.get("Inch").and_then(Json::as_f64).filter(|i| *i > 0.0);
+    let fallback = live.get("Fallback").and_then(Json::as_bool).unwrap_or(false);
     Ok(axum::Json(json!({
         "robot": r.id,
         "robot_name": r.name,
         "plc": h.name(),
         "at": w.at,
-        "live": live_json(&h.contract, &w.json),
+        "live": live,
         "bins": bins(para),
+        "inch_bands": inch_bands(para, inch, fallback),
         "tune": tune,
         "tune_at": tune_at,
         "tune_error": tune_error,
@@ -239,8 +276,33 @@ mod tests {
 
     #[test]
     fn para_keeps_only_gripper_members() {
-        let p = json!({ "Machine": { "G_TorqRefDia": 508.0, "ID": 2 }, "Task": { "G_HoldFactor": 100.0, "Z_Something": 1 } });
-        assert_eq!(para_json(Some(&p)), json!({ "G_TorqRefDia": 508.0, "G_HoldFactor": 100.0 }));
+        let p = json!({ "Machine": { "G_TorqRefDia": 508.0, "ID": 2 }, "Task": { "G_HoldFactor": 100.0, "Z_Something": 1 }, "Timeout": { "G_Inch1_Min": 12.0, "T_Other": 3.0 } });
+        assert_eq!(para_json(Some(&p)), json!({ "G_TorqRefDia": 508.0, "G_HoldFactor": 100.0, "G_Inch1_Min": 12.0 }));
+        assert_eq!(inch_keys().len(), 20);
+    }
+
+    #[test]
+    fn inch_bands_first_match_wins_and_zero_pct_is_auto() {
+        let p = json!({ "Timeout": {
+            "G_Inch1_Min": 12.0, "G_Inch1_Max": 14.5, "G_Inch1_OpenPct": 0.0, "G_Inch1_MeasPct": 0.0,
+            "G_Inch2_Min": 14.5, "G_Inch2_Max": 16.5, "G_Inch2_OpenPct": 35.0, "G_Inch2_MeasPct": 0.0,
+            "G_Inch3_Min": 20.0, "G_Inch3_Max": 10.0, "G_Inch3_OpenPct": 50.0, "G_Inch3_MeasPct": 0.0,
+        }});
+        // 14.5 는 구간 1·2 에 다 들지만 첫 구간(1)이 이긴다 — % 가 0 이라 applied 는 아니다
+        let b = inch_bands(Some(&p), Some(14.5), true);
+        let bands = b["bands"].as_array().unwrap();
+        assert_eq!(bands.len(), 5);
+        assert_eq!((bands[0]["active"].as_bool(), bands[0]["applied"].as_bool()), (Some(true), Some(false)));
+        assert_eq!(bands[1]["active"].as_bool(), Some(false));
+        // 15 → 구간 2, OpenPct 35 + Fallback → 적용 중; Fallback 이 아니면 active 만
+        let b = inch_bands(Some(&p), Some(15.0), true);
+        assert_eq!(b["bands"][1]["applied"].as_bool(), Some(true));
+        let b = inch_bands(Some(&p), Some(15.0), false);
+        assert_eq!((b["bands"][1]["active"].as_bool(), b["bands"][1]["applied"].as_bool()), (Some(true), Some(false)));
+        // Min >= Max 는 미사용, 인치를 모르면 아무것도 활성이 아니다
+        assert_eq!(b["bands"][2]["valid"].as_bool(), Some(false));
+        let b = inch_bands(Some(&p), None, true);
+        assert!(b["bands"].as_array().unwrap().iter().all(|x| x["active"] == json!(false)));
     }
 
     #[test]
