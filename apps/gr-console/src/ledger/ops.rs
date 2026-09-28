@@ -157,6 +157,27 @@ pub async fn submit(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<L
     submit_prepared(st, r, entry).await
 }
 
+/// 짝 초안(PICK 과 함께 만들어 둔 DROP)을 **보낼 때의 값으로 다시 작성해** 제출한다 — 만든 뒤에 바뀐
+/// 재고·팔렛 슬롯이 반영되게. WorkId/TaskId 는 만들 때 잡힌 값을 지킨다.
+pub async fn submit_refreshed(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<LedgerEntry, ApiError> {
+    if entry.state != TaskState::Draft {
+        return Err(ApiError::Conflict(format!("task {} is {}", entry.id, entry.state.as_str())));
+    }
+    let Some(mut req) = entry.request.clone() else { return submit(st, r, entry).await };
+    req.robot = Some(r.id);
+    let c = crate::issue::compose(st, &req)?;
+    let mut e = entry;
+    let mut task = c.task;
+    task.work_id = e.plc_task.work_id;
+    task.task_id = e.plc_task.task_id;
+    e.position = task.position;
+    e.plc_task = task;
+    e.resolved = Some(c.params);
+    e.pallet = c.pallet;
+    let e = r.ledger.upsert(e)?;
+    submit(st, r, e).await
+}
+
 /// 보정 재계산이 끝난 초안을 게이트 → 쓰기 → Submitted 로.
 async fn submit_prepared(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<LedgerEntry, ApiError> {
     // 명령 쓰기 + 원장 전이는 종료가 기다려 주는 한 구간이다.

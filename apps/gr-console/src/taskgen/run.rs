@@ -627,78 +627,111 @@ pub async fn tick_issue(st: &AppState, e: &Engine) {
         e.inflight.lock().unwrap_or_else(PoisonError::into_inner).insert(g.id.clone());
         let outcome = issue_one(st, &p, &pairs, &g).await;
         e.inflight.lock().unwrap_or_else(PoisonError::into_inner).remove(&g.id);
-        let mut q = e.queue.lock().unwrap_or_else(PoisonError::into_inner);
-        let Some(item) = q.iter_mut().find(|x| x.id == g.id) else { continue };
-        match outcome {
-            Issue::Sent { task_id, order } => {
-                item.task_ids.push(task_id);
-                if order.is_some() {
-                    item.transfer_order_id = order;
+        let mut drafts_to_discard: Vec<String> = Vec::new();
+        {
+            let mut q = e.queue.lock().unwrap_or_else(PoisonError::into_inner);
+            let Some(item) = q.iter_mut().find(|x| x.id == g.id) else { continue };
+            match outcome {
+                Issue::Sent { task_id, drafts, order, warn } => {
+                    // task_ids[i] = 스텝 i 의 원장 Task — 짝 초안도 여기에 자리를 잡는다.
+                    if item.task_ids.len() > item.next {
+                        item.task_ids[item.next] = task_id;
+                    } else {
+                        item.task_ids.push(task_id);
+                    }
+                    item.task_ids.extend(drafts);
+                    if order.is_some() {
+                        item.transfer_order_id = order;
+                    }
+                    item.next += 1;
+                    item.note = warn;
+                    item.attempts = 0;
+                    item.retry_at_ms = 0;
+                    e.metrics.lock().unwrap_or_else(PoisonError::into_inner).issued += 1;
+                    if item.next >= item.steps.len() {
+                        let id = item.id.clone();
+                        q.retain(|x| x.id != id);
+                        e.forget_item(&id);
+                        e.metrics.lock().unwrap_or_else(PoisonError::into_inner).completed_items += 1;
+                    } else {
+                        e.persist_item(item);
+                    }
                 }
-                item.next += 1;
-                item.note = None;
-                item.attempts = 0;
-                item.retry_at_ms = 0;
-                e.metrics.lock().unwrap_or_else(PoisonError::into_inner).issued += 1;
-                if item.next >= item.steps.len() {
-                    let id = item.id.clone();
-                    q.retain(|x| x.id != id);
-                    e.forget_item(&id);
-                    e.metrics.lock().unwrap_or_else(PoisonError::into_inner).completed_items += 1;
-                } else {
-                    e.persist_item(item);
+                Issue::Wait(why) => {
+                    e.count_wait(&why);
+                    item.note = Some(why);
                 }
-            }
-            Issue::Wait(why) => {
-                e.count_wait(&why);
-                item.note = Some(why);
-            }
-            Issue::Failed { why, order } => {
-                // 같은 이송 지시로 다시 — 시도 기록은 지시 이력에.
-                if order.is_some() {
-                    item.transfer_order_id = order;
+                Issue::Failed { why, order } => {
+                    // 같은 이송 지시로 다시 — 시도 기록은 지시 이력에.
+                    if order.is_some() {
+                        item.transfer_order_id = order;
+                    }
+                    item.attempts += 1;
+                    e.metrics.lock().unwrap_or_else(PoisonError::into_inner).submit_failures += 1;
+                    if let Some(o) = &item.transfer_order_id {
+                        let _ = st.stock.note_order(o, &format!("제출 실패 {}회: {why}", item.attempts));
+                    }
+                    if item.attempts > p.issue_max_retries {
+                        tracing::warn!(item = %g.id, %why, "taskgen: gave up after retries");
+                        drafts_to_discard = item.task_ids.clone();
+                        if let Some(o) = &item.transfer_order_id
+                            && item.next == 0
+                        {
+                            let _ = st.stock.abort_order(o, &format!("제출 {}회 실패 — 생성 작업 중단", item.attempts), false);
+                        }
+                        let id = item.id.clone();
+                        q.retain(|x| x.id != id);
+                        e.forget_item(&id);
+                        e.metrics.lock().unwrap_or_else(PoisonError::into_inner).aborted += 1;
+                    } else {
+                        item.retry_at_ms = unix_ms() + p.issue_retry_backoff_ms;
+                        item.note = Some(format!("재시도 {}/{} ({} ms 뒤): {why}", item.attempts, p.issue_max_retries, p.issue_retry_backoff_ms));
+                        e.count_wait("재시도");
+                        e.persist_item(item);
+                    }
                 }
-                item.attempts += 1;
-                e.metrics.lock().unwrap_or_else(PoisonError::into_inner).submit_failures += 1;
-                if let Some(o) = &item.transfer_order_id {
-                    let _ = st.stock.note_order(o, &format!("제출 실패 {}회: {why}", item.attempts));
-                }
-                if item.attempts > p.issue_max_retries {
-                    tracing::warn!(item = %g.id, %why, "taskgen: gave up after retries");
-                    if let Some(o) = &item.transfer_order_id
-                        && item.next == 0
-                    {
-                        let _ = st.stock.abort_order(o, &format!("제출 {}회 실패 — 생성 작업 중단", item.attempts), false);
+                Issue::Abort(why) => {
+                    tracing::warn!(item = %g.id, %why, "taskgen: item aborted");
+                    drafts_to_discard = item.task_ids.clone();
+                    if let Some(o) = &item.transfer_order_id {
+                        let _ = st.stock.abort_order(o, &format!("생성 작업 중단: {why}"), false);
                     }
                     let id = item.id.clone();
                     q.retain(|x| x.id != id);
                     e.forget_item(&id);
                     e.metrics.lock().unwrap_or_else(PoisonError::into_inner).aborted += 1;
-                } else {
-                    item.retry_at_ms = unix_ms() + p.issue_retry_backoff_ms;
-                    item.note = Some(format!("재시도 {}/{} ({} ms 뒤): {why}", item.attempts, p.issue_max_retries, p.issue_retry_backoff_ms));
-                    e.count_wait("재시도");
-                    e.persist_item(item);
                 }
             }
-            Issue::Abort(why) => {
-                tracing::warn!(item = %g.id, %why, "taskgen: item aborted");
-                if let Some(o) = &item.transfer_order_id {
-                    let _ = st.stock.abort_order(o, &format!("생성 작업 중단: {why}"), false);
-                }
-                let id = item.id.clone();
-                q.retain(|x| x.id != id);
-                e.forget_item(&id);
-                e.metrics.lock().unwrap_or_else(PoisonError::into_inner).aborted += 1;
-            }
+        }
+        discard_drafts(st, &drafts_to_discard).await;
+    }
+}
+
+/// 보내지 않은 짝 초안을 지운다 — 중단된 짝의 DROP 이 원장에 남지 않게.
+async fn discard_drafts(st: &AppState, ids: &[String]) {
+    for id in ids {
+        if let Some((_, e)) = st.find_task(id)
+            && e.state == TaskState::Draft
+            && let Err(err) = crate::ledger::ops::cancel(st, id).await
+        {
+            tracing::warn!(task = %id, %err, "taskgen: 짝 초안 지우기 실패");
         }
     }
 }
 
 enum Issue {
-    Sent { task_id: String, order: Option<String> },
+    /// 보냈다 — `drafts` 는 이때 같이 만든 짝 초안(보내지 않음), `warn` 은 초안을 못 만든 사유.
+    Sent {
+        task_id: String,
+        drafts: Vec<String>,
+        order: Option<String>,
+        warn: Option<String>,
+    },
     Wait(String),
-    Failed { why: String, order: Option<String> },
+    Failed {
+        why: String,
+        order: Option<String>,
+    },
     Abort(String),
 }
 
@@ -762,14 +795,59 @@ async fn issue_one(st: &AppState, p: &crate::params::Params, pairs: &BTreeMap<u8
         pallet: step.pallet_auto.then(|| crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
         ..Default::default()
     };
+    // 짝의 둘째 스텝은 PICK 때 만들어 둔 초안을 보낸다(값은 보낼 때 다시 작성).
+    if g.next > 0
+        && let Some(entry) = g.task_ids.get(g.next).and_then(|id| st.find_task(id)).map(|(_, e)| e)
+    {
+        if entry.state != TaskState::Draft {
+            return Issue::Abort(format!("짝 초안 {} 이 {} — 보내지 않음", entry.id, entry.state.as_str()));
+        }
+        return match crate::ledger::ops::submit_refreshed(st, r, entry).await {
+            Ok(e) => Issue::Sent { task_id: e.id, drafts: Vec::new(), order, warn: None },
+            Err(e) => Issue::Failed { why: format!("제출 실패: {e}"), order },
+        };
+    }
     let composed = match crate::issue::compose(st, &req) {
         Ok(c) => c,
         Err(e) => return Issue::Failed { why: format!("compose: {e}"), order },
     };
-    match crate::ledger::ops::create_and_submit(st, r, Origin::Scenario, Some(req), Some(composed.params), composed.task, composed.pallet, true).await {
-        Ok(entry) => Issue::Sent { task_id: entry.id, order },
-        Err(e) => Issue::Failed { why: format!("제출 실패: {e}"), order },
+    let entry = match crate::ledger::ops::create_and_submit(st, r, Origin::Scenario, Some(req), Some(composed.params), composed.task, composed.pallet, true).await {
+        Ok(e) => e,
+        Err(e) => return Issue::Failed { why: format!("제출 실패: {e}"), order },
+    };
+    // PICK/DROP 은 늘 한 짝으로 **함께 만든다** — DROP 을 초안으로 같이 올려 두고 보내기만 순서대로.
+    let mut drafts = Vec::new();
+    if g.next == 0 && g.steps.len() == 2 {
+        match draft_pair_step(st, r, g, order.as_deref()).await {
+            Ok(id) => drafts.push(id),
+            // PICK 은 이미 나갔다 — 초안은 다음 판정에서 다시 만든다(없으면 그때 작성해 보낸다).
+            Err(why) => return Issue::Sent { task_id: entry.id, drafts, order, warn: Some(why) },
+        }
     }
+    Issue::Sent { task_id: entry.id, drafts, order, warn: None }
+}
+
+/// 짝 DROP 을 초안으로 만든다(보내지 않는다) — 같은 이송 지시, 같은 source(run_id · step_index).
+async fn draft_pair_step(st: &AppState, r: &RobotCtx, g: &GenItem, order: Option<&str>) -> Result<String, String> {
+    let step = &g.steps[1];
+    let req = TaskRequest {
+        task_type: step.task_type.clone(),
+        target: Some(step.target.clone()),
+        item_code: step.item_code,
+        count: step.count.max(1),
+        params: serde_json::json!({}),
+        note: format!("생성: {} (짝 DROP)", g.rule_name),
+        source: Some(ScenarioSource { scenario_id: format!("gen:{}", g.rule_id), run_id: g.id.clone(), iteration: 0, step_index: 1 }),
+        robot: Some(r.id),
+        transfer_order_id: order.map(str::to_string),
+        pallet: step.pallet_auto.then(|| crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
+        ..Default::default()
+    };
+    let composed = crate::issue::compose(st, &req).map_err(|e| format!("짝 DROP 작성: {e}"))?;
+    crate::ledger::ops::create_and_submit(st, r, Origin::Scenario, Some(req), Some(composed.params), composed.task, composed.pallet, false)
+        .await
+        .map(|e| e.id)
+        .map_err(|e| format!("짝 DROP 초안: {e}"))
 }
 
 pub fn spawn(st: AppState) {
