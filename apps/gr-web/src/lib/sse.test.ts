@@ -1,6 +1,7 @@
 // SseFeed 가 백엔드의 이름 붙은 SSE 이벤트(`event: status` 등)를 받는지 — 실제 EventSource 처럼
 // 이름 붙은 이벤트는 `onmessage` 로 주지 않고 해당 이름의 리스너에게만 준다.
 import { afterEach, describe, expect, it } from 'vitest'
+import { mux } from './mux'
 import { SseFeed } from './sse'
 
 type Listener = (e: { data: string }) => void
@@ -34,11 +35,13 @@ const saved = g.EventSource
 
 afterEach(() => {
   g.EventSource = saved
+  mux.enable()
 })
 
 describe('SseFeed', () => {
   it('receives named events when constructed with the event name', () => {
     g.EventSource = FakeEventSource
+    mux.disable()
     const feed = new SseFeed<{ n: number }>('/api/status/stream', 'status')
     const got: number[] = []
     feed.onMessage((m) => got.push(m.n))
@@ -55,6 +58,7 @@ describe('SseFeed', () => {
 
   it('without an event name, named events are not delivered (the bug this guards)', () => {
     g.EventSource = FakeEventSource
+    mux.disable()
     const feed = new SseFeed<{ n: number }>('/api/x')
     const release = feed.start()
     FakeEventSource.last!.emit({ n: 1 }, 'status')
@@ -70,5 +74,29 @@ describe('SseFeed', () => {
       'run',
       'stock',
     ])
+  })
+  it('합친 연결을 쓰면 피드 여럿이 EventSource 하나를 나눠 쓴다', () => {
+    g.EventSource = FakeEventSource
+    mux.enable()
+    const tasks = new SseFeed<{ n: number }>('/api/tasks/stream', 'tasks')
+    const stock = new SseFeed<{ n: number }>('/api/stock/stream', 'stock')
+    const got: string[] = []
+    tasks.onMessage((m) => got.push(`tasks ${m.n}`))
+    stock.onMessage((m) => got.push(`stock ${m.n}`))
+    const r1 = tasks.start()
+    const r2 = stock.start()
+
+    // 연결은 하나 — 주소도 합친 스트림이다.
+    const es = FakeEventSource.last!
+    expect(es.url).toBe('/api/stream')
+    es.emit({ n: 1 }, 'tasks')
+    es.emit({ n: 2 }, 'stock')
+    expect(got).toEqual(['tasks 1', 'stock 2'])
+
+    // 마지막 구독자가 놓을 때 닫힌다.
+    r1()
+    expect(es.closed).toBe(false)
+    r2()
+    expect(es.closed).toBe(true)
   })
 })

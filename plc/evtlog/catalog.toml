@@ -895,7 +895,7 @@ cat = "ALARM"
 lvl = "ERROR"
 text = "FAULT 전환 : 첫 코드 {a}"
 
-# GRIP (GR2 FB_Gripper)
+# GRIP (GR2 FB_CL_Gripper)
 [[event]]
 code = 701
 name = "GRIP_REQ"

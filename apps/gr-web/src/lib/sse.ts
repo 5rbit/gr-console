@@ -10,6 +10,7 @@
 
 import { useEffect } from 'react'
 import { pressure } from './congestion'
+import { mux } from './mux'
 import { Store, useStore } from './store'
 
 /**
@@ -55,6 +56,8 @@ export class SseFeed<T> extends Store {
    *  반드시 `addEventListener(이름)` 으로 받아야 한다(없으면 이름 없는 `message` 만 받는다). */
   readonly event: string | null
   #es: EventSource | null = null
+  /** 합친 연결(`/api/stream`)을 쓰는 동안의 해제 함수. */
+  #offMux: (() => void) | null = null
   #refs = 0
   #data: T | null = null
   #connected = false
@@ -121,6 +124,14 @@ export class SseFeed<T> extends Store {
 
   #open(): void {
     if (typeof EventSource === 'undefined') return
+    // 합친 연결이 이 이벤트를 실어 나르면 거기서 받는다 — 브라우저 연결 한도(호스트당 6)를 아낀다.
+    if (mux.carries(this.event)) {
+      this.#offMux = mux.on(this.event as string, (data) => this.#push(data as T))
+      this.#connected = true
+      this.#error = null
+      this.#flush()
+      return
+    }
     const es = new EventSource(this.url)
     es.onopen = () => {
       this.#connected = true
@@ -140,19 +151,26 @@ export class SseFeed<T> extends Store {
       } catch {
         return
       }
-      this.#data = msg
-      this.#lastAt = Date.now()
-      this.#connected = true
-      for (const h of this.#handlers) h(msg)
-      this.#flush()
+      this.#push(msg)
     }
     es.onmessage = onData
     if (this.event) es.addEventListener(this.event, onData as EventListener)
     this.#es = es
   }
 
+  /** 받은 메시지 하나 — 낱개 스트림과 합친 연결이 같은 길로 들어온다. */
+  #push(msg: T): void {
+    this.#data = msg
+    this.#lastAt = Date.now()
+    this.#connected = true
+    for (const h of this.#handlers) h(msg)
+    this.#flush()
+  }
+
   #close(): void {
     this.#flush.cancel()
+    this.#offMux?.()
+    this.#offMux = null
     this.#es?.close()
     this.#es = null
     this.#connected = false

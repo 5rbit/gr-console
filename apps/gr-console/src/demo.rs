@@ -32,7 +32,7 @@ const STEPS: [u16; 7] = [100, 200, 300, 400, 500, 600, 999];
 const GR_DBS: [&str; 13] = ["OPCUA", "TASK", "CELL", "STATION", "PARA", "ALARM", "Interface_GRM", "WEBMON", "MEASLOG", "MEASLOG_HIST", "LASERDIAG", "GRIP_TUNE", "EVTLOG"];
 const GRM_DBS: [&str; 5] = ["OPCUA", "STATION", "CELL", "MACHINE", "EVTLOG"];
 /// Tables a client may write over S7: absorbed back into the model (see `encode_models`). EVTLOG: the logger Cfg dialog.
-const ABSORB: [&str; 5] = ["CELL", "STATION", "LASERDIAG", "GRIP_TUNE", "EVTLOG"];
+const ABSORB: [&str; 4] = ["CELL", "STATION", "LASERDIAG", "EVTLOG"];
 /// Demo event ids from `plc/evtlog/catalog.toml`: (cat, lvl, code).
 mod ev {
     pub const SYS_STARTUP: (u8, u8, u16) = (1, 2, 101);
@@ -191,24 +191,12 @@ fn mech_bin(g: f64) -> usize {
 /// Seeded `GRIP_TUNE.Tune` — GR1 (index 0) has only the grip-speed curve so the "미학습" state is visible in the demo.
 fn seed_tune(gr_index: usize) -> Json {
     let mech: Vec<Vec<f64>> = [false, true].iter().map(|slow| (0..MECH_BINS).map(|k| mech_curve(k, *slow)).collect()).collect();
-    let scale: Vec<f64> = (12..=24)
-        .map(|inch| {
-            if inch == 15 {
-                105.0
-            } else if inch == 22 {
-                96.0
-            } else {
-                100.0
-            }
-        })
-        .collect();
     json!({
         "Valid": [true, gr_index != 0],
         "LearnedSpd": [3, 1],
         "Mech": mech,
         "Accel": [3.5, 2.0],
         "TorqSign": 1,
-        "ScaleByInch": scale,
         "DriftCount": 0,
         "LearnDone": gr_index != 0,
         "LearnError": if gr_index == 0 { 1 } else { 0 },
@@ -568,6 +556,16 @@ impl DemoWorld {
             set_db(&mut models, "PARA", "/Machine/ID", json!(r.machine_id));
             // a per-robot PARA value so the PARA page visibly changes with the robot
             set_db(&mut models, "PARA", "/Machine/XLength", json!(28_000 + 4_000 * r.gr_index as u32));
+            // 그리퍼 인치별 수동 토크(PARA Sensor p450~p475, TIA V1.6.1) — 0 = 자동(사양 환산); 15" 파지 35 %, 20" 파지 20 % 만 예시
+            for inch in 12..=24 {
+                let open = match inch {
+                    15 => 35.0,
+                    20 => 20.0,
+                    _ => 0.0,
+                };
+                set_db(&mut models, "PARA", &format!("/Sensor/G_Inch{inch}_OpenPct"), json!(open));
+                set_db(&mut models, "PARA", &format!("/Sensor/G_Inch{inch}_MeasPct"), json!(0.0));
+            }
             set_db(&mut grm_models, "OPCUA", &format!("/GR/{}/STAT/ComponentID", r.gr_index), json!(r.dst));
             if let Some(db) = models.get_mut("CELL") {
                 set(db, "/Count", json!(cells.len()));
@@ -1160,7 +1158,7 @@ impl Side {
                     }
                 }
                 500 => {
-                    // FB_Gripper events are GR2-only (catalog plc = ["GR2"]): a contract without GRIP_E_* has no gripper FB
+                    // FB_CL_Gripper events are GR2-only (catalog plc = ["GR2"]): a contract without GRIP_E_* has no gripper FB
                     let fb = self.contract.consts.contains_key("GRIP_E_TIMEOUT");
                     let g = (f64::from(t.item.inner_diameter) * 10.0) as i32;
                     if fb {
@@ -1308,7 +1306,7 @@ impl Side {
         let gid = self.now.as_ref().map(|r| laser_gid(&r.task, f64::from(axis[2]), f64::from(axis[3]), tick)).unwrap_or([LASER_FAR; 4]);
         let step_secs = self.now.as_ref().map(|r| r.step_at.elapsed().as_secs_f64()).unwrap_or(0.0);
         let msg = format!("{} Step {step}", self.plc);
-        // FB_Gripper 요약 (WEBMON.Gripper 확장): 학습 중 > 파지 중(HOLDING) > 측정 중 > 벌린 채 정지(RELEASED)
+        // FB_CL_Gripper 요약 (WEBMON.Gripper 확장): 학습 중 > 파지 중(HOLDING) > 측정 중 > 벌린 채 정지(RELEASED)
         let gripper = {
             let g = f64::from(axis[3]);
             let g_settled = (target[3] - axis[3]).abs() <= 1.0;
@@ -1358,6 +1356,8 @@ impl Side {
             });
             json!({
                 "Code": code, "Timeout": 0, "Mode": mode, "Step": if learning { 20 } else if gripping { 40 } else { 0 }, "ErrorCode": 0, "Inch": inch,
+                // PLC 가 적용한 인치(규격 내경/25.4 반올림, 12..24 로 끝값 처리) — Task 없이는 0(자동)
+                "Band": if inch > 0 { inch.clamp(12, 24) } else { 0 },
                 "Busy": learning || !g_settled || step == 500, "Done": g_settled && !learning && step != 500, "Error": false, "GripOk": gripping,
                 "ItemPresent": gripping, "Obstacle": false, "Thermal": false, "AtSpeed": !g_settled, "Contact": gripping,
                 "LimitNow": limit, "Mech": mech, "Rise": rise, "TorqPct": mech + rise,

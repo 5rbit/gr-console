@@ -85,12 +85,30 @@ export async function httpError(r: Response, method: string, path: string): Prom
   return new Error(detail ? `${detail} (${head})` : head)
 }
 
+/**
+ * 조회 한 건의 제한 시간 — 브라우저는 한 호스트에 **6 연결**까지만 연다. SSE 스트림이 그 자리를 채우면
+ * 새 GET 은 실패도 하지 않고 **영원히 줄을 선다**(화면이 "읽는 중…" 에 멈춘다). 끊어서 사유를 말하고
+ * 다음 판에 다시 시도하는 편이 낫다.
+ */
+const GET_TIMEOUT_MS = 8000
+
 /** GET → JSON. 동일 URL 동시 조회는 [`shareGet`]이 하나로 합친다. */
 export async function getJson<T>(path: string): Promise<T> {
   return shareGet(path, async () => {
-    const r = await fetch(path)
-    if (!r.ok) throw await httpError(r, 'GET', path)
-    return r.json() as Promise<T>
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), GET_TIMEOUT_MS)
+    try {
+      const r = await fetch(path, { signal: ctl.signal })
+      if (!r.ok) throw await httpError(r, 'GET', path)
+      return (await r.json()) as T
+    } catch (e) {
+      if (ctl.signal.aborted) {
+        throw new Error(`응답 없음 ${GET_TIMEOUT_MS / 1000}초 (GET ${path}) — 콘솔 연결이 막혔습니다`)
+      }
+      throw e
+    } finally {
+      clearTimeout(timer)
+    }
   })
 }
 
@@ -217,13 +235,8 @@ export const api = {
   /** 로봇 PLC 의 PARA DB(계약 주석 포함, 읽기 전용) */
   para: (robot?: number | null) => getJson<ParaSnapshot>(`/api/para${qs({ robot })}`),
 
-  // 그리퍼(GR2 FB_Gripper) — WEBMON.Gripper + GRIP_TUNE + PARA G_*. LEARN 은 robotCommand(id, 'gripper-learn').
+  // 그리퍼(GR2 FB_CL_Gripper) — WEBMON.Gripper + GRIP_TUNE + PARA G_*. LEARN 은 robotCommand(id, 'gripper-learn').
   gripper: (robot: number) => getJson<GripperSnapshot>(`/api/robots/${robot}/gripper`),
-  /** GRIP_TUNE.Tune.ScaleByInch[12..24] 13 개(%)를 한 번에 쓴다(S7 직접 쓰기). */
-  gripperScaleByInch: (robot: number, values: number[]) =>
-    putJson<{ ok: boolean; ScaleByInch: number[] }>(`/api/robots/${robot}/gripper/scale-by-inch`, {
-      ScaleByInch: values,
-    }),
 
   // 측정 기록 (현장 시험)
   record: () => getJson<RecordOverview>('/api/record'),
@@ -431,4 +444,26 @@ export const api = {
   /** 지금 도는 실행(없으면 `null`). */
   scenarioRunNow: () => getJson<ScenarioRun | null>('/api/scenarios/run'),
   runsStream: (): EventSource => new EventSource(STREAM_URL.runs),
+}
+
+/**
+ * 조회 실패를 사람 말로 — **브라우저가 콘솔에 닿지 못한 것**(transport)과 콘솔이 낸 사유를 가른다.
+ *
+ * `Failed to fetch` 는 서버 안의 엔진이 아니라 **연결**이 실패한 것이다. 둘을 같은 문구로 말하면
+ * "엔진이 죽었나" 로 읽힌다 — 실제로는 콘솔이 꺼졌거나 이 탭이 다른 주소를 보고 있는 경우다.
+ */
+export function loadFailure(e: unknown): { transport: boolean; text: string } {
+  const raw = e instanceof Error ? e.message : String(e)
+  const transport =
+    /failed to fetch|networkerror|load failed|fetch failed|err_connection|refused|응답 없음|aborted/i.test(raw)
+  return { transport, text: raw }
+}
+
+/** 화면 띠 한 줄 — `what` 은 못 읽은 것의 이름(예: "생성 규칙"). */
+export function loadFailureText(e: unknown, what: string, stale: boolean): string {
+  const { transport, text } = loadFailure(e)
+  const tail = stale ? ' · 아래는 마지막으로 읽은 값' : ''
+  return transport
+    ? `콘솔에 연결하지 못해 ${what} 갱신이 멈췄습니다 — 콘솔이 꺼졌거나 이 탭이 다른 주소를 봅니다 (${text})${tail}`
+    : `${what}을 읽지 못함 — ${text}${tail}`
 }

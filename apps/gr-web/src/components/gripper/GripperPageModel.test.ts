@@ -11,8 +11,6 @@ import {
   ownerName,
   mechSeries,
   paraRows,
-  parseScale,
-  scaleRows,
 } from './GripperPageModel'
 
 const bins: GripperBins = { range_min: 295, range_max: 630, count: 34, width: (630 - 295) / 34 }
@@ -24,7 +22,6 @@ function tune(valid: [boolean, boolean]): GripperTune {
     Mech: [Array.from({ length: 34 }, (_, k) => 8 + k * 0.2), Array.from({ length: 34 }, () => 6)],
     Accel: [3.5, 2],
     TorqSign: 1,
-    ScaleByInch: Array.from({ length: 13 }, () => 100),
     DriftCount: 0,
     LearnDone: true,
     LearnError: 0,
@@ -85,18 +82,14 @@ describe('gripper model', () => {
     expect(learnDisabledReason('AUTO', live, true, true)).toBeUndefined()
   })
 
-  it('scale rows are 12..24 inch and parse back', () => {
-    const rows = scaleRows(tune([true, true]))
-    expect(rows[0]).toEqual({ inch: 12, value: 100 })
-    expect(rows[12]).toEqual({ inch: 24, value: 100 })
-    expect(parseScale(['', '105', '96.5'])).toEqual({ values: [0, 105, 96.5] })
-    expect(parseScale(['1', 'x'])).toEqual({ error: '13 인치 값이 0~1000 % 사이의 숫자가 아닙니다' })
-  })
-
   it('para rows keep p-number order and null for missing', () => {
     const rows = paraRows({ G_TorqRefDia: 508, G_HoldFactor: 100 })
     expect(rows[0]).toEqual({ name: 'G_TorqRefDia', param: 37, group: 'Machine', value: 508 })
     expect(rows.find((r) => r.name === 'G_OpenTorq_Nm')?.value).toBeNull()
-    expect(rows).toHaveLength(23)
+    expect(rows).toHaveLength(49)
+    expect(rows[23]).toEqual({ name: 'G_Inch12_OpenPct', param: 450, group: 'Sensor', value: null })
+    expect(rows[35]).toEqual({ name: 'G_Inch24_OpenPct', param: 462, group: 'Sensor', value: null })
+    expect(rows[36]).toEqual({ name: 'G_Inch12_MeasPct', param: 463, group: 'Sensor', value: null })
+    expect(rows[48]).toEqual({ name: 'G_Inch24_MeasPct', param: 475, group: 'Sensor', value: null })
   })
 })

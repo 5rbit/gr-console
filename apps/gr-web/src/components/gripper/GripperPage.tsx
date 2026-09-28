@@ -1,10 +1,10 @@
-// 그리퍼 — GR2 `FB_Gripper` 토크 제어의 상태·학습 곡선·LEARN 명령 화면(사이드바에서 고른 로봇).
+// 그리퍼 — GR2 `FB_CL_Gripper` 토크 제어의 상태·학습 곡선·LEARN 명령 화면(사이드바에서 고른 로봇).
 //
 // 데이터 두 갈래:
 //  - 실시간(`WEBMON.Gripper` + G 축 위치)은 이미 열려 있는 **상태 스트림**(`useSelectedStatus`)에서 — 폴을 하나 더
 //    열지 않는다. 화면 머리의 숫자 띠·상태 카드·곡선 위 G 마커가 이것을 쓴다.
 //  - 학습 곡선(`GRIP_TUNE.Tune`)·PARA 는 `GET /api/robots/{id}/gripper` 2 초 폴(숨은 탭 스킵). 느린 주기 DB 라 그걸로 충분하다.
-// 조작은 띠 하나(LEARN 버튼 + `?` + `⋯`)뿐이고, ScaleByInch 편집은 `⋯` 뒤의 대화상자다.
+// 조작은 띠 하나(LEARN 버튼 + `?` + `⋯`)뿐이다. 인치별 수동 토크(PARA Sensor p450~p475)는 읽기 전용 — 편집은 HMI/CSV.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Hand } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -14,20 +14,18 @@ import { delta, dtl, f1, pos } from '../../lib/meas/format'
 import { nav } from '../../lib/nav'
 import { visibleInterval } from '../../lib/poll'
 import { robots } from '../../lib/robots'
-import { robotChip, robotFailure, withRobotChip } from '../../lib/robotContext'
+import { robotChip } from '../../lib/robotContext'
 import { sendRobotAction } from '../../lib/robotCommand'
 import { useStore } from '../../lib/store'
-import type { GripperSnapshot, WebMonGripper } from '../../lib/types'
+import type { GripperInchRow, GripperSnapshot, WebMonGripper } from '../../lib/types'
 import { Button } from '../../lib/ui/Button'
 import { Card } from '../../lib/ui/Card'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
-import { FormDialog } from '../../lib/ui/Dialog'
 import { EmptyState } from '../../lib/ui/EmptyState'
 import { ErrorBoundary } from '../../lib/ui/ErrorBoundary'
 import { FieldList } from '../../lib/ui/FieldList'
 import { HelpTip } from '../../lib/ui/HelpTip'
-import { Input } from '../../lib/ui/Input'
 import { OverflowMenu } from '../../lib/ui/OverflowMenu'
 import { ScreenHeader } from '../../lib/ui/ScreenHeader'
 import { Section } from '../../lib/ui/Section'
@@ -37,7 +35,6 @@ import { Toolbar } from '../../lib/ui/Toolbar'
 import type { MenuItem } from '../../lib/ui/menu'
 import { statusTone } from '../../lib/ui/status'
 import type { Column } from '../../lib/ui/table'
-import { toast } from '../../lib/ui/toast'
 import { XYChart } from '../../lib/ui/viz/XYChart'
 import { robotField } from '../shared/RobotChip'
 import { Bits, KvTable } from '../measure/helpers'
@@ -55,10 +52,7 @@ import {
   modeLabel,
   ownerName,
   paraRows,
-  parseScale,
-  scaleRows,
   type ParaRowView,
-  type ScaleRow,
 } from './GripperPageModel'
 
 const POLL_MS = 2000
@@ -70,7 +64,8 @@ const LEARN_HELP =
 const CURVE_HELP =
   'x = G 위치(mm, RangeMin~RangeMax 를 34 칸), y = 기구 부하 토크(%). 파지 속도 곡선과 측정 느린 속도 곡선이 따로 있고 LearnedSpd 가 지금 속도 등급과 다르면 그 곡선은 무효입니다. 세로선이 지금 G 위치.'
 
-const SCALE_HELP = '인치별 미세 조정(%). 0 또는 100 = 조정 없음. 저장하면 GRIP_TUNE.Tune.ScaleByInch 에 바로 씁니다.'
+const INCH_HELP =
+  'PARA Sensor p450~p462(OpenPct) · p463~p475(MeasPct). 인치 = 규격 내경/25.4 를 반올림(FLOOR(x+0.5)), 12 미만·24 초과는 끝값. 그 인치의 %가 0 보다 크면 그 값이 토크 총량입니다(파지 = OpenPct, 측정 = MeasPct, 재파지 = OpenPct × p977). 0 = 자동(사양 Nm 환산). 우선순위: Req.TorqPct > 인치별 % > 사양 환산 > p941/p940/p952. 적용 인치는 PLC 판정(WEBMON.Gripper.Band, 0 = 자동). 편집은 HMI/CSV.'
 
 function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -78,9 +73,24 @@ function errText(e: unknown): string {
 
 const pct = (v: number | null | undefined) => (v === null || v === undefined ? null : delta(v))
 
-const SCALE_COLS: Column<ScaleRow>[] = [
+/** 인치별 토크 표 — 13 행. 적용 인치(PLC Band)는 점+글자로. */
+const INCH_COLS: Column<GripperInchRow>[] = [
   { key: 'inch', label: 'Inch', get: (r) => r.inch, numeric: true },
-  { key: 'v', label: 'ScaleByInch (%)', get: (r) => delta(r.value), numeric: true },
+  { key: 'open', label: 'OpenPct (%)', get: (r) => delta(r.open_pct), numeric: true },
+  { key: 'meas', label: 'MeasPct (%)', get: (r) => delta(r.meas_pct), numeric: true },
+  {
+    key: 'active',
+    label: '적용',
+    get: (r) => (r.applied ? 2 : r.active ? 1 : 0),
+    cell: (r) =>
+      r.applied ? (
+        <StatusDot status="ok" size="sm" label="% 적용 중" />
+      ) : r.active ? (
+        <StatusDot status="info" size="sm" label="적용 인치 (% 0 = 자동)" />
+      ) : (
+        <span className="text-content-muted">-</span>
+      ),
+  },
 ]
 
 const PARA_COLS: Column<ParaRowView>[] = [
@@ -105,9 +115,6 @@ function GripperScreen() {
   const [error, setError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState(false)
   const [sending, setSending] = useState(false)
-  const [scaleOpen, setScaleOpen] = useState(false)
-  const [scaleIn, setScaleIn] = useState<string[]>([])
-  const [scaleBusy, setScaleBusy] = useState(false)
 
   const load = useCallback(async () => {
     if (robot === null) return
@@ -170,38 +177,7 @@ function GripperScreen() {
     }
   }
 
-  function openScale() {
-    setScaleIn(scaleRows(tune).map((r) => String(r.value)))
-    setScaleOpen(true)
-  }
-
-  async function saveScale() {
-    const parsed = parseScale(scaleIn)
-    if ('error' in parsed) {
-      toast.error(parsed.error)
-      return
-    }
-    if (robot === null) return
-    setScaleBusy(true)
-    try {
-      await api.gripperScaleByInch(robot, parsed.values)
-      toast.ok(withRobotChip(chip, 'ScaleByInch 저장'))
-      setScaleOpen(false)
-      await load()
-    } catch (e) {
-      toast.error(robotFailure(chip.name, 'ScaleByInch 저장 실패', errText(e)))
-    } finally {
-      setScaleBusy(false)
-    }
-  }
-
   const menu: MenuItem[] = [
-    {
-      label: 'ScaleByInch 편집…',
-      disabled: tune ? undefined : (snap?.tune_error ?? 'GRIP_TUNE 를 아직 읽지 못했습니다'),
-      run: openScale,
-      testid: 'gripper-scale-edit',
-    },
     {
       // 트레이스 화면으로 — 그리퍼 프리셋(위치·토크·제한·에코·도달 24 채널)을 적용한 채로. 시작은 거기서 누른다.
       label: '트레이스 (그리퍼 프리셋)…',
@@ -308,6 +284,7 @@ function GripperScreen() {
                 ['Owner', `${live?.Owner ?? 0} ${ownerName(live?.Owner ?? 0)}`, 'GRIP_OWNER_* — 지금 그리퍼를 쥔 주체'],
                 ['Reject', `${live?.Reject ?? 0} ${errorName(live?.Reject)}`, '마지막 거부 사유 (GRIP_E_*)'],
                 ['SpdIdx', String(live?.SpdIdx ?? 0), '사용 중 Mech 곡선 (0 없음)'],
+                ['Band (inch)', String(live?.Band ?? 0), 'PLC 가 적용한 인치 12..24 (p450~p475), 0 = 자동 환산'],
                 [
                   'Fallback / ErrorHold / Disabled',
                   <Bits
@@ -324,7 +301,6 @@ function GripperScreen() {
                 ['ContactPos (mm)', pos(live?.ContactPos)],
                 ['ReachedPos (mm)', pos(live?.ReachedPos)],
                 ['GTarget (mm)', pos(wm?.Axis?.[3]?.Target ?? snap?.live.GTarget)],
-                ['TorqueReachedPosition (mm)', pos(live?.TorqueReachedPosition)],
               ]}
             />
           </Section>
@@ -426,23 +402,26 @@ function GripperScreen() {
 
         <Card padded={false}>
           <div className="flex items-baseline gap-2 border-b border-line-default px-3 py-1.5">
-            <h3 className="text-xs font-semibold text-content-muted">ScaleByInch (GRIP_TUNE)</h3>
-            <HelpTip title="ScaleByInch" text={SCALE_HELP} />
+            <h3 className="text-xs font-semibold text-content-muted">인치별 토크 (PARA Sensor p450~p475)</h3>
+            <HelpTip title="인치별 수동 토크" text={INCH_HELP} />
+            <span className="ml-auto text-2xs text-content-faint tabular-nums">
+              읽기 전용 · Band {live?.Band ?? snap?.inch_table?.band ?? '-'} (PLC 판정, 0 = 자동)
+            </span>
           </div>
           <DataTable
-            rows={scaleRows(tune)}
-            columns={SCALE_COLS}
+            rows={snap?.inch_table?.rows ?? []}
+            columns={INCH_COLS}
             rowKey={(r) => String(r.inch)}
             density="compact"
             fit
-            empty="GRIP_TUNE 없음"
-            emptyHint={snap?.tune_error ?? undefined}
+            empty="인치별 토크 없음"
+            emptyHint="PARA 에 p450~p475 가 없는 레이아웃이거나 아직 읽지 못했습니다."
           />
         </Card>
 
         <Card padded={false}>
           <div className="flex items-baseline gap-2 border-b border-line-default px-3 py-1.5">
-            <h3 className="text-xs font-semibold text-content-muted">PARA (Machine.G_* · Task.G_*)</h3>
+            <h3 className="text-xs font-semibold text-content-muted">PARA (Machine.G_* · Task.G_* · Sensor.G_Inch*)</h3>
             <span className="ml-auto text-2xs text-content-faint">읽기 전용 · 0 = PLC 기본값</span>
           </div>
           <DataTable
@@ -482,32 +461,6 @@ function GripperScreen() {
           ]}
         />
       </ConfirmDialog>
-
-      <FormDialog
-        open={scaleOpen}
-        onOpenChange={setScaleOpen}
-        title={`ScaleByInch 편집 — ${chip.name}`}
-        meta="12~24 인치 · % · 0 또는 100 = 조정 없음"
-        size="md"
-        onSubmit={() => void saveScale()}
-        submitLabel="저장"
-        busy={scaleBusy}
-        dirty={scaleIn.some((v, i) => v !== String(scaleRows(tune)[i]?.value ?? ''))}
-        testid="gripper-scale-dialog"
-      >
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {scaleIn.map((v, i) => (
-            <Input
-              key={i}
-              dense
-              label={`${12 + i} in`}
-              value={v}
-              inputMode="decimal"
-              onValueChange={(s) => setScaleIn((prev) => prev.map((p, k) => (k === i ? s : p)))}
-            />
-          ))}
-        </div>
-      </FormDialog>
     </div>
   )
 }

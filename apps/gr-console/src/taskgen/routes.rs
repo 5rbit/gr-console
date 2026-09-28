@@ -27,13 +27,14 @@ async fn get_all(State(st): State<AppState>) -> ApiResult<Json> {
     let robot_name = |id: u8| st.robots.iter().find(|r| r.id == id).map(|r| r.name.clone()).unwrap_or_else(|| format!("로봇 {id}"));
     let cand = |c: &super::Candidate, why: Option<&String>| {
         json!({ "rule_id": c.rule_id, "rule_name": c.rule_name, "robot": c.robot, "robot_name": robot_name(c.robot), "score": c.score,
-            "breakdown": c.breakdown, "area": c.area, "first": c.first, "second": c.second, "age_min": c.age_min, "order": c.order, "reason": why })
+            "breakdown": c.breakdown, "area": c.area, "first": c.first, "second": c.second, "item": c.item, "age_min": c.age_min, "order": c.order, "reason": why })
     };
     let candidates: Vec<Json> = sel.generate.iter().map(|c| cand(c, None)).chain(sel.waiting.iter().map(|(c, w)| cand(c, Some(w)))).collect();
     let skipped: Vec<Json> = sel.skipped.iter().map(|(r, w)| json!({ "rule": r, "reason": w })).collect();
     let rules = e.rules.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+    let inputs = e.inputs.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
     Ok(axum::Json(
-        json!({ "config": e.config(), "rules": rules, "candidates": candidates, "skipped": skipped, "queue": queue, "note": note, "metrics": metrics, "separation_mm": p.anticol_separation_mm }),
+        json!({ "config": e.config(), "rules": rules, "inputs": inputs, "candidates": candidates, "skipped": skipped, "queue": queue, "note": note, "metrics": metrics, "separation_mm": p.anticol_separation_mm }),
     ))
 }
 
@@ -133,10 +134,59 @@ async fn params_history(State(st): State<AppState>, Query(q): Query<HistQ>) -> A
     Ok(axum::Json(Json::Array(crate::params::history(&st.db, q.limit.unwrap_or(50).clamp(1, 500))?)))
 }
 
+#[derive(Deserialize)]
+struct DefaultsBody {
+    /// 출고 스테이션 — 출고 우선 규칙과 "출고에 가까운 셀" 의 기준.
+    out_station: u16,
+    /// 입고 스테이션(비면 출고를 뺀 등록 스테이션 전부).
+    #[serde(default)]
+    in_stations: Vec<u16>,
+    /// 미리보기만(저장하지 않음).
+    #[serde(default)]
+    dry_run: bool,
+    /// 지금 규칙에 **덧붙인다**(기본: 덧붙임). false 면 규칙을 이 한 벌로 바꾼다.
+    #[serde(default = "yes")]
+    append: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+/// 기본 규칙 한 벌을 만든다 — 현장에서 고쳐 쓰는 시작점(운전자 규칙 다섯 가지).
+async fn defaults(State(st): State<AppState>, axum::Json(b): axum::Json<DefaultsBody>) -> ApiResult<Json> {
+    let e = eng()?;
+    let known: Vec<u16> = st.registry.stations()?.iter().map(|s| s.id).collect();
+    if !known.contains(&b.out_station) {
+        return Err(ApiError::BadRequest(format!("출고 스테이션 {} 이 등록돼 있지 않습니다 (등록: {:?})", b.out_station, known)));
+    }
+    let ins: Vec<u16> = if b.in_stations.is_empty() { known.iter().copied().filter(|id| *id != b.out_station).collect() } else { b.in_stations.clone() };
+    if let Some(bad) = ins.iter().find(|id| !known.contains(id)) {
+        return Err(ApiError::BadRequest(format!("입고 스테이션 {bad} 이 등록돼 있지 않습니다")));
+    }
+    let seed = super::default_rules(b.out_station, &ins);
+    let cur = e.config();
+    let mut next = cur.clone();
+    next.weights.target.extend(seed.weights.target.clone());
+    if b.append {
+        // 같은 id 는 새 것으로 바꾼다(다시 만들어도 두 벌이 되지 않게).
+        next.rules.retain(|r| !seed.rules.iter().any(|s| s.id == r.id));
+        next.rules.extend(seed.rules.clone());
+    } else {
+        next.rules = seed.rules.clone();
+    }
+    if b.dry_run {
+        return Ok(axum::Json(json!({ "dry_run": true, "rules": seed.rules, "weights": seed.weights, "result": next })));
+    }
+    let saved = e.save(next)?;
+    Ok(axum::Json(json!({ "dry_run": false, "added": seed.rules.len(), "config": saved })))
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/taskgen", get(get_all))
         .route("/api/taskgen/config", put(put_config))
+        .route("/api/taskgen/defaults", post(defaults))
         .route("/api/taskgen/rules/{id}/request", post(request))
         .route("/api/taskgen/queue/{id}", delete(remove))
         .route("/api/params", get(params_get).put(params_put))

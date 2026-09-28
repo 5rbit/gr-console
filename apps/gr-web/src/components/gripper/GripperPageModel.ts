@@ -172,34 +172,11 @@ export function learnDisabledReason(
   return undefined
 }
 
-export interface ScaleRow {
-  inch: number
-  value: number
-}
-
-/** `ScaleByInch[12..24]` → 표 행. 0 또는 100 = 조정 없음. */
-export function scaleRows(tune: GripperTune | null, lo = 12): ScaleRow[] {
-  const v = tune?.ScaleByInch ?? []
-  return v.map((value, i) => ({ inch: lo + i, value: Number(value) }))
-}
-
-/** 편집 대화상자의 문자열 13 개 → 숫자. 빈 칸은 0(조정 없음), 숫자가 아니면 그 칸의 인치를 사유로 돌려준다. */
-export function parseScale(inputs: readonly string[], lo = 12): { values: number[] } | { error: string } {
-  const values: number[] = []
-  for (let i = 0; i < inputs.length; i++) {
-    const s = inputs[i].trim()
-    const n = s === '' ? 0 : Number(s)
-    if (!Number.isFinite(n) || n < 0 || n > 1000) return { error: `${lo + i} 인치 값이 0~1000 % 사이의 숫자가 아닙니다` }
-    values.push(n)
-  }
-  return { values }
-}
-
 export interface ParaRowView {
   name: string
   param: number
   value: number | null
-  group: 'Machine' | 'Task'
+  group: 'Machine' | 'Task' | 'Sensor'
 }
 
 /** 그리퍼 PARA — 이름 · p 번호 · 값(없으면 null). 순서는 p 번호. */
@@ -229,8 +206,15 @@ const PARA_NO: readonly (readonly [string, number, 'Machine' | 'Task'])[] = [
   ['G_LoadAvgMax', 990, 'Task'],
 ]
 
+/** 인치별 수동 토크 — OpenPct p450~p462(12..24"), MeasPct p463~p475. */
+const INCHES = Array.from({ length: 13 }, (_, i) => 12 + i)
+const INCH_PARA: readonly (readonly [string, number, 'Sensor'])[] = [
+  ...INCHES.map((inch) => [`G_Inch${inch}_OpenPct`, 450 + inch - 12, 'Sensor'] as const),
+  ...INCHES.map((inch) => [`G_Inch${inch}_MeasPct`, 463 + inch - 12, 'Sensor'] as const),
+]
+
 export function paraRows(para: Record<string, number> | null | undefined): ParaRowView[] {
-  return PARA_NO.map(([name, param, group]) => {
+  return [...PARA_NO, ...INCH_PARA].map(([name, param, group]) => {
     const v = para?.[name]
     return { name, param, group, value: typeof v === 'number' && Number.isFinite(v) ? v : null }
   })

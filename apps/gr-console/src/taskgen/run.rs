@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
-use super::{Action, Candidate, CellView, GenConfig, Knobs, RobotView, Selection, StationPi, Trigger, World, candidate_area, choose_dest, choose_source, fires, score, select};
+use super::{Action, Candidate, CellView, GenConfig, Knobs, RobotView, Selection, StationPi, Trigger, World, candidate_area, choose_dest, choose_source, fires, score};
 use crate::area::Interval;
 use crate::error::ApiError;
 use crate::ledger::{Origin, ScenarioSource, Target, TaskRequest, TaskState};
@@ -45,6 +45,11 @@ pub struct GenItem {
     /// 다음 시도 가능 시각(unix ms).
     #[serde(default)]
     pub retry_at_ms: u64,
+    /// 규칙에서 끈 조건 — 제출 문도 같이 완화한다.
+    #[serde(default)]
+    pub allow_unknown_item: bool,
+    #[serde(default)]
+    pub ignore_stack_max: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -84,6 +89,8 @@ pub struct Engine {
     pub last: Mutex<Selection>,
     /// 판정마다 새로 쓴다.
     pub rules: Mutex<Vec<super::RuleStatus>>,
+    /// 엔진이 본 입력 한 벌(모니터).
+    pub inputs: Mutex<super::EngineInputs>,
     /// 규칙 id → (만든 건수, 마지막 생성 시각) — 지표와 같은 수명.
     gen_stats: Mutex<HashMap<String, (u64, String)>>,
     pub note: Mutex<Option<String>>,
@@ -152,6 +159,7 @@ impl Engine {
             inflight: Default::default(),
             last: Default::default(),
             rules: Default::default(),
+            inputs: Default::default(),
             gen_stats: Default::default(),
             note: Default::default(),
             metrics: Mutex::new(Metrics { started_at: now_str(), ..Default::default() }),
@@ -251,14 +259,18 @@ pub fn station_pi(opcua: &Json, id: u16) -> Option<StationPi> {
 
 fn world(st: &AppState, cfg: &GenConfig) -> (World, Vec<CellView>) {
     let mut w = World::default();
+    // 등록된 스테이션 전부를 읽는다 — 규칙이 겨냥하지 않는 것도 모니터에 보여야 한다.
     if let Some(h) = st.grm_plc()
         && let Some(d) = h.snap().db("OPCUA")
     {
-        for r in &cfg.rules {
-            if let Trigger::StationReq { station, .. } | Trigger::StationItem { station, .. } = r.trigger
-                && let Some(pi) = station_pi(&d.json, station)
-            {
-                w.stations.insert(station, pi);
+        let rule_ids = cfg.rules.iter().filter_map(|r| match r.trigger {
+            Trigger::StationReq { station, .. } | Trigger::StationItem { station, .. } => Some(station),
+            _ => None,
+        });
+        let ids: BTreeSet<u16> = st.registry.stations().unwrap_or_default().iter().map(|s| s.id).chain(rule_ids).collect();
+        for id in ids {
+            if let Some(pi) = station_pi(&d.json, id) {
+                w.stations.insert(id, pi);
             }
         }
     }
@@ -283,6 +295,7 @@ fn world(st: &AppState, cfg: &GenConfig) -> (World, Vec<CellView>) {
         let (item, count) = stock.get(&c.cell.id).copied().unwrap_or((0, 0));
         let room = room_of(item, count);
         w.stock.insert(c.cell.id, (item, count));
+        w.usable.insert(c.cell.id, c.cell.use_);
         if let Some(r) = room {
             w.room.insert(c.cell.id, r);
         }
@@ -299,6 +312,21 @@ fn world(st: &AppState, cfg: &GenConfig) -> (World, Vec<CellView>) {
             updated_at: stamps.get(&c.cell.id).cloned().unwrap_or_default(),
         });
     }
+    // 아직 재 보지 않은 품목(비드 프로파일 없음) — "측정 먼저" 조건이 본다.
+    for i in st.registry.items().unwrap_or_default() {
+        if i.spec.profiles.iter().all(|p| p.rows.is_empty()) {
+            w.unmeasured.insert(i.code);
+        }
+    }
+    // 스테이션도 콘솔 재고를 갖는다(컨베이어 트래킹이 옮긴다) — 출발 품목·칸 조건이 셀과 같게 판정되도록.
+    for s in st.registry.stations().unwrap_or_default() {
+        let (item, count) = stock.get(&s.id).copied().unwrap_or((0, 0));
+        w.stock.insert(s.id, (item, count));
+        w.usable.insert(s.id, s.para.info.use_);
+        if let Some(r) = room_of(item, count) {
+            w.room.insert(s.id, r);
+        }
+    }
     (w, views)
 }
 
@@ -307,41 +335,72 @@ fn gen_busy(r: &RobotCtx, rule: &str) -> bool {
     r.ledger.list().iter().any(|e| !e.state.is_terminal() && e.state != TaskState::Draft && e.request.as_ref().and_then(|q| q.source.as_ref()).is_some_and(|s| s.scenario_id == tag))
 }
 
-/// 고른 대상으로 스텝을 만든다.
-fn steps_for(a: &Action, first: &Target, second: Option<&Target>) -> Vec<GenStep> {
+/// 고른 대상으로 스텝을 만든다. `item` = 확정된 품목(짝의 두 스텝이 같은 값을 든다).
+fn steps_for(a: &Action, first: &Target, second: Option<&Target>, item: Option<u32>) -> Vec<GenStep> {
     match a {
-        Action::Transfer { item, count, pallet_auto, .. } => vec![
-            GenStep { task_type: "PICK".into(), target: first.clone(), item_code: *item, count: *count, pallet_auto: false },
-            GenStep { task_type: "DROP".into(), target: second.cloned().unwrap_or_else(|| first.clone()), item_code: *item, count: *count, pallet_auto: *pallet_auto },
+        Action::Transfer { count, pallet_auto, .. } => vec![
+            GenStep { task_type: "PICK".into(), target: first.clone(), item_code: item, count: *count, pallet_auto: false },
+            GenStep { task_type: "DROP".into(), target: second.cloned().unwrap_or_else(|| first.clone()), item_code: item, count: *count, pallet_auto: *pallet_auto },
         ],
         Action::Move { .. } => vec![GenStep { task_type: "MOVE".into(), target: first.clone(), item_code: None, count: 1, pallet_auto: false }],
-        Action::Measure { item, .. } => vec![GenStep { task_type: "MEASURE".into(), target: first.clone(), item_code: *item, count: 1, pallet_auto: false }],
+        Action::Measure { .. } => vec![GenStep { task_type: "MEASURE".into(), target: first.clone(), item_code: item, count: 1, pallet_auto: false }],
     }
+}
+
+/// 기준 대상의 X — 스테이션·셀 어느 쪽이든 등록된 것에서 찾는다(도착 셀 "가까운 순" 의 기준).
+fn ref_x(st: &AppState, id: u16) -> Option<f32> {
+    ["station", "cell"].iter().find_map(|k| crate::area::target_x(st, &Target { kind: (*k).to_string(), id }))
 }
 
 fn cell_target(id: u16) -> Target {
     Target { kind: "cell".into(), id }
 }
 
-/// 규칙의 대상(자동 셀 선택 포함) — 못 고르면 사유.
-fn resolve(st: &AppState, a: &Action, cells: &[CellView], robot_x: Option<f32>, free: &dyn Fn(f32) -> bool) -> Result<(Target, Option<Target>), String> {
-    match a {
+/// 규칙의 대상과 품목 — 자동 셀 선택, 양쪽 위치 등록, 품목 확정까지. 하나라도 안 되면 사유.
+fn resolve(st: &AppState, w: &World, rule: &super::Rule, cells: &[CellView], robot_x: Option<f32>, free: &dyn Fn(f32) -> bool) -> Result<(Target, Option<Target>, Option<u32>), String> {
+    let c = &rule.cond;
+    match &rule.action {
         Action::Transfer { from, to, item, count, from_auto, to_auto, pallet_auto } => {
             let src = match from_auto {
                 Some(p) => cell_target(choose_source(cells, p, *item, *count as u32, robot_x, free).ok_or("자동 출발 셀 없음 (재고·구역·영역)")?),
                 None => from.clone(),
             };
-            let src_item = item.or_else(|| cells.iter().find(|c| c.id == src.id).map(|c| c.item).filter(|i| *i != 0)).unwrap_or(0);
+            // 품목은 GCS 가 알아야 한다 — 규칙이 정했거나 출발의 콘솔 재고가 안다(스테이션도 같다).
+            let known = item.or_else(|| w.stock.get(&src.id).map(|(x, _)| *x).filter(|x| *x != 0));
+            if c.item_known && known.is_none() {
+                return Err(format!("출발 {} {} 품목을 콘솔이 모름", src.kind, src.id));
+            }
+            if let Some(code) = known
+                && st.registry.item(code).ok().flatten().is_none()
+            {
+                return Err(format!("품목 {code} 이 콘솔 목록에 없음 (규격·StackMax 를 모름)"));
+            }
+            let src_item = known.unwrap_or(0);
+            if let Some(why) = super::source_ready(w, &src, *count, known, c) {
+                return Err(format!("출발 {} {}: {why}", src.kind, src.id));
+            }
             let dst = match to_auto {
-                Some(p) => cell_target(choose_dest(cells, p, src_item, *count as u32, robot_x, Some(src.id).filter(|_| src.kind == "cell"), free).ok_or("자동 도착 셀 없음 (칸·구역·영역)")?),
+                Some(p) => cell_target(
+                    choose_dest(cells, p, src_item, *count as u32, robot_x, p.near.and_then(|id| ref_x(st, id)), Some(src.id).filter(|_| src.kind == "cell"), free)
+                        .ok_or("자동 도착 셀 없음 (칸·구역·영역)")?,
+                ),
                 None => to.clone(),
             };
+            if let Some(why) = super::dest_ready(w, &dst, *count, c) {
+                return Err(format!("도착 {} {}: {why}", dst.kind, dst.id));
+            }
+            // 두 위치 모두 등록돼 있어야(=X 를 알아야) 보낼 수 있다.
+            for t in [&src, &dst] {
+                if crate::area::target_x(st, t).is_none() {
+                    return Err(format!("{} {} 위치 미등록", t.kind, t.id));
+                }
+            }
             if *pallet_auto {
                 // 팔렛 다음 슬롯: DROP 을 미리 작성해 본다(프로파일 없음 · 자리 없음이면 후보 아님)
                 let req = TaskRequest {
                     task_type: "DROP".into(),
                     target: Some(dst.clone()),
-                    item_code: Some(src_item).filter(|i| *i != 0),
+                    item_code: Some(src_item),
                     count: (*count).max(1),
                     pallet: Some(crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
                     ..Default::default()
@@ -350,10 +409,10 @@ fn resolve(st: &AppState, a: &Action, cells: &[CellView], robot_x: Option<f32>, 
                     return Err(format!("팔렛 다음 슬롯 없음: {e}"));
                 }
             }
-            Ok((src, Some(dst)))
+            Ok((src, Some(dst), known))
         }
-        Action::Move { to } => Ok((to.clone(), None)),
-        Action::Measure { target, .. } => Ok((target.clone(), None)),
+        Action::Move { to } => Ok((to.clone(), None, None)),
+        Action::Measure { target, item } => Ok((target.clone(), None, *item)),
     }
 }
 
@@ -417,7 +476,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
             // 자동 셀은 다른 로봇 영역 밖에서 고른다(동시 운전)
             let others: Vec<crate::area::Reservation> = robots.iter().filter(|o| o.id != rv.id).filter_map(|o| super::reserved(o, None)).collect();
             let free = |x: f32| crate::area::blocker(Interval::point(x), &others, sep + rv.margin).is_none();
-            let (first, second) = match resolve(st, &rule.action, &cells, rv.current_x, &free) {
+            let (first, second, item) = match resolve(st, &w, rule, &cells, rv.current_x, &free) {
                 Ok(t) => t,
                 Err(why) => {
                     skipped.push((rule.name.clone(), format!("{}: {why}", rv.name)));
@@ -442,6 +501,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
                 robot: rv.id,
                 first: first.clone(),
                 second: second.clone(),
+                item,
                 target_x: x0,
                 drop_x,
                 area: candidate_area(rv, x0, drop_x),
@@ -457,7 +517,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
         status.insert(rule.id.clone(), if made { ("ready", None, age) } else { ("skipped", why, age) });
     }
     drop(seen);
-    let mut sel = select(cands, &robots, sep);
+    let mut sel = super::select_with(cands, &robots, sep, p.gen_avoid_bonus);
     sel.skipped = skipped;
     for (c, why) in &mut sel.waiting {
         e.count_wait(why);
@@ -493,7 +553,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
                 rule_id: c.rule_id.clone(),
                 rule_name: c.rule_name.clone(),
                 robot: c.robot,
-                steps: steps_for(&rule.action, &c.first, c.second.as_ref()),
+                steps: steps_for(&rule.action, &c.first, c.second.as_ref(), c.item),
                 next: 0,
                 task_ids: vec![],
                 transfer_order_id: None,
@@ -504,6 +564,8 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
                 note: None,
                 attempts: 0,
                 retry_at_ms: 0,
+                allow_unknown_item: !rule.cond.item_known,
+                ignore_stack_max: !rule.cond.dest_room,
             };
             let at = g.created_at.clone();
             e.persist_item(&g);
@@ -528,6 +590,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
                     rule_id: r.id.clone(),
                     fires: !matches!(state, "off" | "idle"),
                     inputs: super::trigger_inputs(r, &w),
+                    terms: super::rule_terms(r, &w),
                     state: state.to_string(),
                     reason,
                     age_min: age,
@@ -538,7 +601,64 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
             .collect();
         *e.rules.lock().unwrap_or_else(PoisonError::into_inner) = rows;
     }
+    *e.inputs.lock().unwrap_or_else(PoisonError::into_inner) = engine_inputs(&cfg, &w, &robots, &p, sep);
     *e.last.lock().unwrap_or_else(PoisonError::into_inner) = sel;
+}
+
+/// 모니터용 입력 한 벌 — 스테이션은 전부, 셀은 규칙이 겨냥한 것과 재고가 있는 것만(많아서 자른다).
+fn engine_inputs(cfg: &GenConfig, w: &World, robots: &[RobotView], p: &crate::params::Params, sep: f32) -> super::EngineInputs {
+    let watch_station: BTreeSet<u16> = cfg
+        .rules
+        .iter()
+        .filter(|r| r.enabled)
+        .filter_map(|r| match r.trigger {
+            Trigger::StationReq { station, .. } | Trigger::StationItem { station, .. } => Some(station),
+            _ => None,
+        })
+        .collect();
+    let mut watch_cell: BTreeSet<u16> = BTreeSet::new();
+    for r in cfg.rules.iter().filter(|r| r.enabled) {
+        if let Trigger::CellStock { cell, .. } = r.trigger {
+            watch_cell.insert(cell);
+        }
+        match &r.action {
+            Action::Transfer { from, to, from_auto, to_auto, .. } => {
+                if from_auto.is_none() && from.kind == "cell" {
+                    watch_cell.insert(from.id);
+                }
+                if to_auto.is_none() && to.kind == "cell" {
+                    watch_cell.insert(to.id);
+                }
+            }
+            Action::Move { to } => {
+                if to.kind == "cell" {
+                    watch_cell.insert(to.id);
+                }
+            }
+            Action::Measure { target, .. } => {
+                if target.kind == "cell" {
+                    watch_cell.insert(target.id);
+                }
+            }
+        }
+    }
+    const CELL_LIMIT: usize = 60;
+    let cells: Vec<super::CellRow> = w
+        .stock
+        .iter()
+        .filter(|(id, (_, n))| *n > 0 || watch_cell.contains(id))
+        .take(CELL_LIMIT)
+        .map(|(id, (code, n))| super::CellRow { id: *id, item_code: *code, count: *n, room: w.room.get(id).copied(), watched: watch_cell.contains(id) })
+        .collect();
+    super::EngineInputs {
+        stations: w.stations.iter().map(|(id, pi)| super::StationRow { id: *id, cvok: pi.cvok, req: pi.req, item_exist: pi.item_exist, watched: watch_station.contains(id) }).collect(),
+        cells,
+        robots: robots.iter().map(|r| super::RobotRow { id: r.id, name: r.name.clone(), x: r.current_x, busy: r.busy }).collect(),
+        separation_mm: sep,
+        queue_depth: p.issue_queue_depth,
+        tick_ms: p.gen_tick_ms,
+        updated_at: now_str(),
+    }
 }
 
 /// 예정 큐를 보낸다 — 로봇마다 맨 앞 항목의 다음 스텝 하나.
@@ -562,78 +682,111 @@ pub async fn tick_issue(st: &AppState, e: &Engine) {
         e.inflight.lock().unwrap_or_else(PoisonError::into_inner).insert(g.id.clone());
         let outcome = issue_one(st, &p, &pairs, &g).await;
         e.inflight.lock().unwrap_or_else(PoisonError::into_inner).remove(&g.id);
-        let mut q = e.queue.lock().unwrap_or_else(PoisonError::into_inner);
-        let Some(item) = q.iter_mut().find(|x| x.id == g.id) else { continue };
-        match outcome {
-            Issue::Sent { task_id, order } => {
-                item.task_ids.push(task_id);
-                if order.is_some() {
-                    item.transfer_order_id = order;
+        let mut drafts_to_discard: Vec<String> = Vec::new();
+        {
+            let mut q = e.queue.lock().unwrap_or_else(PoisonError::into_inner);
+            let Some(item) = q.iter_mut().find(|x| x.id == g.id) else { continue };
+            match outcome {
+                Issue::Sent { task_id, drafts, order, warn } => {
+                    // task_ids[i] = 스텝 i 의 원장 Task — 짝 초안도 여기에 자리를 잡는다.
+                    if item.task_ids.len() > item.next {
+                        item.task_ids[item.next] = task_id;
+                    } else {
+                        item.task_ids.push(task_id);
+                    }
+                    item.task_ids.extend(drafts);
+                    if order.is_some() {
+                        item.transfer_order_id = order;
+                    }
+                    item.next += 1;
+                    item.note = warn;
+                    item.attempts = 0;
+                    item.retry_at_ms = 0;
+                    e.metrics.lock().unwrap_or_else(PoisonError::into_inner).issued += 1;
+                    if item.next >= item.steps.len() {
+                        let id = item.id.clone();
+                        q.retain(|x| x.id != id);
+                        e.forget_item(&id);
+                        e.metrics.lock().unwrap_or_else(PoisonError::into_inner).completed_items += 1;
+                    } else {
+                        e.persist_item(item);
+                    }
                 }
-                item.next += 1;
-                item.note = None;
-                item.attempts = 0;
-                item.retry_at_ms = 0;
-                e.metrics.lock().unwrap_or_else(PoisonError::into_inner).issued += 1;
-                if item.next >= item.steps.len() {
-                    let id = item.id.clone();
-                    q.retain(|x| x.id != id);
-                    e.forget_item(&id);
-                    e.metrics.lock().unwrap_or_else(PoisonError::into_inner).completed_items += 1;
-                } else {
-                    e.persist_item(item);
+                Issue::Wait(why) => {
+                    e.count_wait(&why);
+                    item.note = Some(why);
                 }
-            }
-            Issue::Wait(why) => {
-                e.count_wait(&why);
-                item.note = Some(why);
-            }
-            Issue::Failed { why, order } => {
-                // 같은 이송 지시로 다시 — 시도 기록은 지시 이력에.
-                if order.is_some() {
-                    item.transfer_order_id = order;
+                Issue::Failed { why, order } => {
+                    // 같은 이송 지시로 다시 — 시도 기록은 지시 이력에.
+                    if order.is_some() {
+                        item.transfer_order_id = order;
+                    }
+                    item.attempts += 1;
+                    e.metrics.lock().unwrap_or_else(PoisonError::into_inner).submit_failures += 1;
+                    if let Some(o) = &item.transfer_order_id {
+                        let _ = st.stock.note_order(o, &format!("제출 실패 {}회: {why}", item.attempts));
+                    }
+                    if item.attempts > p.issue_max_retries {
+                        tracing::warn!(item = %g.id, %why, "taskgen: gave up after retries");
+                        drafts_to_discard = item.task_ids.clone();
+                        if let Some(o) = &item.transfer_order_id
+                            && item.next == 0
+                        {
+                            let _ = st.stock.abort_order(o, &format!("제출 {}회 실패 — 생성 작업 중단", item.attempts), false);
+                        }
+                        let id = item.id.clone();
+                        q.retain(|x| x.id != id);
+                        e.forget_item(&id);
+                        e.metrics.lock().unwrap_or_else(PoisonError::into_inner).aborted += 1;
+                    } else {
+                        item.retry_at_ms = unix_ms() + p.issue_retry_backoff_ms;
+                        item.note = Some(format!("재시도 {}/{} ({} ms 뒤): {why}", item.attempts, p.issue_max_retries, p.issue_retry_backoff_ms));
+                        e.count_wait("재시도");
+                        e.persist_item(item);
+                    }
                 }
-                item.attempts += 1;
-                e.metrics.lock().unwrap_or_else(PoisonError::into_inner).submit_failures += 1;
-                if let Some(o) = &item.transfer_order_id {
-                    let _ = st.stock.note_order(o, &format!("제출 실패 {}회: {why}", item.attempts));
-                }
-                if item.attempts > p.issue_max_retries {
-                    tracing::warn!(item = %g.id, %why, "taskgen: gave up after retries");
-                    if let Some(o) = &item.transfer_order_id
-                        && item.next == 0
-                    {
-                        let _ = st.stock.abort_order(o, &format!("제출 {}회 실패 — 생성 작업 중단", item.attempts), false);
+                Issue::Abort(why) => {
+                    tracing::warn!(item = %g.id, %why, "taskgen: item aborted");
+                    drafts_to_discard = item.task_ids.clone();
+                    if let Some(o) = &item.transfer_order_id {
+                        let _ = st.stock.abort_order(o, &format!("생성 작업 중단: {why}"), false);
                     }
                     let id = item.id.clone();
                     q.retain(|x| x.id != id);
                     e.forget_item(&id);
                     e.metrics.lock().unwrap_or_else(PoisonError::into_inner).aborted += 1;
-                } else {
-                    item.retry_at_ms = unix_ms() + p.issue_retry_backoff_ms;
-                    item.note = Some(format!("재시도 {}/{} ({} ms 뒤): {why}", item.attempts, p.issue_max_retries, p.issue_retry_backoff_ms));
-                    e.count_wait("재시도");
-                    e.persist_item(item);
                 }
             }
-            Issue::Abort(why) => {
-                tracing::warn!(item = %g.id, %why, "taskgen: item aborted");
-                if let Some(o) = &item.transfer_order_id {
-                    let _ = st.stock.abort_order(o, &format!("생성 작업 중단: {why}"), false);
-                }
-                let id = item.id.clone();
-                q.retain(|x| x.id != id);
-                e.forget_item(&id);
-                e.metrics.lock().unwrap_or_else(PoisonError::into_inner).aborted += 1;
-            }
+        }
+        discard_drafts(st, &drafts_to_discard).await;
+    }
+}
+
+/// 보내지 않은 짝 초안을 지운다 — 중단된 짝의 DROP 이 원장에 남지 않게.
+async fn discard_drafts(st: &AppState, ids: &[String]) {
+    for id in ids {
+        if let Some((_, e)) = st.find_task(id)
+            && e.state == TaskState::Draft
+            && let Err(err) = crate::ledger::ops::cancel(st, id).await
+        {
+            tracing::warn!(task = %id, %err, "taskgen: 짝 초안 지우기 실패");
         }
     }
 }
 
 enum Issue {
-    Sent { task_id: String, order: Option<String> },
+    /// 보냈다 — `drafts` 는 이때 같이 만든 짝 초안(보내지 않음), `warn` 은 초안을 못 만든 사유.
+    Sent {
+        task_id: String,
+        drafts: Vec<String>,
+        order: Option<String>,
+        warn: Option<String>,
+    },
     Wait(String),
-    Failed { why: String, order: Option<String> },
+    Failed {
+        why: String,
+        order: Option<String>,
+    },
     Abort(String),
 }
 
@@ -694,17 +847,66 @@ async fn issue_one(st: &AppState, p: &crate::params::Params, pairs: &BTreeMap<u8
         source: Some(ScenarioSource { scenario_id: format!("gen:{}", g.rule_id), run_id: g.id.clone(), iteration: 0, step_index: g.next as u32 }),
         robot: Some(r.id),
         transfer_order_id: order.clone(),
+        allow_unknown_item: g.allow_unknown_item,
+        ignore_stack_max: g.ignore_stack_max,
         pallet: step.pallet_auto.then(|| crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
         ..Default::default()
     };
+    // 짝의 둘째 스텝은 PICK 때 만들어 둔 초안을 보낸다(값은 보낼 때 다시 작성).
+    if g.next > 0
+        && let Some(entry) = g.task_ids.get(g.next).and_then(|id| st.find_task(id)).map(|(_, e)| e)
+    {
+        if entry.state != TaskState::Draft {
+            return Issue::Abort(format!("짝 초안 {} 이 {} — 보내지 않음", entry.id, entry.state.as_str()));
+        }
+        return match crate::ledger::ops::submit_refreshed(st, r, entry).await {
+            Ok(e) => Issue::Sent { task_id: e.id, drafts: Vec::new(), order, warn: None },
+            Err(e) => Issue::Failed { why: format!("제출 실패: {e}"), order },
+        };
+    }
     let composed = match crate::issue::compose(st, &req) {
         Ok(c) => c,
         Err(e) => return Issue::Failed { why: format!("compose: {e}"), order },
     };
-    match crate::ledger::ops::create_and_submit(st, r, Origin::Scenario, Some(req), Some(composed.params), composed.task, composed.pallet, true).await {
-        Ok(entry) => Issue::Sent { task_id: entry.id, order },
-        Err(e) => Issue::Failed { why: format!("제출 실패: {e}"), order },
+    let entry = match crate::ledger::ops::create_and_submit(st, r, Origin::Scenario, Some(req), Some(composed.params), composed.task, composed.pallet, true).await {
+        Ok(e) => e,
+        Err(e) => return Issue::Failed { why: format!("제출 실패: {e}"), order },
+    };
+    // PICK/DROP 은 늘 한 짝으로 **함께 만든다** — DROP 을 초안으로 같이 올려 두고 보내기만 순서대로.
+    let mut drafts = Vec::new();
+    if g.next == 0 && g.steps.len() == 2 {
+        match draft_pair_step(st, r, g, order.as_deref()).await {
+            Ok(id) => drafts.push(id),
+            // PICK 은 이미 나갔다 — 초안은 다음 판정에서 다시 만든다(없으면 그때 작성해 보낸다).
+            Err(why) => return Issue::Sent { task_id: entry.id, drafts, order, warn: Some(why) },
+        }
     }
+    Issue::Sent { task_id: entry.id, drafts, order, warn: None }
+}
+
+/// 짝 DROP 을 초안으로 만든다(보내지 않는다) — 같은 이송 지시, 같은 source(run_id · step_index).
+async fn draft_pair_step(st: &AppState, r: &RobotCtx, g: &GenItem, order: Option<&str>) -> Result<String, String> {
+    let step = &g.steps[1];
+    let req = TaskRequest {
+        task_type: step.task_type.clone(),
+        target: Some(step.target.clone()),
+        item_code: step.item_code,
+        count: step.count.max(1),
+        params: serde_json::json!({}),
+        note: format!("생성: {} (짝 DROP)", g.rule_name),
+        source: Some(ScenarioSource { scenario_id: format!("gen:{}", g.rule_id), run_id: g.id.clone(), iteration: 0, step_index: 1 }),
+        robot: Some(r.id),
+        transfer_order_id: order.map(str::to_string),
+        allow_unknown_item: g.allow_unknown_item,
+        ignore_stack_max: g.ignore_stack_max,
+        pallet: step.pallet_auto.then(|| crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
+        ..Default::default()
+    };
+    let composed = crate::issue::compose(st, &req).map_err(|e| format!("짝 DROP 작성: {e}"))?;
+    crate::ledger::ops::create_and_submit(st, r, Origin::Scenario, Some(req), Some(composed.params), composed.task, composed.pallet, false)
+        .await
+        .map(|e| e.id)
+        .map_err(|e| format!("짝 DROP 초안: {e}"))
 }
 
 pub fn spawn(st: AppState) {
@@ -771,6 +973,8 @@ mod tests {
             score: 0.0,
             created_at: "a".into(),
             note: None,
+            allow_unknown_item: false,
+            ignore_stack_max: false,
             attempts: 1,
             retry_at_ms: 0,
         };

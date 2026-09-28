@@ -7,6 +7,8 @@ export type GenTrigger =
   | { kind: 'station_req'; station: number; require_cvok?: boolean }
   | { kind: 'station_item'; station: number; require_cvok?: boolean }
   | { kind: 'cell_stock'; cell: number; item?: number | null; min?: number }
+  /** 대상에 재고가 있고 그 품목이 아직 측정되지 않았다(비드 프로파일 없음) — 측정 먼저. */
+  | { kind: 'unmeasured'; target: Target }
 
 /** 셀 자동 선택 — 구역·행·열 필터와 순서(출발 oldest/nearest, 도착 같은 품목 먼저). */
 export interface CellPick {
@@ -17,6 +19,8 @@ export interface CellPick {
   col_max?: number | null
   order?: string
   same_item_first?: boolean
+  /** 도착: 이 대상(보통 출고 스테이션)에 가까운 셀 먼저. */
+  near?: number | null
 }
 
 export type GenAction =
@@ -33,6 +37,46 @@ export type GenAction =
   | { kind: 'move'; to: Target }
   | { kind: 'measure'; target: Target; item?: number | null }
 
+/** 규칙마다 켜고 끄는 생성 조건 — 기본은 모두 켜짐. 끈 항목은 판정에서 빠진다. */
+export interface GenConditions {
+  item_known: boolean
+  source_stock: boolean
+  dest_room: boolean
+  target_use: boolean
+}
+
+export const ALL_CONDITIONS: GenConditions = {
+  item_known: true,
+  source_stock: true,
+  dest_room: true,
+  target_use: true,
+}
+
+/** 조건 스위치의 이름과 설명 — 규칙 팝업이 이 순서로 그린다. */
+export const CONDITION_FIELDS: { key: keyof GenConditions; label: string; title: string }[] = [
+  {
+    key: 'item_known',
+    label: '품목 확정',
+    title:
+      '규칙이 정한 품목 또는 출발의 콘솔 재고 품목이 있어야 만든다 — 끄면 품목 0 으로도 보낸다(PLC 가 거부할 수 있음)',
+  },
+  {
+    key: 'source_stock',
+    label: '출발 재고',
+    title: '출발에 필요한 수량이 콘솔 재고에 있어야 만든다',
+  },
+  {
+    key: 'dest_room',
+    label: '도착 칸(StackMax)',
+    title: '도착의 남은 칸이 수량 이상이어야 만든다 — 끄면 단수 Max 를 넘겨 보낸다',
+  },
+  {
+    key: 'target_use',
+    label: 'Use(사용) 확인',
+    title: '출발·도착의 Use 가 켜져 있어야 만든다 — 끄면 쓰지 않는 셀·스테이션도 대상이 된다',
+  },
+]
+
 export interface GenRule {
   id: string
   name: string
@@ -42,6 +86,7 @@ export interface GenRule {
   robots: number[]
   priority: number
   manual_requests?: number
+  cond?: GenConditions
 }
 
 /** 규칙 설정과 함께 저장하는 상황별 가중(대기 가점·거리 감점 같은 전역 값은 Parameters). */
@@ -98,12 +143,41 @@ export interface GenMetrics {
   waits: Record<string, number>
 }
 
+/** 판단 기준 한 줄 — 무엇을 보는지, 지금 값, 그 값이 조건을 만족하는가. */
+export interface GenTerm {
+  label: string
+  value: string
+  ok: boolean
+}
+
+/** 엔진이 판단에 쓰는 입력 한 벌 — 규칙과 무관하게 지금 값. */
+export interface GenInputs {
+  stations: { id: number; cvok: boolean; req: boolean; item_exist: boolean; watched: boolean }[]
+  cells: { id: number; item_code: number; count: number; room: number | null; watched: boolean }[]
+  robots: { id: number; name: string; x: number | null; busy: boolean }[]
+  separation_mm: number
+  queue_depth: number
+  tick_ms: number
+  updated_at: string
+}
+
+export const EMPTY_INPUTS: GenInputs = {
+  stations: [],
+  cells: [],
+  robots: [],
+  separation_mm: 0,
+  queue_depth: 0,
+  tick_ms: 0,
+  updated_at: '',
+}
+
 /** 백엔드 `taskgen::RuleStatus` — 규칙 줄의 지금 상태. */
 export interface GenRuleStatus {
   rule_id: string
   fires: boolean
   /** 조건이 보는 입력의 지금 값(스테이션 비트 · 셀 재고 · 남은 요청 수) */
   inputs: string
+  terms: readonly GenTerm[]
   state: 'off' | 'idle' | 'busy' | 'queued' | 'skipped' | 'waiting' | 'ready'
   reason: string | null
   age_min: number
@@ -115,6 +189,7 @@ export interface GenState {
   config: GenConfig
   /** 규칙 순서 그대로 */
   rules: GenRuleStatus[]
+  inputs: GenInputs
   candidates: GenCandidate[]
   /** 후보조차 못 된 규칙(자동 셀 없음 · 팔렛 자리 없음 · 거리 초과) */
   skipped: { rule: string; reason: string }[]
@@ -122,6 +197,39 @@ export interface GenState {
   note: string | null
   metrics: GenMetrics
   separation_mm: number
+}
+
+/** 판단 기준 표의 행 — 규칙마다 조건 항목을 펼친다. 규칙이 꺼져 있으면 `enabled: false`. */
+export interface CriteriaRow {
+  key: string
+  ruleId: string
+  ruleName: string
+  enabled: boolean
+  label: string
+  value: string
+  ok: boolean
+}
+
+export function criteriaRows(
+  rules: readonly GenRule[],
+  status: readonly GenRuleStatus[],
+): CriteriaRow[] {
+  const out: CriteriaRow[] = []
+  for (const r of rules) {
+    const terms = status.find((s) => s.rule_id === r.id)?.terms ?? []
+    terms.forEach((t, i) =>
+      out.push({
+        key: `${r.id}-${i}`,
+        ruleId: r.id,
+        ruleName: r.name,
+        enabled: r.enabled,
+        label: t.label,
+        value: t.value,
+        ok: t.ok,
+      }),
+    )
+  }
+  return out
 }
 
 export const taskgenApi = {
@@ -132,6 +240,12 @@ export const taskgenApi = {
       `/api/taskgen/rules/${encodeURIComponent(id)}/request`,
     ),
   removeQueued: (id: string) => del(`/api/taskgen/queue/${encodeURIComponent(id)}`),
+  /** 기본 규칙 한 벌 — 출고 스테이션 기준으로 만들어 지금 규칙에 덧붙인다. */
+  seedDefaults: (out_station: number, in_stations: number[]) =>
+    postJson<{ added: number; config: GenConfig }>('/api/taskgen/defaults', {
+      out_station,
+      in_stations,
+    }),
 }
 
 export const EMPTY_WEIGHTS: GenWeights = { target: {}, item: {}, robot: {} }
@@ -185,6 +299,13 @@ export function ruleState(
   }
 }
 
+/** 규칙의 조건 요약 — 켠 수 / 전체, 끈 항목 이름. */
+export function condSummary(c: GenConditions | undefined): { label: string; off: string[] } {
+  const cond = { ...ALL_CONDITIONS, ...c }
+  const off = CONDITION_FIELDS.filter((f) => !cond[f.key]).map((f) => f.label)
+  return { label: `${CONDITION_FIELDS.length - off.length}/${CONDITION_FIELDS.length}`, off }
+}
+
 const where = (t: Target) => `${t.kind === 'station' ? 'Station' : 'Cell'} ${t.id}`
 
 export function triggerLabel(t: GenTrigger): string {
@@ -197,6 +318,8 @@ export function triggerLabel(t: GenTrigger): string {
       return `Station ${t.station} ItemExist${t.require_cvok === false ? '' : ' + CVOK'}`
     case 'cell_stock':
       return `Cell ${t.cell} ≥ ${t.min ?? 1}${t.item ? ` (Item ${t.item})` : ''}`
+    case 'unmeasured':
+      return `${where(t.target)} 미측정 품목`
   }
 }
 
@@ -260,5 +383,6 @@ export function newRule(existing: readonly GenRule[]): GenRule {
     },
     robots: [],
     priority: 0,
+    cond: { ...ALL_CONDITIONS },
   }
 }

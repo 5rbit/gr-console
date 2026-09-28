@@ -867,14 +867,13 @@ export interface WebMon {
 }
 
 /**
- * WEBMON.Gripper — 센서·상태 요약. `Code` 부터는 GR2 `FB_Gripper`(2026-09-25) 요약이라 옛 레이아웃(GR1)에는 없다.
+ * WEBMON.Gripper — 센서·상태 요약. `Code` 부터는 GR2 `FB_CL_Gripper`(2026-09-25) 요약이라 옛 레이아웃(GR1)에는 없다.
  * `Code` = GRIP_ST_*, `Mode` = GRIP_* 요청, `ErrorCode` = GRIP_E_*, 토크는 % (모터 정격 대비), `Force_N` 은 타이어 힘 환산.
  */
 export interface WebMonGripper {
   ItemDetect: boolean
   GID: number[]
   FLD: number
-  TorqueReachedPosition: number
   State?: GripperState
   Code?: number
   Timeout?: number
@@ -912,6 +911,8 @@ export interface WebMonGripper {
   ContactThr?: number
   /** 타이어 몫 사양 (Nm @RefDia) */
   TireNm?: number
+  /** PLC 가 적용한 인치 12..24 (PARA Sensor p450~p475), 0 = 자동 환산 */
+  Band?: number
   Drive?: WebMonGripperDrive
 }
 
@@ -1233,8 +1234,8 @@ export interface LaserSnapshot {
 }
 
 // ── 그리퍼 (/api/robots/{id}/gripper) ───────────────────────────────────────────
-// GR2 FB_Gripper 모니터. `live` 는 WEBMON.Gripper 그대로 + G 축 위치 + 이름, `tune` 은 GRIP_TUNE.Tune(JSON 0-based:
-// Mech[0] = PLC Mech[1] 파지 속도 곡선, Mech[1] = Mech[2] 느린 측정 속도; ScaleByInch[0] = 12 인치).
+// GR2 FB_CL_Gripper 모니터. `live` 는 WEBMON.Gripper 그대로 + G 축 위치 + 이름, `tune` 은 GRIP_TUNE.Tune(JSON 0-based:
+// Mech[0] = PLC Mech[1] 파지 속도 곡선, Mech[1] = Mech[2] 느린 측정 속도).
 
 export interface GripperLive extends WebMonGripper {
   /** WEBMON.Axis[G].Position (mm) */
@@ -1255,7 +1256,6 @@ export interface GripperTune {
   Mech: number[][]
   Accel: number[]
   TorqSign: number
-  ScaleByInch: number[]
   DriftCount: number
   LearnDone: boolean
   LearnError: number
@@ -1281,8 +1281,27 @@ export interface GripperSnapshot {
   tune: GripperTune | null
   tune_at: string | null
   tune_error: string | null
-  /** PARA.Machine.G_* · PARA.Task.G_* (없는 멤버는 빠진다) */
+  /** PARA.Machine.G_* · PARA.Task.G_* · PARA.Sensor.G_Inch{12..24}_{OpenPct,MeasPct} (없는 멤버는 빠진다) */
   para: Record<string, number>
+  /** 인치별 수동 토크(p450~p475) 표 — 적용 인치는 PLC 판정 `WEBMON.Gripper.Band`. 구버전 응답엔 없다. */
+  inch_table?: GripperInchTable
+}
+
+export interface GripperInchRow {
+  inch: number
+  open_pct: number
+  meas_pct: number
+  /** `live.Band == inch` — PLC 가 이 인치를 적용 중 */
+  active: boolean
+  /** active 이고 Fallback 이 켜져 있고 % > 0 — 이 % 가 총량을 정하는 중 */
+  applied: boolean
+}
+
+export interface GripperInchTable {
+  /** `WEBMON.Gripper.Band` (0 = 자동 환산) */
+  band: number
+  band_source: string
+  rows: GripperInchRow[]
 }
 
 // ── PARA (/api/para?robot=) ─────────────────────────────────────────────────────

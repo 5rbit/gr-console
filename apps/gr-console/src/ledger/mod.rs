@@ -157,6 +157,9 @@ pub struct TaskRequest {
     /// 셀 단수 Max(품목 `spec.stack_max`)를 넘는 DROP 도 제출한다 — 기본은 제출 거부(409).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ignore_stack_max: bool,
+    /// 품목을 몰라도(코드 0) PICK/DROP 을 제출한다 — 기본은 거부. 생성 규칙에서 "품목 확정" 을 끈 경우만.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub allow_unknown_item: bool,
     /// 팔렛 슬롯(`{seq, level}` 또는 `{auto: true}`) — 켜진 팔렛 프로파일이 있는 스테이션 대상에만.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pallet: Option<crate::pallet::compose::PalletRef>,

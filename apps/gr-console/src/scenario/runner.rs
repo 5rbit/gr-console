@@ -30,6 +30,7 @@ use super::{Ctl, OnFailure, Phase, Runner, Scenario, Step, StepResult, WaitFor};
 use crate::error::ApiError;
 use crate::ledger::{LedgerEvent, Origin, ScenarioSource, TaskRequest, TaskState};
 use crate::state::AppState;
+use crate::state::RobotCtx;
 use crate::util::now_str;
 
 /// Body of `POST /api/scenarios/{id}/run`.
@@ -263,6 +264,39 @@ enum Outcome {
 pub fn pair_drop_step(steps: &[Step], plan: &Plan, i: usize) -> Option<usize> {
     let r = plan.robot_for(&steps[i]);
     steps.iter().enumerate().skip(i + 1).find(|(_, n)| plan.robot_for(n) == r).filter(|(_, n)| n.task_type == gr_proto::TaskType::Drop).map(|(j, _)| j)
+}
+
+/// 이 실행·이 스텝으로 만들어 둔 초안(짝 DROP) — 있으면 새로 만들지 않고 그것을 보낸다.
+fn draft_of(r: &RobotCtx, run_id: &str, cur: Cursor) -> Option<crate::ledger::LedgerEntry> {
+    r.ledger.list().into_iter().find(|e| {
+        e.state == TaskState::Draft && e.request.as_ref().and_then(|q| q.source.as_ref()).is_some_and(|s| s.run_id == run_id && s.iteration == cur.iteration && s.step_index == cur.step_index)
+    })
+}
+
+/// 짝 DROP 을 초안으로 만든다(보내지 않는다) — PICK 과 같은 이송 지시, 같은 source.
+#[allow(clippy::too_many_arguments)]
+async fn draft_pair_drop(st: &AppState, r: &RobotCtx, scenario: &Scenario, run_id: &str, cur: Cursor, step: &Step, robot_id: Option<u8>, order: Option<String>) -> Result<String, ApiError> {
+    let req = TaskRequest {
+        task_type: step.task_type.name().into(),
+        target: step.target.clone(),
+        item_code: step.item_code,
+        count: step.count.clamp(1, 255) as u8,
+        params: step.params.clone(),
+        position_override: None,
+        note: if step.label.trim().is_empty() { step.note.clone() } else { step.label.clone() },
+        source: Some(ScenarioSource { scenario_id: scenario.id.clone(), run_id: run_id.to_string(), iteration: cur.iteration, step_index: cur.step_index }),
+        robot: robot_id,
+        grip_ref: None,
+        station_offset: Default::default(),
+        ignore_stack_max: false,
+        allow_unknown_item: false,
+        pallet: step.pallet.clone(),
+        multi_pick: multi_pick_auto(scenario, cur.step_index as usize, robot_id),
+        transfer_order_id: order,
+    };
+    let c = crate::issue::compose(st, &req)?;
+    let e = crate::ledger::ops::create_and_submit(st, r, Origin::Scenario, Some(req), Some(c.params), c.task, c.pallet, false).await?;
+    Ok(e.id)
 }
 
 /// 사람이 지우려는 예정 스텝(이번 회차) — 짝까지 묶은 목록, 또는 지울 수 없는 사유.
@@ -610,6 +644,7 @@ async fn execute_step(
         grip_ref: None,
         station_offset: Default::default(),
         ignore_stack_max: false,
+        allow_unknown_item: false,
         pallet: step.pallet.clone(),
         multi_pick: multi_pick_auto(scenario, cur.step_index as usize, robot_id),
         transfer_order_id: order,
@@ -721,10 +756,29 @@ async fn execute_step(
 
     // subscribe before submitting so the first transition cannot be missed
     let mut rx = st.task_events.subscribe();
-    let entry = match crate::ledger::ops::create_and_submit(st, robot, Origin::Scenario, Some(req), Some(composed.params), composed.task, composed.pallet, true).await {
-        Ok(e) => e,
-        Err(e) => return fail(res, format!("submit: {e}")),
+    // PICK 때 짝으로 만들어 둔 초안이 있으면 그것을 보낸다(값은 보낼 때 다시 작성).
+    let entry = match draft_of(robot, run_id, cur) {
+        Some(d) => match crate::ledger::ops::submit_refreshed(st, robot, d).await {
+            Ok(e) => e,
+            Err(e) => return fail(res, format!("submit: {e}")),
+        },
+        None => match crate::ledger::ops::create_and_submit(st, robot, Origin::Scenario, Some(req.clone()), Some(composed.params), composed.task, composed.pallet, true).await {
+            Ok(e) => e,
+            Err(e) => return fail(res, format!("submit: {e}")),
+        },
     };
+    // PICK/DROP 은 한 짝으로 **함께 만든다** — 짝 DROP 을 초안으로 같이 올린다(보내기는 차례가 되면).
+    if step.task_type == gr_proto::TaskType::Pick
+        && let Some(j) = pair_drop_step(&scenario.steps, ctx.plan, cur.step_index as usize)
+    {
+        let pair_cur = Cursor { iteration: cur.iteration, step_index: j as u32 };
+        if draft_of(robot, run_id, pair_cur).is_none()
+            && let Err(e) = draft_pair_drop(st, robot, scenario, run_id, pair_cur, &scenario.steps[j], robot_id, req.transfer_order_id.clone()).await
+        {
+            // 초안을 못 만들었어도 PICK 은 이미 나갔다 — 차례가 되면 그때 작성해 보낸다.
+            tracing::warn!(step = j, %e, "pair DROP draft failed — will compose at its turn");
+        }
+    }
     let id = entry.id.clone();
     res.task_id = Some(id.clone());
     runner.update(|s| s.current_task_id = Some(id.clone()));

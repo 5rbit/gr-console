@@ -85,7 +85,8 @@ export function Axes({ wm, axisHist }: { wm: WebMon; axisHist: readonly (readonl
                 ['ItemDetect', g?.ItemDetect ? '감지' : '없음'],
                 ['GID L / F / R / B (mm)', (g?.GID ?? []).map(pos).join(' / ')],
                 ['FLD (mm)', pos(g?.FLD)],
-                ['TorqueReachedPosition', pos(g?.TorqueReachedPosition)],
+                // TorqueReachedPosition 은 WEBMON 에서 빠졌다(V1.6.1) — 같은 값이 Gripper.ReachedPos 로 그리퍼 화면에 있다.
+                ['ReachedPos (mm)', pos(g?.ReachedPos)],
                 [
                   'TorqueReached / TorqueStop',
                   g?.State

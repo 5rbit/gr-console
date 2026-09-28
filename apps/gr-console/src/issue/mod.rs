@@ -257,6 +257,19 @@ pub fn projected_hand(st: &AppState, robot: Option<u8>) -> Result<crate::stock::
     st.stock.projected_hand(&r.plc, || r.ledger.list())
 }
 
+/// PICK/DROP 은 **콘솔(GCS)이 품목을 알 때만** 보낸다 — 0 으로 보내면 PLC 가 INVALID_ITEM_CODE(501) 로
+/// 거부한다. 출발이 스테이션이어도 같다(GRM 은 품목 코드를 주지 않는다 — 콘솔 재고·규칙이 알아야 한다).
+pub fn enforce_item_known(req: &TaskRequest, task: &TaskData) -> Result<(), ApiError> {
+    if req.allow_unknown_item {
+        return Ok(());
+    }
+    let Some(tt) = TaskType::from_code(task.task_type).filter(|t| matches!(t, TaskType::Pick | TaskType::Drop)) else { return Ok(()) };
+    if task.cell.id != 0 && task.item.code == 0 {
+        return Err(ApiError::Conflict(format!("{tt:?} 는 품목을 알아야 보냅니다 — 대상 {} 의 품목을 콘솔이 모릅니다 (재고에 품목을 적거나 규칙·요청에 품목을 지정하세요)", task.cell.id)));
+    }
+    Ok(())
+}
+
 /// 제출 직전 PICK/DROP 짝 검사(`stock::hand_check`) — 어긋나면 409. PICK: 예상 Hand 가 비어 있어야,
 /// DROP: 예상 Hand(짝 PICK 반영)와 품목·수량이 같아야 한다.
 pub fn enforce_hand(st: &AppState, req: &TaskRequest, task: &TaskData) -> Result<(), ApiError> {
@@ -1257,5 +1270,27 @@ mod tests {
                 assert_eq!(got.task.position[2], stack_z_with(TaskType::Pick, 1500.0, &it, Some(s), "pick_bead", n, cnt).z);
             }
         }
+    }
+
+    /// PICK/DROP 은 품목을 알아야 나간다 — 0 은 PLC 가 INVALID_ITEM_CODE 로 거부하므로 콘솔에서 막는다.
+    #[test]
+    fn pick_and_drop_need_a_known_item() {
+        let task = |tt: TaskType, code: u32, cell_id: u16| {
+            let mut t = TaskData { task_type: tt.code(), ..Default::default() };
+            t.item.code = code;
+            t.cell.id = cell_id;
+            t
+        };
+        let q = TaskRequest::default();
+        let loose = TaskRequest { allow_unknown_item: true, ..Default::default() };
+        assert!(enforce_item_known(&q, &task(TaskType::Pick, 0, 401)).is_err());
+        // 규칙에서 "품목 확정" 을 끄면 그 요청만 통과한다.
+        assert!(enforce_item_known(&loose, &task(TaskType::Pick, 0, 401)).is_ok());
+        assert!(enforce_item_known(&q, &task(TaskType::Drop, 0, 2101)).is_err());
+        assert!(enforce_item_known(&q, &task(TaskType::Pick, 1001, 401)).is_ok());
+        // 대상 없는 스텝(MOVE·자리 없는 명령)과 PICK/DROP 이 아닌 것은 품목이 없어도 된다.
+        assert!(enforce_item_known(&q, &task(TaskType::Pick, 0, 0)).is_ok());
+        assert!(enforce_item_known(&q, &task(TaskType::Move, 0, 401)).is_ok());
+        assert!(enforce_item_known(&q, &task(TaskType::Measure, 0, 401)).is_ok());
     }
 }

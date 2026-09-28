@@ -145,6 +145,7 @@ pub async fn submit(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<L
         // 보정·단수 검사는 **이 원장의 로봇** 기준 — 옛 초안(robot 없음)이 기본 로봇 STATION 표로 계산되지 않게.
         req.robot = Some(r.id);
         // 재고는 초안 작성 뒤에도 바뀐다 — 단수 Max 는 보낼 때의 재고로 본다.
+        crate::issue::enforce_item_known(&req, &entry.plc_task)?;
         crate::issue::enforce_stack_limit(st, &req, &entry.plc_task)?;
         crate::issue::enforce_hand(st, &req, &entry.plc_task)?;
         let mut task = entry.plc_task.clone();
@@ -155,6 +156,27 @@ pub async fn submit(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<L
         }
     }
     submit_prepared(st, r, entry).await
+}
+
+/// 짝 초안(PICK 과 함께 만들어 둔 DROP)을 **보낼 때의 값으로 다시 작성해** 제출한다 — 만든 뒤에 바뀐
+/// 재고·팔렛 슬롯이 반영되게. WorkId/TaskId 는 만들 때 잡힌 값을 지킨다.
+pub async fn submit_refreshed(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Result<LedgerEntry, ApiError> {
+    if entry.state != TaskState::Draft {
+        return Err(ApiError::Conflict(format!("task {} is {}", entry.id, entry.state.as_str())));
+    }
+    let Some(mut req) = entry.request.clone() else { return submit(st, r, entry).await };
+    req.robot = Some(r.id);
+    let c = crate::issue::compose(st, &req)?;
+    let mut e = entry;
+    let mut task = c.task;
+    task.work_id = e.plc_task.work_id;
+    task.task_id = e.plc_task.task_id;
+    e.position = task.position;
+    e.plc_task = task;
+    e.resolved = Some(c.params);
+    e.pallet = c.pallet;
+    let e = r.ledger.upsert(e)?;
+    submit(st, r, e).await
 }
 
 /// 보정 재계산이 끝난 초안을 게이트 → 쓰기 → Submitted 로.
@@ -209,6 +231,7 @@ pub async fn create_and_submit(
         q
     });
     if submit_now && let Some(req) = &request {
+        crate::issue::enforce_item_known(req, &task)?;
         crate::issue::enforce_stack_limit(st, req, &task)?;
         crate::issue::enforce_hand(st, req, &task)?;
         // 두 로봇 영역 — 단일 명령은 기다리지 않고 거부한다(시나리오 실행기는 게이트에서 기다린다).

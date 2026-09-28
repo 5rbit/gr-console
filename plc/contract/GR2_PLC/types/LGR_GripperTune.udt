@@ -1,16 +1,15 @@
 ﻿TYPE "LGR_GripperTune"
 VERSION : 0.1
    STRUCT
-      Valid : Array[1..2] of Bool;   //   [1] 파지 속도 등급 곡선 / [2] 측정 느린 속도 곡선 학습됨
-      LearnedSpd : Array[1..2] of USInt;   //   학습 때 속도 등급 값. 다르면 그 곡선 무효
-      Mech : Array[1..2, 0..33] of Real;   //   기구 부하 토크 (%) : RangeMin~RangeMax 를 34 칸. 타이어 없이 벌릴 때 링크 · 자중 · 마찰
-      Accel : Array[1..2] of Real;   //   가속 구간 최대 토크 − Mech (%) : 가속 중 제한에 더하는 여유
-      TorqSign : Int;   //   벌림 방향 PV.Torque 부호 (+1 / −1). 0 = 미확정 → ABS
-      ScaleByInch : Array[12..24] of Real;   //   인치별 미세 조정 (%). 0 또는 100 = 안 함
-      DriftCount : Int;   //   기회 학습에서 ±30 % 넘게 다른 값이 연속된 횟수 (3 이면 마찰 증가 경고)
-      LearnDone : Bool;   //   마지막 LEARN 성공
-      LearnError : Int;   //   마지막 LEARN 실패 원인 (0 없음 / 1 샘플 부족 / 2 급변 / 3 Need > Protect)
-      LearnErrorPos : Real;   //   실패 위치 (mm)
+      Valid : Array[1..2] of Bool;   //    [1] 파지 속도 등급 곡선 / [2] 측정 느린 속도 곡선 학습됨
+      LearnedSpd : Array[1..2] of USInt;   //    학습 때 속도 등급 값. 다르면 그 곡선 무효
+      Mech : Array[1..2, 0..33] of Real;   //    기구 부하 토크 (%) : RangeMin~RangeMax 를 34 칸. 타이어 없이 벌릴 때 링크 · 자중 · 마찰
+      Accel : Array[1..2] of Real;   //    가속 구간 최대 토크 − Mech (%) : 가속 중 제한에 더하는 여유
+      TorqSign : Int;   //    벌림 방향 PV.Torque 부호 (+1 / −1). 0 = 미확정 → ABS
+      DriftCount : Int;   //    기회 학습에서 ±30 % 넘게 다른 값이 연속된 횟수 (3 이면 마찰 증가 경고)
+      LearnDone : Bool;   //    마지막 LEARN 성공
+      LearnError : Int;   //    마지막 LEARN 실패 원인 (0 없음 / 1 샘플 부족 / 2 급변 / 3 Need > Protect)
+      LearnErrorPos : Real;   //    실패 위치 (mm)
    END_STRUCT;
 
 END_TYPE
