@@ -1,0 +1,728 @@
+[
+  {
+    "Name": "GR2_I0301",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GR2 TASK",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 240301,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "GR2_Alarm_Info[8]",
+    "RaisedStateTagBitNumber": 0,
+    "TriggerBitAddress": "HMI.Alarm.Info[8].x0",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[I0301] Task - Accepted to Buffer</p></body>",
+      "ko-KR": "<body><p>[I0301] 작업 수락 (Buff)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Cell.Id (Src = task type) · B: WorkId</p></body>",
+      "ko-KR": "<body><p>A: Cell.Id (Src = task type) · B: WorkId</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GR2_I0302",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GR2 TASK",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 240302,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "GR2_Alarm_Info[8]",
+    "RaisedStateTagBitNumber": 1,
+    "TriggerBitAddress": "HMI.Alarm.Info[8].x1",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[I0302] Task - Started</p></body>",
+      "ko-KR": "<body><p>[I0302] 작업 시작 (적재)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Cell.Id (Src = task type) · B: WorkId</p></body>",
+      "ko-KR": "<body><p>A: Cell.Id (Src = task type) · B: WorkId</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GR2_I0303",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GR2 TASK",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 240303,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "GR2_Alarm_Info[8]",
+    "RaisedStateTagBitNumber": 2,
+    "TriggerBitAddress": "HMI.Alarm.Info[8].x2",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[I0303] Task - Completed</p></body>",
+      "ko-KR": "<body><p>[I0303] 작업 완료</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Cell.Id (Src = task type) · B: WorkId</p></body>",
+      "ko-KR": "<body><p>A: Cell.Id (Src = task type) · B: WorkId</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GR2_I0304",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GR2 TASK",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 240304,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "GR2_Alarm_Info[8]",
+    "RaisedStateTagBitNumber": 3,
+    "TriggerBitAddress": "HMI.Alarm.Info[8].x3",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[I0304] Task - Command Rejected</p></body>",
+      "ko-KR": "<body><p>[I0304] 작업 명령 거부</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: ResData[0] bit (0 DST, 1 Duplicated header, 2 Invalid task, 3 Buffer full, 7 Not online); Src = task type · B: Validation 코드 (INVALID_*)</p></body>",
+      "ko-KR": "<body><p>A: ResData[0] bit (0 DST, 1 Duplicated header, 2 Invalid task, 3 Buffer full, 7 Not online); Src = task type · B: Validation 코드 (INVALID_*)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GR2_I0305",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GR2 TASK",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 240305,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "GR2_Alarm_Info[8]",
+    "RaisedStateTagBitNumber": 4,
+    "TriggerBitAddress": "HMI.Alarm.Info[8].x4",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[I0305] Task - Complete Request (GCS)</p></body>",
+      "ko-KR": "<body><p>[I0305] 작업 완료 요청 (GCS)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>B: WorkId</p></body>",
+      "ko-KR": "<body><p>B: WorkId</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GR2_I0306",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GR2 TASK",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 240306,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "GR2_Alarm_Info[8]",
+    "RaisedStateTagBitNumber": 5,
+    "TriggerBitAddress": "HMI.Alarm.Info[8].x5",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[I0306] Task - Cancel Request (GCS)</p></body>",
+      "ko-KR": "<body><p>[I0306] 작업 취소 요청 (GCS)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>B: WorkId</p></body>",
+      "ko-KR": "<body><p>B: WorkId</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GR2_I0307",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GR2 TASK",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 240307,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "GR2_Alarm_Info[8]",
+    "RaisedStateTagBitNumber": 6,
+    "TriggerBitAddress": "HMI.Alarm.Info[8].x6",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[I0307] Task - Manual Complete Done</p></body>",
+      "ko-KR": "<body><p>[I0307] 수동 완료 실행</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: 출처 (1 OPC, 2 HMI) · B: WorkId</p></body>",
+      "ko-KR": "<body><p>A: 출처 (1 OPC, 2 HMI) · B: WorkId</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GR2_I0308",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GR2 TASK",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 240308,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "GR2_Alarm_Info[8]",
+    "RaisedStateTagBitNumber": 7,
+    "TriggerBitAddress": "HMI.Alarm.Info[8].x7",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[I0308] Task - Complete Pending (CV Handover)</p></body>",
+      "ko-KR": "<body><p>[I0308] CV 인계 대기</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Clear 사유 (1 CV handover, 2 AUTO forced, 3 Timeout, 4 Dropped) · B: WorkId</p></body>",
+      "ko-KR": "<body><p>A: Clear 사유 (1 CV handover, 2 AUTO forced, 3 Timeout, 4 Dropped) · B: WorkId</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GR2_I0309",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GR2 TASK",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 240309,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "GR2_Alarm_Info[9]",
+    "RaisedStateTagBitNumber": 0,
+    "TriggerBitAddress": "HMI.Alarm.Info[9].x0",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[I0309] Task - Canceled</p></body>",
+      "ko-KR": "<body><p>[I0309] 작업 취소</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: 출처 (1 OPC, 2 HMI, 3 HMI Force) · B: WorkId</p></body>",
+      "ko-KR": "<body><p>A: 출처 (1 OPC, 2 HMI, 3 HMI Force) · B: WorkId</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GR2_I0310",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GR2 TASK",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 240310,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "GR2_Alarm_Info[9]",
+    "RaisedStateTagBitNumber": 1,
+    "TriggerBitAddress": "HMI.Alarm.Info[9].x1",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[I0310] Task - Last Task Restarted</p></body>",
+      "ko-KR": "<body><p>[I0310] 마지막 작업 재시작</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>B: WorkId</p></body>",
+      "ko-KR": "<body><p>B: WorkId</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GR2_I0311",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GR2 TASK",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 240311,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "GR2_Alarm_Info[9]",
+    "RaisedStateTagBitNumber": 2,
+    "TriggerBitAddress": "HMI.Alarm.Info[9].x2",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[I0311] Task - GCS Cancel Ignored in AUTO</p></body>",
+      "ko-KR": "<body><p>[I0311] AUTO 중 GCS 취소 무시</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>B: WorkId</p></body>",
+      "ko-KR": "<body><p>B: WorkId</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  }
+]

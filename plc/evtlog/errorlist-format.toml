@@ -1,0 +1,308 @@
+# How Src / A / B of ErrorList items read in the console (v2 EVTLOG rows, docs/evtlog/encoding-v2.md).
+#
+# The ErrorList workbook stays the human document (texts, value meanings, conditions); this file only adds what a
+# machine needs to print a value: an enum name, a scale, a short English label. Anything not listed here is guessed
+# from the ErrorList meaning (`시작 위치 (mm×10)` → 시작 위치 598.4 mm) and shown only when it is not 0.
+#
+# Tables: [gr] = GR1 / GR2 (one robot sheet), [grm] = GRM — the two ErrorLists reuse numbers with other meanings.
+# Keys: an ErrorList code, or a prefix ending in `*` (the exact code wins, then the longest prefix).
+# Specs (a / b / src): raw · none · hex · onoff · enum:<catalog enum> · bits:<catalog enum> · div:<n>[ unit] ·
+# unit:<unit>. Labels (a_label / b_label / src_label) are English field names.
+# ALARM rows have no Src value (Src = area); an Alarm / Warn without an A / B meaning shows B as `step` when not 0.
+
+# ---------------------------------------------------------------- GR1 / GR2
+
+# axis manual (X O01xx, Y O02xx, Z O03xx, G O04xx): start / target position
+[gr."O01*"]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "div:10 mm"
+b_label = "TargetPos"
+[gr."O02*"]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "div:10 mm"
+b_label = "TargetPos"
+[gr."O03*"]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "div:10 mm"
+b_label = "TargetPos"
+[gr."O04*"]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "div:10 mm"
+b_label = "TargetPos"
+# Jog speed Fw / Bw and Homing have no target
+[gr.O0101]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+[gr.O0102]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+[gr.O0105]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+[gr.O0201]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+[gr.O0202]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+[gr.O0205]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+[gr.O0301]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+[gr.O0302]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+[gr.O0305]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+[gr.O0401]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+[gr.O0402]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+[gr.O0405]
+a = "div:10 mm"
+a_label = "StartPos"
+b = "none"
+# Enable toggle
+[gr.O0119]
+a = "onoff"
+a_label = "Enable"
+b = "none"
+[gr.O0219]
+a = "onoff"
+a_label = "Enable"
+b = "none"
+[gr.O0319]
+a = "onoff"
+a_label = "Enable"
+b = "none"
+[gr.O0419]
+a = "onoff"
+a_label = "Enable"
+b = "none"
+
+[gr.O0516]
+a = "enum:axis"
+a_label = "Axis"
+[gr.O0601]
+src = "raw"
+src_label = "p"
+a = "div:100"
+a_label = "Value"
+b = "div:100"
+b_label = "Prev"
+[gr.O0602]
+src = "enum:axis"
+src_label = "Axis"
+a_label = "SpeedSet"
+[gr.O0606]
+a = "enum:option"
+a_label = "Option"
+b = "onoff"
+b_label = ""
+[gr.O0607]
+a = "hex"
+a_label = "Mask"
+[gr.O0701]
+a = "bits:stop_src"
+a_label = "By"
+[gr.O0702]
+a = "bits:stop_src"
+a_label = "By"
+
+# mode changes I0101..I0109
+[gr."I010*"]
+a = "enum:mode"
+a_label = "Mode"
+b = "enum:mode"
+b_label = "Prev"
+[gr.I0110]
+a = "enum:grm_panel"
+a_label = "Status"
+b = "onoff"
+b_label = ""
+[gr.I0201]
+a = "enum:mode"
+a_label = "Requested"
+b = "enum:mode"
+b_label = "Current"
+[gr.I0202]
+a = "enum:unused_cmd"
+a_label = "Cmd"
+[gr.I0204]
+src = "enum:override_kind"
+src_label = "Kind"
+a_label = "Id"
+
+# task lifecycle (TASK class)
+[gr.I0301]
+src = "enum:task_type"
+src_label = "Type"
+a_label = "Cell"
+b_label = "WorkId"
+[gr.I0302]
+src = "enum:task_type"
+src_label = "Type"
+a_label = "Cell"
+b_label = "WorkId"
+[gr.I0303]
+src = "enum:task_type"
+src_label = "Type"
+a_label = "Cell"
+b_label = "WorkId"
+[gr.I0304]
+src = "enum:task_type"
+src_label = "Type"
+a = "bits:reject"
+a_label = "Reject"
+b = "enum:validation"
+b_label = "Validation"
+[gr.I0307]
+a = "enum:cmd_src"
+a_label = "By"
+b_label = "WorkId"
+[gr.I0308]
+a = "enum:pending_end"
+a_label = "End"
+b_label = "WorkId"
+[gr.I0309]
+a = "enum:cmd_src"
+a_label = "By"
+b_label = "WorkId"
+
+[gr.I0401]
+a = "enum:start_src"
+a_label = "By"
+[gr.I0402]
+a = "bits:start_block"
+a_label = "Blocked"
+[gr.I0403]
+a = "enum:auto_stop"
+a_label = "Cause"
+[gr.I0404]
+b_label = "FaultCode"
+[gr.I0405]
+b_label = "FaultCode"
+
+# PARA written by a function
+[gr.I0501]
+src = "enum:para"
+src_label = "Para"
+a = "div:100"
+a_label = "Value"
+b = "div:100"
+b_label = "Prev"
+[gr.I0502]
+src = "enum:para"
+src_label = "Para"
+a = "div:100"
+a_label = "Value"
+b = "div:100"
+b_label = "Prev"
+[gr.I0503]
+src = "enum:para"
+src_label = "Para"
+a = "div:100"
+a_label = "Value"
+b = "div:100"
+b_label = "Prev"
+[gr.I0504]
+src = "enum:para"
+src_label = "Para"
+a = "div:100"
+a_label = "Value"
+b = "div:100"
+b_label = "Prev"
+[gr.I0505]
+src = "enum:para"
+src_label = "Para"
+a = "div:100"
+a_label = "Value"
+b = "div:100"
+b_label = "Prev"
+[gr."I050*"]
+a = "enum:csv_kind"
+a_label = "Kind"
+b = "hex"
+b_label = "STATUS"
+[gr.I0510]
+src = "enum:para_section"
+src_label = "Section"
+a = "hex"
+a_label = "Checksum"
+b = "hex"
+b_label = "Prev"
+[gr.I0511]
+a = "enum:csv_kind"
+a_label = "Kind"
+
+[gr.I0601]
+a = "unit:ms"
+a_label = "Stopped"
+[gr.I0602]
+src_label = "Block"
+a = "hex"
+a_label = "STATUS"
+[gr.I0603]
+src_label = "Slot"
+a = "enum:sock_state"
+a_label = "State"
+b = "hex"
+b_label = "LastErr"
+[gr.I0604]
+a = "unit:ms"
+a_label = "Offset"
+[gr.I0701]
+a = "enum:axis"
+a_label = "Axis"
+[gr.I0702]
+a = "bits:mdr"
+a_label = "MDR"
+[gr.I0802]
+a_label = "LearnError"
+b = "div:10 mm"
+b_label = "Pos"
+[gr.I0803]
+a_label = "LearnError"
+b = "div:10 mm"
+b_label = "Pos"
+[gr.I0901]
+a = "bits:startup"
+a_label = "Lost"
+[gr.I0902]
+src_label = "Block"
+a = "hex"
+a_label = "Fault_ID"
+b_label = "DB"
+[gr.I0903]
+a = "hex"
+a_label = "Fault_ID"
+[gr.I0905]
+a = "unit:µs"
+a_label = "MaxRunUs"
+
+# ---------------------------------------------------------------- GRM
+
+[grm.I0301]
+a = "unit:ms"
+a_label = "Stopped"
+src_label = "Link"

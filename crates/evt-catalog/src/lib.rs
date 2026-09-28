@@ -3,10 +3,12 @@
 //! * [`Catalog`]    parsed and validated catalog (levels, categories, enums, PLC and console events)
 //! * [`consts`]     the `EVT_*` constant list `gr-contract gen-evt` writes into the PLC tag table
 //! * [`render`]     template → text for one stored event (enum names from the PLC contract constants, alarms)
+//! * [`errorlist`]  ErrorList registry (`errorlist.json`) and the v2 row encoding (Alarm / Warn / Operator / Info)
 //!
 //! The PLC stores numbers only; text is produced when an event is shown, so editing a template re-renders old rows.
 
 pub mod consts;
+pub mod errorlist;
 pub mod render;
 
 use std::collections::{BTreeMap, HashSet};
@@ -14,7 +16,8 @@ use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 pub use consts::{ConstSpec, const_ident, plc_short};
-pub use render::{AlarmEntry, AlarmTable, Ev, Renderer};
+pub use errorlist::{ElEntry, ErrorList, Formats, Level, Trans, Ty};
+pub use render::{AlarmEntry, AlarmTable, Class, Ev, Renderer};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CatalogError {
@@ -283,7 +286,9 @@ mod tests {
     fn repo_catalog_is_valid() {
         let c = repo_catalog();
         assert_eq!(c.capacity, 1000);
-        assert_eq!(c.cat_mask_all(), 0x0003_FFFE);
+        assert_eq!(c.cat_mask_all(), 0x000F_FFFE);
+        assert_eq!((c.cat_id("ALARM"), c.cat_id("OPERATOR"), c.cat_id("INFO")), (Some(errorlist::CAT_ALARM), Some(errorlist::CAT_OPERATOR), Some(errorlist::CAT_INFO)));
+        assert_eq!(c.enums.get("trans").map(|e| e.values.len()), Some(4));
         assert_eq!(c.event(3, 300).map(|e| e.name.as_str()), Some("STEP_CHANGED"));
         assert_eq!(c.event(7, 704).map(|e| e.name.as_str()), Some("GRIP_ERROR"));
         assert!(c.event(7, 9999).is_none());

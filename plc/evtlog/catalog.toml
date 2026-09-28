@@ -27,6 +27,18 @@
 # Codes are unique across categories: cat * 100 + n. STEP is the exception: its Code is the new step number.
 # `plc` = PLCs that emit the event (GR1, GR2, GRM). `lvl` = default level the PLC writes.
 # CatMask bit n enables category id n. Levels below Cfg.MinLevel are not written.
+#
+# v2 rows — ErrorList items (Alarm / Warn / Operator / Info, gr-console docs/evtlog/encoding-v2.md is the spec):
+#   Cat  = 6 ALARM (Alarm + Warn) | 18 OPERATOR | 19 INFO
+#   Code = Trans * 10000 + ErrorList number   (Trans 1 raise, 2 clear, 3 momentary, 4 suppressed summary;
+#          EVT_TRANS_*, EVT_V2_TRANS_MUL). F3119 raised = 13119, W1101 cleared = 21101, I0301 = 30301.
+#   Src  = ALARM: 1 FAULT / 2 WARN (EVT_ALARM_AREA_*) · OPERATOR / INFO: the ErrorList "Src = ..." value, else 0
+#   A, B = ErrorList value A / B (raise, momentary) · clear: A = flicker count, B = active ms · summary: A = rows
+#          suppressed since the last row of this code, B = 0
+#   Lvl  = per ErrorList level, the same on every transition: Alarm ERROR, Warn WARN, Operator / Info INFO
+#   ErrorList log-only Info items (I51xx..I55xx) are the catalog events below, unchanged; the console reads their type
+#   from errorlist.json (`catalog`). A v2 ALARM row has Code >= 10000, so old ALM_RAISED / ALM_CLEARED rows still read.
+#   Texts come from plc/contract/<PLC>/errorlist.json (`gr-contract errorlist`), value hints from errorlist-format.toml.
 
 version = 1
 const_prefix = "EVT_"
@@ -108,6 +120,13 @@ name = "STATION"
 [[cat]]
 id = 17
 name = "SCEN"
+# v2 ErrorList rows (ALARM 6 carries Alarm + Warn)
+[[cat]]
+id = 18
+name = "OPERATOR"
+[[cat]]
+id = 19
+name = "INFO"
 
 # ---------------------------------------------------------------- enums
 
@@ -141,6 +160,15 @@ from_const = "GRIP_TO_"
 [enum.alarm_area]
 plc_const = true
 values = { 1 = "FAULT", 2 = "WARN", 3 = "EVENT", 4 = "TASK" }
+
+# v2 row transition (Code / 10000)
+[enum.trans]
+plc_const = true
+values = { 1 = "RAISE", 2 = "CLEAR", 3 = "MOMENT", 4 = "SUPPRESSED" }
+
+[enum.v2]
+plc_const = true
+values = { 10000 = "TRANS_MUL" }
 
 # ProcNo start values (PROC / TASK.Proc). 0 = not assigned.
 [enum.proc]
@@ -832,7 +860,8 @@ lvl = "DEBUG"
 plc = ["GR1", "GR2"]
 text = "{src:axis} Jog {a:hex}"
 
-# ALARM : Src = area, A = bit index (byte * 8 + bit), B = TASK.Proc.Step.Now. Lvl = ERROR (FAULT) / WARN (WARN) / INFO
+# ALARM (v1 rows, PLC programs up to V1.6.1; v2 ALARM rows have Code >= 10000, see the header) :
+# Src = area, A = bit index (byte * 8 + bit), B = TASK.Proc.Step.Now. Lvl = ERROR (FAULT) / WARN (WARN) / INFO
 [[event]]
 code = 601
 name = "ALM_RAISED"

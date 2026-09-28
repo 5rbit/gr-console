@@ -1,0 +1,3236 @@
+[
+  {
+    "Name": "GRM_O0101",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250101,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[0]",
+    "RaisedStateTagBitNumber": 0,
+    "TriggerBitAddress": "HMI.Alarm.Event[0].x0",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0101] Panel - EMS Pressed</p></body>",
+      "ko-KR": "<body><p>[O0101] EMS 눌림</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: 출처 bit (0 MCP, 1 SFA, 2~4 Area FenceBox)</p></body>",
+      "ko-KR": "<body><p>A: 출처 bit (0 MCP, 1 SFA, 2~4 Area FenceBox)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0102",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250102,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[0]",
+    "RaisedStateTagBitNumber": 1,
+    "TriggerBitAddress": "HMI.Alarm.Event[0].x1",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0102] Panel - Force Run Pressed</p></body>",
+      "ko-KR": "<body><p>[O0102] Force Run 눌림</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>MCP_PB_ForcedRun 이 눌린 동안</p></body>",
+      "ko-KR": "<body><p>MCP_PB_ForcedRun 이 눌린 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0103",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250103,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[0]",
+    "RaisedStateTagBitNumber": 2,
+    "TriggerBitAddress": "HMI.Alarm.Event[0].x2",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0103] Panel - SSW Auto Selected</p></body>",
+      "ko-KR": "<body><p>[O0103] SSW Auto 선택</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>MCP 선택 스위치 Auto 인 동안</p></body>",
+      "ko-KR": "<body><p>MCP 선택 스위치 Auto 인 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0104",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250104,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[0]",
+    "RaisedStateTagBitNumber": 3,
+    "TriggerBitAddress": "HMI.Alarm.Event[0].x3",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0104] Panel - SSW Manual Selected</p></body>",
+      "ko-KR": "<body><p>[O0104] SSW Manual 선택</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>MCP 선택 스위치 Manual 인 동안</p></body>",
+      "ko-KR": "<body><p>MCP 선택 스위치 Manual 인 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0105",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250105,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[0]",
+    "RaisedStateTagBitNumber": 4,
+    "TriggerBitAddress": "HMI.Alarm.Event[0].x4",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0105] Panel - Start Pressed</p></body>",
+      "ko-KR": "<body><p>[O0105] Start 눌림</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: 대상 bit (0 All, 1 GR1, 2 GR2)</p></body>",
+      "ko-KR": "<body><p>A: 대상 bit (0 All, 1 GR1, 2 GR2)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0106",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250106,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[0]",
+    "RaisedStateTagBitNumber": 5,
+    "TriggerBitAddress": "HMI.Alarm.Event[0].x5",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0106] Panel - Stop Pressed</p></body>",
+      "ko-KR": "<body><p>[O0106] Stop 눌림</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: 대상 bit (0 All, 1 GR1, 2 GR2)</p></body>",
+      "ko-KR": "<body><p>A: 대상 bit (0 All, 1 GR1, 2 GR2)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0107",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250107,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[0]",
+    "RaisedStateTagBitNumber": 6,
+    "TriggerBitAddress": "HMI.Alarm.Event[0].x6",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0107] Panel - Reset Pressed</p></body>",
+      "ko-KR": "<body><p>[O0107] Reset 눌림</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>MCP / FenceBox Reset 또는 HMI ResetPB 가 켜진 동안</p></body>",
+      "ko-KR": "<body><p>MCP / FenceBox Reset 또는 HMI ResetPB 가 켜진 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0108",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250108,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[0]",
+    "RaisedStateTagBitNumber": 7,
+    "TriggerBitAddress": "HMI.Alarm.Event[0].x7",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0108] Panel - GR1 Power On Pressed</p></body>",
+      "ko-KR": "<body><p>[O0108] GR1 Power On 눌림</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>PB_GR01_PowerOn 이 눌린 동안</p></body>",
+      "ko-KR": "<body><p>PB_GR01_PowerOn 이 눌린 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0109",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250109,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[1]",
+    "RaisedStateTagBitNumber": 0,
+    "TriggerBitAddress": "HMI.Alarm.Event[1].x0",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0109] Panel - GR1 Power Off Pressed</p></body>",
+      "ko-KR": "<body><p>[O0109] GR1 Power Off 눌림</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>PB_GR01_PowerOff 이 눌린 동안</p></body>",
+      "ko-KR": "<body><p>PB_GR01_PowerOff 이 눌린 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0110",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250110,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[1]",
+    "RaisedStateTagBitNumber": 1,
+    "TriggerBitAddress": "HMI.Alarm.Event[1].x1",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0110] Panel - GR2 Power On Pressed</p></body>",
+      "ko-KR": "<body><p>[O0110] GR2 Power On 눌림</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>PB_GR02_PowerOn 이 눌린 동안</p></body>",
+      "ko-KR": "<body><p>PB_GR02_PowerOn 이 눌린 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0111",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250111,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[1]",
+    "RaisedStateTagBitNumber": 2,
+    "TriggerBitAddress": "HMI.Alarm.Event[1].x2",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0111] Panel - GR2 Power Off Pressed</p></body>",
+      "ko-KR": "<body><p>[O0111] GR2 Power Off 눌림</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>PB_GR02_PowerOff 이 눌린 동안</p></body>",
+      "ko-KR": "<body><p>PB_GR02_PowerOff 이 눌린 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0112",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250112,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[1]",
+    "RaisedStateTagBitNumber": 3,
+    "TriggerBitAddress": "HMI.Alarm.Event[1].x3",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0112] HMI - Buzzer Stop</p></body>",
+      "ko-KR": "<body><p>[O0112] Buzzer 정지</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>HMI BuzzerStop 로 \"MACHINE\".Status.BuzzerStop 상승</p></body>",
+      "ko-KR": "<body><p>HMI BuzzerStop 로 \"MACHINE\".Status.BuzzerStop 상승</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0201",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250201,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[4]",
+    "RaisedStateTagBitNumber": 0,
+    "TriggerBitAddress": "HMI.Alarm.Event[4].x0",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0201] GR1 - Auto Selected</p></body>",
+      "ko-KR": "<body><p>[O0201] GR1 Auto 선택</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>SSW_Auto 이고 GR1 이 쓰는 Area 의 FenceBox 가 모두 Auto 인 동안 (Raise = AUTO, Clear = MANUAL)</p></body>",
+      "ko-KR": "<body><p>SSW_Auto 이고 GR1 이 쓰는 Area 의 FenceBox 가 모두 Auto 인 동안 (Raise = AUTO, Clear = MANUAL)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0202",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250202,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[4]",
+    "RaisedStateTagBitNumber": 1,
+    "TriggerBitAddress": "HMI.Alarm.Event[4].x1",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0202] GR2 - Auto Selected</p></body>",
+      "ko-KR": "<body><p>[O0202] GR2 Auto 선택</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>SSW_Auto 이고 GR2 가 쓰는 Area 의 FenceBox 가 모두 Auto 인 동안 (Raise = AUTO, Clear = MANUAL)</p></body>",
+      "ko-KR": "<body><p>SSW_Auto 이고 GR2 가 쓰는 Area 의 FenceBox 가 모두 Auto 인 동안 (Raise = AUTO, Clear = MANUAL)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0203",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250203,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[4]",
+    "RaisedStateTagBitNumber": 2,
+    "TriggerBitAddress": "HMI.Alarm.Event[4].x2",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0203] GR1 - Robot Use Off</p></body>",
+      "ko-KR": "<body><p>[O0203] GR1 Robot Use 해제</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>RobotUse[1] = FALSE 인 동안 (HMI 토글)</p></body>",
+      "ko-KR": "<body><p>RobotUse[1] = FALSE 인 동안 (HMI 토글)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0204",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250204,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[4]",
+    "RaisedStateTagBitNumber": 3,
+    "TriggerBitAddress": "HMI.Alarm.Event[4].x3",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0204] GR2 - Robot Use Off</p></body>",
+      "ko-KR": "<body><p>[O0204] GR2 Robot Use 해제</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>RobotUse[2] = FALSE 인 동안 (HMI 토글)</p></body>",
+      "ko-KR": "<body><p>RobotUse[2] = FALSE 인 동안 (HMI 토글)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0205",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250205,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[4]",
+    "RaisedStateTagBitNumber": 4,
+    "TriggerBitAddress": "HMI.Alarm.Event[4].x4",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0205] GR1 - Robot Force Use</p></body>",
+      "ko-KR": "<body><p>[O0205] GR1 Robot Force Use</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>RobotForceUse[1] = TRUE 인 동안 (HMI 토글)</p></body>",
+      "ko-KR": "<body><p>RobotForceUse[1] = TRUE 인 동안 (HMI 토글)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0206",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250206,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[4]",
+    "RaisedStateTagBitNumber": 5,
+    "TriggerBitAddress": "HMI.Alarm.Event[4].x5",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0206] GR2 - Robot Force Use</p></body>",
+      "ko-KR": "<body><p>[O0206] GR2 Robot Force Use</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>RobotForceUse[2] = TRUE 인 동안 (HMI 토글)</p></body>",
+      "ko-KR": "<body><p>RobotForceUse[2] = TRUE 인 동안 (HMI 토글)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0207",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250207,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[4]",
+    "RaisedStateTagBitNumber": 6,
+    "TriggerBitAddress": "HMI.Alarm.Event[4].x6",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0207] GR1 - At Maintenance Position</p></body>",
+      "ko-KR": "<body><p>[O0207] GR1 Maint Pos</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>\"MACHINE\".MaintPos.GR1 = TRUE 인 동안 (HMI 토글)</p></body>",
+      "ko-KR": "<body><p>\"MACHINE\".MaintPos.GR1 = TRUE 인 동안 (HMI 토글)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0208",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250208,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[4]",
+    "RaisedStateTagBitNumber": 7,
+    "TriggerBitAddress": "HMI.Alarm.Event[4].x7",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0208] GR2 - At Maintenance Position</p></body>",
+      "ko-KR": "<body><p>[O0208] GR2 Maint Pos</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>\"MACHINE\".MaintPos.GR2 = TRUE 인 동안 (HMI 토글)</p></body>",
+      "ko-KR": "<body><p>\"MACHINE\".MaintPos.GR2 = TRUE 인 동안 (HMI 토글)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0209",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250209,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[5]",
+    "RaisedStateTagBitNumber": 0,
+    "TriggerBitAddress": "HMI.Alarm.Event[5].x0",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0209] Force Mode - Active</p></body>",
+      "ko-KR": "<body><p>[O0209] Force Mode 사용 중</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>\"MACHINE\".Command.ForceMode = TRUE 인 동안 (HMI 토글)</p></body>",
+      "ko-KR": "<body><p>\"MACHINE\".Command.ForceMode = TRUE 인 동안 (HMI 토글)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0210",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250210,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[5]",
+    "RaisedStateTagBitNumber": 1,
+    "TriggerBitAddress": "HMI.Alarm.Event[5].x1",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0210] Force Mode - No Limit Active</p></body>",
+      "ko-KR": "<body><p>[O0210] Force Mode No Limit 사용 중</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>\"MACHINE\".Command.ForceModeNoLimit = TRUE 인 동안 (HMI 토글)</p></body>",
+      "ko-KR": "<body><p>\"MACHINE\".Command.ForceModeNoLimit = TRUE 인 동안 (HMI 토글)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0211",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250211,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[5]",
+    "RaisedStateTagBitNumber": 2,
+    "TriggerBitAddress": "HMI.Alarm.Event[5].x2",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0211] IO - Force Mode Active</p></body>",
+      "ko-KR": "<body><p>[O0211] IO Force Mode 사용 중</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>\"MACHINE\".Command.IOForceMode = TRUE 인 동안</p></body>",
+      "ko-KR": "<body><p>\"MACHINE\".Command.IOForceMode = TRUE 인 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0212",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250212,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[5]",
+    "RaisedStateTagBitNumber": 3,
+    "TriggerBitAddress": "HMI.Alarm.Event[5].x3",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0212] Option - Safety Commission Mode</p></body>",
+      "ko-KR": "<body><p>[O0212] Option Safety Commission 모드</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>\"MACHINE\".Option.Mode_SafetyCommission = TRUE 인 동안</p></body>",
+      "ko-KR": "<body><p>\"MACHINE\".Option.Mode_SafetyCommission = TRUE 인 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0213",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250213,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[5]",
+    "RaisedStateTagBitNumber": 4,
+    "TriggerBitAddress": "HMI.Alarm.Event[5].x4",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0213] Option - Teaching Mode</p></body>",
+      "ko-KR": "<body><p>[O0213] Option Teaching 모드</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>\"MACHINE\".Option.Mode_Teaching = TRUE 인 동안</p></body>",
+      "ko-KR": "<body><p>\"MACHINE\".Option.Mode_Teaching = TRUE 인 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0214",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250214,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[5]",
+    "RaisedStateTagBitNumber": 5,
+    "TriggerBitAddress": "HMI.Alarm.Event[5].x5",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0214] Option - Scenario Mode</p></body>",
+      "ko-KR": "<body><p>[O0214] Option Scenario 모드</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>\"MACHINE\".Option.Mode_Scenario = TRUE 인 동안</p></body>",
+      "ko-KR": "<body><p>\"MACHINE\".Option.Mode_Scenario = TRUE 인 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0215",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250215,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[5]",
+    "RaisedStateTagBitNumber": 6,
+    "TriggerBitAddress": "HMI.Alarm.Event[5].x6",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0215] Option - Teaching Override Mode</p></body>",
+      "ko-KR": "<body><p>[O0215] Option Teaching Override 모드</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>\"MACHINE\".Option.Mode_TeachingOverride = TRUE 인 동안</p></body>",
+      "ko-KR": "<body><p>\"MACHINE\".Option.Mode_TeachingOverride = TRUE 인 동안</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0301",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250301,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[8]",
+    "RaisedStateTagBitNumber": 0,
+    "TriggerBitAddress": "HMI.Alarm.Event[8].x0",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0301] Zone - Unlock Requested</p></body>",
+      "ko-KR": "<body><p>[O0301] Area 잠금 해제 요청</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Area bit (1..3)</p></body>",
+      "ko-KR": "<body><p>A: Area bit (1..3)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0302",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250302,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[8]",
+    "RaisedStateTagBitNumber": 1,
+    "TriggerBitAddress": "HMI.Alarm.Event[8].x1",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0302] Zone - Fence Box Manual Selected</p></body>",
+      "ko-KR": "<body><p>[O0302] FenceBox Manual 선택</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Area bit (1..3)</p></body>",
+      "ko-KR": "<body><p>A: Area bit (1..3)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0303",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250303,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[8]",
+    "RaisedStateTagBitNumber": 2,
+    "TriggerBitAddress": "HMI.Alarm.Event[8].x2",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0303] Zone - Fence Box EMS Pressed</p></body>",
+      "ko-KR": "<body><p>[O0303] FenceBox EMS 눌림</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Area bit (1..3)</p></body>",
+      "ko-KR": "<body><p>A: Area bit (1..3)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0401",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250401,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[12]",
+    "RaisedStateTagBitNumber": 0,
+    "TriggerBitAddress": "HMI.Alarm.Event[12].x0",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0401] Station - Force Complete</p></body>",
+      "ko-KR": "<body><p>[O0401] Station 강제 완료</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Station slot (1..32)</p></body>",
+      "ko-KR": "<body><p>A: Station slot (1..32)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0402",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250402,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[12]",
+    "RaisedStateTagBitNumber": 1,
+    "TriggerBitAddress": "HMI.Alarm.Event[12].x1",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0402] Station - Sensor Apply</p></body>",
+      "ko-KR": "<body><p>[O0402] Station 센서값 적용</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Station slot (1..32)</p></body>",
+      "ko-KR": "<body><p>A: Station slot (1..32)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0403",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250403,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[12]",
+    "RaisedStateTagBitNumber": 2,
+    "TriggerBitAddress": "HMI.Alarm.Event[12].x2",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0403] Station - Tracking Save (HMI)</p></body>",
+      "ko-KR": "<body><p>[O0403] Station 트래킹 저장 (HMI)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Station slot (1..32) · B: OD ×10</p></body>",
+      "ko-KR": "<body><p>A: Station slot (1..32) · B: OD ×10</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0404",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250404,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[12]",
+    "RaisedStateTagBitNumber": 3,
+    "TriggerBitAddress": "HMI.Alarm.Event[12].x3",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0404] Station - Tracking Error Reset</p></body>",
+      "ko-KR": "<body><p>[O0404] Station 트래킹 오류 Reset</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Station slot (1..32)</p></body>",
+      "ko-KR": "<body><p>A: Station slot (1..32)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0405",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250405,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[12]",
+    "RaisedStateTagBitNumber": 4,
+    "TriggerBitAddress": "HMI.Alarm.Event[12].x4",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0405] Station - Tracking Clear (HMI)</p></body>",
+      "ko-KR": "<body><p>[O0405] Station 트래킹 삭제 (HMI)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Station slot (1..32)</p></body>",
+      "ko-KR": "<body><p>A: Station slot (1..32)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0406",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250406,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[12]",
+    "RaisedStateTagBitNumber": 5,
+    "TriggerBitAddress": "HMI.Alarm.Event[12].x5",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0406] Station - Left Sensor Save</p></body>",
+      "ko-KR": "<body><p>[O0406] Station 좌 센서 저장</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Station slot (1..32)</p></body>",
+      "ko-KR": "<body><p>A: Station slot (1..32)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0407",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250407,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[12]",
+    "RaisedStateTagBitNumber": 6,
+    "TriggerBitAddress": "HMI.Alarm.Event[12].x6",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0407] Station - Right Sensor Save</p></body>",
+      "ko-KR": "<body><p>[O0407] Station 우 센서 저장</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Station slot (1..32)</p></body>",
+      "ko-KR": "<body><p>A: Station slot (1..32)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0501",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250501,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[16]",
+    "RaisedStateTagBitNumber": 0,
+    "TriggerBitAddress": "HMI.Alarm.Event[16].x0",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0501] Scenario - Running</p></body>",
+      "ko-KR": "<body><p>[O0501] Scenario 실행 중</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Robot (1 GR1, 2 GR2) · B: List 번호</p></body>",
+      "ko-KR": "<body><p>A: Robot (1 GR1, 2 GR2) · B: List 번호</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0502",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250502,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[16]",
+    "RaisedStateTagBitNumber": 1,
+    "TriggerBitAddress": "HMI.Alarm.Event[16].x1",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0502] Scenario - Assign</p></body>",
+      "ko-KR": "<body><p>[O0502] Scenario 할당</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Robot · B: List 번호</p></body>",
+      "ko-KR": "<body><p>A: Robot · B: List 번호</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0503",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250503,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[16]",
+    "RaisedStateTagBitNumber": 2,
+    "TriggerBitAddress": "HMI.Alarm.Event[16].x2",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0503] Scenario - List Edited</p></body>",
+      "ko-KR": "<body><p>[O0503] Scenario 목록 편집</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: 동작 (1 Apply, 2 Add, 3 Delete, 4 Up, 5 Down) · B: index</p></body>",
+      "ko-KR": "<body><p>A: 동작 (1 Apply, 2 Add, 3 Delete, 4 Up, 5 Down) · B: index</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0504",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250504,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[16]",
+    "RaisedStateTagBitNumber": 3,
+    "TriggerBitAddress": "HMI.Alarm.Event[16].x3",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0504] Teach - Running</p></body>",
+      "ko-KR": "<body><p>[O0504] Teach 실행 중</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Robot · B: Cell index</p></body>",
+      "ko-KR": "<body><p>A: Robot · B: Cell index</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0505",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250505,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[16]",
+    "RaisedStateTagBitNumber": 4,
+    "TriggerBitAddress": "HMI.Alarm.Event[16].x4",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0505] Teach - Assign</p></body>",
+      "ko-KR": "<body><p>[O0505] Teach 할당</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Robot · B: Cell index</p></body>",
+      "ko-KR": "<body><p>A: Robot · B: Cell index</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0601",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250601,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[20]",
+    "RaisedStateTagBitNumber": 0,
+    "TriggerBitAddress": "HMI.Alarm.Event[20].x0",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0601] Cell - Edited</p></body>",
+      "ko-KR": "<body><p>[O0601] Cell 편집</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: 동작 (1 Apply, 2 Save, 3 Add, 4 Create, 5 Delete, 6 CSV import) · B: Cell.Id (Create: StartID)</p></body>",
+      "ko-KR": "<body><p>A: 동작 (1 Apply, 2 Save, 3 Add, 4 Create, 5 Delete, 6 CSV import) · B: Cell.Id (Create: StartID)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0602",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250602,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[20]",
+    "RaisedStateTagBitNumber": 1,
+    "TriggerBitAddress": "HMI.Alarm.Event[20].x1",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0602] CSV - Import Request (HMI)</p></body>",
+      "ko-KR": "<body><p>[O0602] CSV Import 요청 (HMI)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: 종류 (1 PARA, 2 STATION, 3 CELL)</p></body>",
+      "ko-KR": "<body><p>A: 종류 (1 PARA, 2 STATION, 3 CELL)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0603",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250603,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[20]",
+    "RaisedStateTagBitNumber": 2,
+    "TriggerBitAddress": "HMI.Alarm.Event[20].x2",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0603] CSV - Export Request</p></body>",
+      "ko-KR": "<body><p>[O0603] CSV Export 요청</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: 종류 (1 PARA, 2 STATION, 3 CELL)</p></body>",
+      "ko-KR": "<body><p>A: 종류 (1 PARA, 2 STATION, 3 CELL)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0604",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250604,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[20]",
+    "RaisedStateTagBitNumber": 3,
+    "TriggerBitAddress": "HMI.Alarm.Event[20].x3",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0604] Parameter - Apply (HMI)</p></body>",
+      "ko-KR": "<body><p>[O0604] 파라미터 적용 (HMI)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: PARA ID</p></body>",
+      "ko-KR": "<body><p>A: PARA ID</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0605",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250605,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[20]",
+    "RaisedStateTagBitNumber": 4,
+    "TriggerBitAddress": "HMI.Alarm.Event[20].x4",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0605] Parameter - Save (HMI)</p></body>",
+      "ko-KR": "<body><p>[O0605] 파라미터 저장 (HMI)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>HMI Para SavePB (1 s) → CSV_PARA 저장</p></body>",
+      "ko-KR": "<body><p>HMI Para SavePB (1 s) → CSV_PARA 저장</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0606",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250606,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[20]",
+    "RaisedStateTagBitNumber": 5,
+    "TriggerBitAddress": "HMI.Alarm.Event[20].x5",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0606] Network - IP Change Request</p></body>",
+      "ko-KR": "<body><p>[O0606] IP 변경 요청</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>A: Interface (1 X1, 2 X2)</p></body>",
+      "ko-KR": "<body><p>A: Interface (1 X1, 2 X2)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  },
+  {
+    "Name": "GRM_O0701",
+    "AcknowledgmentControlTag": "<No tag>",
+    "AcknowledgmentControlTagBitNumber": 0,
+    "AcknowledgmentStateTag": "<No tag>",
+    "AcknowledgmentStateTagBitNumber": 0,
+    "AlarmClass": "GRM OPERATOR",
+    "Area": "HMI_RT_1::Alarming",
+    "Id": 250701,
+    "Origin": "",
+    "Priority": 0,
+    "RaisedStateTag": "HMI_Alarm_Event[24]",
+    "RaisedStateTagBitNumber": 0,
+    "TriggerBitAddress": "HMI.Alarm.Event[24].x0",
+    "TriggerMode": "OnRisingEdge",
+    "EventText": {
+      "en-US": "<body><p>[O0701] HMI - Reset Pressed</p></body>",
+      "ko-KR": "<body><p>[O0701] HMI Reset 눌림</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText1": {
+      "en-US": "<body><p>HMI ResetPB 가 켜진 동안 (O0107 의 HMI 출처 구분)</p></body>",
+      "ko-KR": "<body><p>HMI ResetPB 가 켜진 동안 (O0107 의 HMI 출처 구분)</p></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText2": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText3": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText4": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText5": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText6": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText7": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText8": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    },
+    "EventText9": {
+      "en-US": "<body><p/></body>",
+      "ko-KR": "<body><p/></body>",
+      "hu-HU": "<body><p/></body>"
+    }
+  }
+]

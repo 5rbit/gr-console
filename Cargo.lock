@@ -989,6 +989,7 @@ dependencies = [
  "evt-catalog",
  "plc-layout",
  "plc-link",
+ "rust_xlsxwriter",
  "serde",
  "serde_json",
  "toml",

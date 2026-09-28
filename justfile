@@ -65,3 +65,11 @@ gen-evt:
 # 알람 주소표 plc/contract/<PLC>/alarms.json (SetAlarm 호출 + HMI 알람 + ErrorList) — 이벤트 로그의 {alarm} 문구
 alarms:
     cargo run -p gr-contract -- alarms --export ../siemens/export --xlsx ../siemens/E13398_GR_V1.5.2_ErrorList_260926.xlsx
+
+# ErrorList 워크북(정본) → plc/contract/<PLC>/errorlist.json + HMI Operator/Info/Task 초안 plc/generated/hmi (docs/evtlog/encoding-v2.md)
+errorlist:
+    cargo run -p gr-contract -- errorlist --xlsx ../siemens/E13398_GR_V1.6.2_ErrorList_260928.xlsx --export ../siemens/export
+
+# 생성물이 최신인지 + ErrorList ↔ HMI FAULT/WARN 문구 차이 보고 (아무것도 쓰지 않음, 다르면 exit 1)
+errorlist-check:
+    cargo run -p gr-contract -- errorlist --xlsx ../siemens/E13398_GR_V1.6.2_ErrorList_260928.xlsx --export ../siemens/export --check

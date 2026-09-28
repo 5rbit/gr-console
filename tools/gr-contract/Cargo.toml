@@ -19,3 +19,6 @@ calamine = { workspace = true }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+rust_xlsxwriter = { workspace = true }

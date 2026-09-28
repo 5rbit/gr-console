@@ -60,7 +60,8 @@ mod tests {
         assert!(text.contains("<Name>EVT_Const_Gen</Name>\r\n"));
         let parsed = plc_layout::consts::parse_const_xml(&text).unwrap();
         assert_eq!(parsed.len(), defs.len());
-        assert!(parsed.iter().any(|(n, v, t)| n == "EVT_CATMASK_ALL" && *v == 0x0003_FFFE && t == "DWord"));
+        assert!(parsed.iter().any(|(n, v, t)| n == "EVT_CATMASK_ALL" && *v == 0x000F_FFFE && t == "DWord"));
+        assert!(parsed.iter().any(|(n, v, _)| n == "EVT_TRANS_RAISE" && *v == 1));
         assert!(parsed.iter().any(|(n, v, _)| n == "EVT_GRIP_REQ" && *v == 701));
     }
 }
