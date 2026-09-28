@@ -98,12 +98,41 @@ export interface GenMetrics {
   waits: Record<string, number>
 }
 
+/** 판단 기준 한 줄 — 무엇을 보는지, 지금 값, 그 값이 조건을 만족하는가. */
+export interface GenTerm {
+  label: string
+  value: string
+  ok: boolean
+}
+
+/** 엔진이 판단에 쓰는 입력 한 벌 — 규칙과 무관하게 지금 값. */
+export interface GenInputs {
+  stations: { id: number; cvok: boolean; req: boolean; item_exist: boolean; watched: boolean }[]
+  cells: { id: number; item_code: number; count: number; room: number | null; watched: boolean }[]
+  robots: { id: number; name: string; x: number | null; busy: boolean }[]
+  separation_mm: number
+  queue_depth: number
+  tick_ms: number
+  updated_at: string
+}
+
+export const EMPTY_INPUTS: GenInputs = {
+  stations: [],
+  cells: [],
+  robots: [],
+  separation_mm: 0,
+  queue_depth: 0,
+  tick_ms: 0,
+  updated_at: '',
+}
+
 /** 백엔드 `taskgen::RuleStatus` — 규칙 줄의 지금 상태. */
 export interface GenRuleStatus {
   rule_id: string
   fires: boolean
   /** 조건이 보는 입력의 지금 값(스테이션 비트 · 셀 재고 · 남은 요청 수) */
   inputs: string
+  terms: readonly GenTerm[]
   state: 'off' | 'idle' | 'busy' | 'queued' | 'skipped' | 'waiting' | 'ready'
   reason: string | null
   age_min: number
@@ -115,6 +144,7 @@ export interface GenState {
   config: GenConfig
   /** 규칙 순서 그대로 */
   rules: GenRuleStatus[]
+  inputs: GenInputs
   candidates: GenCandidate[]
   /** 후보조차 못 된 규칙(자동 셀 없음 · 팔렛 자리 없음 · 거리 초과) */
   skipped: { rule: string; reason: string }[]
@@ -122,6 +152,39 @@ export interface GenState {
   note: string | null
   metrics: GenMetrics
   separation_mm: number
+}
+
+/** 판단 기준 표의 행 — 규칙마다 조건 항목을 펼친다. 규칙이 꺼져 있으면 `enabled: false`. */
+export interface CriteriaRow {
+  key: string
+  ruleId: string
+  ruleName: string
+  enabled: boolean
+  label: string
+  value: string
+  ok: boolean
+}
+
+export function criteriaRows(
+  rules: readonly GenRule[],
+  status: readonly GenRuleStatus[],
+): CriteriaRow[] {
+  const out: CriteriaRow[] = []
+  for (const r of rules) {
+    const terms = status.find((s) => s.rule_id === r.id)?.terms ?? []
+    terms.forEach((t, i) =>
+      out.push({
+        key: `${r.id}-${i}`,
+        ruleId: r.id,
+        ruleName: r.name,
+        enabled: r.enabled,
+        label: t.label,
+        value: t.value,
+        ok: t.ok,
+      }),
+    )
+  }
+  return out
 }
 
 export const taskgenApi = {

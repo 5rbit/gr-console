@@ -84,6 +84,8 @@ pub struct Engine {
     pub last: Mutex<Selection>,
     /// 판정마다 새로 쓴다.
     pub rules: Mutex<Vec<super::RuleStatus>>,
+    /// 엔진이 본 입력 한 벌(모니터).
+    pub inputs: Mutex<super::EngineInputs>,
     /// 규칙 id → (만든 건수, 마지막 생성 시각) — 지표와 같은 수명.
     gen_stats: Mutex<HashMap<String, (u64, String)>>,
     pub note: Mutex<Option<String>>,
@@ -152,6 +154,7 @@ impl Engine {
             inflight: Default::default(),
             last: Default::default(),
             rules: Default::default(),
+            inputs: Default::default(),
             gen_stats: Default::default(),
             note: Default::default(),
             metrics: Mutex::new(Metrics { started_at: now_str(), ..Default::default() }),
@@ -251,14 +254,18 @@ pub fn station_pi(opcua: &Json, id: u16) -> Option<StationPi> {
 
 fn world(st: &AppState, cfg: &GenConfig) -> (World, Vec<CellView>) {
     let mut w = World::default();
+    // 등록된 스테이션 전부를 읽는다 — 규칙이 겨냥하지 않는 것도 모니터에 보여야 한다.
     if let Some(h) = st.grm_plc()
         && let Some(d) = h.snap().db("OPCUA")
     {
-        for r in &cfg.rules {
-            if let Trigger::StationReq { station, .. } | Trigger::StationItem { station, .. } = r.trigger
-                && let Some(pi) = station_pi(&d.json, station)
-            {
-                w.stations.insert(station, pi);
+        let rule_ids = cfg.rules.iter().filter_map(|r| match r.trigger {
+            Trigger::StationReq { station, .. } | Trigger::StationItem { station, .. } => Some(station),
+            _ => None,
+        });
+        let ids: BTreeSet<u16> = st.registry.stations().unwrap_or_default().iter().map(|s| s.id).chain(rule_ids).collect();
+        for id in ids {
+            if let Some(pi) = station_pi(&d.json, id) {
+                w.stations.insert(id, pi);
             }
         }
     }
@@ -528,6 +535,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
                     rule_id: r.id.clone(),
                     fires: !matches!(state, "off" | "idle"),
                     inputs: super::trigger_inputs(r, &w),
+                    terms: super::rule_terms(r, &w),
                     state: state.to_string(),
                     reason,
                     age_min: age,
@@ -538,7 +546,64 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
             .collect();
         *e.rules.lock().unwrap_or_else(PoisonError::into_inner) = rows;
     }
+    *e.inputs.lock().unwrap_or_else(PoisonError::into_inner) = engine_inputs(&cfg, &w, &robots, &p, sep);
     *e.last.lock().unwrap_or_else(PoisonError::into_inner) = sel;
+}
+
+/// 모니터용 입력 한 벌 — 스테이션은 전부, 셀은 규칙이 겨냥한 것과 재고가 있는 것만(많아서 자른다).
+fn engine_inputs(cfg: &GenConfig, w: &World, robots: &[RobotView], p: &crate::params::Params, sep: f32) -> super::EngineInputs {
+    let watch_station: BTreeSet<u16> = cfg
+        .rules
+        .iter()
+        .filter(|r| r.enabled)
+        .filter_map(|r| match r.trigger {
+            Trigger::StationReq { station, .. } | Trigger::StationItem { station, .. } => Some(station),
+            _ => None,
+        })
+        .collect();
+    let mut watch_cell: BTreeSet<u16> = BTreeSet::new();
+    for r in cfg.rules.iter().filter(|r| r.enabled) {
+        if let Trigger::CellStock { cell, .. } = r.trigger {
+            watch_cell.insert(cell);
+        }
+        match &r.action {
+            Action::Transfer { from, to, from_auto, to_auto, .. } => {
+                if from_auto.is_none() && from.kind == "cell" {
+                    watch_cell.insert(from.id);
+                }
+                if to_auto.is_none() && to.kind == "cell" {
+                    watch_cell.insert(to.id);
+                }
+            }
+            Action::Move { to } => {
+                if to.kind == "cell" {
+                    watch_cell.insert(to.id);
+                }
+            }
+            Action::Measure { target, .. } => {
+                if target.kind == "cell" {
+                    watch_cell.insert(target.id);
+                }
+            }
+        }
+    }
+    const CELL_LIMIT: usize = 60;
+    let cells: Vec<super::CellRow> = w
+        .stock
+        .iter()
+        .filter(|(id, (_, n))| *n > 0 || watch_cell.contains(id))
+        .take(CELL_LIMIT)
+        .map(|(id, (code, n))| super::CellRow { id: *id, item_code: *code, count: *n, room: w.room.get(id).copied(), watched: watch_cell.contains(id) })
+        .collect();
+    super::EngineInputs {
+        stations: w.stations.iter().map(|(id, pi)| super::StationRow { id: *id, cvok: pi.cvok, req: pi.req, item_exist: pi.item_exist, watched: watch_station.contains(id) }).collect(),
+        cells,
+        robots: robots.iter().map(|r| super::RobotRow { id: r.id, name: r.name.clone(), x: r.current_x, busy: r.busy }).collect(),
+        separation_mm: sep,
+        queue_depth: p.issue_queue_depth,
+        tick_ms: p.gen_tick_ms,
+        updated_at: now_str(),
+    }
 }
 
 /// 예정 큐를 보낸다 — 로봇마다 맨 앞 항목의 다음 스텝 하나.

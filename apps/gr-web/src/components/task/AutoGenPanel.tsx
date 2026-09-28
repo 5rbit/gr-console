@@ -5,17 +5,21 @@ import {
   EMPTY_WEIGHTS,
   actionLabel,
   breakdownText,
+  criteriaRows,
   formatMap,
   metricsLine,
   newRule,
   parseMap,
   ruleState,
+  EMPTY_INPUTS,
   taskgenApi,
   triggerLabel,
   type CellPick,
   type GenAction,
+  type CriteriaRow,
   type GenCandidate,
   type GenConfig,
+  type GenInputs,
   type GenItem,
   type GenRule,
   type GenState,
@@ -25,6 +29,7 @@ import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
+import { EmptyState } from '../../lib/ui/EmptyState'
 import { Dialog, FormDialog } from '../../lib/ui/Dialog'
 import { Input } from '../../lib/ui/Input'
 import { OverflowMenu } from '../../lib/ui/OverflowMenu'
@@ -432,6 +437,121 @@ export function AutoGenPanel() {
   const sepText = state ? `간격 ${state.separation_mm.toFixed(0)} mm` : ''
   const statusOf = (id: string) => state?.rules.find((x) => x.rule_id === id)
 
+  const inputs = state?.inputs ?? EMPTY_INPUTS
+  const crit = criteriaRows(cfg?.rules ?? [], state?.rules ?? [])
+  const limitsText = `영역 간격 ${inputs.separation_mm.toFixed(0)} mm · 로봇당 큐 ${inputs.queue_depth}건${inputs.updated_at ? ` · ${inputs.updated_at}` : ''}`
+  const yn = (v: boolean) => (
+    <span className={v ? 'text-ok-fg' : 'text-content-faint'}>{v ? '1' : '0'}</span>
+  )
+
+  const critCols: Column<CriteriaRow>[] = [
+    {
+      key: 'rule',
+      label: 'Rule',
+      get: (c) => c.ruleName,
+      priority: 1,
+      cell: (c) => (
+        <span
+          className={c.enabled ? '' : 'text-content-faint'}
+          title={c.enabled ? '' : '규칙 꺼짐'}
+        >
+          {c.ruleName}
+        </span>
+      ),
+    },
+    { key: 'label', label: '보는 값', get: (c) => c.label, priority: 1 },
+    {
+      key: 'value',
+      label: '지금',
+      get: (c) => c.value,
+      priority: 1,
+      cell: (c) => <span className="font-mono tabular-nums">{c.value}</span>,
+    },
+    {
+      key: 'ok',
+      label: '충족',
+      sortable: false,
+      priority: 1,
+      cell: (c) => (
+        <span className={c.ok ? 'text-ok-fg' : 'text-warn-fg'}>{c.ok ? '충족' : '아직'}</span>
+      ),
+    },
+  ]
+
+  const stationCols: Column<GenInputs['stations'][number]>[] = [
+    {
+      key: 'id',
+      label: 'Station',
+      get: (s) => s.id,
+      numeric: true,
+      priority: 1,
+      cell: (s) => (
+        <span className="font-mono tabular-nums" title={s.watched ? '켠 규칙이 보는 스테이션' : ''}>
+          {s.watched ? '● ' : ''}
+          {s.id}
+        </span>
+      ),
+    },
+    { key: 'cvok', label: 'CVOK', sortable: false, priority: 1, cell: (s) => yn(s.cvok) },
+    { key: 'req', label: 'Req', sortable: false, priority: 1, cell: (s) => yn(s.req) },
+    {
+      key: 'item',
+      label: 'ItemExist',
+      sortable: false,
+      priority: 1,
+      cell: (s) => yn(s.item_exist),
+    },
+  ]
+
+  const cellCols: Column<GenInputs['cells'][number]>[] = [
+    {
+      key: 'id',
+      label: 'Cell',
+      get: (c) => c.id,
+      numeric: true,
+      priority: 1,
+      cell: (c) => (
+        <span className="font-mono tabular-nums" title={c.watched ? '켠 규칙이 보는 셀' : ''}>
+          {c.watched ? '● ' : ''}
+          {c.id}
+        </span>
+      ),
+    },
+    { key: 'item', label: 'Item', get: (c) => c.item_code, numeric: true, priority: 2 },
+    { key: 'count', label: '재고', get: (c) => c.count, numeric: true, priority: 1 },
+    {
+      key: 'room',
+      label: '남은 칸',
+      get: (c) => c.room ?? -1,
+      numeric: true,
+      priority: 1,
+      cell: (c) => (c.room === null ? '—' : String(c.room)),
+    },
+  ]
+
+  const robotCols: Column<GenInputs['robots'][number]>[] = [
+    { key: 'name', label: 'Robot', get: (r) => r.name, priority: 1 },
+    {
+      key: 'x',
+      label: 'X (mm)',
+      get: (r) => r.x ?? 0,
+      numeric: true,
+      priority: 1,
+      cell: (r) => (r.x === null ? '—' : r.x.toFixed(0)),
+    },
+    {
+      key: 'busy',
+      label: '생성 작업',
+      sortable: false,
+      priority: 1,
+      cell: (r) => (
+        <span className={r.busy ? 'text-ok-fg' : 'text-content-faint'}>
+          {r.busy ? '진행 중' : '없음'}
+        </span>
+      ),
+    },
+  ]
+
   const ruleCols: Column<GenRule>[] = [
     { key: 'name', label: 'Name', get: (r) => r.name, priority: 1 },
     {
@@ -571,7 +691,7 @@ export function AutoGenPanel() {
   const tools: MenuEntry[] = [
     { label: '우선순위 가중치…', run: () => setWeightsOpen(true), testid: 'taskgen-weights' },
     {
-      label: '스케줄링 · 생성 파라미터…',
+      label: '제출 · 스케줄링 파라미터…',
       run: () => setParamsOpen(true),
       testid: 'taskgen-params',
     },
@@ -605,40 +725,114 @@ export function AutoGenPanel() {
         <OverflowMenu items={menuItems(tools)} title="도구" testid="taskgen-more" />
       </div>
 
-      <DataTable
-        rows={cfg.rules}
-        columns={ruleCols}
-        rowKey={(r) => r.id}
-        density="compact"
-        emptyDense
-        empty="규칙 없음 — 규칙 추가로 조건과 만들 것을 정합니다"
-        testid="taskgen-rules"
-        onPick={(r) => setEditing(r)}
-        actions={(r) => (
-          <>
-            {r.trigger.kind === 'manual' ? (
+      {cfg.rules.length === 0 ? (
+        <EmptyState
+          title="생성 규칙이 없습니다"
+          hint="규칙 하나 = 조건(스테이션 요청 · 셀 재고 · 운전자 요청) + 만들 것(PICK→DROP 짝 · MOVE · MEASURE) + 보낼 로봇. 조건이 참이 되면 콘솔이 그 작업을 만듭니다."
+          action={
+            <Button
+              size="sm"
+              intent="primary"
+              icon={<Plus className="h-3.5 w-3.5" />}
+              onClick={() => setEditing(newRule(cfg.rules))}
+              data-testid="taskgen-add-empty"
+            >
+              첫 규칙 만들기
+            </Button>
+          }
+          testid="taskgen-empty"
+        />
+      ) : (
+        <DataTable
+          rows={cfg.rules}
+          columns={ruleCols}
+          rowKey={(r) => r.id}
+          density="compact"
+          emptyDense
+          empty="규칙 없음"
+          testid="taskgen-rules"
+          onPick={(r) => setEditing(r)}
+          actions={(r) => (
+            <>
+              {r.trigger.kind === 'manual' ? (
+                <Button
+                  size="icon-sm"
+                  intent="ghost"
+                  icon={<Send className="h-3.5 w-3.5" />}
+                  title="요청 1건 (수동 규칙)"
+                  onClick={() =>
+                    void taskgenApi
+                      .request(r.id)
+                      .then((x) => toast.info(`${r.name}: 요청 ${x.requests}건`))
+                  }
+                />
+              ) : null}
               <Button
                 size="icon-sm"
                 intent="ghost"
-                icon={<Send className="h-3.5 w-3.5" />}
-                title="요청 1건 (수동 규칙)"
-                onClick={() =>
-                  void taskgenApi
-                    .request(r.id)
-                    .then((x) => toast.info(`${r.name}: 요청 ${x.requests}건`))
-                }
+                icon={<Trash2 className="h-3.5 w-3.5" />}
+                title="삭제"
+                onClick={() => void save({ ...cfg, rules: cfg.rules.filter((x) => x.id !== r.id) })}
               />
-            ) : null}
-            <Button
-              size="icon-sm"
-              intent="ghost"
-              icon={<Trash2 className="h-3.5 w-3.5" />}
-              title="삭제"
-              onClick={() => void save({ ...cfg, rules: cfg.rules.filter((x) => x.id !== r.id) })}
-            />
-          </>
-        )}
-      />
+            </>
+          )}
+        />
+      )}
+
+      <Section title="판단 기준" right={`${crit.filter((c) => c.ok).length} / ${crit.length} 충족`}>
+        <DataTable
+          rows={crit}
+          columns={critCols}
+          rowKey={(c) => c.key}
+          density="compact"
+          emptyDense
+          empty="규칙이 없어 판단할 기준이 없습니다"
+          testid="taskgen-criteria"
+          onPick={(c) => {
+            const r = cfg.rules.find((x) => x.id === c.ruleId)
+            if (r) setEditing(r)
+          }}
+        />
+      </Section>
+
+      <Section
+        title="엔진이 보는 값"
+        right={`${inputs.tick_ms} ms 마다`}
+        help="규칙과 무관하게 엔진이 매 판정에 읽는 값이다. 규칙이 겨냥한 줄에는 눈표를 단다. 셀은 재고가 있거나 규칙이 겨냥한 것만 보인다."
+      >
+        <div className="flex flex-col gap-2">
+          <span className="text-2xs text-content-faint" data-testid="taskgen-limits">
+            {limitsText}
+          </span>
+          <DataTable
+            rows={inputs.stations}
+            columns={stationCols}
+            rowKey={(s) => String(s.id)}
+            density="compact"
+            emptyDense
+            empty="GRM STATION 을 읽지 못함 (연결 · 계약 확인)"
+            testid="taskgen-inputs-stations"
+          />
+          <DataTable
+            rows={inputs.cells}
+            columns={cellCols}
+            rowKey={(c) => String(c.id)}
+            density="compact"
+            emptyDense
+            empty="재고가 있거나 규칙이 겨냥한 셀 없음"
+            testid="taskgen-inputs-cells"
+          />
+          <DataTable
+            rows={inputs.robots}
+            columns={robotCols}
+            rowKey={(r) => String(r.id)}
+            density="compact"
+            emptyDense
+            empty="로봇 설정 없음"
+            testid="taskgen-inputs-robots"
+          />
+        </div>
+      </Section>
 
       <Section title="모니터">
         <div className="flex flex-col gap-2">

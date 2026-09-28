@@ -195,39 +195,118 @@ pub fn fires(rule: &Rule, w: &World) -> bool {
     }
 }
 
-/// 조건이 보는 입력의 지금 값 — 화면이 "왜 안 참인가" 를 규칙 줄에서 말할 수 있게.
-pub fn trigger_inputs(rule: &Rule, w: &World) -> String {
-    let b = |v: bool| if v { 1 } else { 0 };
+/// 판단 기준 한 줄 — 무엇을 보는지(`label`), 지금 값(`value`), 그 값이 조건을 만족하는가(`ok`).
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Term {
+    pub label: String,
+    pub value: String,
+    pub ok: bool,
+}
+
+/// 규칙 하나가 보는 조건 전부 — `fires` 가 보는 것과 같은 항목이다(조건 + 고정 셀의 재고·칸).
+pub fn rule_terms(rule: &Rule, w: &World) -> Vec<Term> {
+    let t = |label: String, value: String, ok: bool| Term { label, value, ok };
+    let onoff = |v: bool| if v { "1".to_string() } else { "0".to_string() };
     let pi = |s: &u16| w.stations.get(s).copied().unwrap_or_default();
-    let mut s = match &rule.trigger {
-        Trigger::Manual => format!("요청 {} 건 남음", rule.manual_requests),
-        Trigger::StationReq { station, require_cvok } => {
+    let known = |s: &u16| w.stations.contains_key(s);
+    let mut v = Vec::new();
+    match &rule.trigger {
+        Trigger::Manual => v.push(t("요청 대기".into(), format!("{} 건", rule.manual_requests), rule.manual_requests > 0)),
+        Trigger::StationReq { station, require_cvok } | Trigger::StationItem { station, require_cvok } => {
             let p = pi(station);
-            format!("STATION {station}: Req={} CVOK={}{}", b(p.req), b(p.cvok), if *require_cvok { "" } else { " (CVOK 무시)" })
+            let (name, bit) = match &rule.trigger {
+                Trigger::StationItem { .. } => ("ItemExist", p.item_exist),
+                _ => ("Req", p.req),
+            };
+            if known(station) {
+                v.push(t(format!("STATION {station} {name}"), onoff(bit), bit));
+                v.push(if *require_cvok { t(format!("STATION {station} CVOK"), onoff(p.cvok), p.cvok) } else { t(format!("STATION {station} CVOK"), "무시".into(), true) });
+            } else {
+                v.push(t(format!("STATION {station}"), "GRM 에서 못 읽음".into(), false));
+            }
         }
-        Trigger::StationItem { station, require_cvok } => {
-            let p = pi(station);
-            format!("STATION {station}: ItemExist={} CVOK={}{}", b(p.item_exist), b(p.cvok), if *require_cvok { "" } else { " (CVOK 무시)" })
-        }
-        Trigger::CellStock { cell, item, min } => match w.stock.get(cell) {
-            Some((code, n)) => format!("셀 {cell}: 재고 {n} 개(품목 {code}) / 조건 ≥ {min}{}", item.map(|i| format!(" 품목 {i}")).unwrap_or_default()),
-            None => format!("셀 {cell}: 재고 없음 / 조건 ≥ {min}"),
-        },
-    };
-    // 고정 셀 이송은 출발 재고·도착 칸도 조건이다(`fires`) — 같이 보여 준다.
-    if let Action::Transfer { from, to, count, from_auto, to_auto, .. } = &rule.action {
-        if from_auto.is_none() && from.kind == "cell" {
-            let have = w.stock.get(&from.id).map(|(_, n)| *n).unwrap_or(0);
-            s.push_str(&format!(" · 출발 셀 {} 재고 {have}/{count}", from.id));
-        }
-        if to_auto.is_none() && to.kind == "cell" {
-            match w.room.get(&to.id) {
-                Some(r) => s.push_str(&format!(" · 도착 셀 {} 남은 칸 {r}/{count}", to.id)),
-                None => s.push_str(&format!(" · 도착 셀 {} 칸 제한 없음", to.id)),
+        Trigger::CellStock { cell, item, min } => {
+            let (code, n) = w.stock.get(cell).copied().unwrap_or((0, 0));
+            v.push(t(format!("셀 {cell} 재고"), format!("{n} 개 / 조건 ≥ {min}"), n >= *min));
+            if let Some(want) = item {
+                v.push(t(format!("셀 {cell} 품목"), format!("{code} / 조건 {want}"), code == *want));
             }
         }
     }
-    s
+    match &rule.action {
+        Action::Transfer { from, to, count, from_auto, to_auto, pallet_auto, .. } => {
+            match from_auto {
+                Some(p) => v.push(t("출발 셀".into(), format!("자동 선택({})", if p.order.is_empty() { "oldest" } else { &p.order }), true)),
+                None if from.kind == "cell" => {
+                    let have = w.stock.get(&from.id).map(|(_, n)| *n).unwrap_or(0);
+                    v.push(t(format!("출발 셀 {} 재고", from.id), format!("{have} 개 / 필요 {count}"), have >= *count as u32));
+                }
+                None => v.push(t("출발".into(), format!("{} {}", from.kind, from.id), true)),
+            }
+            match to_auto {
+                Some(_) => v.push(t("도착 셀".into(), "자동 선택(가까운 순)".into(), true)),
+                None if to.kind == "cell" => match w.room.get(&to.id) {
+                    Some(r) => v.push(t(format!("도착 셀 {} 남은 칸", to.id), format!("{r} / 필요 {count}"), *r >= *count as u32)),
+                    None => v.push(t(format!("도착 셀 {} 남은 칸", to.id), "제한 없음".into(), true)),
+                },
+                None => v.push(t("도착".into(), format!("{} {}", to.kind, to.id), true)),
+            }
+            if *pallet_auto {
+                v.push(t("팔렛 다음 슬롯".into(), "작성 때 확인".into(), true));
+            }
+        }
+        Action::Move { to } => v.push(t("목표".into(), format!("{} {}", to.kind, to.id), true)),
+        Action::Measure { target, .. } => v.push(t("대상".into(), format!("{} {}", target.kind, target.id), true)),
+    }
+    v
+}
+
+/// 판단 기준을 한 줄로(툴팁·좁은 화면).
+pub fn trigger_inputs(rule: &Rule, w: &World) -> String {
+    rule_terms(rule, w).iter().map(|x| format!("{} {}{}", x.label, x.value, if x.ok { "" } else { " ✗" })).collect::<Vec<_>>().join(" · ")
+}
+
+/// 스테이션 인터록의 지금 값(모니터) — 규칙이 겨냥하지 않는 스테이션도 보인다.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct StationRow {
+    pub id: u16,
+    pub cvok: bool,
+    pub req: bool,
+    pub item_exist: bool,
+    /// 켠 규칙이 이 스테이션을 본다.
+    pub watched: bool,
+}
+
+/// 셀 재고의 지금 값(모니터) — 규칙이 겨냥한 셀과 재고가 있는 셀.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct CellRow {
+    pub id: u16,
+    pub item_code: u32,
+    pub count: u32,
+    pub room: Option<u32>,
+    pub watched: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct RobotRow {
+    pub id: u8,
+    pub name: String,
+    pub x: Option<f32>,
+    /// 이 로봇에 생성 작업이 이미 있다(예정·진행 중).
+    pub busy: bool,
+}
+
+/// 엔진이 판단에 쓰는 입력 한 벌 — 규칙과 무관하게 지금 값을 보여 준다.
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct EngineInputs {
+    pub stations: Vec<StationRow>,
+    pub cells: Vec<CellRow>,
+    pub robots: Vec<RobotRow>,
+    /// 영역 간격(0 = 검사 안 함) · 로봇당 큐 깊이 · 판정 주기.
+    pub separation_mm: f32,
+    pub queue_depth: u32,
+    pub tick_ms: u64,
+    pub updated_at: String,
 }
 
 /// 규칙 하나의 지금 상태(모니터).
@@ -236,6 +315,8 @@ pub struct RuleStatus {
     pub rule_id: String,
     pub fires: bool,
     pub inputs: String,
+    /// 조건 항목별 지금 값과 충족 여부.
+    pub terms: Vec<Term>,
     /// `off` 규칙 꺼짐 · `idle` 조건 거짓 · `busy` 이 규칙 작업이 아직 돈다 · `queued` 예정에 있다 ·
     /// `skipped` 후보 못 됨 · `waiting` 후보지만 대기 · `ready` 지금 만들 수 있다(자동이 꺼져 있으면 만들지 않는다).
     pub state: String,
@@ -670,19 +751,51 @@ mod tests {
         w.stations.insert(2101, StationPi { cvok: true, req: false, item_exist: true });
         w.stock.insert(401, (2011, 3));
         w.room.insert(402, 1);
+        let shown = |r: &Rule| rule_terms(r, &w).iter().map(|t| (t.label.clone(), t.value.clone(), t.ok)).collect::<Vec<_>>();
 
         let r = Rule { trigger: Trigger::StationReq { station: 2101, require_cvok: true }, ..rule("st", 0.0, 401, 402) };
+        assert_eq!(
+            shown(&r),
+            vec![
+                ("STATION 2101 Req".into(), "0".into(), false),
+                ("STATION 2101 CVOK".into(), "1".into(), true),
+                ("출발 셀 401 재고".into(), "3 개 / 필요 1".into(), true),
+                ("도착 셀 402 남은 칸".into(), "1 / 필요 1".into(), true),
+            ]
+        );
+        // 한 줄 요약은 못 맞춘 항목에 ✗ 를 단다.
         let s = trigger_inputs(&r, &w);
-        assert!(s.contains("Req=0") && s.contains("CVOK=1"), "{s}");
-        assert!(s.contains("출발 셀 401 재고 3/1") && s.contains("도착 셀 402 남은 칸 1/1"), "{s}");
+        assert!(s.contains("STATION 2101 Req 0 ✗") && !s.contains("CVOK 1 ✗"), "{s}");
 
         let m = Rule { trigger: Trigger::Manual, manual_requests: 2, ..rule("man", 0.0, 401, 402) };
-        assert!(trigger_inputs(&m, &w).starts_with("요청 2 건"), "{}", trigger_inputs(&m, &w));
+        assert_eq!(shown(&m)[0], ("요청 대기".into(), "2 건".into(), true));
 
-        let c = Rule { trigger: Trigger::CellStock { cell: 409, item: None, min: 2 }, action: Action::Measure { target: cell(409), item: None }, ..rule("cs", 0.0, 0, 0) };
-        assert!(trigger_inputs(&c, &w).contains("셀 409: 재고 없음"), "{}", trigger_inputs(&c, &w));
+        let c = Rule { trigger: Trigger::CellStock { cell: 409, item: Some(2013), min: 2 }, action: Action::Measure { target: cell(409), item: None }, ..rule("cs", 0.0, 0, 0) };
+        assert_eq!(shown(&c), vec![("셀 409 재고".into(), "0 개 / 조건 ≥ 2".into(), false), ("셀 409 품목".into(), "0 / 조건 2013".into(), false), ("대상".into(), "cell 409".into(), true),]);
 
         let nocv = Rule { trigger: Trigger::StationItem { station: 2101, require_cvok: false }, ..rule("it", 0.0, 401, 402) };
-        assert!(trigger_inputs(&nocv, &w).contains("CVOK 무시"), "{}", trigger_inputs(&nocv, &w));
+        assert_eq!(shown(&nocv)[0], ("STATION 2101 ItemExist".into(), "1".into(), true));
+        assert_eq!(shown(&nocv)[1], ("STATION 2101 CVOK".into(), "무시".into(), true));
+
+        // GRM 에서 못 읽는 스테이션은 그 사실이 항목으로 남는다 — 조건이 조용히 거짓이 되지 않게.
+        let gone = Rule { trigger: Trigger::StationReq { station: 2999, require_cvok: true }, ..rule("no", 0.0, 401, 402) };
+        assert_eq!(shown(&gone)[0], ("STATION 2999".into(), "GRM 에서 못 읽음".into(), false));
+
+        // 자동 셀은 값이 아니라 "자동" 이라고 말한다(재고·칸은 고를 때 본다).
+        let auto = Rule {
+            action: Action::Transfer {
+                from: cell(0),
+                to: cell(0),
+                item: None,
+                count: 1,
+                from_auto: Some(CellPick { order: "oldest".into(), ..Default::default() }),
+                to_auto: Some(CellPick::default()),
+                pallet_auto: false,
+            },
+            ..rule("au", 0.0, 0, 0)
+        };
+        let a = shown(&auto);
+        assert_eq!(a[1], ("출발 셀".into(), "자동 선택(oldest)".into(), true));
+        assert_eq!(a[2], ("도착 셀".into(), "자동 선택(가까운 순)".into(), true));
     }
 }

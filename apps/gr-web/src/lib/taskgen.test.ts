@@ -5,8 +5,11 @@ import {
   formatMap,
   newRule,
   parseMap,
+  criteriaRows,
   ruleState,
   triggerLabel,
+  type GenRule,
+  type GenRuleStatus,
 } from './taskgen'
 
 describe('taskgen helpers', () => {
@@ -58,7 +61,11 @@ describe('taskgen helpers', () => {
     const base = {
       rule_id: 'r1',
       fires: true,
-      inputs: 'STATION 2101: Req=1 CVOK=1',
+      inputs: 'STATION 2101 Req 1 · STATION 2101 CVOK 1',
+      terms: [
+        { label: 'STATION 2101 Req', value: '1', ok: true },
+        { label: 'STATION 2101 CVOK', value: '1', ok: true },
+      ],
       reason: null,
       age_min: 2.5,
       generated: 3,
@@ -79,10 +86,50 @@ describe('taskgen helpers', () => {
     const waiting = ruleState({ ...base, state: 'waiting', reason: '영역 겹침 — GR2 대기' }, true)
     expect(waiting.tone).toBe('warn')
     expect(waiting.title).toContain('영역 겹침')
-    expect(waiting.title).toContain('Req=1')
+    expect(waiting.title).toContain('STATION 2101 Req 1')
     expect(waiting.title).toContain('2.5분')
     expect(waiting.title).toContain('만든 3건')
 
     expect(ruleState(undefined, true).label).toBe('—')
+  })
+  it('판단 기준 목록은 규칙마다 조건 항목을 펼친다', () => {
+    const rule = (id: string, name: string, enabled: boolean): GenRule => ({
+      id,
+      name,
+      enabled,
+      trigger: { kind: 'manual' },
+      action: { kind: 'move', to: { kind: 'cell', id: 401 } },
+      robots: [],
+      priority: 0,
+    })
+    const status = (id: string, terms: { label: string; value: string; ok: boolean }[]) =>
+      ({
+        rule_id: id,
+        fires: true,
+        inputs: '',
+        terms,
+        state: 'ready',
+        reason: null,
+        age_min: 0,
+        generated: 0,
+        last_generated_at: null,
+      }) as GenRuleStatus
+
+    const rows = criteriaRows(
+      [rule('a', '셀 비우기', true), rule('b', '꺼진 것', false), rule('c', '상태 없음', true)],
+      [
+        status('a', [
+          { label: '요청 대기', value: '1 건', ok: true },
+          { label: '목표', value: 'cell 401', ok: true },
+        ]),
+        status('b', [{ label: '요청 대기', value: '0 건', ok: false }]),
+      ],
+    )
+    expect(rows.map((r) => [r.ruleName, r.label, r.ok, r.enabled])).toEqual([
+      ['셀 비우기', '요청 대기', true, true],
+      ['셀 비우기', '목표', true, true],
+      ['꺼진 것', '요청 대기', false, false],
+    ])
+    expect(new Set(rows.map((r) => r.key)).size).toBe(3)
   })
 })
