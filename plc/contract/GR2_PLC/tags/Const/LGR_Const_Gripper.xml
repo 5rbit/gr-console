@@ -1277,6 +1277,130 @@
           </MultilingualText>
         </ObjectList>
       </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="CE" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>USInt</DataTypeName>
+          <Name>GRIP_RS_WAIT</Name>
+          <Value>0</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="CF" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="D0" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text>Request FC result : not sent yet (busy) or result belongs to another owner</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="D1" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="D2" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>요청 함수 결과 : 보내지 못함 (다른 요청 진행 중) 또는 다른 요청자의 결과</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="D3" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>USInt</DataTypeName>
+          <Name>GRIP_RS_BUSY</Name>
+          <Value>1</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="D4" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="D5" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text>Request FC result : sent / in progress</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="D6" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="D7" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>요청 함수 결과 : 보냄 / 진행 중</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="D8" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>USInt</DataTypeName>
+          <Name>GRIP_RS_DONE</Name>
+          <Value>2</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="D9" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="DA" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text>Request FC result : done</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="DB" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="DC" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>요청 함수 결과 : 완료</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
+      <SW.Tags.PlcUserConstant ID="DD" CompositionName="UserConstants">
+        <AttributeList>
+          <DataTypeName>USInt</DataTypeName>
+          <Name>GRIP_RS_ERROR</Name>
+          <Value>3</Value>
+        </AttributeList>
+        <ObjectList>
+          <MultilingualText ID="DE" CompositionName="Comment">
+            <ObjectList>
+              <MultilingualTextItem ID="DF" CompositionName="Items">
+                <AttributeList>
+                  <Culture>en-US</Culture>
+                  <Text>Request FC result : error or rejected (CL_Gripper.Result.ErrorCode / Reject)</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="E0" CompositionName="Items">
+                <AttributeList>
+                  <Culture>hu-HU</Culture>
+                  <Text />
+                </AttributeList>
+              </MultilingualTextItem>
+              <MultilingualTextItem ID="E1" CompositionName="Items">
+                <AttributeList>
+                  <Culture>ko-KR</Culture>
+                  <Text>요청 함수 결과 : 에러 또는 거부 (CL_Gripper.Result.ErrorCode / Reject)</Text>
+                </AttributeList>
+              </MultilingualTextItem>
+            </ObjectList>
+          </MultilingualText>
+        </ObjectList>
+      </SW.Tags.PlcUserConstant>
     </ObjectList>
   </SW.Tags.PlcTagTable>
 </Document>

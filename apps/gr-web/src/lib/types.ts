@@ -867,7 +867,7 @@ export interface WebMon {
 }
 
 /**
- * WEBMON.Gripper — 센서·상태 요약. `Code` 부터는 GR2 `FB_Gripper`(2026-09-25) 요약이라 옛 레이아웃(GR1)에는 없다.
+ * WEBMON.Gripper — 센서·상태 요약. `Code` 부터는 GR2 `FB_CL_Gripper`(2026-09-25) 요약이라 옛 레이아웃(GR1)에는 없다.
  * `Code` = GRIP_ST_*, `Mode` = GRIP_* 요청, `ErrorCode` = GRIP_E_*, 토크는 % (모터 정격 대비), `Force_N` 은 타이어 힘 환산.
  */
 export interface WebMonGripper {
@@ -1233,7 +1233,7 @@ export interface LaserSnapshot {
 }
 
 // ── 그리퍼 (/api/robots/{id}/gripper) ───────────────────────────────────────────
-// GR2 FB_Gripper 모니터. `live` 는 WEBMON.Gripper 그대로 + G 축 위치 + 이름, `tune` 은 GRIP_TUNE.Tune(JSON 0-based:
+// GR2 FB_CL_Gripper 모니터. `live` 는 WEBMON.Gripper 그대로 + G 축 위치 + 이름, `tune` 은 GRIP_TUNE.Tune(JSON 0-based:
 // Mech[0] = PLC Mech[1] 파지 속도 곡선, Mech[1] = Mech[2] 느린 측정 속도; ScaleByInch[0] = 12 인치).
 
 export interface GripperLive extends WebMonGripper {
@@ -1281,8 +1281,32 @@ export interface GripperSnapshot {
   tune: GripperTune | null
   tune_at: string | null
   tune_error: string | null
-  /** PARA.Machine.G_* · PARA.Task.G_* (없는 멤버는 빠진다) */
+  /** PARA.Machine.G_* · PARA.Task.G_* · PARA.Timeout.G_Inch<n>_* (없는 멤버는 빠진다) */
   para: Record<string, number>
+  /** 인치 구간 수동 토크(p1040~p1059) 판정 — 서버가 PLC `GripperInchPct` 규칙으로 계산. 구버전 응답엔 없다. */
+  inch_bands?: GripperInchBands
+}
+
+export interface GripperInchBand {
+  n: number
+  min: number
+  max: number
+  open_pct: number
+  meas_pct: number
+  /** Min < Max */
+  valid: boolean
+  /** 첫 매칭 구간 */
+  active: boolean
+  /** Fallback 이 켜져 있고 활성 구간의 % > 0 — 구간 % 가 총량을 정하는 중 */
+  applied: boolean
+}
+
+export interface GripperInchBands {
+  /** 판정에 쓴 인치(null = 모름) */
+  inch: number | null
+  /** 어디서 온 인치인가 — WEBMON.Gripper.Inch 반올림 근사 */
+  inch_source: string
+  bands: GripperInchBand[]
 }
 
 // ── PARA (/api/para?robot=) ─────────────────────────────────────────────────────

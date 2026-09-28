@@ -547,6 +547,13 @@ impl DemoWorld {
             set_db(&mut models, "PARA", "/Machine/ID", json!(r.machine_id));
             // a per-robot PARA value so the PARA page visibly changes with the robot
             set_db(&mut models, "PARA", "/Machine/XLength", json!(28_000 + 4_000 * r.gr_index as u32));
+            // 그리퍼 인치 구간 기본 창(p1040~p1059, TIA V1.6.1 시작값) — % 는 0(자동), 구간 2 만 예시로 파지 35 %
+            for (n, (lo, hi)) in [(12.0, 14.5), (14.5, 16.5), (16.5, 18.5), (18.5, 20.5), (20.5, 24.5)].into_iter().enumerate() {
+                let n = n + 1;
+                set_db(&mut models, "PARA", &format!("/Timeout/G_Inch{n}_Min"), json!(lo));
+                set_db(&mut models, "PARA", &format!("/Timeout/G_Inch{n}_Max"), json!(hi));
+                set_db(&mut models, "PARA", &format!("/Timeout/G_Inch{n}_OpenPct"), json!(if n == 2 { 35.0 } else { 0.0 }));
+            }
             set_db(&mut grm_models, "OPCUA", &format!("/GR/{}/STAT/ComponentID", r.gr_index), json!(r.dst));
             if let Some(db) = models.get_mut("CELL") {
                 set(db, "/Count", json!(cells.len()));
@@ -1064,7 +1071,7 @@ impl Side {
                     }
                 }
                 500 => {
-                    // FB_Gripper events are GR2-only (catalog plc = ["GR2"]): a contract without GRIP_E_* has no gripper FB
+                    // FB_CL_Gripper events are GR2-only (catalog plc = ["GR2"]): a contract without GRIP_E_* has no gripper FB
                     let fb = self.contract.consts.contains_key("GRIP_E_TIMEOUT");
                     let g = (f64::from(t.item.inner_diameter) * 10.0) as i32;
                     if fb {
@@ -1205,7 +1212,7 @@ impl Side {
         let gid = self.now.as_ref().map(|r| laser_gid(&r.task, f64::from(axis[2]), f64::from(axis[3]), tick)).unwrap_or([LASER_FAR; 4]);
         let step_secs = self.now.as_ref().map(|r| r.step_at.elapsed().as_secs_f64()).unwrap_or(0.0);
         let msg = format!("{} Step {step}", self.plc);
-        // FB_Gripper 요약 (WEBMON.Gripper 확장): 학습 중 > 파지 중(HOLDING) > 측정 중 > 벌린 채 정지(RELEASED)
+        // FB_CL_Gripper 요약 (WEBMON.Gripper 확장): 학습 중 > 파지 중(HOLDING) > 측정 중 > 벌린 채 정지(RELEASED)
         let gripper = {
             let g = f64::from(axis[3]);
             let g_settled = (target[3] - axis[3]).abs() <= 1.0;
