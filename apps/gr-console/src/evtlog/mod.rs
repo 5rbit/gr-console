@@ -21,13 +21,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
-use evt_catalog::{AlarmTable, Catalog};
+use evt_catalog::Catalog;
 use serde::Serialize;
 use tokio::sync::{broadcast, mpsc};
 
 use crate::config::{EvtLogCfg, PlcCfg};
 use crate::plc::{PlcHandle, Tier};
-pub use catalog::{EventRow, Texts, now_ms};
+pub use catalog::{EventRow, PlcTexts, Texts, now_ms};
 use collect::{Header, RingGeo};
 use store::{CollState, Origin, Row, Store};
 
@@ -109,11 +109,12 @@ pub struct EvtLog {
 
 impl EvtLog {
     /// Opens `events.db`, starts the writer thread and installs the global console sink (first call only).
-    /// `plcs` = (config name, contract constants, alarm table) for rendering.
-    pub fn start(cfg: EvtLogCfg, path: &Path, catalog: Arc<Catalog>, plcs: Vec<(String, &HashMap<String, i64>, AlarmTable)>) -> anyhow::Result<Arc<EvtLog>> {
+    /// `texts` = catalog + per-PLC renderers (contract constants, alarms.json, errorlist.json).
+    pub fn start(cfg: EvtLogCfg, path: &Path, texts: Texts) -> anyhow::Result<Arc<EvtLog>> {
         let writer = Store::open(path)?;
         let store = Store::open(path)?;
-        let texts = Arc::new(Texts::new(catalog.clone(), plcs));
+        let catalog = texts.catalog.clone();
+        let texts = Arc::new(texts);
         let (tx, rx) = mpsc::channel(QUEUE);
         let _ = SINK.set(Sink { tx: tx.clone(), catalog, dropped: AtomicU64::new(0) });
         let me = EvtLog::assemble(cfg, texts, store, writer, tx, rx);
@@ -140,7 +141,12 @@ impl EvtLog {
 
     #[cfg(test)]
     pub fn memory(catalog: Arc<Catalog>) -> Arc<EvtLog> {
-        let texts = Arc::new(Texts::new(catalog, vec![]));
+        EvtLog::memory_with(Texts::new(catalog, vec![], ""))
+    }
+
+    #[cfg(test)]
+    pub fn memory_with(texts: Texts) -> Arc<EvtLog> {
+        let texts = Arc::new(texts);
         let (tx, rx) = mpsc::channel(QUEUE);
         let store = Store::memory();
         EvtLog::assemble(EvtLogCfg::default(), texts, store.clone(), store, tx, rx)
@@ -399,7 +405,7 @@ fn raise_alerts(store: &Store, texts: &Texts, engine: &alerts::Engine, tx: &broa
             e.detail.unwrap_or_default()
         )
     };
-    let fires = engine.evaluate(done, &render);
+    let fires = engine.evaluate(done, &render, &|r| texts.classify(r));
     if fires.is_empty() {
         return;
     }

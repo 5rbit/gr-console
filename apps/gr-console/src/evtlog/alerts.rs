@@ -10,7 +10,8 @@ use std::sync::{Mutex, PoisonError, RwLock};
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post, put};
-use evt_catalog::Catalog;
+use evt_catalog::errorlist::parse_label;
+use evt_catalog::{Catalog, Class, Trans, Ty};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json};
 
@@ -44,6 +45,12 @@ pub struct RuleMatch {
     /// Exact value of A (on/off events: 1 = ON only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub a_eq: Option<i64>,
+    /// ErrorList types (Alarm, Warn, Operator, Info, Task), any of them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub types: Vec<String>,
+    /// raise / clear / momentary / summary.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trans: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -69,6 +76,10 @@ pub struct Compiled {
     min_lvl: Option<u8>,
     text: Option<String>,
     a_eq: Option<i64>,
+    /// ErrorList codes (`F0202`) from `codes`.
+    ecodes: Vec<String>,
+    types: Vec<Ty>,
+    trans: Option<Trans>,
     cooldown_ms: i64,
 }
 
@@ -85,9 +96,11 @@ pub fn compile(r: &Rule, cat: &Catalog) -> Result<Compiled, String> {
     let cat_id = blank(&m.cat).map(|c| c.parse::<u8>().ok().or_else(|| cat.cat_id(c)).ok_or_else(|| format!("cat: {c} 를 모릅니다"))).transpose()?;
     let min_lvl = blank(&m.min_lvl).map(|l| l.parse::<u8>().ok().or_else(|| cat.level_id(l)).ok_or_else(|| format!("min_lvl: {l} 를 모릅니다"))).transpose()?;
     let mut codes = Vec::new();
+    let mut ecodes = Vec::new();
     for c in m.codes.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
         match c.parse::<u32>() {
             Ok(n) => codes.push((None, n)),
+            Err(_) if parse_label(c).is_some() => ecodes.push(c.to_ascii_uppercase()),
             Err(_) => {
                 let e = cat.event_by_name(c).ok_or_else(|| format!("codes: {c} 이벤트를 모릅니다"))?;
                 codes.push((Some(e.cat), e.code.map(u32::from).unwrap_or(0)));
@@ -103,13 +116,17 @@ pub fn compile(r: &Rule, cat: &Catalog) -> Result<Compiled, String> {
         min_lvl,
         text: blank(&m.text_contains).map(str::to_lowercase),
         a_eq: m.a_eq,
+        ecodes,
+        types: m.types.iter().map(|t| Ty::parse(t).ok_or_else(|| format!("types: {t} (Alarm | Warn | Operator | Info | Task)"))).collect::<Result<_, _>>()?,
+        trans: blank(&m.trans).map(|t| Trans::parse(t).ok_or_else(|| format!("trans: {t} (raise | clear | momentary | summary)"))).transpose()?,
         cooldown_ms: i64::from(r.cooldown_s) * 1000,
     })
 }
 
 impl Compiled {
-    /// `text` = lower-cased rendered text + name + detail (only asked for when the rule has `text_contains`).
-    pub fn matches(&self, r: &Row, text: &mut dyn FnMut() -> String) -> bool {
+    /// `text` = lower-cased rendered text + name + detail (only asked for when the rule has `text_contains`),
+    /// `class` = the row's ErrorList class (only asked for when the rule names types, a transition or ErrorList codes).
+    pub fn matches(&self, r: &Row, text: &mut dyn FnMut() -> String, class: &mut dyn FnMut() -> Option<Class>) -> bool {
         if self.plc.as_ref().is_some_and(|p| !p.eq_ignore_ascii_case(&r.plc)) {
             return false;
         }
@@ -119,7 +136,20 @@ impl Compiled {
         if self.min_lvl.is_some_and(|l| r.lvl < l) {
             return false;
         }
-        if !self.codes.is_empty() && !self.codes.iter().any(|(k, c)| *c == r.code && k.is_none_or(|k| k == r.cat)) {
+        let by_code = self.codes.iter().any(|(k, c)| *c == r.code && k.is_none_or(|k| k == r.cat));
+        if !self.types.is_empty() || self.trans.is_some() || !self.ecodes.is_empty() {
+            let c = class();
+            if !self.types.is_empty() && !c.as_ref().is_some_and(|c| self.types.contains(&c.ty)) {
+                return false;
+            }
+            if self.trans.is_some() && c.as_ref().and_then(|c| c.trans) != self.trans {
+                return false;
+            }
+            let by_ecode = c.as_ref().and_then(|c| c.code.as_ref()).is_some_and(|x| self.ecodes.contains(x));
+            if (!self.codes.is_empty() || !self.ecodes.is_empty()) && !by_ecode && !by_code {
+                return false;
+            }
+        } else if !self.codes.is_empty() && !by_code {
             return false;
         }
         if self.a_eq.is_some_and(|a| a != r.a) {
@@ -158,7 +188,7 @@ impl Engine {
     }
 
     /// Rules in order; within one batch a rule's cooldown already counts its earlier hits.
-    pub fn evaluate(&self, rows: &[(i64, Row)], render: &dyn Fn(i64, &Row) -> String) -> Vec<Fire> {
+    pub fn evaluate(&self, rows: &[(i64, Row)], render: &dyn Fn(i64, &Row) -> String, classify: &dyn Fn(&Row) -> Option<Class>) -> Vec<Fire> {
         let rules = self.rules.read().unwrap_or_else(PoisonError::into_inner);
         if rules.is_empty() {
             return Vec::new();
@@ -171,8 +201,10 @@ impl Engine {
             }
             let mut cache: Option<String> = None;
             let mut text = || cache.get_or_insert_with(|| render(*id, r).to_lowercase()).clone();
+            let mut class_cache: Option<Option<Class>> = None;
+            let mut class = || class_cache.get_or_insert_with(|| classify(r)).clone();
             for rule in rules.iter() {
-                if !rule.matches(r, &mut text) {
+                if !rule.matches(r, &mut text, &mut class) {
                     continue;
                 }
                 if last.get(&rule.id).is_some_and(|t| r.rx_ts - t < rule.cooldown_ms) {
@@ -459,23 +491,58 @@ mod tests {
             let s = t.text(r).to_lowercase();
             move || s.clone()
         };
-        assert!(ems.matches(&r_ems, &mut text_of(&r_ems)));
-        assert!(!ems.matches(&r_grip, &mut text_of(&r_grip)));
-        assert!(err.matches(&r_ems, &mut text_of(&r_ems)) && !err.matches(&r_grip, &mut text_of(&r_grip)));
-        assert!(grip.matches(&r_grip, &mut text_of(&r_grip)), "plc is case-insensitive, text over the rendered text");
+        assert!(ems.matches(&r_ems, &mut text_of(&r_ems), &mut || t.classify(&r_ems)));
+        assert!(!ems.matches(&r_grip, &mut text_of(&r_grip), &mut || t.classify(&r_grip)));
+        assert!(err.matches(&r_ems, &mut text_of(&r_ems), &mut || t.classify(&r_ems)) && !err.matches(&r_grip, &mut text_of(&r_grip), &mut || t.classify(&r_grip)));
+        assert!(grip.matches(&r_grip, &mut text_of(&r_grip), &mut || t.classify(&r_grip)), "plc is case-insensitive, text over the rendered text");
         let mut other = r_grip.clone();
         other.plc = "GR1".into();
-        assert!(!grip.matches(&other, &mut text_of(&other)));
-        assert!(num.matches(&r_grip, &mut text_of(&r_grip)), "a bare number matches the code in any category");
+        assert!(!grip.matches(&other, &mut text_of(&other), &mut || t.classify(&other)));
+        assert!(num.matches(&r_grip, &mut text_of(&r_grip), &mut || t.classify(&r_grip)), "a bare number matches the code in any category");
         let ems_on = compile(&rule(6, RuleMatch { codes: vec!["SAFE_GRM_EMS".into()], a_eq: Some(1), ..Default::default() }, 0), &cat).unwrap();
         let mut ems_off = r_ems.clone();
         ems_off.a = 0;
-        assert!(ems_on.matches(&r_ems, &mut text_of(&r_ems)) && !ems_on.matches(&ems_off, &mut text_of(&ems_off)), "a_eq picks ON only");
+        assert!(ems_on.matches(&r_ems, &mut text_of(&r_ems), &mut || t.classify(&r_ems)) && !ems_on.matches(&ems_off, &mut text_of(&ems_off), &mut || t.classify(&ems_off)), "a_eq picks ON only");
         assert_eq!(grip.text.as_deref(), Some("stoppos"), "lower-cased once");
         // bad names are refused up front
         assert!(compile(&rule(5, RuleMatch { codes: vec!["NOPE".into()], ..Default::default() }, 0), &cat).is_err());
         assert!(compile(&rule(5, RuleMatch { min_lvl: Some("LOUD".into()), ..Default::default() }, 0), &cat).is_err());
         assert!(compile(&Rule { name: " ".into(), ..rule(5, RuleMatch::default(), 0) }, &cat).is_err());
+    }
+
+    #[test]
+    fn rules_match_errorlist_types_transitions_and_codes() {
+        let cat = crate::evtlog::catalog::embedded();
+        let t = texts();
+        let alarm_raise = compile(&rule(1, RuleMatch { types: vec!["alarm".into()], trans: Some("raise".into()), ..Default::default() }, 0), &cat).unwrap();
+        let task = compile(&rule(2, RuleMatch { types: vec!["Task".into()], ..Default::default() }, 0), &cat).unwrap();
+        let by_code = compile(&rule(3, RuleMatch { codes: vec!["f3118".into(), "CMD_EMS".into()], ..Default::default() }, 0), &cat).unwrap();
+        let m = |c: &Compiled, r: &Row| c.matches(r, &mut || String::new(), &mut || t.classify(r));
+        let v2_raise = raw("GR2", 1, 0, 6, 4, 13118, 1, 400, 0, 0);
+        let v2_clear = raw("GR2", 1, 0, 6, 4, 23118, 1, 2, 5_000, 0);
+        let old_raise = raw("GR2", 1, 0, 6, 4, 601, 1, 593, 0, 0); // F3118 by alarms.json
+        let warn = raw("GR2", 1, 0, 6, 3, 11101, 2, 0, 0, 0);
+        let task_v2 = raw("GR2", 1, 0, 19, 2, 30301, 1, 101, 7, 7);
+        let grm_i0301 = raw("GRM", 1, 0, 19, 2, 30301, 1, 3000, 0, 0); // GRM I0301 is an INFO row
+        let accepted = raw("GR2", 1, 0, 4, 2, 401, 1, 101, 7, 7); // old TASK_ACCEPTED → I0301
+        assert!(m(&alarm_raise, &v2_raise) && m(&alarm_raise, &old_raise));
+        assert!(!m(&alarm_raise, &v2_clear) && !m(&alarm_raise, &warn), "clear / other type");
+        assert!(m(&task, &task_v2) && m(&task, &accepted) && !m(&task, &grm_i0301));
+        assert!(m(&by_code, &v2_raise) && m(&by_code, &v2_clear) && m(&by_code, &old_raise), "ErrorList code on v2 and old rows");
+        assert!(!m(&by_code, &warn));
+        assert!(m(&by_code, &raw("GR2", 1, 0, 5, 4, 502, 0, 1, 0, 0)), "catalog names still match");
+        assert!(compile(&rule(4, RuleMatch { types: vec!["Loud".into()], ..Default::default() }, 0), &cat).is_err());
+        assert!(compile(&rule(4, RuleMatch { trans: Some("up".into()), ..Default::default() }, 0), &cat).is_err());
+        // the engine classifies a row once for all rules
+        let e = Engine::default();
+        e.set_rules(vec![alarm_raise, task]);
+        let calls = std::cell::Cell::new(0);
+        let f = e.evaluate(&[(1, v2_raise.clone()), (2, task_v2.clone())], &|_, _| String::new(), &|r| {
+            calls.set(calls.get() + 1);
+            t.classify(r)
+        });
+        assert_eq!(f.iter().map(|x| (x.rule_id, x.event_id)).collect::<Vec<_>>(), vec![(1, 1), (2, 2)]);
+        assert_eq!(calls.get(), 2);
     }
 
     #[test]
@@ -494,17 +561,17 @@ mod tests {
         let render = |_: i64, _: &Row| String::new();
         // first ERROR fires, the second 5 s later is inside the 10 s cooldown, the third is past it
         let rows = vec![(1, at(1_000, 601)), (2, at(6_000, 601)), (3, at(12_000, 604))];
-        let f = e.evaluate(&rows, &render);
+        let f = e.evaluate(&rows, &render, &|_| None);
         assert_eq!(f.iter().map(|x| (x.rule_id, x.event_id)).collect::<Vec<_>>(), vec![(1, 1), (1, 3), (2, 3)]);
         // the cooldown carries over to the next batch
-        assert!(e.evaluate(&[(4, at(13_000, 601))], &render).is_empty());
+        assert!(e.evaluate(&[(4, at(13_000, 601))], &render, &|_| None).is_empty());
         // backlog: stored 11 min after it happened
         let mut old = at(100_000, 604);
         old.rx_ts = old.plc_ts + 11 * 60_000;
-        assert!(e.evaluate(&[(5, old)], &render).is_empty());
+        assert!(e.evaluate(&[(5, old)], &render, &|_| None).is_empty());
         // cooldown restored from the store
         e.set_last([(2, 200_000)].into_iter().collect());
-        assert_eq!(e.evaluate(&[(6, at(150_000, 604))], &render).len(), 1, "rule 2 has no cooldown");
+        assert_eq!(e.evaluate(&[(6, at(150_000, 604))], &render, &|_| None).len(), 1, "rule 2 has no cooldown");
     }
 
     #[test]
@@ -512,7 +579,8 @@ mod tests {
         let t = texts();
         let s = Store::memory();
         let seeded = rules(&s).unwrap();
-        assert_eq!(seeded.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), vec!["ERROR 레벨 전체", "EMS", "FAULT 전환"]);
+        assert_eq!(seeded.iter().map(|r| (r.name.as_str(), r.enabled)).collect::<Vec<_>>(), vec![("Alarm 발생", true), ("EMS", true), ("FAULT 전환", false)]);
+        assert_eq!(seeded[0].m, RuleMatch { types: vec!["Alarm".into()], trans: Some("raise".into()), ..Default::default() });
         let cat = crate::evtlog::catalog::embedded();
         assert!(seeded.iter().all(|r| compile(r, &cat).is_ok()), "the seeded rules name real events");
         let mut r = rule(0, RuleMatch { cat: Some("GRIP".into()), ..Default::default() }, 30);

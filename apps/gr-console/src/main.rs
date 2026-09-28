@@ -490,10 +490,12 @@ fn open_evtlog(cfg: &Config, contracts: &HashMap<String, Arc<Contract>>, contrac
             }),
             Err(_) => Default::default(),
         };
-        tracing::info!(plc = %p.name, alarms = alarms.entries.len(), "evtlog renderer");
-        plcs.push((p.name.clone(), &c.consts, alarms));
+        let errorlist = evtlog::catalog::load_errorlist(&contract_root.join(&p.contract).join("errorlist.json"));
+        tracing::info!(plc = %p.name, alarms = alarms.entries.len(), errorlist = errorlist.entries.len(), "evtlog renderer");
+        plcs.push(evtlog::PlcTexts { name: p.name.clone(), consts: &c.consts, alarms, errorlist, grm: matches!(p.role, config::PlcRole::Grm) });
     }
-    match evtlog::EvtLog::start(cfg.evtlog.clone(), &cfg.paths.data_dir.join("events.db"), catalog, plcs) {
+    let texts = evtlog::Texts::new(catalog, plcs, &evtlog::catalog::load_formats(&cfg.evtlog.catalog));
+    match evtlog::EvtLog::start(cfg.evtlog.clone(), &cfg.paths.data_dir.join("events.db"), texts) {
         Ok(l) => Some(l),
         Err(e) => {
             tracing::error!("evtlog disabled: events.db: {e:#}");
