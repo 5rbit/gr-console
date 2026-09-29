@@ -103,6 +103,9 @@ import type {
   TaskType,
 } from '../../lib/types'
 import { SyncIssuesDialog } from './SyncIssuesDialog'
+import { AreaStrip } from './AreaStrip'
+import { AnticolDialog } from './AnticolDialog'
+import type { AreaView } from '../../lib/types'
 import { cn } from '../../lib/utils'
 
 const TYPES: TaskType[] = ['PICK', 'DROP', 'MEASURE', 'MOVE']
@@ -244,6 +247,8 @@ export interface PlanCardProps {
   sync?: readonly SyncIssue[]
   /** 두 로봇 영역 간격(mm) — 이웃한 다른 로봇 스텝의 X 거리 경고. */
   anticolSep?: number | null
+  /** 영역 띠에서 간격·사용을 바꿨을 때(표의 정적 경고도 새 값으로). */
+  onAnticolChange?: (cfg: { separation_mm: number; enabled: boolean }) => void
 }
 
 export function PlanCard({
@@ -270,6 +275,7 @@ export function PlanCard({
   handNow = null,
   sync = [],
   anticolSep = null,
+  onAnticolChange,
 }: PlanCardProps) {
   const [syncOpen, setSyncOpen] = useState(false)
   // 지울 스텝(짝은 같이) — 확인 창이 로봇과 짝을 말한다.
@@ -378,6 +384,44 @@ export function PlanCard({
   const nextGate = otherRobot ? stepGate : gate
   const nextPlc = robots.byId(nextRobotId)?.plc ?? null
   const queue = robotQueueCount(tasks.list, nextPlc)
+
+  // ── 두 로봇 영역: 다음 스텝이 지금 나갈 수 있는지 서버(제출 게이트와 같은 판정)에 1초마다 묻는다.
+  // 막히면 띠가 붉고, 자동 제출은 실패로 멈추지 않고 기다린다.
+  const firstX = first
+    ? first.target.kind === 'cell'
+      ? (cells.find((c) => c.id === first.target.id)?.position[0] ?? null)
+      : (stations.find((c) => c.id === first.target.id)?.info.position[0] ?? null)
+    : null
+  const twoRobots = robots.list.length > 1
+  const [areaView, setAreaView] = useState<AreaView | null>(null)
+  const [areaNonce, setAreaNonce] = useState(0)
+  const [anticolOpen, setAnticolOpen] = useState(false)
+  /** 방금 제출이 영역 대기 409 로 돌아왔다 — 잠깐 기다린 뒤 다시 판단(띠 판정과 서버 사이의 틈). */
+  const [areaRetry, setAreaRetry] = useState<string | null>(null)
+  useEffect(() => {
+    if (mode !== 'plan' || !twoRobots) {
+      setAreaView(null)
+      return
+    }
+    let alive = true
+    const load = () =>
+      void api
+        .anticolView(firstX === null ? null : nextRobotId, firstX)
+        .then((v) => alive && setAreaView(v))
+        .catch(() => alive && setAreaView(null))
+    load()
+    const t = visibleInterval(load, 1000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [mode, twoRobots, nextRobotId, firstX, areaNonce])
+  useEffect(() => {
+    if (!areaRetry) return
+    const t = setTimeout(() => setAreaRetry(null), 3000)
+    return () => clearTimeout(t)
+  }, [areaRetry])
+  const areaBlock = areaView?.check?.blocked ? (areaView.check.reason ?? '영역 대기') : null
   const decision = autoDecision({
     on: auto,
     busy,
@@ -387,6 +431,7 @@ export function PlanCard({
     gateOk: !!nextGate?.can_submit,
     gateReason: nextGate?.reasons.join(' · '),
     awaitingEcho: awaitingEcho(tasks.list, echoId, nextPlc),
+    areaWait: areaBlock ?? areaRetry,
   })
   const decisionKey = JSON.stringify(decision) + (first?.id ?? '')
   useEffect(() => {
@@ -679,14 +724,17 @@ export function PlanCard({
       )
       onChange(next)
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      // 영역 대기는 실패가 아니다 — 자동 제출은 상대가 비킬 때까지 기다린다(띠가 이유를 보인다).
+      if (isAuto && msg.includes('영역 대기')) {
+        setAreaRetry(msg)
+        setAreaNonce((n) => n + 1)
+        return
+      }
       // 자동 제출은 실패하면 멈춘다 — 같은 스텝을 계속 두드리지 않는다.
       if (isAuto) setAuto(false)
       toast.error(
-        robotFailure(
-          nextRobot.name,
-          isAuto ? '자동 제출 멈춤 — 제출 실패' : '제출 실패',
-          e instanceof Error ? e.message : String(e),
-        ),
+        robotFailure(nextRobot.name, isAuto ? '자동 제출 멈춤 — 제출 실패' : '제출 실패', msg),
       )
     } finally {
       inFlight.current = false
@@ -876,6 +924,14 @@ export function PlanCard({
           />
         </div>
 
+        {areaView ? (
+          <AreaStrip
+            view={areaView}
+            xs={[...cells.map((c) => c.position[0]), ...stations.map((c) => c.info.position[0])]}
+            onEdit={() => setAnticolOpen(true)}
+          />
+        ) : null}
+
         <div className="flex items-center gap-2 border-t border-line-default px-3 py-2">
           <Button
             size="sm"
@@ -943,16 +999,20 @@ export function PlanCard({
             size="sm"
             intent="primary"
             icon={<Send className="h-3.5 w-3.5" />}
-            disabled={!first || busy || auto || !nextGate?.can_submit || !!firstPairIssue}
+            disabled={
+              !first || busy || auto || !nextGate?.can_submit || !!firstPairIssue || !!areaBlock
+            }
             title={
               firstPairIssue
                 ? `PICK/DROP 짝 — ${firstPairIssue.message}`
                 : !nextGate?.can_submit
                   ? // 비활성은 침묵하지 않고 **누가 왜** 막았는지 말한다.
                     (nextGate?.reasons.join(' · ') ?? withRobotChip(nextRobot, '게이트 확인 중'))
-                  : first?.type === 'PICK'
-                    ? `PICK 을 지금 ${robotLabel(nextRobot)} 로 제출 + 짝 DROP 초안(차례에 보냄)`
-                    : `첫 스텝만 지금 ${robotLabel(nextRobot)} 로 제출`
+                  : areaBlock
+                    ? `${areaBlock} — 위 띠의 [간격] 으로 바꾸거나 상대 로봇을 비키세요`
+                    : first?.type === 'PICK'
+                      ? `PICK 을 지금 ${robotLabel(nextRobot)} 로 제출 + 짝 DROP 초안(차례에 보냄)`
+                      : `첫 스텝만 지금 ${robotLabel(nextRobot)} 로 제출`
             }
             onClick={() => setConfirmNext(true)}
             data-testid="plan-next"
@@ -1089,10 +1149,21 @@ export function PlanCard({
       >
         <div className="text-xs">
           남은 {steps.length}스텝을 로봇 큐가 <b>{autoLimit}개 이하</b>일 때마다 한 건씩
-          보냅니다(스텝의 로봇, 없으면 {robotLabel(robot)}). 제출이 실패하면 멈추고, 게이트가 닫히면
-          열릴 때까지 기다립니다.
+          보냅니다(스텝의 로봇, 없으면 {robotLabel(robot)}). 제출이 실패하면 멈추고, 게이트가
+          닫히거나 다른 로봇이 영역을 쓰고 있으면 풀릴 때까지 기다립니다.
         </div>
       </ConfirmDialog>
+      {areaView ? (
+        <AnticolDialog
+          open={anticolOpen}
+          onOpenChange={setAnticolOpen}
+          view={areaView}
+          onSaved={(cfg) => {
+            setAreaNonce((n) => n + 1)
+            onAnticolChange?.(cfg)
+          }}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={confirmNext}

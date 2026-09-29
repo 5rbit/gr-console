@@ -221,6 +221,17 @@ async fn anticol_get(State(st): State<AppState>) -> ApiResult<Json> {
     Ok(axum::Json(serde_json::to_value(crate::area::load(&st.db)).unwrap_or_default()))
 }
 
+#[derive(Deserialize)]
+struct AnticolViewQuery {
+    robot: Option<u8>,
+    x: Option<f32>,
+}
+
+/// `GET /api/anticol/view[?robot=&x=]` — 로봇별 X · 잡은 구간, 그리고 `robot` 이 목표 `x` 로 지금 나갈 수 있는지(게이트와 같은 판정).
+async fn anticol_view(State(st): State<AppState>, Query(q): Query<AnticolViewQuery>) -> ApiResult<Json> {
+    Ok(axum::Json(serde_json::to_value(crate::area::view(&st, q.robot, q.x)?).unwrap_or_default()))
+}
+
 /// `PUT /api/anticol` — 간격·사용 여부 바꾸기.
 async fn anticol_put(State(st): State<AppState>, axum::Json(b): axum::Json<crate::area::AreaConfig>) -> ApiResult<Json> {
     // 파라미터 한 곳(`params`)에 쓴다 — 범위 검사·이력도 거기서.
@@ -353,6 +364,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/stock/hand/{robot}", put(set_hand))
         .route("/api/stock/projected", get(projected))
         .route("/api/anticol", get(anticol_get).put(anticol_put))
+        .route("/api/anticol/view", get(anticol_view))
         .route("/api/stock/sync", get(sync_list))
         .route("/api/stock/sync/{robot}/resolve", post(sync_resolve))
         .route("/api/transfer-orders", get(orders))

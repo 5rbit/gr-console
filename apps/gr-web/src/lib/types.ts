@@ -650,6 +650,44 @@ export interface Gate {
   plc?: string
 }
 
+/** 공유 X 축 위의 구간(mm). */
+export interface XSpan {
+  lo: number
+  hi: number
+}
+
+/** `GET /api/anticol/view` — 두 로봇 영역(백엔드 `area::view`). */
+export interface AreaView {
+  separation_mm: number
+  enabled: boolean
+  /** 검사가 실제로 도는가(사용 + 로봇 둘 이상). */
+  active: boolean
+  /** 간격 하한 = PLC 계산 간격, 못 읽으면 null. */
+  plc_min: number | null
+  robots: {
+    id: number
+    name: string
+    x: number | null
+    /** 다른 로봇이 보는 이 로봇의 영역(지금 X + 진행 중 목표). */
+    area: XSpan | null
+    idle: boolean
+    holds_pair: boolean
+    margin: number
+  }[]
+  check: {
+    robot: number
+    x: number
+    /** 이 Task 가 잡을 구간(시작 X ~ 목표 X). */
+    mine: XSpan
+    nearest: number | null
+    gap: number | null
+    /** separation + 양쪽 여유. */
+    need: number | null
+    blocked: boolean
+    reason: string | null
+  } | null
+}
+
 // ── 시나리오 ──────────────────────────────────────────────────────────────────
 
 export interface ScenarioStep {

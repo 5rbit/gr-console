@@ -217,6 +217,86 @@ pub fn check(st: &AppState, cfg: &AreaConfig, r: &RobotCtx, x: f32, pair_drop: O
     blocker(mine, &os, cfg.separation_mm + own).cloned().map(|b| (b, mine))
 }
 
+/// 가장 빠듯한 상대 — `gap − 필요 간격` 이 가장 작은 로봇과 (간격, 필요 간격). 막힘 판정은 `blocker` 와 같다.
+pub fn tightest(mine: Interval, others: &[Reservation], sep: f32) -> Option<(&Reservation, f32, f32)> {
+    others.iter().map(|r| (r, mine.gap(r.area), sep + r.margin)).min_by(|a, b| (a.1 - a.2).total_cmp(&(b.1 - b.2)))
+}
+
+/// 화면용 한 로봇 — 지금 X 와 다른 로봇이 보는 이 로봇의 영역.
+#[derive(Clone, Debug, Serialize)]
+pub struct RobotAreaView {
+    pub id: u8,
+    pub name: String,
+    pub x: Option<f32>,
+    pub area: Option<Interval>,
+    pub idle: bool,
+    pub holds_pair: bool,
+    pub margin: f32,
+}
+
+/// 화면용 판정 — `robot` 이 목표 `x` 로 지금 나갈 수 있나(제출 게이트 `check` 와 같은 입력).
+#[derive(Clone, Debug, Serialize)]
+pub struct CheckView {
+    pub robot: u8,
+    pub x: f32,
+    pub mine: Interval,
+    /// 가장 빠듯한 상대(막히지 않았어도).
+    pub nearest: Option<u8>,
+    pub gap: Option<f32>,
+    /// 그 상대와 필요한 간격 = separation + 양쪽 여유.
+    pub need: Option<f32>,
+    pub blocked: bool,
+    pub reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct AreaView {
+    pub separation_mm: f32,
+    pub enabled: bool,
+    /// 검사가 실제로 도는가(사용 + 로봇 둘 이상).
+    pub active: bool,
+    /// 간격 하한 = PLC 계산 간격(두 로봇 중 큰 값), 못 읽으면 없음.
+    pub plc_min: Option<f64>,
+    pub robots: Vec<RobotAreaView>,
+    pub check: Option<CheckView>,
+}
+
+pub fn view(st: &AppState, robot: Option<u8>, x: Option<f32>) -> Result<AreaView, crate::error::ApiError> {
+    let cfg = load(&st.db);
+    let p = crate::params::current(&st.db);
+    let active = cfg.enabled && st.robots.len() >= 2;
+    let robots = st
+        .robots
+        .iter()
+        .map(|r| {
+            let x = robot_x(st, r);
+            let res = reservation(r.id, &r.name, x, &pending_targets(r), committed(r), None);
+            RobotAreaView {
+                id: r.id,
+                name: r.name.clone(),
+                x,
+                area: res.as_ref().map(|v| v.area),
+                idle: res.as_ref().is_none_or(|v| v.idle),
+                holds_pair: res.as_ref().is_some_and(|v| v.holds_pair),
+                margin: p.margin(r.id),
+            }
+        })
+        .collect();
+    let check = match (robot, x.filter(|v| v.is_finite())) {
+        (Some(id), Some(x)) => {
+            let r = st.robot(Some(id))?;
+            let mine = task_area(pending_targets(r).last().copied(), robot_x(st, r), x, None);
+            let os = others(st, r.id, &Default::default());
+            let sep = cfg.separation_mm + p.margin(r.id);
+            let t = tightest(mine, &os, sep);
+            let reason = if active { blocker(mine, &os, sep).map(|b| wait_reason(b, mine, cfg.separation_mm)) } else { None };
+            Some(CheckView { robot: id, x, mine, nearest: t.map(|v| v.0.robot), gap: t.map(|v| v.1), need: t.map(|v| v.2), blocked: reason.is_some(), reason })
+        }
+        _ => None,
+    };
+    Ok(AreaView { separation_mm: cfg.separation_mm, enabled: cfg.enabled, active, plc_min: crate::taskgen::routes::plc_max(st).filter(|v| *v > 0.0), robots, check })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,6 +383,18 @@ mod tests {
         }
         let moving = reservation(2, "GR2", Some(10000.0), &[12000.0], false, None).unwrap();
         assert_eq!(resolve(&moving, None, 4, mine, SEP), Resolve::Wait);
+    }
+
+    /// 화면 판정은 게이트와 같은 결론 — 오늘 현장: GR1 X 1500 에 서 있고 GR2 짝이 6305..10301.
+    #[test]
+    fn tightest_matches_blocker() {
+        let gr1 = reservation(1, "GR1", Some(1500.0), &[], false, None).unwrap();
+        let mine = Interval::span(6305.0, 10301.0);
+        let (r, gap, need) = tightest(mine, std::slice::from_ref(&gr1), 5000.0).unwrap();
+        assert_eq!((r.robot, gap, need), (1, 4805.0, 5000.0));
+        assert!(blocker(mine, std::slice::from_ref(&gr1), 5000.0).is_some());
+        assert!(blocker(mine, std::slice::from_ref(&gr1), 4800.0).is_none());
+        assert!(tightest(mine, &[], 5000.0).is_none());
     }
 
     #[test]

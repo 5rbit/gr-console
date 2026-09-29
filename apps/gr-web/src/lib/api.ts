@@ -7,6 +7,7 @@
 
 import { invalidateShared, shareGet } from './share'
 import type {
+  AreaView,
   BeadSample,
   Cell,
   CellBulkOptions,
@@ -426,6 +427,12 @@ export const api = {
     }),
   /** 두 로봇 영역 간격(기본 안전값 5000 mm, 하한 = PLC PARA 합) */
   anticol: () => getJson<{ separation_mm: number; enabled: boolean }>('/api/anticol'),
+  /** 로봇별 X · 잡은 구간 + `robot` 이 목표 `x` 로 지금 나갈 수 있는지(제출 게이트와 같은 판정) */
+  anticolView: (robot?: number | null, x?: number | null) =>
+    getJson<AreaView>(`/api/anticol/view${qs({ robot: robot ?? undefined, x: x ?? undefined })}`),
+  /** 간격·사용 바꾸기 — PLC 계산 간격보다 작으면 400 */
+  anticolSet: (cfg: { separation_mm: number; enabled: boolean }) =>
+    putJson<{ separation_mm: number; enabled: boolean }>('/api/anticol', cfg),
   /** 이송 지시 목록(최신 먼저) */
   transferOrders: (
     q: { robot?: number | null; state?: string; cell?: number; limit?: number } = {},

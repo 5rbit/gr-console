@@ -667,6 +667,9 @@ export default function TaskIssue() {
                 handNow={robots.current ? stockStore.hand(robots.current.plc) : null}
                 sync={robots.current ? stockStore.syncIssues(robots.current.plc) : []}
                 anticolSep={anticolSep}
+                onAnticolChange={(a) =>
+                  setAnticolSep(a.enabled && robots.list.length > 1 ? a.separation_mm : null)
+                }
                 gate={gate}
                 robot={chip}
                 onFocus={(s) => {

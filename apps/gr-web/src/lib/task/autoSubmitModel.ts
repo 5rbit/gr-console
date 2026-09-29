@@ -53,6 +53,11 @@ export interface AutoInput {
    * 막으므로(`ops::gate`) 그 사이에 보내면 409 로 멈춘다 — 에코가 올 때까지 기다린다.
    */
   awaitingEcho: boolean
+  /**
+   * 두 로봇 영역 대기(`/api/anticol/view` 판정 또는 방금 받은 409 사유) — 실패가 아니라 상대가 비킬 때까지 기다린다.
+   * 전에는 제출해 보고 409 로 멈췄다(2026-09-29 현장: GR1 X 1500, GR2 짝 6305.. 간격 4805 < 5000).
+   */
+  areaWait?: string | null
 }
 
 export type AutoDecision = { go: true } | { go: false; wait: string } | { go: false; done: true }
@@ -65,6 +70,7 @@ export function autoDecision(i: AutoInput): AutoDecision {
   if (i.awaitingEcho) return { go: false, wait: '직전 제출 에코 대기' }
   if (!i.gateOk)
     return { go: false, wait: i.gateReason ? `게이트 — ${i.gateReason}` : '게이트 닫힘' }
+  if (i.areaWait) return { go: false, wait: i.areaWait }
   if (i.queue > i.limit) return { go: false, wait: `큐 ${i.queue} > ${i.limit}` }
   return { go: true }
 }

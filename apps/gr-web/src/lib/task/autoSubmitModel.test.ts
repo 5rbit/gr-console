@@ -51,6 +51,11 @@ describe('autoDecision', () => {
     expect(autoDecision({ ...base, remaining: 0 })).toEqual({ go: false, done: true })
     expect(autoDecision({ ...base, on: false }).go).toBe(false)
   })
+  it('waits (does not fail) while the other robot holds the area', () => {
+    const w = '영역 대기: GR1 X 1500..1500 사용 중 — 이 Task X 6305..10301 (간격 5000 mm)'
+    expect(autoDecision({ ...base, areaWait: w })).toEqual({ go: false, wait: w })
+    expect(autoDecision({ ...base, areaWait: null })).toEqual({ go: true })
+  })
   it('keeps N inside the PLC buffer', () => {
     expect(clampLimit(9)).toBe(4)
     expect(clampLimit(-1)).toBe(0)
