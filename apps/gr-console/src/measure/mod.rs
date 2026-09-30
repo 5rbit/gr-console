@@ -3,6 +3,7 @@
 //! PLC counts its own `Seq` from 1 (migration 0006; before it GR1 and GR2 rows overwrote each other).
 
 pub mod routes;
+pub mod xlsx;
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -146,6 +147,18 @@ impl MeasureStore {
             it.collect()
         })?;
         Ok((rows.into_iter().filter_map(|s| serde_json::from_str(&s).ok()).collect(), self.max_seq()?))
+    }
+
+    /// 내보내기용 — 종류 · 코드 · 날짜(`YYYY-MM-DD`, 양끝 포함) 조건, 최신순, `limit` 건까지.
+    pub fn entries_between(&self, kind: Option<u8>, code: Option<u32>, from: Option<&str>, to: Option<&str>, limit: usize) -> Result<Vec<Json>, ApiError> {
+        let rows: Vec<String> = self.db.with(|c| {
+            let mut st = c.prepare(
+                "SELECT entry_json FROM meas_entries WHERE plc = ?1 AND (?2 IS NULL OR kind = ?2) AND (?3 IS NULL OR code = ?3) AND (?4 IS NULL OR substr(ts, 1, 10) >= ?4) AND (?5 IS NULL OR substr(ts, 1, 10) <= ?5) ORDER BY seq DESC LIMIT ?6",
+            )?;
+            let it = st.query_map((&self.plc_name, kind.map(i64::from), code.map(i64::from), from, to, limit as i64), |r| r.get::<_, String>(0))?;
+            it.collect()
+        })?;
+        Ok(rows.into_iter().filter_map(|s| serde_json::from_str(&s).ok()).collect())
     }
 
     pub fn snapshot(&self) -> Result<Json, ApiError> {

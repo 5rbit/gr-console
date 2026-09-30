@@ -13,17 +13,18 @@
 //    탭 한 칸을 먹고 있었다).
 //
 // 데이터는 **사이드바에서 고른 로봇**의 상태 피드(WEBMON SSE)와 `measlog` 스토어에서 온다.
-import { Activity } from 'lucide-react'
+import { Activity, Download } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSelectedStatus } from '../../lib/feeds'
 import { robots } from '../../lib/robots'
 import { KIND } from '../../lib/gr/const'
-import { csvFileName, downloadCsv, toCsv } from '../../lib/meas/csv'
+import { api } from '../../lib/api'
 import { dtl } from '../../lib/meas/format'
 import { codesOf, filt, flatten, totalOf } from '../../lib/meas/rows'
 import { measlog } from '../../lib/measlog'
 import { nav } from '../../lib/nav'
 import { useStore } from '../../lib/store'
+import { Button } from '../../lib/ui/Button'
 import { Dialog } from '../../lib/ui/Dialog'
 import { EmptyState } from '../../lib/ui/EmptyState'
 import { Field } from '../../lib/ui/Field'
@@ -160,9 +161,8 @@ export default function MeasureMonitor() {
   // 항목은 **열 때** 만든다 — 모듈 상수로 들면 비활성 사유가 옛 상태에 굳는다.
   const menu: MenuItem[] = [
     {
-      label: '측정 기록 CSV 내려받기',
-      disabled: filtered.length === 0 ? '내려받을 기록이 없습니다' : undefined,
-      run: () => downloadCsv(csvFileName(), toCsv(filtered)),
+      label: '측정 이력 Excel 내려받기',
+      run: () => downloadXlsx(),
     },
     {
       label: '이력 다시 읽기',
@@ -176,6 +176,20 @@ export default function MeasureMonitor() {
     },
     { label: '원본 JSON…', run: () => setRaw('webmon') },
   ]
+
+  // 화면 표는 최근 N 건만 들고 있다 — Excel 은 백엔드가 **전체** 이력에서 같은 필터로 만든다(규격 시트 · 이름 붙은 열).
+  function downloadXlsx() {
+    const a = document.createElement('a')
+    a.href = api.measlogXlsxUrl(
+      Number(kind || 0) || undefined,
+      Number(code || 0) || undefined,
+      robots.selected,
+    )
+    a.download = ''
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
 
   function clearFilter() {
     // 둘을 한 번에 — `setKind('')` → `setCode('')` 로 부르면 두 번째가 **한 렌더 전의** kind 를
@@ -247,6 +261,15 @@ export default function MeasureMonitor() {
                 ))}
               </Select>
             </Field>
+            <Button
+              size="sm"
+              icon={<Download className="h-3.5 w-3.5" />}
+              onClick={downloadXlsx}
+              title="걸린 필터로 전체 이력을 규격 Excel 로 내려받기"
+              data-testid="measure-xlsx"
+            >
+              Excel
+            </Button>
           </span>
         ) : null}
       </div>

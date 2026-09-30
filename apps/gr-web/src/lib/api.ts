@@ -230,6 +230,14 @@ export const api = {
     postJson<MeasLogSnapshot>(`/api/measlog/reload${qs({ robot })}`),
   measlogCsvUrl: (kind?: number, code?: number, robot?: number | null): string =>
     `/api/measlog/export.csv${qs({ kind, code, robot })}`,
+  /** 규격 Excel(docs/measure-export.md) — 콘솔에 쌓인 **전체** 이력에서 필터(종류 · 코드 · 날짜)에 맞는 것. */
+  measlogXlsxUrl: (
+    kind?: number,
+    code?: number,
+    robot?: number | null,
+    from?: string,
+    to?: string,
+  ): string => `/api/measlog/export.xlsx${qs({ kind, code, robot, from, to })}`,
   laser: (robot?: number | null) => getJson<LaserSnapshot>(`/api/laser${qs({ robot })}`),
   laserZCal: (enable: boolean, robot?: number | null) =>
     postJson<{ ok: boolean; enable: boolean }>(`/api/laser/zcal${qs({ robot })}`, { enable }),

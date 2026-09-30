@@ -18,6 +18,9 @@ struct EntriesQuery {
     kind: Option<u8>,
     code: Option<u32>,
     limit: Option<usize>,
+    /// 내보내기 기간(`YYYY-MM-DD`, 양끝 포함).
+    from: Option<String>,
+    to: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -95,6 +98,36 @@ async fn export_csv(State(st): State<AppState>, Query(q): Query<EntriesQuery>) -
     Ok(([(header::CONTENT_TYPE, "text/csv; charset=utf-8".to_string()), (header::CONTENT_DISPOSITION, disposition)], out))
 }
 
+/// 행 한도 — 넘으면 Info 시트에 Truncated 로 남긴다(PLC 순환 버퍼는 200 건이라 평소엔 닿지 않는다).
+const XLSX_MAX_ROWS: usize = 100_000;
+
+fn date_arg(v: Option<&str>) -> Result<Option<String>, ApiError> {
+    match v.map(str::trim).filter(|s| !s.is_empty()) {
+        None => Ok(None),
+        Some(s) if s.len() == 10 && s.as_bytes()[4] == b'-' && s.as_bytes()[7] == b'-' && s.chars().filter(char::is_ascii_digit).count() == 8 => Ok(Some(s.to_string())),
+        Some(s) => Err(ApiError::BadRequest(format!("날짜는 YYYY-MM-DD: {s}"))),
+    }
+}
+
+/// 규격 Excel(`measure::xlsx`, docs/measure-export.md) — 콘솔 DB 에 쌓인 전체 이력에서 조건에 맞는 것.
+async fn export_xlsx(State(st): State<AppState>, Query(q): Query<EntriesQuery>) -> Result<axum::response::Response, ApiError> {
+    use crate::registry::routes::{stamp, xlsx_response};
+    let r = st.robot(q.robot)?;
+    let (from, to) = (date_arg(q.from.as_deref())?, date_arg(q.to.as_deref())?);
+    let entries = r.measure.entries_between(q.kind, q.code, from.as_deref(), to.as_deref(), XLSX_MAX_ROWS + 1)?;
+    let truncated = entries.len() > XLSX_MAX_ROWS;
+    let entries = &entries[..entries.len().min(XLSX_MAX_ROWS)];
+    let meta = super::xlsx::Meta { plc: r.plc.clone(), robot: r.name.clone(), exported_at: crate::util::now_str(), kind: q.kind, code: q.code, from, to, truncated };
+    let bytes = super::xlsx::build(entries, &meta).map_err(|e| ApiError::Internal(format!("xlsx: {e}")))?;
+    let safe: String = r.plc.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').collect();
+    Ok(xlsx_response(bytes, &format!("measlog_{safe}_{}.xlsx", stamp())))
+}
+
 pub fn router() -> Router<AppState> {
-    Router::new().route("/api/measlog/snapshot", get(snapshot)).route("/api/measlog/entries", get(entries)).route("/api/measlog/reload", post(reload)).route("/api/measlog/export.csv", get(export_csv))
+    Router::new()
+        .route("/api/measlog/snapshot", get(snapshot))
+        .route("/api/measlog/entries", get(entries))
+        .route("/api/measlog/reload", post(reload))
+        .route("/api/measlog/export.csv", get(export_csv))
+        .route("/api/measlog/export.xlsx", get(export_xlsx))
 }

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import type { ByCode, MeasLogEntry, MeasLogSnapshot, MeasStat, PlcTask } from '../types'
-import { CSV_COLUMNS, toCsv } from './csv'
 import { METRICS } from './const'
 import { f1, f2, flagStr, tt } from './format'
 import { codesOf, filt, flatten, summary, totalOf } from './rows'
@@ -126,18 +125,6 @@ describe('trend', () => {
     expect(s.min).toBe(1)
     expect(nearest(pts, 100, (x) => x * 50)).toEqual(pts[1])
     expect(nearest(pts, 500, (x) => x * 50)).toBeNull()
-  })
-})
-
-describe('csv', () => {
-  it('has header, BOM and 20 data columns', () => {
-    const rows = flatten([entry(1, 1, [2, 381])])
-    const text = toCsv(rows)
-    expect(text.charCodeAt(0)).toBe(0xfeff)
-    const lines = text.slice(1).trimEnd().split('\n')
-    expect(lines[0].split(',').length).toBe(CSV_COLUMNS.length + 20)
-    expect(lines[1].split(',').length).toBe(CSV_COLUMNS.length + 20)
-    expect(lines[1]).toContain('381')
   })
 })
 
