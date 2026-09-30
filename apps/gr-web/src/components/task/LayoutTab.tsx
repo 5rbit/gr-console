@@ -22,7 +22,15 @@ import { useStore } from '../../lib/store'
 import { tasks } from '../../lib/tasks'
 import type { Shape } from '../../lib/task/layoutModel'
 import type { PreviewCell } from '../../lib/task/layoutGen'
-import { PLAN_KINDS, gripOffset, nextType, type PlanKind, type PlanStep } from '../../lib/task/plan'
+import {
+  MEASURE_ROUTES,
+  PLAN_KINDS,
+  gripOffset,
+  nextType,
+  routeKindOf,
+  type PlanKind,
+  type PlanStep,
+} from '../../lib/task/plan'
 import { Button } from '../../lib/ui/Button'
 import { InfoRows } from '../../lib/ui/Pair'
 import { f1 } from '../../lib/meas/format'
@@ -331,19 +339,21 @@ export function LayoutTab({
       </span>
     ) : null
 
-  // Teaching 은 보통 **모든 셀**을 돈다 — 하나씩 누르지 않게 경로를 통째로 넣는 버튼을 드롭다운 옆에.
+  // 측정 방식(Teaching · Item · SKU)은 보통 **대상 셀 전체**를 돈다 — 하나씩 누르지 않게 경로를 통째로 넣는 버튼을
+  // 드롭다운 옆에. 종류·차례는 확인 창에서 고른다.
+  const route = MEASURE_ROUTES.find((r) => r.id === routeKindOf(planKind))
   const teachAllButton =
-    mode === 'plan' && planKind === 'teach' ? (
+    mode === 'plan' && route ? (
       <Button
         size="sm"
         intent="outline"
         className="bg-surface-panel shadow-sm"
         icon={<ListPlus className="h-3.5 w-3.5" />}
-        title="등록된 모든 셀을 행 지그재그 순서로 계획에 넣는다 (이미 든 셀은 건너뜀)"
+        title={`${route.label} — ${route.cells}을 차례대로 계획에 넣는다 (같은 측정이 이미 든 셀은 건너뜀)`}
         onClick={onTeachAll}
         data-testid="map-teach-all"
       >
-        전체 셀
+        {route.cells}
       </Button>
     ) : null
 

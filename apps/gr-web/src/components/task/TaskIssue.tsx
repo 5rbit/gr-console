@@ -31,14 +31,17 @@ import {
   EMPTY_HISTORY,
   PLAN_KINDS,
   commit,
-  isTeach,
   dropMismatch,
+  MEASURE_ROUTES,
+  measureRoute,
+  measuredCells,
   redo,
+  routeKindOf,
+  simulateStock,
   stepForClick,
   TEACH_CLEARANCE_DEFAULT,
   TEACH_CLEARANCE_MAX,
   TEACH_ORDERS,
-  teachRoute,
   teachStep,
   type TeachOrder,
   type DropMismatch,
@@ -63,6 +66,7 @@ import type {
   Item,
   Station,
   StockEntry,
+  MeasureMode,
   StockProjected,
   Target,
   TaskType,
@@ -438,6 +442,17 @@ export default function TaskIssue() {
         addStep(teachStep(target, robots.selected, teachH), shape, target)
         return
       }
+      // Measure Item / SKU — 드롭다운으로 종류를 고정한 MEASURE(셀만). 품목은 그 셀의 계획 반영 재고.
+      const fixed = type === undefined ? routeKindOf(planKind) : null
+      if (fixed === 'item' || fixed === 'sku') {
+        if (target.kind !== 'cell') {
+          toast.warn('MEASURE 는 셀만 — 스테이션은 PICK/DROP 으로')
+          return
+        }
+        const s = stepForClick(steps, target, stockStore.map, 'MEASURE', itemSel, robots.selected)
+        addStep({ ...s, measure: fixed }, shape, target)
+        return
+      }
       const step = stepForClick(
         steps,
         target,
@@ -457,9 +472,10 @@ export default function TaskIssue() {
     [itemSel, addStep, planKind, teachH],
   )
 
-  // 모든 셀 Teaching — 경로를 한 번에 넣는다(이미 계획에 있는 셀은 건너뛴다). 개수가 크니 확인 창을 거치고,
-  // 그 창에서 **차례(패턴)**를 고른다: 행 지그재그 · 행 순서 · 셀 번호 순. 고른 값은 기억한다.
-  const [teachAsk, setTeachAsk] = useState<ReadonlySet<number> | null>(null)
+  // 측정 경로 — Cell Teaching(모든 셀) · Measure Item(재고 1개 셀) · Measure SKU(재고 2개 이상 셀)를 한 번에 넣는다.
+  // 개수가 크니 확인 창을 거치고, 그 창에서 종류와 **차례(패턴)**를 고른다. 차례는 기억한다.
+  // 재고는 계획 반영 예상 재고 — 앞 스텝이 옮긴 뒤의 개수로 고른다. 같은 종류가 이미 든 셀은 건너뛴다.
+  const [routeAsk, setRouteAsk] = useState<MeasureMode | null>(null)
   const [teachOrder, setTeachOrder] = useState<TeachOrder>(() =>
     loadChoice(
       TEACH_KEY,
@@ -467,23 +483,31 @@ export default function TaskIssue() {
       'serpentine',
     ),
   )
-  const teachRouteNow = useMemo(
-    () => (teachAsk ? teachRoute(cells.items, robots.selected, teachAsk, teachOrder, teachH) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- robots.selected 는 스토어 구독으로 갱신된다
-    [teachAsk, cells.items, teachOrder, teachH],
-  )
-  const teachAll = useCallback(() => {
-    const have = new Set(presentRef.current.filter((s) => isTeach(s)).map((s) => s.target.id))
-    if (!teachRoute(cells.items, robots.selected, have).length) {
-      toast.warn(
-        have.size
-          ? '모든 셀이 이미 계획에 있습니다'
-          : '계획에 넣을 셀이 없습니다 (레지스트리 확인)',
+  const routeFor = useCallback(
+    (kind: MeasureMode, order: TeachOrder = 'serpentine') => {
+      const steps = presentRef.current
+      return measureRoute(
+        kind,
+        cells.items,
+        simulateStock(steps, stockStore.map),
+        robots.selected,
+        measuredCells(steps, kind),
+        order,
+        teachH,
       )
-      return
-    }
-    setTeachAsk(have)
-  }, [cells.items])
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- robots.selected 는 스토어 구독으로 갱신된다
+    [cells.items, stockStore.map, teachH],
+  )
+  const routeNow = useMemo(
+    () => (routeAsk ? routeFor(routeAsk, teachOrder) : []),
+    [routeAsk, routeFor, teachOrder],
+  )
+  const openRoute = useCallback((kind: MeasureMode) => setRouteAsk(kind), [])
+  const teachAll = useCallback(() => {
+    openRoute(routeKindOf(planKind) ?? 'floor')
+  }, [openRoute, planKind])
+  const routeInfo = MEASURE_ROUTES.find((r) => r.id === routeAsk) ?? MEASURE_ROUTES[0]
 
   const compose = useCallback(
     (target: Target, shape: Shape, type: TaskType) => {
@@ -667,6 +691,7 @@ export default function TaskIssue() {
                 handNow={robots.current ? stockStore.hand(robots.current.plc) : null}
                 sync={robots.current ? stockStore.syncIssues(robots.current.plc) : []}
                 anticolSep={anticolSep}
+                onMeasureRoute={openRoute}
                 onAnticolChange={(a) =>
                   setAnticolSep(a.enabled && robots.list.length > 1 ? a.separation_mm : null)
                 }
@@ -706,23 +731,42 @@ export default function TaskIssue() {
         </section>
       </div>
       <ConfirmDialog
-        open={teachAsk !== null}
-        onOpenChange={(v) => !v && setTeachAsk(null)}
+        open={routeAsk !== null}
+        onOpenChange={(v) => !v && setRouteAsk(null)}
         scope="single"
-        title="모든 셀 Cell Teaching"
-        confirmLabel={`${teachRouteNow.length}개 계획에 넣기`}
+        title="측정 경로 추가"
+        confirmLabel={`${routeNow.length}개 계획에 넣기`}
+        confirmDisabled={
+          routeNow.length
+            ? undefined
+            : `넣을 셀이 없습니다 — ${routeInfo.cells} 중 같은 측정이 계획에 없는 셀`
+        }
         onConfirm={() => {
-          const route = teachRouteNow
+          const route = routeNow
           setHist((h) => commit(h, [...h.present, ...route]))
           setSide('plan')
-          toast.info(withRobot(robots.chip.name, `Cell Teaching ${route.length}개 스텝 → 계획`))
-          setTeachAsk(null)
+          toast.info(
+            withRobot(robots.chip.name, `${routeInfo.label} ${route.length}개 스텝 → 계획`),
+          )
+          setRouteAsk(null)
         }}
       >
-        <div className="flex flex-col gap-2 text-xs">
+        <div className="flex flex-col gap-2 text-xs" data-testid="measure-route">
+          <Segmented<MeasureMode>
+            ariaLabel="측정 종류"
+            value={routeInfo.id}
+            onChange={setRouteAsk}
+            options={MEASURE_ROUTES.map((r) => ({
+              id: r.id,
+              label: r.label,
+              title: r.cells,
+              testid: `route-kind-${r.id}`,
+            }))}
+          />
           <div>
-            등록된 셀을 고른 차례로 모두 넣습니다. 제출은 계획 카드에서 따로 합니다(다음 1건 · 자동
-            제출).
+            {routeInfo.cells}을 고른 차례로 넣습니다
+            {routeInfo.id === 'floor' ? '' : '(재고는 계획 반영 예상 재고, 품목 모르는 셀 제외)'}.
+            제출은 계획 카드에서 따로 합니다(다음 1건 · 자동 제출).
           </div>
           <Segmented<TeachOrder>
             ariaLabel="Teaching 차례"
@@ -738,43 +782,55 @@ export default function TaskIssue() {
               testid: `teach-order-${o.id}`,
             }))}
           />
-          <Input
-            dense
-            type="number"
-            mono
-            min={0}
-            max={TEACH_CLEARANCE_MAX}
-            step="10"
-            className="w-28"
-            label="측정 높이 (베이스 + mm)"
-            value={String(teachH)}
-            onValueChange={(v) => {
-              const n = Number(v)
-              if (!Number.isFinite(n) || n < 0 || n > TEACH_CLEARANCE_MAX) return
-              setTeachH(n)
-              persist(TEACH_H_KEY, String(n))
-            }}
-            title="명령 Z = 등록된 베이스 라인 + 이 값. 잰 바닥은 절대 좌표라 이 높이와 무관하게 같은 값이 나옵니다"
-            data-testid="teach-clearance"
-          />
+          {routeInfo.id === 'floor' ? (
+            <Input
+              dense
+              type="number"
+              mono
+              min={0}
+              max={TEACH_CLEARANCE_MAX}
+              step="10"
+              className="w-28"
+              label="측정 높이 (베이스 + mm)"
+              value={String(teachH)}
+              onValueChange={(v) => {
+                const n = Number(v)
+                if (!Number.isFinite(n) || n < 0 || n > TEACH_CLEARANCE_MAX) return
+                setTeachH(n)
+                persist(TEACH_H_KEY, String(n))
+              }}
+              title="명령 Z = 등록된 베이스 라인 + 이 값. 잰 바닥은 절대 좌표라 이 높이와 무관하게 같은 값이 나옵니다"
+              data-testid="teach-clearance"
+            />
+          ) : null}
           <FieldList
             columns={2}
             dense
             labelWidth={72}
             items={[
-              { label: '스텝', value: `${teachRouteNow.length}개` },
+              { label: '스텝', value: `${routeNow.length}개` },
               {
                 label: '차례',
-                value: teachRouteNow.length
-                  ? `셀 ${teachRouteNow[0].target.id} → ${teachRouteNow[teachRouteNow.length - 1].target.id}`
+                value: routeNow.length
+                  ? `셀 ${routeNow[0].target.id} → ${routeNow[routeNow.length - 1].target.id}`
                   : '',
               },
-              { label: '명령 Z', value: `베이스 + ${teachH} mm` },
+              {
+                label: '명령 Z',
+                value:
+                  routeInfo.id === 'floor'
+                    ? `베이스 + ${teachH} mm`
+                    : '스택 위 (서버가 재고로 계산)',
+              },
               { label: '대상 로봇', value: robots.chip.name },
               { label: '되돌리기', value: 'Ctrl+Z 로 가능' },
             ]}
           />
-          <div className="text-warn-fg">GRM 이 Teach 모드여야 잰 바닥이 셀 Z 로 저장됩니다.</div>
+          {routeInfo.id === 'floor' ? (
+            <div className="text-warn-fg">
+              GRM 이 Teach 모드여야 잰 바닥이 셀 Z 로 저장됩니다. 아니면 측정 로그에만 남습니다.
+            </div>
+          ) : null}
         </div>
       </ConfirmDialog>
       <DropMismatchDialog

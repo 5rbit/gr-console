@@ -30,6 +30,7 @@ import { OverflowMenu } from '../../lib/ui/OverflowMenu'
 import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
 import {
   GRIP_REFS,
+  MEASURE_ROUTES,
   move,
   pairDropIndex,
   pairIssues,
@@ -249,6 +250,8 @@ export interface PlanCardProps {
   anticolSep?: number | null
   /** 영역 띠에서 간격·사용을 바꿨을 때(표의 정적 경고도 새 값으로). */
   onAnticolChange?: (cfg: { separation_mm: number; enabled: boolean }) => void
+  /** ⋯ 메뉴 "측정 경로 추가" — Cell Teaching · Measure Item · Measure SKU 확인 창을 연다. */
+  onMeasureRoute?: (kind: MeasureMode) => void
 }
 
 export function PlanCard({
@@ -276,6 +279,7 @@ export function PlanCard({
   sync = [],
   anticolSep = null,
   onAnticolChange,
+  onMeasureRoute,
 }: PlanCardProps) {
   const [syncOpen, setSyncOpen] = useState(false)
   // 지울 스텝(짝은 같이) — 확인 창이 로봇과 짝을 말한다.
@@ -751,6 +755,15 @@ export function PlanCard({
       hint: g.id === gripRef ? '지금' : undefined,
       run: () => onGripRefChange(g.id),
     })),
+    // 측정 경로 — 맵 모드·드롭다운을 거치지 않고 바로 연다(셀 전체를 한 번에 계획에).
+    mode === 'plan' && !!onMeasureRoute && { label: '측정 경로 추가' },
+    ...(mode === 'plan' && onMeasureRoute
+      ? MEASURE_ROUTES.map((r) => ({
+          label: `${r.label}…`,
+          hint: r.cells,
+          run: () => onMeasureRoute(r.id),
+        }))
+      : []),
     mode === 'plan' && { label: '계획' },
     mode === 'plan' && {
       label: '되돌리기',
