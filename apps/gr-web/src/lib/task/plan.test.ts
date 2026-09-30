@@ -30,6 +30,9 @@ import {
   stepForClick,
   stepErrors,
   teachRoute,
+  measureRoute,
+  measuredCells,
+  routeKindOf,
   teachStep,
   toScenario,
   toggleType,
@@ -627,6 +630,41 @@ describe('Cell Teaching 경로', () => {
     const route = teachRoute(cells, 7, new Set([402]), 'row')
     expect(ids(route)).toEqual([401, 403])
     expect(route.every((s) => s.robot === 7 && s.measure === 'floor')).toBe(true)
+  })
+
+  // 재고: 401 1개 · 402 3개 · 403 없음 · 404 2개(품목 모름) · 405 1개 · 406 비움(0)
+  const stock = new Map([
+    [401, { item_code: 1001, count: 1 }],
+    [402, { item_code: 1002, count: 3 }],
+    [404, { item_code: 0, count: 2 }],
+    [405, { item_code: 1001, count: 1 }],
+    [406, { item_code: 1003, count: 0 }],
+  ])
+  it('Measure Item 은 재고 1개 셀, SKU 는 2개 이상 셀만 — 품목 모르는 셀은 뺀다', () => {
+    const item = measureRoute('item', grid, stock, 2, new Set(), 'row')
+    expect(ids(item)).toEqual([401, 405])
+    expect(item.every((s) => s.measure === 'item' && s.robot === 2 && s.count === 1)).toBe(true)
+    expect(item.map((s) => s.item_code)).toEqual([1001, 1001])
+    const sku = measureRoute('sku', grid, stock, null, new Set(), 'row')
+    expect(ids(sku)).toEqual([402])
+    expect(sku[0]).toMatchObject({ type: 'MEASURE', measure: 'sku', item_code: 1002 })
+  })
+  it('Cell Teaching 경로는 재고와 무관하게 모든 셀', () => {
+    expect(ids(measureRoute('floor', grid, stock, null, new Set(), 'row'))).toHaveLength(6)
+  })
+  it('같은 종류 측정이 이미 든 셀만 건너뛴다', () => {
+    const planned = measureRoute('item', grid, stock, null, new Set(), 'row').slice(0, 1)
+    expect([...measuredCells(planned, 'item')]).toEqual([401])
+    expect(measuredCells(planned, 'sku').size).toBe(0)
+    expect(
+      ids(measureRoute('item', grid, stock, null, measuredCells(planned, 'item'), 'row')),
+    ).toEqual([405])
+  })
+  it('생성 방식 → 경로 종류', () => {
+    expect(routeKindOf('teach')).toBe('floor')
+    expect(routeKindOf('measure_item')).toBe('item')
+    expect(routeKindOf('measure_sku')).toBe('sku')
+    expect(routeKindOf('pickdrop')).toBeNull()
   })
 })
 

@@ -101,7 +101,7 @@ export function measureParams(mode: MeasureMode): {
  * 맵 클릭이 만드는 스텝 — `pickdrop` = PICK → DROP 교대(기본), `teach` = Cell Teaching(셀마다 MEASURE Floor).
  * Teaching 은 GRM 이 Teach 모드일 때 PLC 가 잰 바닥(Z − FLD 거리)을 그 셀 Z 로 CELL 표에 넣는다(`PL_Task_V2` 500).
  */
-export type PlanKind = 'pickdrop' | 'teach'
+export type PlanKind = 'pickdrop' | 'teach' | 'measure_item' | 'measure_sku'
 
 export const PLAN_KINDS: readonly { id: PlanKind; label: string; title: string }[] = [
   { id: 'pickdrop', label: 'PICK/DROP', title: '좌클릭마다 PICK → DROP 순으로 계획에 쌓인다' },
@@ -111,6 +111,34 @@ export const PLAN_KINDS: readonly { id: PlanKind; label: string; title: string }
     title:
       '좌클릭한 셀·스테이션마다 MEASURE Floor(바닥 측정)를 쌓는다 — Z = 등록된 베이스 + N(기본 500). GRM 이 Teach 모드여야 잰 바닥이 그 대상 Z 로 저장된다',
   },
+  {
+    id: 'measure_item',
+    label: 'Measure Item',
+    title: '좌클릭한 셀마다 MEASURE Item(타이어 한 개 치수)을 쌓는다 — 재고 1개 셀용',
+  },
+  {
+    id: 'measure_sku',
+    label: 'Measure SKU',
+    title: '좌클릭한 셀마다 MEASURE SKU(스택 전체의 단별 비드)를 쌓는다 — 재고 2개 이상 셀용',
+  },
+]
+
+/** 생성 방식 → 측정 경로 종류(PICK/DROP 은 없음). */
+export function routeKindOf(k: PlanKind): MeasureMode | null {
+  return k === 'teach'
+    ? 'floor'
+    : k === 'measure_item'
+      ? 'item'
+      : k === 'measure_sku'
+        ? 'sku'
+        : null
+}
+
+/** 측정 경로 종류 — 확인 창·메뉴의 이름과 대상 셀 설명. */
+export const MEASURE_ROUTES: readonly { id: MeasureMode; label: string; cells: string }[] = [
+  { id: 'floor', label: 'Cell Teaching', cells: '모든 셀' },
+  { id: 'item', label: 'Measure Item', cells: '재고 1개 셀' },
+  { id: 'sku', label: 'Measure SKU', cells: '재고 2개 이상 셀' },
 ]
 
 /**
@@ -181,9 +209,56 @@ export function teachRoute(
   order: TeachOrder = 'serpentine',
   clearance: number | null = null,
 ): PlanStep[] {
-  const use = cells.filter((c) => c.use !== false && !skip.has(c.id))
-  const step = (c: Cell) => teachStep({ kind: 'cell', id: c.id }, robot, clearance)
-  if (order === 'id') return [...use].sort((a, b) => a.id - b.id).map(step)
+  return orderCells(
+    cells.filter((c) => c.use !== false && !skip.has(c.id)),
+    order,
+  ).map((c) => teachStep({ kind: 'cell', id: c.id }, robot, clearance))
+}
+
+/**
+ * 측정 경로 — 종류마다 대상 셀을 골라 `order` 로 도는 MEASURE 스텝들.
+ *   `floor` 모든 셀(Cell Teaching) · `item` 재고 1개 셀 · `sku` 재고 2개 이상 셀.
+ * 재고는 `stock`(계획 반영 예상 재고)으로 보고, 품목을 모르는 셀은 Item/SKU 에서 뺀다(서버가 품목 없이 거부한다).
+ * `skip` 에 든 셀 id(이미 같은 종류 측정이 계획에 있는 셀)는 건너뛴다.
+ */
+export function measureRoute(
+  kind: MeasureMode,
+  cells: readonly Cell[],
+  stock: ReadonlyMap<number, { item_code: number; count: number }>,
+  robot: number | null = null,
+  skip: ReadonlySet<number> = new Set(),
+  order: TeachOrder = 'serpentine',
+  clearance: number | null = null,
+): PlanStep[] {
+  if (kind === 'floor') return teachRoute(cells, robot, skip, order, clearance)
+  const want = (n: number) => (kind === 'item' ? n === 1 : n >= 2)
+  const use = cells.filter((c) => {
+    const st = stock.get(c.id)
+    return c.use !== false && !skip.has(c.id) && !!st && !!st.item_code && want(st.count)
+  })
+  return orderCells(use, order).map((c) => ({
+    id: stepId(),
+    type: 'MEASURE' as const,
+    target: { kind: 'cell', id: c.id },
+    item_code: stock.get(c.id)!.item_code,
+    count: 1,
+    note: '',
+    robot,
+    measure: kind,
+  }))
+}
+
+/** 이미 계획에 같은 종류 측정이 든 셀 id — 경로를 다시 넣을 때 건너뛴다. */
+export function measuredCells(steps: readonly PlanStep[], kind: MeasureMode): Set<number> {
+  return new Set(
+    steps
+      .filter((s) => s.type === 'MEASURE' && s.target.kind === 'cell' && s.measure === kind)
+      .map((s) => s.target.id),
+  )
+}
+
+function orderCells(use: readonly Cell[], order: TeachOrder): Cell[] {
+  if (order === 'id') return [...use].sort((a, b) => a.id - b.id)
   // 행 = 같은 구간의 같은 행 번호(없으면 X 좌표) — 이 묶음 단위로 방향이 번갈아 바뀐다.
   const rowKey = (c: Cell) => `${c.section}/${c.row || Math.round(c.position[0])}`
   const rows = new Map<string, Cell[]>()
@@ -197,13 +272,12 @@ export function teachRoute(
     const [ca, cb] = [rows.get(a)![0], rows.get(b)![0]]
     return ca.section - cb.section || ca.row - cb.row || ca.position[0] - cb.position[0]
   })
-  const out: PlanStep[] = []
+  const out: Cell[] = []
   keys.forEach((k, i) => {
     const line = rows
       .get(k)!
       .sort((a, b) => a.col - b.col || a.position[1] - b.position[1] || a.id - b.id)
-    for (const c of order === 'serpentine' && i % 2 === 1 ? [...line].reverse() : line)
-      out.push(step(c))
+    out.push(...(order === 'serpentine' && i % 2 === 1 ? [...line].reverse() : line))
   })
   return out
 }
