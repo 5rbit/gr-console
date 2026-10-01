@@ -9,51 +9,35 @@
 // 색 막대는 행 왼쪽 끝에 붙어 점 모양이 아니고, 상태는 `제출 가능`/`제출 불가` 글자로 선다
 // (사유는 칩 툴팁, 어휘는 `lib/indicators`).
 //
-// 행 우클릭 = 그 로봇의 운전 명령(Start/Stop/Reset/Buzzer Stop/Complete/Clear, 2026-09-21). 선택과 무관하게 **우클릭한
-// 행의 로봇**에 간다 — 대상은 메뉴 머리줄과 확인 대화 제목에 이름으로 선다. 규칙은 `lib/robotCommandModel`.
-import { useEffect, useState } from 'react'
+// 행 끝 ⋯ 또는 우클릭 = 그 로봇의 메뉴(운전 명령 Start/Stop/Reset/Buzzer Stop/Complete/Clear + Hand 지정 · 수정 · 화물 제거,
+// 맵의 로봇 표식과 같은 목록 — `task/RobotMapMenu`). 선택과 무관하게 **그 행의 로봇**에 간다 — 대상은 메뉴 머리줄과
+// 확인 대화 제목에 이름으로 선다. 규칙은 `lib/robotCommandModel`.
+import { useEffect } from 'react'
+import { api } from '../../lib/api'
 import { allStatus } from '../../lib/feeds'
 import { modeName } from '../../lib/gr/const'
 import { modeIndicator, robotGate } from '../../lib/indicators'
 import { robotColor, robots } from '../../lib/robots'
 import { density } from '../../lib/density'
-import { sendRobotAction } from '../../lib/robotCommand'
+import { useRegistry } from '../../lib/registry'
+import { stock as stockStore } from '../../lib/stock'
 import { useStore } from '../../lib/store'
-import {
-  ROBOT_ACTIONS,
-  describeRobotAction,
-  robotActionDisabled,
-  robotActionSpec,
-} from '../../lib/robotCommandModel'
-import type { Robot, RobotAction } from '../../lib/types'
-import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
+import type { Item } from '../../lib/types'
 import { IndicatorChip } from '../../lib/ui/IndicatorChip'
-import { ctxMenu } from '../../lib/ui/menu'
+import { OverflowMenu } from '../../lib/ui/OverflowMenu'
+import { useRobotMapMenu } from '../task/RobotMapMenu'
 
 export default function RobotsPane() {
   useStore(robots, density, allStatus)
   useEffect(() => robots.start(), [])
   // 로봇마다 모드를 보이려면 각자의 상태 스트림이 필요하다(맵과 같은 스토어 — 이미 열려 있으면 공유).
   useEffect(() => allStatus.start(), [])
+  // Hand(콘솔 재고)를 메뉴 머리줄 · Hand 창에 보인다.
+  useEffect(() => stockStore.start(), [])
+  const items = useRegistry<Item>(api.items)
+  const menu = useRobotMapMenu({ items: items.items })
 
   const rowPad = density.isCompact ? 'py-0.5' : 'py-1.5'
-  const [pending, setPending] = useState<{ robot: Robot; action: RobotAction } | null>(null)
-
-  const openMenu = (e: React.MouseEvent, r: Robot, mode: string | null) => {
-    ctxMenu.show(e, [
-      { label: `${r.name} 운전 명령` },
-      ...ROBOT_ACTIONS.map((s) => ({
-        label: s.label,
-        danger: s.danger,
-        disabled: robotActionDisabled(s.action, r, mode),
-        testid: `robot-cmd-${r.id}-${s.action}`,
-        run: () =>
-          s.confirm
-            ? setPending({ robot: r, action: s.action })
-            : void sendRobotAction(r, s.action),
-      })),
-    ])
-  }
 
   return (
     <>
@@ -75,19 +59,22 @@ export default function RobotsPane() {
           const modeText = wm ? modeName(wm.Mode) : null
           const mode = modeIndicator(modeText)
           return (
-            <li key={r.id}>
+            <li key={r.id} className="flex items-center">
               <button
                 type="button"
                 role="radio"
                 aria-checked={on}
-                className={`relative flex w-full items-center gap-1.5 pr-2 pl-3 text-left ${rowPad} ${
+                className={`relative flex min-w-0 flex-1 items-center gap-1.5 pr-1 pl-3 text-left ${rowPad} ${
                   on ? 'bg-accent-soft ring-1 ring-accent ring-inset' : 'hover:bg-surface-inset'
                 }`}
                 data-testid={`robot-${r.id}`}
                 data-selected={on ? 'true' : 'false'}
                 title={`${r.name}${on ? ' (선택됨)' : ''} · ${r.opcua_root} · DST ${r.dst} · Plc ${r.plc}`}
                 onClick={() => robots.select(r.id)}
-                onContextMenu={(e) => openMenu(e, r, modeText)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  menu.open(r.id, e)
+                }}
               >
                 {/* 로봇 색 — 맵의 작업 테두리 색. 상태가 아니라 **정체**라 점이 아닌 행 끝 막대로 둔다. */}
                 <span
@@ -109,28 +96,16 @@ export default function RobotsPane() {
                 {mode ? <IndicatorChip ind={mode} bare data-testid={`robot-mode-${r.id}`} /> : null}
                 <IndicatorChip ind={gate} data-testid={`robot-gate-${r.id}`} />
               </button>
+              <OverflowMenu
+                items={menu.itemsFor(r.id)}
+                title={`${r.name} — 운전 명령 · Hand · 화물`}
+                testid={`robot-menu-${r.id}`}
+              />
             </li>
           )
         })}
       </ul>
-      {pending ? (
-        <ConfirmDialog
-          open
-          onOpenChange={(o) => {
-            if (!o) setPending(null)
-          }}
-          scope="single-robot"
-          title={`${robotActionSpec(pending.action).label} — ${pending.robot.name}`}
-          danger={robotActionSpec(pending.action).danger}
-          confirmLabel={robotActionSpec(pending.action).label}
-          onConfirm={() => void sendRobotAction(pending.robot, pending.action)}
-        >
-          {/* design-lint-allow: no-panel-paragraph — 대화상자의 확인 문구다(실 로봇에 가는 명령을 말한다) */}
-          <p className="m-0 text-content-primary">
-            {describeRobotAction(pending.action, pending.robot.name)}
-          </p>
-        </ConfirmDialog>
-      ) : null}
+      {menu.dialogs}
     </>
   )
 }

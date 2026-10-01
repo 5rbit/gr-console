@@ -1,4 +1,5 @@
-// 맵의 로봇 표식 우클릭 — 그 로봇의 운전 명령(사이드바 로봇 행과 같은 목록 · 같은 확인 규칙)과 **화물 처리**.
+// 로봇 메뉴 — 맵의 로봇 표식(클릭 · 우클릭)과 사이드바 로봇 행(⋯ · 우클릭)이 같은 목록을 연다: 운전 명령과 **화물 처리**.
+// 사이드바에는 맵이 없어 "DROP 명령 작성(놓을 곳 클릭)" 은 빠진다(`onDropPick` 없음).
 //
 // 화물 처리는 콘솔 재고(Hand)만 고친다 — PLC 그리퍼 데이터에는 쓰지 않는다(서버 `stock/routes.rs`):
 //   DROP 명령 작성   → 놓을 셀·스테이션을 맵에서 한 번 클릭(작성 카드로, 그 로봇이 선택된다). Hand 가 비어도 된다 —
@@ -47,8 +48,8 @@ export function useRobotMapMenu({
   onDropPick,
 }: {
   items: readonly Item[]
-  /** DROP 놓을 곳 고르기 시작(다음 맵 클릭이 DROP 작성). */
-  onDropPick: (robotId: number) => void
+  /** DROP 놓을 곳 고르기 시작(다음 맵 클릭이 DROP 작성). 없으면 그 항목을 뺀다. */
+  onDropPick?: (robotId: number) => void
 }) {
   const [pending, setPending] = useState<Pending | null>(null)
   const [handEdit, setHandEdit] = useState<{ robot: Robot; cargo: RobotCargo } | null>(null)
@@ -62,9 +63,9 @@ export function useRobotMapMenu({
     }
   }
 
-  function open(robotId: number, e: React.MouseEvent) {
+  function itemsFor(robotId: number): MenuItem[] {
     const r = robots.list.find((x) => x.id === robotId)
-    if (!r) return
+    if (!r) return []
     const wm = allStatus.get(r.id)?.webmon ?? null
     const mode = wm ? modeName(wm.Mode) : null
     const c = cargoOf(r)
@@ -83,11 +84,15 @@ export function useRobotMapMenu({
             : void sendRobotAction(r, s.action),
       })),
       { label: '화물' },
-      {
-        label: holding ? 'DROP 명령 작성 — 놓을 곳 클릭' : 'DROP 명령 작성(화물 지정) — 놓을 곳 클릭',
-        testid: `map-robot-drop-${r.id}`,
-        run: () => onDropPick(r.id),
-      },
+      ...(onDropPick
+        ? [
+            {
+              label: holding ? 'DROP 명령 작성 — 놓을 곳 클릭' : 'DROP 명령 작성(화물 지정) — 놓을 곳 클릭',
+              testid: `map-robot-drop-${r.id}`,
+              run: () => onDropPick(r.id),
+            },
+          ]
+        : []),
       {
         label: c.count > 0 ? 'Hand 수정…' : 'Hand 지정…',
         testid: `map-robot-hand-${r.id}`,
@@ -110,7 +115,12 @@ export function useRobotMapMenu({
         run: () => setPending({ kind: 'remove', robot: r, cargo: c }),
       },
     ]
-    ctxMenu.show(e, menu)
+    return menu
+  }
+
+  function open(robotId: number, e: React.MouseEvent) {
+    const menu = itemsFor(robotId)
+    if (menu.length) ctxMenu.show(e, menu)
   }
 
   async function removeCargo(r: Robot) {
@@ -166,7 +176,7 @@ export function useRobotMapMenu({
     </>
   )
 
-  return { open, dialogs }
+  return { open, itemsFor, dialogs }
 }
 
 export function HandDialog({

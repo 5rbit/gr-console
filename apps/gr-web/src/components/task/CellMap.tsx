@@ -258,7 +258,7 @@ export interface CellMapProps {
   /** 로봇 표식 우클릭(운전 명령 · 화물 처리). 있으면 표식이 눌린다. */
   onRobotContext?: (robotId: number, e: React.MouseEvent) => void
   /** 로봇 표식 좌클릭(그 로봇 선택). */
-  onRobotClick?: (robotId: number) => void
+  onRobotClick?: (robotId: number, e: React.MouseEvent) => void
   /** 범례에 보일 로봇 색. */
   robotLegend?: readonly { name: string; color: string }[]
   /** 스케줄러 준비 상태(`targetKey` → 대상) — 있으면 PICK ▲ · DROP ▼ 표식과 호버 줄을 그린다(모니터링 모드). */
@@ -1005,7 +1005,7 @@ export function CellMap({
             return (
               <g
                 key={m.id}
-                className={interactive ? 'cursor-context-menu' : 'pointer-events-none'}
+                className={interactive ? 'cursor-pointer' : 'pointer-events-none'}
                 data-testid="map-robot"
                 data-robot={m.id}
                 data-cargo={c ? c.tone : 'none'}
@@ -1014,7 +1014,7 @@ export function CellMap({
                   interactive
                     ? (e) => {
                         e.stopPropagation()
-                        onRobotClick?.(m.id)
+                        onRobotClick?.(m.id, e)
                       }
                     : undefined
                 }
@@ -1028,7 +1028,7 @@ export function CellMap({
                     : undefined
                 }
               >
-                <title>{`${m.name}${c ? ` · ${c.title}` : ' · 빈 손'}${interactive ? ' — 우클릭 = 운전 명령 · 화물 처리' : ''}`}</title>
+                <title>{`${m.name}${c ? ` · ${c.title}` : ' · 빈 손'}${interactive ? ' — 클릭 = 운전 명령 · Hand · 화물 처리' : ''}`}</title>
                 {c ? (
                   <g className="pointer-events-none" data-testid={`map-robot-cargo-${m.id}`}>
                     <circle

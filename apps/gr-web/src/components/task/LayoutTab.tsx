@@ -462,7 +462,10 @@ export function LayoutTab({
           </>
         }
         onRobotContext={robotMenu.open}
-        onRobotClick={(id) => robots.select(id)}
+        onRobotClick={(id, e) => {
+          robots.select(id)
+          robotMenu.open(id, e)
+        }}
         onPick={(t, shape) => {
           if (dropFor !== null) {
             // 들고 있는 품목·개수를 그대로 싣는다(콘솔 Hand 를 모르면 작성 카드에서 고른다).
