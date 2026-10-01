@@ -185,7 +185,7 @@ const FACTOR: u8 = 3;
 /// 모든 시트가 앞에 두는 열(기록 머리 · 명령). `with_kind` = 전체 시트에만 Kind 열.
 fn head_cols(with_kind: bool) -> Vec<Col> {
     let mut v = vec![
-        col("Seq", "Seq", "", "PLC 누적 번호(로봇 PLC 마다 1 부터)", |e| V::N(num(&e["Seq"]), INT)),
+        col("Seq", "Seq", "", "콘솔 저장 번호(로봇 PLC 마다 1 부터, PLC 가 다시 세면 이어 붙임)", |e| V::N(num(&e["Seq"]), INT)),
         col("TimeStamp", "TimeStamp", "", "PLC 시각(DTL, 로컬)", |e| V::T(e["TimeStamp"].as_str().unwrap_or("").to_string())),
     ];
     if with_kind {

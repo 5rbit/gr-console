@@ -79,6 +79,16 @@ impl MeasureStore {
         });
     }
 
+    /// PLC 가 순번을 처음부터 다시 센 뒤(다운로드 · 초기화) 이어 붙일 기준 — 저장 순번 = 기준 + PLC `Seq`.
+    fn seq_base(&self) -> Result<u32, ApiError> {
+        Ok(self.db.setting(&format!("measlog_seq_base:{}", self.plc_name))?.and_then(|s| s.trim().parse().ok()).unwrap_or(0))
+    }
+
+    fn set_seq_base(&self, base: u32) -> Result<(), ApiError> {
+        self.db.set_setting(&format!("measlog_seq_base:{}", self.plc_name), &base.to_string())?;
+        Ok(())
+    }
+
     pub fn max_seq(&self) -> Result<u32, ApiError> {
         Ok(self.db.with(|c| c.query_row("SELECT COALESCE(MAX(seq), 0) FROM meas_entries WHERE plc = ?1", [&self.plc_name], |r| r.get::<_, i64>(0)))? as u32)
     }
@@ -89,7 +99,21 @@ impl MeasureStore {
         let Some(m) = snap.db("MEASLOG") else { return Ok(0) };
         let total = m.json["Total"].as_u64().unwrap_or(0) as u32;
         let head = m.json["Head"].as_i64().unwrap_or(0);
-        let have = self.max_seq()?;
+        if total == 0 {
+            return Ok(0);
+        }
+        let mut base = self.seq_base()?;
+        let stored = self.max_seq()?;
+        let mut have = stored.saturating_sub(base);
+        // PLC 의 누적 수가 받은 것보다 작다 = PLC 가 처음부터 다시 셌다. 옛 기록 뒤에 이어 받는다
+        // (예전에는 누적 수가 옛 순번을 넘을 때까지 아무것도 받지 않았고, 넘으면 옛 기록을 덮어썼다).
+        if total < have {
+            tracing::warn!(plc = %self.plc_name, total, have, base = stored, "MEASLOG Seq restarted on the PLC — continuing after stored seq");
+            base = stored;
+            self.set_seq_base(base)?;
+            have = 0;
+            let _ = self.events.send(json!({ "kind": "measlog_reset", "plc": self.plc_name, "total": total, "base": base }));
+        }
         {
             let mut lt = self.last_total.lock().unwrap_or_else(PoisonError::into_inner);
             if total == *lt && total <= have {
@@ -97,7 +121,7 @@ impl MeasureStore {
             }
             *lt = total;
         }
-        if total == 0 || total <= have {
+        if total <= have {
             return Ok(0);
         }
         let layout = plc.layout("MEASLOG_HIST").ok_or_else(|| ApiError::BadRequest(format!("{} 설정에 MEASLOG_HIST 가 없습니다", plc.name())))?;
@@ -112,15 +136,16 @@ impl MeasureStore {
             let raw = plc.read("MEASLOG_HIST", lo, (hi - lo) as usize).await.map_err(ApiError::PlcUnavailable)?;
             let mut buf = vec![0u8; hi as usize];
             buf[lo as usize..hi as usize].copy_from_slice(&raw);
-            let json = plc.contract.decode_path("MEASLOG_HIST", &format!("Entry[{idx}]"), &buf)?;
+            let mut json = plc.contract.decode_path("MEASLOG_HIST", &format!("Entry[{idx}]"), &buf)?;
             let entry: MeasureLogEntry = serde_json::from_value(json.clone())?;
-            if entry.seq == 0 {
+            if entry.seq == 0 || entry.seq <= have {
                 continue;
             }
+            let seq = stored_seq(base, &mut json, entry.seq);
             self.db.with(|c| {
                 c.execute(
                     "INSERT OR REPLACE INTO meas_entries (plc, seq, ts, kind, status, code, entry_json) VALUES (?1,?2,?3,?4,?5,?6,?7)",
-                    (&self.plc_name, entry.seq, &entry.time_stamp, entry.kind, entry.status, entry.cmd.item.code, json.to_string()),
+                    (&self.plc_name, seq, &entry.time_stamp, entry.kind, entry.status, entry.cmd.item.code, json.to_string()),
                 )
             })?;
             if entry.kind == gr_proto::MEAS_LOG_KIND_SKU {
@@ -175,6 +200,14 @@ impl MeasureStore {
     }
 }
 
+/// 저장 순번(기준 + PLC `Seq`) — 기록의 `Seq` 를 저장 순번으로 바꾸고 PLC 값은 `PlcSeq` 로 남긴다(화면 · 비드 표본 키가 겹치지 않게).
+fn stored_seq(base: u32, json: &mut Json, plc_seq: u32) -> u32 {
+    let seq = base + plc_seq;
+    json["PlcSeq"] = json!(plc_seq);
+    json["Seq"] = json!(seq);
+    seq
+}
+
 fn entry_size(layout: &plc_layout::Layout) -> u32 {
     layout.range_of("Entry[0]").map(|(lo, hi)| hi - lo).unwrap_or(0)
 }
@@ -203,5 +236,21 @@ mod tests {
         assert_eq!(e1.len(), 1);
         assert_eq!(e1[0]["plc"], "GR1");
         assert_eq!(e2.iter().map(|e| e["Seq"].as_u64().unwrap()).collect::<Vec<_>>(), vec![2, 1]);
+    }
+
+    /// PLC 가 다시 센 뒤의 기록은 옛 기록을 덮지 않고 그 뒤 순번으로 들어간다.
+    #[test]
+    fn restarted_plc_seq_continues_after_stored() {
+        let db = Db::open_memory().unwrap();
+        let st = MeasureStore::new(db.clone(), "GR2", Registry::new(db.clone()));
+        assert_eq!(st.seq_base().unwrap(), 0);
+        st.set_seq_base(944).unwrap();
+        assert_eq!(st.seq_base().unwrap(), 944);
+        let mut j = json!({ "Seq": 3, "Kind": 1 });
+        assert_eq!(stored_seq(944, &mut j, 3), 947);
+        assert_eq!(j["Seq"], 947);
+        assert_eq!(j["PlcSeq"], 3);
+        let other = MeasureStore::new(db.clone(), "GR1", Registry::new(db));
+        assert_eq!(other.seq_base().unwrap(), 0, "기준은 PLC 마다 따로");
     }
 }
