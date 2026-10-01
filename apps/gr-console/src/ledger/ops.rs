@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use gr_proto::status::TaskLocation;
 use gr_proto::{TaskData, TaskKey};
 
 use super::{Actor, LedgerEntry, Origin, TaskState};
@@ -432,6 +433,67 @@ pub async fn cancel(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
     Ok(r.ledger.get(&id).unwrap_or(e))
 }
 
+pub const DISCARD_NOTE: &str = "원장 취소 — PLC 에 없음 (메모리 초기화 등), PLC 명령 없음";
+
+/// 원장 취소에 함께 끝낼 Task — 이 Task + 같은 이송 지시의 유실·초안 짝 + 같은 WorkId 뒤의 유실 Task.
+/// 대기·실행 중인 짝은 넣지 않는다: PLC 에 있으니 삭제(Delete)로 지워야 한다.
+pub fn discard_set(entries: &[LedgerEntry], e: &LedgerEntry) -> Vec<LedgerEntry> {
+    let to = e.transfer_order_id.as_deref();
+    let key = e.key();
+    let mut v = vec![e.clone()];
+    for x in entries.iter().filter(|x| x.id != e.id) {
+        let mate = to.is_some() && x.transfer_order_id.as_deref() == to && matches!(x.state, TaskState::Lost | TaskState::Draft);
+        let tail = key.work_id != 0 && x.key().work_id == key.work_id && x.key().task_id > key.task_id && x.state == TaskState::Lost;
+        if mate || tail {
+            v.push(x.clone());
+        }
+    }
+    v
+}
+
+/// 원장 취소 — PLC 메모리가 초기화되면(다운로드·메모리 리셋) Task 가 PLC 배열에서 사라져 `Lost` 가 되고,
+/// Delete 는 지울 대상이 없어 응답을 못 받는다. 원장에서만 `Canceled` 로 끝낸다(PLC 쓰기 없음, AUTO 무관).
+/// 지금 PLC 배열에 있으면 거부: 원장만 끝내면 PLC 는 계속 돌리고 콘솔은 끝난 줄 안다.
+pub fn discard(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
+    let (r, e) = st.find_task(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
+    if e.state != TaskState::Lost {
+        return Err(ApiError::Conflict(format!("원장 취소는 유실(lost) Task 만 됩니다 — 지금 {}", e.state.as_str())));
+    }
+    let set = discard_set(&r.ledger.list(), &e);
+    match status_view(st, r) {
+        Some(v) => {
+            for t in set.iter().filter(|t| t.state != TaskState::Draft) {
+                if let Some(at) = plc_place(v.locate(t.key())) {
+                    return Err(ApiError::Conflict(with_robot(&r.name, &format!("Task #{} 가 PLC {at} 에 있어 원장 취소하지 않습니다", t.seq))));
+                }
+            }
+        }
+        None if !st.cfg.demo => return Err(ApiError::PlcUnavailable(with_robot(&r.name, "상태 PLC 스냅샷 없음 — PLC 에 없는지 확인할 수 없습니다"))),
+        None => {}
+    }
+    crate::evtlog::console("CON_ROBOT_CMD", &r.plc, i64::from(e.work_id), i64::from(e.task_id), 0, format!("Task Discard {} (+{})", task_label(r, &e), set.len() - 1));
+    let mut out = e.clone();
+    for t in set {
+        let note = if t.id == e.id { DISCARD_NOTE.to_string() } else { format!("{DISCARD_NOTE} (#{} 원장 취소에 따라)", e.seq) };
+        let done = r.ledger.transition(t, TaskState::Canceled, Actor::Ui, Some(note))?;
+        if done.id == e.id {
+            out = done;
+        }
+    }
+    Ok(out)
+}
+
+fn plc_place(loc: TaskLocation) -> Option<String> {
+    match loc {
+        TaskLocation::Absent => None,
+        TaskLocation::Now => Some("Now".into()),
+        TaskLocation::Queue(i) => Some(format!("Queue[{i}]")),
+        TaskLocation::Completed(i) => Some(format!("Completed[{i}]")),
+        TaskLocation::Canceled(i) => Some(format!("Canceled[{i}]")),
+        TaskLocation::Rejected(i) => Some(format!("Rejected[{i}]")),
+    }
+}
+
 pub async fn force_complete(st: &AppState, id: &str) -> Result<LedgerEntry, ApiError> {
     let _busy = st.shutdown.enter(format!("Task 강제 완료 {id}"))?;
     let (r, e) = st.find_task(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
@@ -604,6 +666,33 @@ mod tests {
         let drop = pair_entry(&ledger, D, 2, TaskState::Queued, "TO-1");
         let (with, warn) = pair_cancel(&ledger.list(), &drop);
         assert!(with.is_empty() && warn.unwrap().contains("Hand"));
+    }
+
+    /// 원장 취소: 유실 짝(PICK→DROP 이든 DROP→PICK 이든)·초안 짝·같은 WorkId 뒤 유실은 함께, PLC 에 있는 짝은 남긴다.
+    #[test]
+    fn discard_set_takes_lost_and_draft_mates_only() {
+        use gr_proto::{CMD_TASK_DROP as D, CMD_TASK_PICK as P};
+        let ids = |v: Vec<LedgerEntry>| v.iter().map(|e| e.task_id).collect::<Vec<_>>();
+        let ledger = Ledger::new(Db::open_memory().unwrap(), "GR2", None).unwrap();
+        let pick = pair_entry(&ledger, P, 1, TaskState::Lost, "TO-1");
+        let drop = pair_entry(&ledger, D, 2, TaskState::Lost, "TO-1");
+        pair_entry(&ledger, D, 3, TaskState::Lost, "TO-2");
+        assert_eq!(ids(discard_set(&ledger.list(), &pick)), vec![1, 2]);
+        assert_eq!(ids(discard_set(&ledger.list(), &drop)), vec![2, 1], "a lost DROP takes its lost PICK too");
+        let ledger = Ledger::new(Db::open_memory().unwrap(), "GR2", None).unwrap();
+        let pick = pair_entry(&ledger, P, 1, TaskState::Lost, "TO-1");
+        pair_entry(&ledger, D, 2, TaskState::Draft, "TO-1");
+        assert_eq!(ids(discard_set(&ledger.list(), &pick)), vec![1, 2], "draft DROP waiting for the pick goes too");
+        let ledger = Ledger::new(Db::open_memory().unwrap(), "GR2", None).unwrap();
+        let pick = pair_entry(&ledger, P, 1, TaskState::Lost, "TO-1");
+        pair_entry(&ledger, D, 2, TaskState::Queued, "TO-1");
+        assert_eq!(ids(discard_set(&ledger.list(), &pick)), vec![1], "a queued mate is on the PLC — Delete, not discard");
+        let ledger = Ledger::new(Db::open_memory().unwrap(), "GR2", None).unwrap();
+        let me = entry(&ledger, 7, 2, TaskState::Lost);
+        entry(&ledger, 7, 1, TaskState::Lost); // earlier — stays
+        entry(&ledger, 7, 3, TaskState::Lost);
+        entry(&ledger, 7, 4, TaskState::Queued);
+        assert_eq!(discard_set(&ledger.list(), &me).iter().map(|e| e.key().task_id).collect::<Vec<_>>(), vec![2, 3]);
     }
 
     #[test]

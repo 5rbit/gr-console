@@ -52,7 +52,7 @@ export function describeRobotAction(action: RobotAction, name: string): string {
     case 'complete':
       return `${name} 가 지금 실행 중인 Task 를 강제 완료(Command.Task.Complete)합니다. 화물 상태를 먼저 확인하세요.`
     case 'clear':
-      return `${name} 의 실행 중·대기 중 Task 를 모두 삭제(Command.Task.Delete)합니다.`
+      return `${name} 의 실행 중·대기 중 Task 를 모두 삭제(Command.Task.Delete)합니다. PLC 에 없는 유실 Task 는 원장에서만 취소합니다.`
   }
 }
 
@@ -85,12 +85,17 @@ export function robotActionDisabled(
 export function robotActionDone(
   action: RobotAction,
   name: string,
-  res: { task?: string; deleted?: string[] },
+  res: { task?: string; deleted?: string[]; discarded?: string[] },
 ): string {
   const label = robotActionSpec(action).label
   if (action === 'complete' && res.task) return `${name} ${label} 요청 — Task ${res.task}`
   if (action === 'clear' && res.deleted) {
-    return `${name} ${label} 요청 — ${res.deleted.length}건 (${res.deleted.join(', ')})`
+    const parts: string[] = []
+    if (res.deleted.length > 0)
+      parts.push(`삭제 요청 ${res.deleted.length}건 (${res.deleted.join(', ')})`)
+    if (res.discarded?.length)
+      parts.push(`유실 원장 취소 ${res.discarded.length}건 (${res.discarded.join(', ')})`)
+    return `${name} ${label} — ${parts.join(' · ') || '0건'}`
   }
   return `${name} ${label} 보냄`
 }

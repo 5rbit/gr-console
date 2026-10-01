@@ -163,8 +163,33 @@ export function cascadeAfter(
 }
 
 /**
+ * 유실 Task 의 삭제는 **원장 취소**다(백엔드 `ops::discard`) — PLC 메모리 초기화(다운로드 등)로 PLC 배열에서
+ * 사라진 Task 라 Delete 는 응답을 못 받는다. PLC 에 아무것도 쓰지 않는다.
+ */
+export function isDiscard(a: TaskAction, state: TaskState): boolean {
+  return a === 'cancel' && state === 'lost'
+}
+
+/**
+ * 원장 취소가 함께 끝내는 Task(백엔드 `ops::discard_set` 과 같은 규칙) — 같은 이송 지시의 유실·초안 짝 +
+ * 같은 WorkId 뒤의 유실. 대기·실행 중인 짝은 PLC 에 있으니 넣지 않는다.
+ */
+export function discardSet(list: readonly Task[], task: Task): Task[] {
+  const to = task.transfer_order_id
+  return list.filter(
+    (t) =>
+      t.id !== task.id &&
+      ((!!to && t.transfer_order_id === to && (t.state === 'lost' || t.state === 'draft')) ||
+        (!!task.work_id &&
+          t.work_id === task.work_id &&
+          t.task_id > task.task_id &&
+          t.state === 'lost')),
+  )
+}
+
+/**
  * AUTO 잠금 — 로봇이 AUTO 이면 PLC 로 가는 완료·삭제(`complete`·`cancel`)를 막는다(2026-09-21 운용 규칙,
- * 백엔드 `ops::auto_refusal` 과 같다). 초안 폐기는 PLC 에 가지 않아 막지 않는다. 막히면 사유, 아니면 undefined.
+ * 백엔드 `ops::auto_refusal` 과 같다). 초안 폐기·유실 원장 취소는 PLC 에 가지 않아 막지 않는다. 막히면 사유, 아니면 undefined.
  * `mode` 는 `WebMon.Mode` 이름(`modeName`) — 모르면(null) 막지 않고 서버 판단에 맡긴다.
  */
 export function autoBlock(
@@ -173,7 +198,7 @@ export function autoBlock(
   mode: string | null,
 ): string | undefined {
   if (mode !== 'AUTO') return undefined
-  if (a === 'complete' || (a === 'cancel' && state !== 'draft')) {
+  if (a === 'complete' || (a === 'cancel' && state !== 'draft' && state !== 'lost')) {
     return 'AUTO 모드에서는 완료·삭제할 수 없음 — Stop 으로 AUTO 에서 내린 뒤'
   }
   return undefined

@@ -8,7 +8,7 @@ import { robotFailure, withRobot } from '../robotContext'
 import { tasks } from '../tasks'
 import { toast } from '../ui/toast'
 import type { PlcTask, Task } from '../types'
-import type { TaskAction } from './state'
+import { isDiscard, type TaskAction } from './state'
 
 /** `GET /api/tasks/stats`. */
 export interface TaskStats {
@@ -82,12 +82,15 @@ async function withToast(
 /** 조작 한 건 실행. 삭제는 Task를 돌려주지 않으므로 성공 시 `null`이지만 `ok`가 참이다. */
 export async function runAction(
   action: TaskAction,
-  task: Pick<Task, 'id' | 'seq'>,
+  task: Pick<Task, 'id' | 'seq' | 'state'>,
   opts: { note?: string } = {},
 ): Promise<{ ok: boolean; task: Task | null }> {
   switch (action) {
     case 'cancel': {
-      const t = await tasks.cancel(task.id)
+      // 유실은 PLC 에 지울 대상이 없다 — 원장에서만 끝낸다(`isDiscard`).
+      const t = await (isDiscard(action, task.state)
+        ? tasks.discard(task.id)
+        : tasks.cancel(task.id))
       return { ok: t !== null, task: t }
     }
     case 'complete': {
@@ -103,7 +106,9 @@ export async function runAction(
       return { ok: t !== null, task: t }
     }
     case 'fail': {
-      const t = await withToast(tasks.ownerOf(task.id), '실패로 표시', () => taskApi.markFailed(task.id, opts.note))
+      const t = await withToast(tasks.ownerOf(task.id), '실패로 표시', () =>
+        taskApi.markFailed(task.id, opts.note),
+      )
       return { ok: t !== null, task: t }
     }
     case 'delete': {

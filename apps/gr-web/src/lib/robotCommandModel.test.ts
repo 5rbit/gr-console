@@ -54,7 +54,10 @@ describe('robotCommandModel', () => {
 
   it('reports what the backend did', () => {
     expect(robotActionDone('clear', 'GR2', { deleted: ['5/1', '6/1'] })).toBe(
-      'GR2 Clear 요청 — 2건 (5/1, 6/1)',
+      'GR2 Clear — 삭제 요청 2건 (5/1, 6/1)',
+    )
+    expect(robotActionDone('clear', 'GR2', { deleted: [], discarded: ['7/1'] })).toBe(
+      'GR2 Clear — 유실 원장 취소 1건 (7/1)',
     )
     expect(robotActionDone('complete', 'GR2', { task: '5/1' })).toBe('GR2 Complete 요청 — Task 5/1')
     expect(robotActionDone('reset', 'GR1', {})).toBe('GR1 Reset 보냄')

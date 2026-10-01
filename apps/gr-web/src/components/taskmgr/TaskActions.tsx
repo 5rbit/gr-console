@@ -22,6 +22,8 @@ import {
   allowedActions,
   autoBlock,
   cascadeAfter,
+  discardSet,
+  isDiscard,
   isTerminal,
   pairCancel,
   dimsLabel,
@@ -98,9 +100,10 @@ function describe(action: TaskAction, task: Task, robot: string): string {
     case 'submit':
       return `${who}을(를) PLC에 제출하시겠습니까?`
     case 'cancel':
-      return task.state === 'draft'
-        ? `${who} 초안을 폐기하시겠습니까?`
-        : `${who}을(를) PLC 에서 삭제(Delete)하시겠습니까?`
+      if (task.state === 'draft') return `${who} 초안을 폐기하시겠습니까?`
+      if (isDiscard(action, task.state))
+        return `${who}은(는) PLC 에 없습니다. 원장에서만 취소하시겠습니까? PLC 에는 아무것도 보내지 않습니다.`
+      return `${who}을(를) PLC 에서 삭제(Delete)하시겠습니까?`
     case 'complete':
       return `${who}을(를) 강제로 완료 처리하시겠습니까?`
     case 'resubmit':
@@ -188,9 +191,13 @@ export function TaskActions({
   if (actions.length === 0 && rest.length === 0) return null
   // 연쇄 취소는 **이 로봇의** 같은 WorkId 만(서버 `cascade_after` 도 로봇 원장 안에서만 본다).
   const mine = tasks.list.filter((x) => x.plc_name === task.plc_name)
-  const tail = pending === 'cancel' && task.state !== 'draft' ? cascadeAfter(mine, task) : []
+  // 유실 원장 취소는 PLC 를 거치지 않으니 짝·뒤 Task 규칙이 다르다(`discardSet`).
+  const discard = pending !== null && isDiscard(pending, task.state)
+  const mates = discard ? discardSet(mine, task) : []
+  const tail =
+    pending === 'cancel' && task.state !== 'draft' && !discard ? cascadeAfter(mine, task) : []
   // 짝(PICK/DROP) 취소도 같은 로봇 안에서만 — 이송 지시 하나가 한 로봇의 두 Task 다.
-  const pair = pending === 'cancel' ? pairCancel(mine, task) : null
+  const pair = pending === 'cancel' && !discard ? pairCancel(mine, task) : null
 
   const run = async (a: TaskAction) => {
     setBusy(a)
@@ -222,7 +229,9 @@ export function TaskActions({
             icon={icons ? ICON[a] : undefined}
             loading={busy === a}
             disabled={busy !== null || !!blocked(a)}
-            title={blocked(a)}
+            title={
+              blocked(a) ?? (isDiscard(a, task.state) ? 'PLC 에 없음 — 원장에서만 취소' : undefined)
+            }
             className={row ? 'w-18 justify-center' : undefined}
             data-testid={`${testid}-${a}`}
             onClick={() => setPending(a)}
@@ -240,10 +249,10 @@ export function TaskActions({
           onOpenChange={(o) => {
             if (!o) setPending(null)
           }}
-          scope={isRobotAction(pending) ? 'single-robot' : 'single'}
-          title={`${ACTION_LABEL[pending]} — ${owner.name} Task #${task.seq}`}
+          scope={isRobotAction(pending) && !discard ? 'single-robot' : 'single'}
+          title={`${discard ? '원장 취소' : ACTION_LABEL[pending]} — ${owner.name} Task #${task.seq}`}
           danger={DANGER.has(pending)}
-          confirmLabel={ACTION_LABEL[pending]}
+          confirmLabel={discard ? '원장 취소' : ACTION_LABEL[pending]}
           onConfirm={() => void run(pending)}
         >
           <p className="m-0 text-content-primary">{describe(pending, task, owner.name)}</p>
@@ -259,6 +268,11 @@ export function TaskActions({
               같은 WorkId의 뒤 Task {tail.length}건도 함께 취소됩니다 —{' '}
               {tail.map((t) => `#${t.seq}(TaskId ${t.task_id})`).join(' · ')}
             </p>
+          ) : null}
+          {mates.length > 0 ? (
+            <span className="mt-3 block text-warn-fg" data-testid="discard-note">
+              함께 원장 취소 — {mates.map((t) => `#${t.seq}`).join(' · ')}
+            </span>
           ) : null}
           {pair && pair.with.length > 0 ? (
             <span className="mt-3 block text-warn-fg" data-testid="pair-cancel-note">
