@@ -1,7 +1,8 @@
 // 맵의 로봇 표식 우클릭 — 그 로봇의 운전 명령(사이드바 로봇 행과 같은 목록 · 같은 확인 규칙)과 **화물 처리**.
 //
 // 화물 처리는 콘솔 재고(Hand)만 고친다 — PLC 그리퍼 데이터에는 쓰지 않는다(서버 `stock/routes.rs`):
-//   DROP 명령 작성   → 놓을 셀·스테이션을 맵에서 한 번 클릭(작성 카드로, 그 로봇이 선택된다)
+//   DROP 명령 작성   → 놓을 셀·스테이션을 맵에서 한 번 클릭(작성 카드로, 그 로봇이 선택된다). Hand 가 비어도 된다 —
+//                      수동작업 팝업의 [화물 지정] 으로 화물을 정해 보낸다.
 //   Hand 지정·수정…  → 품목 · 개수 손 정정(진행 중 PICK/DROP 이 있으면 서버가 거부)
 //   PLC 기준으로 맞춤 → PLC 는 들고 있는데 콘솔이 모를 때(마지막 PICK 으로 채움)
 //   화물 제거…       → 사람이 그리퍼에서 들어냄: Hand 비움 + 살아 있는 DROP 취소 + 이송 지시 중단(재고 반영 없음)
@@ -83,8 +84,7 @@ export function useRobotMapMenu({
       })),
       { label: '화물' },
       {
-        label: 'DROP 명령 작성 — 놓을 곳 클릭',
-        disabled: holding ? undefined : '들고 있는 화물이 없습니다',
+        label: holding ? 'DROP 명령 작성 — 놓을 곳 클릭' : 'DROP 명령 작성(화물 지정) — 놓을 곳 클릭',
         testid: `map-robot-drop-${r.id}`,
         run: () => onDropPick(r.id),
       },
@@ -169,7 +169,7 @@ export function useRobotMapMenu({
   return { open, dialogs }
 }
 
-function HandDialog({
+export function HandDialog({
   edit,
   items,
   onClose,
@@ -219,8 +219,8 @@ function HandDialog({
     >
       <div className="flex flex-col gap-2 text-xs">
         <span className="text-content-muted">
-          {edit?.cargo.text} — 콘솔 재고만 고칩니다(PLC 그리퍼 데이터는 그대로). 비우려면 메뉴의
-          화물 제거.
+          {edit?.cargo.text} — 콘솔 재고만 고칩니다. PLC 그리퍼 화물 데이터는 PLC HMI Item 화면에서
+          고칩니다. 비우려면 로봇 메뉴의 화물 제거.
         </span>
         <ItemPicker value={item} onChange={setItem} items={[...items]} allowNone={false} />
         {it ? <span className="text-content-muted">{itemLabel(it)}</span> : null}

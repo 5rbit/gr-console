@@ -1,5 +1,6 @@
 // [+ 수동작업] 팝업 — 단일 생성 탭을 대신한다. 종류에 따라 칸이 바뀐다:
 //   이송(출발 · 도착 · 화물 · 개수) · 측정(셀 · 종류) · 이동(대상) · 내려놓기(손 → 도착, 그리퍼에 든 것).
+// 내려놓기의 [화물 지정] 은 콘솔 Hand 를 고르는 화물로 고치고 이송 지시를 열어 DROP 한다(콘솔 Hand 가 비었거나 다를 때 기본으로 켜짐).
 // [대기열에 추가] 는 나갈 순서 끝에, [바로 맨 앞에] 는 우선을 올려 다음으로. 요청은 계획과 같은 `toRequest` 로 만든다.
 import { useState } from 'react'
 import { jobs as jobStore } from '../../lib/jobs/store'
@@ -14,6 +15,7 @@ import { Field } from '../../lib/ui/Field'
 import { Input } from '../../lib/ui/Input'
 import { Segmented } from '../../lib/ui/Segmented'
 import { Select } from '../../lib/ui/Select'
+import { Switch } from '../../lib/ui/Switch'
 import { toast } from '../../lib/ui/toast'
 import { ItemPicker } from '../shared/ItemPicker'
 
@@ -60,6 +62,8 @@ export function ManualJobDialog({
   const [count, setCount] = useState(1)
   const [measure, setMeasure] = useState<'auto' | MeasureMode>('auto')
   const [busy, setBusy] = useState(false)
+  /** 화물 지정 — null 이면 콘솔 Hand 와 맞는지로 정한다. */
+  const [force, setForce] = useState<boolean | null>(null)
   const [seed, setSeed] = useState<ManualPrefill | null>(null)
   if (prefill !== seed) {
     setSeed(prefill)
@@ -74,6 +78,7 @@ export function ManualJobDialog({
       )
       setCount(prefill.count ?? (prefill.kind === 'drop' ? hand?.count || 1 : 1))
       setMeasure('auto')
+      setForce(null)
     }
   }
   if (!prefill) return null
@@ -94,6 +99,9 @@ export function ManualJobDialog({
     const st = stockStore.get(t.id)
     return `${targetCode(t)}${st && st.count > 0 ? ` · ${st.item_code} ×${st.count}` : ''}`
   }
+  const hand = robots.current ? stockStore.hand(robots.current.plc) : null
+  const handFits = !!hand && hand.count > 0 && hand.item_code === item && hand.count === count
+  const forceOn = kind === 'drop' && (force ?? !handFits)
   const needFrom = kind !== 'drop'
   const needTo = kind === 'transfer' || kind === 'drop'
   const why =
@@ -133,7 +141,11 @@ export function ManualJobDialog({
     if (why) return
     setBusy(true)
     try {
-      const j = await jobStore.add({ robot, steps: steps().map((s) => toRequest(s, robot)) })
+      const j = await jobStore.add({
+        robot,
+        steps: steps().map((s) => toRequest(s, robot)),
+        force_cargo: forceOn || undefined,
+      })
       if (front) await jobStore.front(j.id)
       toast.ok(`${name} 대기열 ${front ? '맨 앞' : '끝'}에 추가 · WorkId ${j.work_id ?? '-'}`)
       onClose()
@@ -255,6 +267,20 @@ export function ManualJobDialog({
               />
             </Field>
           </>
+        ) : null}
+        {kind === 'drop' ? (
+          <div className="flex flex-col gap-1">
+            <Switch
+              inline
+              label="화물 지정 — 콘솔 Hand 를 이 화물로 고치고 이송 지시를 열어 DROP"
+              checked={forceOn}
+              onCheckedChange={setForce}
+              testid="manual-force-cargo"
+            />
+            <span className="text-content-muted">
+              {`콘솔 Hand: ${hand && hand.count > 0 ? `${hand.item_code} ×${hand.count}` : '비어 있음'}${handFits ? ' (맞음)' : ''} · PLC 그리퍼 화물 데이터가 비어 있으면 보내기가 기다립니다 — PLC HMI Item 화면에서 지정(그대로 보내면 알람 6017)`}
+            </span>
+          </div>
         ) : null}
       </div>
     </Dialog>

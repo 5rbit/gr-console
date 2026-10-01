@@ -197,6 +197,9 @@ fn wait_reason(st: &AppState, r: &RobotCtx, job: &Job, idx: usize, mid: bool) ->
     if !g.can_submit {
         return Some(format!("게이트 — {}", g.reasons.join(" · ")));
     }
+    if let Some(w) = plc_hold_wait(st, r, job, idx, &list) {
+        return Some(w);
+    }
     let queued = list.iter().filter(|e| matches!(e.state, TaskState::Accepted | TaskState::Queued | TaskState::Running)).count();
     if queued >= DEPTH {
         return Some(if mid { "짝 DROP — PLC 실행 1 + 다음 1 참".into() } else { "PLC 실행 1 + 다음 1 참".into() });
@@ -210,6 +213,20 @@ fn wait_reason(st: &AppState, r: &RobotCtx, job: &Job, idx: usize, mid: bool) ->
         return Some(c.reason.unwrap_or_else(|| "영역 대기".into()));
     }
     None
+}
+
+/// 단독 DROP 인데 PLC 그리퍼 화물 데이터가 비어 있으면(HoldItem 0) 보내지 않는다 — PLC 가 DROP 030 에서 감지 ≠ 보유로
+/// 알람 6017 을 낸다. 같은 로봇에 PICK 이 돌고 있으면 그 PICK 이 채울 것이라 기다리지 않는다.
+fn plc_hold_wait(st: &AppState, r: &RobotCtx, job: &Job, idx: usize, list: &[LedgerEntry]) -> Option<String> {
+    if st.cfg.demo || job.steps.len() != 1 || !job.steps[idx].request.task_type.eq_ignore_ascii_case("DROP") {
+        return None;
+    }
+    let pick_live = list.iter().any(|e| {
+        gr_proto::TaskType::from_code(e.plc_task.task_type) == Some(gr_proto::TaskType::Pick)
+            && matches!(e.state, TaskState::Submitted | TaskState::Accepted | TaskState::Queued | TaskState::Running)
+    });
+    let v = crate::ledger::ops::status_view(st, r)?;
+    (!pick_live && !v.task.status.hold_item).then(|| "PLC 그리퍼 화물 데이터 없음(HoldItem 0) — PLC HMI Item 화면에서 화물을 지정하면 보냄 (그대로 보내면 알람 6017)".into())
 }
 
 fn note_wait(job: &Job, why: &str) {

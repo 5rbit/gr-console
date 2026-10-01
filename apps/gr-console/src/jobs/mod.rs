@@ -316,6 +316,10 @@ pub struct NewJob {
     pub priority: Option<i32>,
     #[serde(default)]
     pub note: String,
+    /// 화물 지정 DROP(한 건) — 콘솔 Hand 를 이 DROP 의 품목 · 개수로 고치고 손에 든 이송 지시를 열어 붙인다.
+    /// PLC 그리퍼 화물 데이터(GRIPPER.Item)는 콘솔이 쓰지 못한다 — 비어 있으면 보내기가 기다린다(PLC HMI Item 화면).
+    #[serde(default)]
+    pub force_cargo: bool,
 }
 
 /// 모양 검사(순수): 짝은 PICK → DROP 같은 개수 · 같은 품목, 한 건은 PICK 이 아닐 것.
@@ -375,8 +379,50 @@ pub fn enqueue(st: &crate::state::AppState, n: NewJob, origin: Origin, via: Opti
     if steps.len() == 2 {
         crate::issue::compose(st, &steps[1])?;
     }
+    if n.force_cargo {
+        if steps.len() != 1 || crate::issue::parse_task_type(&steps[0].task_type)? != gr_proto::TaskType::Drop {
+            return Err(ApiError::BadRequest("화물 지정은 DROP 한 건에만 됩니다".into()));
+        }
+        if first.task.item.code == 0 {
+            return Err(ApiError::BadRequest("화물 지정 DROP 은 품목이 필요합니다".into()));
+        }
+        let p = crate::issue::projected_hand(st, Some(r.id))?;
+        if !p.pending.is_empty() {
+            return Err(ApiError::Conflict(format!("{}: 진행 중 PICK/DROP {} 건 — 끝난 뒤에 화물 지정 DROP 을 넣으세요", r.name, p.pending.len())));
+        }
+        let others = store.list().into_iter().filter(|j| j.robot == Some(r.id) && !j.stage.is_end() && j.steps.iter().any(|s| is_pick_drop(&s.request))).count();
+        if others > 0 {
+            return Err(ApiError::Conflict(format!("{}: 대기열에 PICK/DROP 작업 {others} 건 — 화물 지정 DROP 은 그것들이 끝난 뒤에", r.name)));
+        }
+    }
     let work_id = r.ledger.allocate_work_id()?;
     let mut order = None;
+    if n.force_cargo {
+        let (code, cnt) = (first.task.item.code, u32::from(steps[0].count.max(1)));
+        let cur = st.stock.hand(&r.plc)?;
+        let id = match cur.transfer_order_id.clone() {
+            Some(id) if cur.item_code == code && cur.count == cnt => id,
+            old => {
+                if let Some(old) = old {
+                    st.stock.abort_order(&old, "화물 지정 DROP 으로 Hand 정정", false)?;
+                }
+                let o = crate::stock::transfer::NewOrder {
+                    robot: Some(r.id),
+                    plc: r.plc.clone(),
+                    item_code: code,
+                    count: cnt,
+                    from: None,
+                    to: steps[0].target.clone(),
+                    source: via.clone().unwrap_or_else(|| "manual".into()),
+                    note: format!("WorkId {work_id} · 화물 지정 DROP"),
+                };
+                st.stock.open_in_hand_order(o, "화물 지정 — 사람이 그리퍼 화물을 지정")?.id
+            }
+        };
+        st.stock.set_hand(&r.plc, code, cnt, "화물 지정 DROP", None, Some(&id))?;
+        steps[0].transfer_order_id = Some(id.clone());
+        order = Some(id);
+    }
     if steps.len() == 2 {
         let o = st.stock.open_order(crate::stock::transfer::NewOrder {
             robot: Some(r.id),
@@ -417,6 +463,10 @@ pub fn enqueue(st: &crate::state::AppState, n: NewJob, origin: Origin, via: Opti
     store.save(&job)?;
     tracing::info!(robot = %r.name, work_id, job = %job.id, "jobs: 대기열에 넣음");
     Ok(job)
+}
+
+fn is_pick_drop(r: &TaskRequest) -> bool {
+    r.task_type.eq_ignore_ascii_case("PICK") || r.task_type.eq_ignore_ascii_case("DROP")
 }
 
 pub fn spawn(st: crate::state::AppState) -> Result<(), ApiError> {

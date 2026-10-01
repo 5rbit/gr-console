@@ -76,6 +76,11 @@ pub fn derive(cur: OrderState, pick: Option<TaskState>, drop: Option<TaskState>)
     if cur == OrderState::Aborted {
         return cur;
     }
+    // 손에 든 채 연 지시(화물 지정 DROP · PLC 기준 Hand 맞춤)는 PICK 이 없다 — 끝난 PICK 으로 본다(예전에는 DROP 이 끝나도 in_hand 에 남았다).
+    let pick = match (pick, cur) {
+        (None, OrderState::InHand | OrderState::Dropping) => Some(TaskState::Completed),
+        (p, _) => p,
+    };
     match pick {
         None | Some(TaskState::Draft) => cur,
         Some(TaskState::Completed) => match drop {
@@ -441,6 +446,17 @@ mod tests {
         assert_eq!(derive(O::Picking, Some(Rejected), Some(Queued)), O::Failed);
         assert_eq!(derive(O::Picking, Some(Canceled), Some(Canceled)), O::Aborted, "PICK 취소 = 짝 전체 중단");
         assert_eq!(derive(O::Aborted, Some(Completed), Some(Completed)), O::Aborted);
+    }
+
+    /// 손에 든 채 연 지시(PICK 없음) — DROP 이 끝나면 done, 도는 중이면 dropping, 실패면 그대로 손에.
+    #[test]
+    fn in_hand_order_without_pick_finishes_on_drop() {
+        use OrderState as O;
+        assert_eq!(derive(O::InHand, None, None), O::InHand);
+        assert_eq!(derive(O::InHand, None, Some(Running)), O::Dropping);
+        assert_eq!(derive(O::Dropping, None, Some(Completed)), O::Done);
+        assert_eq!(derive(O::InHand, None, Some(Failed)), O::InHand);
+        assert_eq!(derive(O::Planned, None, Some(Completed)), O::Planned, "계획 지시는 PICK 을 기다린다");
     }
 
     /// 전 과정: planned → picking → (DROP 미리 넣음) → dropping → DROP 취소 → in_hand → 새 DROP → done.

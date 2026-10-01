@@ -1338,7 +1338,7 @@ async fn issue_one(st: &AppState, _p: &crate::params::Params, _pairs: &BTreeMap<
     let Some(store) = crate::jobs::store() else { return Issue::Wait("작업 대기열 준비 중".into()) };
     let Some(job_id) = &g.job_id else {
         let steps: Vec<TaskRequest> = (0..g.steps.len()).map(|i| step_request(g, i)).collect();
-        let n = crate::jobs::NewJob { robot: Some(g.robot), steps, priority: Some(AUTO_PRIORITY), note: g.rule_name.clone() };
+        let n = crate::jobs::NewJob { robot: Some(g.robot), steps, priority: Some(AUTO_PRIORITY), note: g.rule_name.clone(), force_cargo: false };
         return match crate::jobs::enqueue(st, n, Origin::Auto, Some(order_source(&g.rule_id))) {
             Ok(job) => Issue::Queued { job_id: job.id, order: job.transfer_order_id },
             Err(e) => Issue::Failed { why: format!("대기열: {e}"), order: None },

@@ -86,6 +86,9 @@ import { jobs as jobStore } from '../../lib/jobs/store'
 import { stepsToJobs } from '../../lib/jobs/model'
 import { RAIL_KEY, RegistryRail, type RailTab } from './RegistryRail'
 import { TaskManagerCard } from './TaskManagerCard'
+import { HandDialog, cargoOf } from './RobotMapMenu'
+import type { RobotCargo } from '../../lib/task/robotCargoModel'
+import type { Robot } from '../../lib/types'
 import { Splitter } from '../workspace/Splitter'
 
 const PLAN_KEY = 'gr-plan'
@@ -321,6 +324,7 @@ export default function TaskIssue() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 계획이 바뀔 때만
   }, [plan])
   const [manualAsk, setManualAsk] = useState<ManualPrefill | null>(null)
+  const [handEdit, setHandEdit] = useState<{ robot: Robot; cargo: RobotCargo } | null>(null)
 
   const loadDefaults = useCallback(async () => {
     try {
@@ -682,6 +686,10 @@ export default function TaskIssue() {
                 onDropPending={() => setPlan([])}
                 onAdd={() => setManualAsk({ kind: 'transfer' })}
                 handNow={robots.current ? stockStore.hand(robots.current.plc) : null}
+                onEditHand={() => {
+                  const r = robots.current
+                  if (r) setHandEdit({ robot: r, cargo: cargoOf(r) })
+                }}
                 cells={cells.items}
                 stations={stations.items}
                 menu={[
@@ -808,6 +816,7 @@ export default function TaskIssue() {
           ) : null}
         </div>
       </ConfirmDialog>
+      <HandDialog edit={handEdit} items={items.items} onClose={() => setHandEdit(null)} />
       <ManualJobDialog
         prefill={manualAsk}
         onClose={() => setManualAsk(null)}

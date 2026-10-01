@@ -44,6 +44,7 @@ export function ManualCard({
   onDropPending,
   onAdd,
   handNow,
+  onEditHand,
   menu,
   cells,
   stations,
@@ -57,6 +58,8 @@ export function ManualCard({
   /** [+ 수동작업] 팝업 열기. */
   onAdd: () => void
   handNow: HandEntry | null
+  /** Hand 지정 · 수정 창 열기. */
+  onEditHand: () => void
   /** 넘침 메뉴(측정 경로 · 그립 기준). */
   menu: MenuItem[]
   /** 두 로봇 영역 띠의 축(설비 전체 X). */
@@ -194,15 +197,20 @@ export function ManualCard({
           title="켜면 콘솔 서버가 대기열을 순서대로 보냅니다 — 다른 화면으로 가거나 창을 닫아도 계속됩니다"
           testid="manual-dispatch"
         />
-        <span
+        <Button
+          size="sm"
+          intent="ghost"
           className={cn(
             'text-2xs whitespace-nowrap',
             handNow && handNow.count > 0 ? 'text-content-secondary' : 'text-content-faint',
           )}
-          title="그리퍼에 든 화물(콘솔 Hand)"
+          title="그리퍼에 든 화물(콘솔 Hand) — 눌러서 지정 · 수정"
+          disabled={robot === null}
+          onClick={onEditHand}
+          data-testid="manual-hand"
         >
           Hand: {handNow && handNow.count > 0 ? `${handNow.item_code} ×${handNow.count}` : '-'}
-        </span>
+        </Button>
         {sync.length ? (
           <Button
             size="sm"

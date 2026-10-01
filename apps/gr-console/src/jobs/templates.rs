@@ -133,7 +133,7 @@ async fn load_into(State(st): State<AppState>, Path(id): Path<String>, axum::Jso
     let mut added = Vec::new();
     let mut failed = Vec::new();
     for (i, steps) in t.jobs.iter().enumerate() {
-        let n = NewJob { robot: Some(b.robot), steps: steps.clone(), priority: None, note: format!("{} #{}", t.name, i + 1) };
+        let n = NewJob { robot: Some(b.robot), steps: steps.clone(), priority: None, note: format!("{} #{}", t.name, i + 1), force_cargo: false };
         match super::enqueue(&st, n, Origin::Manual, None) {
             Ok(j) => added.push(j.work_id),
             Err(e) => failed.push(json!({ "index": i + 1, "error": e.to_string() })),

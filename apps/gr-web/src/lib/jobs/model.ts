@@ -62,6 +62,8 @@ export interface NewJob {
   steps: TaskRequest[]
   priority?: number
   note?: string
+  /** 화물 지정 DROP(한 건) — 서버가 콘솔 Hand 를 이 품목 · 개수로 고치고 손에 든 이송 지시를 열어 붙인다. */
+  force_cargo?: boolean
 }
 
 export const STAGE_LABEL: Record<JobStage, string> = {
