@@ -4,8 +4,11 @@
 //! `pick_next` → 에코 대기 · 게이트 · 깊이(실행 1 + 다음 1) · 두 로봇 영역 → 보낸다.
 //! 보내기가 거부되면(품목 모름 · StackMax · 짝 검사 · PLC 거부) **그 로봇을 멈추고** 알린다 — 재고가 어긋난 채
 //! 다음 작업을 보내지 않는다(결정 2026-10-01). 영역 대기 · 게이트는 실패가 아니라 기다림이다.
+//! OPC UA · PLC 응답 없음 같은 일시 오류는 아무것도 나가지 않은 것이므로 3 s 뒤 다시 보내고, 5 번 연달아 실패할 때만 멈춘다.
 
-use std::time::Duration;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock, PoisonError};
+use std::time::{Duration, Instant};
 
 use tokio::sync::broadcast::error::RecvError;
 
@@ -16,6 +19,38 @@ use crate::state::{AppState, RobotCtx};
 use crate::util::now_str;
 
 const TICK: Duration = Duration::from_millis(500);
+/// 일시 오류 다시 보내기 — 간격과 멈추기 전 최대 횟수.
+const RETRY_GAP: Duration = Duration::from_secs(3);
+const RETRY_MAX: u32 = 5;
+
+/// 작업별 연속 일시 실패 수와 다음 시도 시각(메모리만 — 콘솔을 다시 켜면 처음부터 센다).
+#[derive(Default)]
+struct Retries(HashMap<String, (u32, Instant)>);
+
+impl Retries {
+    fn waiting(&self, id: &str, now: Instant) -> Option<u32> {
+        self.0.get(id).filter(|(_, at)| now < *at).map(|(n, _)| *n)
+    }
+    fn bump(&mut self, id: &str, now: Instant) -> u32 {
+        let e = self.0.entry(id.to_string()).or_insert((0, now));
+        e.0 += 1;
+        e.1 = now + RETRY_GAP;
+        e.0
+    }
+    fn clear(&mut self, id: &str) {
+        self.0.remove(id);
+    }
+}
+
+fn retries() -> std::sync::MutexGuard<'static, Retries> {
+    static R: OnceLock<Mutex<Retries>> = OnceLock::new();
+    R.get_or_init(Default::default).lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// 아무것도 나가지 않은 일시 오류 — OPC UA 쓰기 무응답 · PLC 연결 끊김 · 종료 중.
+fn transient(e: &ApiError) -> bool {
+    matches!(e, ApiError::OpcNotReady(_) | ApiError::PlcUnavailable(_) | ApiError::ShuttingDown(_))
+}
 
 pub fn spawn(st: AppState) {
     tokio::spawn(async move {
@@ -111,24 +146,42 @@ pub async fn step(st: &AppState, r: &RobotCtx) -> Result<Result<LedgerEntry, Str
     let jobs = s.list();
     let Some((id, idx, mid)) = pick_next(&jobs, r.id) else { return Ok(Err("보낼 작업 없음".into())) };
     let job = jobs.into_iter().find(|j| j.id == id).ok_or_else(|| ApiError::NotFound(id.clone()))?;
+    if retries().waiting(&job.id, Instant::now()).is_some() {
+        return Ok(Err(job.wait_reason.clone().unwrap_or_else(|| "다시 보내기 기다림".into())));
+    }
     if let Some(w) = wait_reason(st, r, &job, idx, mid) {
         note_wait(&job, &w);
         return Ok(Err(w));
     }
     match send(st, r, &job, idx).await {
-        Ok(e) => Ok(Ok(e)),
+        Ok(e) => {
+            retries().clear(&job.id);
+            Ok(Ok(e))
+        }
         Err(e) => {
             let msg = e.to_string();
-            if msg.contains("영역 대기") || msg.contains("게이트") {
+            // 판단과 쓰기 사이에 게이트가 닫혔으면(예: GRM 이 앞 명령을 아직 안 가져감) 실패가 아니라 기다림.
+            if msg.contains("영역 대기") || !crate::ledger::ops::gate(st, r).can_submit {
                 note_wait(&job, &msg);
                 return Ok(Err(msg));
             }
+            if transient(&e) {
+                let n = retries().bump(&job.id, Instant::now());
+                if n < RETRY_MAX {
+                    let w = format!("PLC 쓰기 응답 없음 {n}/{RETRY_MAX} — {} s 뒤 다시: {msg}", RETRY_GAP.as_secs());
+                    tracing::warn!(robot = %r.name, job = %job.id, attempt = n, %msg, "jobs: 일시 오류, 다시 보냄");
+                    note_wait(&job, &w);
+                    return Ok(Err(w));
+                }
+            }
+            retries().clear(&job.id);
             let _ = s.update(&job.id, |j| {
                 j.error = Some(msg.clone());
                 j.wait_reason = Some(format!("거부: {msg}"));
                 Ok(())
             });
-            pause(st, r.id, &format!("WorkId {} 보내기 거부 — {msg}", job.work_id.unwrap_or(0)));
+            let what = if transient(&e) { format!("{RETRY_MAX} 번 연달아 쓰기 실패") } else { "보내기 거부".into() };
+            pause(st, r.id, &format!("WorkId {} {what} — {msg}", job.work_id.unwrap_or(0)));
             Ok(Err(msg))
         }
     }
@@ -255,5 +308,35 @@ pub async fn cancel(st: &AppState, id: &str) -> Result<Job, ApiError> {
             })
         }
         None => Err(ApiError::Conflict("PICK 이 끝나 그리퍼에 화물이 있습니다 — DROP 을 보내거나 맵의 로봇 메뉴에서 화물 제거".into())),
+    }
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+
+    #[test]
+    fn retries_count_wait_and_clear() {
+        let mut r = Retries::default();
+        let t0 = Instant::now();
+        assert_eq!(r.waiting("a", t0), None);
+        assert_eq!(r.bump("a", t0), 1);
+        assert_eq!(r.waiting("a", t0 + Duration::from_secs(1)), Some(1), "간격 안에서는 기다림");
+        assert_eq!(r.waiting("a", t0 + RETRY_GAP), None, "간격이 지나면 다시 보낸다");
+        for n in 2..=RETRY_MAX {
+            assert_eq!(r.bump("a", t0), n);
+        }
+        assert_eq!(r.waiting("b", t0), None, "작업마다 따로");
+        r.clear("a");
+        assert_eq!(r.waiting("a", t0), None);
+        assert_eq!(r.bump("a", t0), 1, "성공하면 처음부터");
+    }
+
+    #[test]
+    fn only_nothing_sent_errors_are_transient() {
+        assert!(transient(&ApiError::OpcNotReady("timeout".into())));
+        assert!(transient(&ApiError::PlcUnavailable("x".into())));
+        assert!(!transient(&ApiError::BadRequest("품목 모름".into())));
+        assert!(!transient(&ApiError::Conflict("StackMax".into())));
     }
 }

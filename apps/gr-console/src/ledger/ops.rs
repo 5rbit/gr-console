@@ -188,7 +188,15 @@ async fn submit_prepared(st: &AppState, r: &RobotCtx, entry: LedgerEntry) -> Res
     if !g.can_submit {
         return Err(refused(r, &g));
     }
-    let (header, uncertain) = r.cmd.write_task(&entry.plc_task).await?;
+    let (header, uncertain) = match r.cmd.write_task(&entry.plc_task).await {
+        Ok(h) => h,
+        Err(err) => {
+            // 웹 알림으로만 가던 사유를 남긴다(2026-10-01 GRM OPC UA 3 s 무응답이 원장 · 로그 어디에도 없었다).
+            tracing::warn!(robot = %r.name, task = %task_label(r, &entry), %err, "task write failed — nothing sent");
+            crate::evtlog::console("CON_SUBMIT", &r.plc, i64::from(entry.work_id), i64::from(entry.task_id), 0, format!("실패 {} : {err}", task_label(r, &entry)));
+            return Err(err);
+        }
+    };
     let mut e = entry;
     e.header = Some(header);
     e.submitted_at = Some(crate::util::now_str());
@@ -272,7 +280,17 @@ pub async fn create_and_submit_keyed(
     if !submit_now {
         return Ok(e);
     }
-    submit_prepared(st, r, e).await
+    let id = e.id.clone();
+    let out = submit_prepared(st, r, e).await;
+    // 여기서 만든 초안이 못 나갔으면 지운다 — 호출자는 id 를 받지 못해 아무도 다시 보내지 않고, 같은 WorkId/TaskId 로
+    // 다시 보낼 때 옛 초안이 남아 있지 않게(헤더 응답 없음은 위에서 제출됨으로 처리된다).
+    if out.is_err()
+        && r.ledger.get(&id).is_some_and(|x| x.state == TaskState::Draft)
+        && let Err(x) = r.ledger.remove(&id)
+    {
+        tracing::warn!(robot = %r.name, %id, %x, "unsent draft cleanup failed");
+    }
+    out
 }
 
 /// Latest decoded `OPCUA.STAT` of the status PLC (None when there is no snapshot yet).
