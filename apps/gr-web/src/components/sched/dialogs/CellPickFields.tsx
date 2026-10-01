@@ -22,13 +22,37 @@ export function CellPickFields({
   const p = value
   return (
     <div className="grid grid-cols-3 gap-2">
-      <Input label="Section" value={p.section ?? ''} onValueChange={(x) => onChange({ ...p, section: num(x) })} />
-      <Input label="RowMin" value={p.row_min ?? ''} onValueChange={(x) => onChange({ ...p, row_min: num(x) })} />
-      <Input label="RowMax" value={p.row_max ?? ''} onValueChange={(x) => onChange({ ...p, row_max: num(x) })} />
-      <Input label="ColMin" value={p.col_min ?? ''} onValueChange={(x) => onChange({ ...p, col_min: num(x) })} />
-      <Input label="ColMax" value={p.col_max ?? ''} onValueChange={(x) => onChange({ ...p, col_max: num(x) })} />
+      <Input
+        label="Section"
+        value={p.section ?? ''}
+        onValueChange={(x) => onChange({ ...p, section: num(x) })}
+      />
+      <Input
+        label="RowMin"
+        value={p.row_min ?? ''}
+        onValueChange={(x) => onChange({ ...p, row_min: num(x) })}
+      />
+      <Input
+        label="RowMax"
+        value={p.row_max ?? ''}
+        onValueChange={(x) => onChange({ ...p, row_max: num(x) })}
+      />
+      <Input
+        label="ColMin"
+        value={p.col_min ?? ''}
+        onValueChange={(x) => onChange({ ...p, col_min: num(x) })}
+      />
+      <Input
+        label="ColMax"
+        value={p.col_max ?? ''}
+        onValueChange={(x) => onChange({ ...p, col_max: num(x) })}
+      />
       {source ? (
-        <Select label="Order" value={p.order ?? 'oldest'} onValueChange={(o) => onChange({ ...p, order: o })}>
+        <Select
+          label="Order"
+          value={p.order ?? 'oldest'}
+          onValueChange={(o) => onChange({ ...p, order: o })}
+        >
           <option value="oldest">oldest</option>
           <option value="nearest">nearest</option>
         </Select>

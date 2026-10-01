@@ -27,6 +27,12 @@ fn ago(d: time::Duration) -> String {
     (now - d).format(&time::format_description::well_known::Rfc3339).unwrap_or_default()
 }
 
+/// 최근 `secs` 초 안에 쓴 `kind` 기록 수(키별) — 규칙의 시간당 제한.
+pub fn count_since(db: &Db, kind: &str, key: &str, secs: i64) -> u32 {
+    let since = ago(time::Duration::seconds(secs));
+    db.with(|c| c.query_row("SELECT COUNT(*) FROM taskgen_log WHERE kind = ?1 AND key = ?2 AND at >= ?3", (kind, key, &since), |r| r.get::<_, i64>(0))).map(|n| n as u32).unwrap_or(0)
+}
+
 pub fn prune(db: &Db) {
     let cutoff = ago(time::Duration::days(KEEP_DAYS));
     let _ = db.with(|c| {

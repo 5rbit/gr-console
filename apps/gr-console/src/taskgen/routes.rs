@@ -65,11 +65,26 @@ async fn put_config(axum::Json(c): axum::Json<GenConfig>) -> ApiResult<GenConfig
         return Err(ApiError::Conflict(format!("설정이 v{cur} 로 바뀜 (보낸 것 v{}) — 다시 읽고 저장하세요", c.version)));
     }
     let mut ids = std::collections::HashSet::new();
-    for r in &c.rules {
-        if r.id.trim().is_empty() || !ids.insert(r.id.clone()) {
-            return Err(ApiError::BadRequest(format!("rule id '{}' 가 비었거나 겹침", r.id)));
+    for id in c.rules.iter().map(|r| &r.id).chain(c.robot_rules.iter().map(|r| &r.id)) {
+        if id.trim().is_empty() || !ids.insert(id.clone()) {
+            return Err(ApiError::BadRequest(format!("규칙 id '{id}' 가 비었거나 겹침(작업 규칙 · 로봇 규칙 통틀어)")));
         }
     }
+    let mut set_ids = std::collections::HashSet::new();
+    for s in &c.rule_sets {
+        if s.id.trim().is_empty() || !set_ids.insert(s.id.clone()) {
+            return Err(ApiError::BadRequest(format!("규칙 세트 id '{}' 가 비었거나 겹침", s.id)));
+        }
+    }
+    Ok(axum::Json(e.save(c)?))
+}
+
+/// `POST /api/taskgen/rule-sets/{id}/apply` — 세트에 든 규칙만 켠다(작업 규칙 · 로봇 규칙). 이미 대기열에 든 작업은 그대로.
+async fn apply_set(Path(id): Path<String>) -> ApiResult<GenConfig> {
+    let e = eng()?;
+    let mut c = e.config();
+    c.apply_set(&id, &crate::util::now_str()).map_err(ApiError::NotFound)?;
+    tracing::info!(set = %id, "taskgen: 규칙 세트 적용");
     Ok(axum::Json(e.save(c)?))
 }
 
@@ -391,6 +406,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/taskgen/log", get(log_get))
         .route("/api/taskgen/kpi", get(kpi_get))
         .route("/api/taskgen/config", put(put_config))
+        .route("/api/taskgen/rule-sets/{id}/apply", post(apply_set))
         .route("/api/taskgen/defaults", post(defaults))
         .route("/api/taskgen/rules/{id}/request", post(request))
         .route("/api/taskgen/queue/{id}", delete(remove))

@@ -3,7 +3,7 @@
 // App은 이 스토어를 렌더하고 어느 컴포넌트든 `nav.go('measure')`로 이동한다. URL 딥링크(`?tab=`)도
 // 이 값을 읽고 쓴다(투영 — 중복 진실원 금지).
 //
-// 탭 외의 필드(`taskId`·`measSeq`·`measCode`·`scenarioId`)는 **한 번만 반응하는 신호**다 — 화면이
+// 탭 외의 필드(`taskId`·`measSeq`·`measCode`)는 **한 번만 반응하는 신호**다 — 화면이
 // 읽어 그 행을 고른 뒤 `consume*()`로 비운다. 상태가 아니라 신호이므로 URL에 싣지 않는다.
 
 import { Store } from './store'
@@ -11,16 +11,7 @@ import { Store } from './store'
 /** 셸 탭 id — `lib/tabs.ts`의 레지스트리와 같은 집합(백엔드 `console/info.tabs`가 노출 여부를 정한다).
  *  이 유니온의 정의는 여기 하나뿐이다(컴포넌트에서 다시 선언하지 않는다). */
 export type Tab =
-  | 'task'
-  | 'scheduler'
-  | 'items'
-  | 'taskmgr'
-  | 'measure'
-  | 'scenario'
-  | 'pallet'
-  | 'trace'
-  | 'gripper'
-  | 'events'
+  'task' | 'scheduler' | 'items' | 'taskmgr' | 'measure' | 'pallet' | 'trace' | 'gripper' | 'events'
 
 class Nav extends Store {
   /** 활성 탭. */
@@ -64,14 +55,6 @@ class Nav extends Store {
   }
 
   /** 시나리오 화면이 열 시나리오 id(빈 문자열 = 없음). */
-  #scenarioId = ''
-  get scenarioId(): string {
-    return this.#scenarioId
-  }
-  set scenarioId(v: string) {
-    this.#scenarioId = v
-    this.notify()
-  }
 
   /** 트레이스 화면이 적용할 채널 프리셋 id(빈 문자열 = 없음) — `components/trace/tracePresets`. */
   #tracePreset = ''
@@ -121,13 +104,6 @@ class Nav extends Store {
     return v
   }
 
-  /** 지목된 시나리오 id를 가져가며 비운다. */
-  consumeScenarioId(): string {
-    const v = this.#scenarioId
-    if (v) this.scenarioId = ''
-    return v
-  }
-
   /** Task 관리 화면을 그 Task로 연다 — 배지·행의 단일 목적지. */
   goTask(id: string): void {
     this.#taskId = id
@@ -144,12 +120,6 @@ class Nav extends Store {
   goMeasCode(code: number): void {
     this.#measCode = code
     this.tab = 'measure'
-  }
-
-  /** 시나리오 화면을 그 시나리오로 연다. */
-  goScenario(id: string): void {
-    this.#scenarioId = id
-    this.tab = 'scenario'
   }
 }
 

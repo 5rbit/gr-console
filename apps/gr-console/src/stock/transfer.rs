@@ -244,6 +244,19 @@ pub fn add_note(o: &mut TransferOrder, note: &str) {
     o.updated_at = now;
 }
 
+/// 짝 DROP 을 **보낼 때** 대상이 바뀌었으면(계획에서 고친 자리로 초안을 다시 작성) 지시의 도착지를 그 값으로 맞춘다.
+/// 초안(보내기 전)은 건드리지 않는다 — 지시의 도착지는 로봇에 실제로 나간 DROP 의 자리다. 바뀌었으면 true.
+pub fn sync_drop_target(o: &mut TransferOrder, state: TaskState, target: Option<&Target>) -> bool {
+    let Some(t) = target else { return false };
+    if state == TaskState::Draft || o.to.as_ref() == Some(t) {
+        return false;
+    }
+    let before = o.to.as_ref().map(|x| format!("{} #{}", x.kind, x.id)).unwrap_or_else(|| "-".into());
+    o.to = Some(t.clone());
+    add_note(o, &format!("DROP 대상 변경 {before} → {} #{}", t.kind, t.id));
+    true
+}
+
 /// Task 하나의 상태를 지시에 반영한다(PICK/DROP 이 아니면 아무것도 안 한다). 바뀐 지시를 돌려준다.
 /// 재시도로 새 PICK 이 오면(앞 PICK 이 실패) 그 Task 로 바꿔 단다.
 pub fn apply_task_state(o: &mut TransferOrder, tt: TaskType, task_id: &str, state: TaskState) -> bool {
@@ -380,6 +393,37 @@ mod tests {
         let d = time::Date::from_calendar_date(2026, time::Month::September, 21).unwrap();
         assert_eq!(format_id(d, 1), "TO-260921-0001");
         assert_eq!(format_id(d, 12345), "TO-260921-12345");
+    }
+
+    #[test]
+    fn sent_drop_moves_the_destination_but_a_draft_does_not() {
+        let cell = |id| Target { kind: "cell".into(), id };
+        let mut o = TransferOrder {
+            id: "TO-1".into(),
+            seq: 1,
+            robot: Some(2),
+            plc: "GR2".into(),
+            item_code: 1001,
+            count: 1,
+            from: Some(cell(101)),
+            to: Some(cell(107)),
+            pick_task: None,
+            drop_task: None,
+            pick_state: None,
+            drop_state: None,
+            state: OrderState::Planned,
+            source: "plan".into(),
+            note: String::new(),
+            created_at: String::new(),
+            updated_at: String::new(),
+            ended_at: None,
+            history: vec![],
+        };
+        assert!(!sync_drop_target(&mut o, Draft, Some(&cell(108))), "초안은 아직 로봇에 안 나갔다");
+        assert!(!sync_drop_target(&mut o, Submitted, Some(&cell(107))), "같은 자리");
+        assert!(sync_drop_target(&mut o, Submitted, Some(&cell(108))));
+        assert_eq!(o.to, Some(cell(108)));
+        assert!(o.history.last().unwrap().note.contains("cell #107 → cell #108"));
     }
 
     #[test]

@@ -9,7 +9,6 @@ use axum::routing::{get, post};
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
-use super::runner::RunOptions;
 use super::{RunState, Scenario, io};
 use crate::error::{ApiError, ApiResult};
 use crate::sse::broadcast_sse;
@@ -143,33 +142,14 @@ async fn validate(State(st): State<AppState>, Path(id): Path<String>, body: Byte
 
 // ---- run control
 
-async fn run_start(State(st): State<AppState>, Path(id): Path<String>, body: Bytes) -> ApiResult<RunState> {
-    let opts: RunOptions = if body.iter().any(|b| !b.is_ascii_whitespace()) { serde_json::from_slice(&body)? } else { RunOptions::default() };
-    let s = st.scenario.get(&id)?.ok_or_else(|| not_found(&id))?;
-    let runner = st.scenario.clone();
-    Ok(axum::Json(runner.start(st.clone(), s, opts)?))
+/// 실행기는 은퇴했다(2026-10-01) — PLC 로 보내는 곳은 작업 대기열 하나다. 시나리오는 수동작업 목록으로 가져와 불러온다
+/// (`POST /api/jobs/templates/from-scenario/{id}`).
+async fn run_start(State(st): State<AppState>, Path(id): Path<String>, _body: Bytes) -> ApiResult<RunState> {
+    st.scenario.get(&id)?.ok_or_else(|| not_found(&id))?;
+    Err(ApiError::Conflict("시나리오 실행은 작업 대기열로 바뀌었습니다 — 작업 명령 › 수동작업 ⋯ 메뉴의 '시나리오 가져오기' 로 수동작업 목록을 만든 뒤 불러오세요".into()))
 }
 async fn run_now(State(st): State<AppState>) -> ApiResult<RunState> {
     Ok(axum::Json(st.scenario.current()))
-}
-async fn run_pause(State(st): State<AppState>) -> ApiResult<RunState> {
-    Ok(axum::Json(st.scenario.pause()?))
-}
-async fn run_resume(State(st): State<AppState>) -> ApiResult<RunState> {
-    Ok(axum::Json(st.scenario.resume()?))
-}
-async fn run_stop(State(st): State<AppState>) -> ApiResult<RunState> {
-    Ok(axum::Json(st.scenario.stop()?))
-}
-
-#[derive(Deserialize)]
-struct SkipBody {
-    step_index: u32,
-}
-
-/// `POST /api/scenarios/run/skip` — 예정(아직 안 보낸) 스텝 지우기. 짝(PICK/DROP)은 같이 지운다.
-async fn run_skip(State(st): State<AppState>, axum::Json(b): axum::Json<SkipBody>) -> ApiResult<RunState> {
-    Ok(axum::Json(st.scenario.skip(b.step_index)?))
 }
 
 #[derive(Deserialize)]
@@ -188,10 +168,6 @@ pub fn router() -> Router<AppState> {
         .route("/api/scenarios", get(list).post(create))
         .route("/api/scenarios/import", post(import))
         .route("/api/scenarios/run", get(run_now))
-        .route("/api/scenarios/run/pause", post(run_pause))
-        .route("/api/scenarios/run/resume", post(run_resume))
-        .route("/api/scenarios/run/stop", post(run_stop))
-        .route("/api/scenarios/run/skip", post(run_skip))
         .route("/api/scenarios/runs", get(runs))
         .route("/api/scenarios/runs/stream", get(runs_stream))
         .route("/api/scenarios/{id}", get(one).put(update).delete(delete))

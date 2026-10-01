@@ -1,22 +1,14 @@
-// 정책 탭 — 정책(수요별 켜기 · 점수 · 셀 고르기, 초안 → 저장) · 스테이션 프로파일(줄 편집 → 한 번에 저장) · 사용자 규칙(예외).
+// 공통 정책(수요별 켜기 · 점수 · 셀 고르기, 초안 → 저장)과 스테이션 프로파일(줄 편집 → 한 번에 저장) 섹션 — 규칙 탭 · 스테이션 탭이
+// 쓴다(옛 정책 탭). 사용자 규칙은 규칙 탭의 한 표(`RulesTab`)로 옮겼다.
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Eye, Plus, Save, Trash2, Undo2 } from 'lucide-react'
-import {
-  actionLabel,
-  condSummary,
-  newRule,
-  triggerLabel,
-  type CellPick,
-  type GenConfig,
-  type GenRule,
-} from '../../lib/taskgen'
+import { Eye, Save, Undo2 } from 'lucide-react'
+import type { CellPick, GenConfig } from '../../lib/taskgen'
 import {
   DROP_MODE_LABEL,
   ROLE_LABEL,
   schedApi,
   type DropMode,
   type Policy,
-  type SchedState,
   type StationProfile,
   type StationProfileRow,
   type StationRole,
@@ -44,7 +36,6 @@ import { Badge } from '../../lib/ui/Badge'
 import { Button } from '../../lib/ui/Button'
 import { ConfirmDialog } from '../../lib/ui/ConfirmDialog'
 import { DataTable } from '../../lib/ui/DataTable'
-import { ErrorBoundary } from '../../lib/ui/ErrorBoundary'
 import { Input } from '../../lib/ui/Input'
 import { OverflowMenu } from '../../lib/ui/OverflowMenu'
 import { Section } from '../../lib/ui/Section'
@@ -52,7 +43,7 @@ import { Select } from '../../lib/ui/Select'
 import { Switch } from '../../lib/ui/Switch'
 import type { Column } from '../../lib/ui/table'
 import { toast } from '../../lib/ui/toast'
-import { CellPickDialog, ParamsDialog, RuleDialog, SimulateDialog, WeightsDialog } from './dialogs'
+import { CellPickDialog, SimulateDialog } from './dialogs'
 
 type SchedConfig = GenConfig & { policy: Policy }
 
@@ -163,7 +154,7 @@ const DEMANDS: DemandRow[] = [
   },
 ]
 
-function PolicySection({
+export function PolicySection({
   cfg,
   saveConfig,
 }: {
@@ -390,7 +381,7 @@ const MODES: DropMode[] = ['single', 'stack', 'pallet']
 
 type MigratePlan = { profiles: StationProfile[]; disabled_rules: string[]; policy: Policy }
 
-function StationsSection({ policy, reload }: { policy: Policy; reload: () => void }) {
+export function StationsSection({ policy, reload }: { policy: Policy; reload: () => void }) {
   const [rows, setRows] = useState<StationProfileRow[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Record<number, ProfileDraft>>({})
@@ -735,147 +726,11 @@ function StationsSection({ policy, reload }: { policy: Policy; reload: () => voi
   )
 }
 
-// ── 사용자 규칙 ──────────────────────────────────────────────────────
-
-function RulesSection({
-  cfg,
-  saveConfig,
-}: {
-  cfg: SchedConfig
-  saveConfig: (c: SchedConfig, what: string) => Promise<boolean>
-}) {
-  const [editing, setEditing] = useState<GenRule | null>(null)
-  const [weights, setWeights] = useState(false)
-  const [params, setParams] = useState(false)
-  const rules = cfg.rules ?? []
-  const saveRules = (next: GenRule[]) => void saveConfig({ ...cfg, rules: next }, '규칙')
-
-  const cols: Column<GenRule>[] = [
-    { key: 'name', label: 'Name', get: (r) => r.name, priority: 1 },
-    { key: 'trigger', label: 'Trigger', get: (r) => triggerLabel(r.trigger), priority: 2 },
-    { key: 'action', label: 'Action', get: (r) => actionLabel(r.action), priority: 3 },
-    { key: 'prio', label: 'Priority', get: (r) => r.priority, numeric: true, priority: 2 },
-    {
-      key: 'cond',
-      label: '조건',
-      get: (r) => condSummary(r.cond).label,
-      priority: 1,
-      cell: (r) => {
-        const c = condSummary(r.cond)
-        return (
-          <span
-            className={`font-mono tabular-nums ${c.off.length ? 'text-warn-fg' : 'text-content-faint'}`}
-            title={c.off.length ? `끈 조건: ${c.off.join(' · ')}` : '생성 조건 모두 켜짐'}
-          >
-            {c.label}
-          </span>
-        )
-      },
-    },
-    {
-      key: 'on',
-      label: 'Enabled',
-      sortable: false,
-      priority: 1,
-      cell: (r) => (
-        <Switch
-          checked={r.enabled}
-          title={r.enabled ? '규칙 켜짐' : '규칙 꺼짐'}
-          onCheckedChange={(v) =>
-            saveRules(rules.map((x) => (x.id === r.id ? { ...x, enabled: v } : x)))
-          }
-        />
-      ),
-    },
-  ]
-
-  return (
-    <Section
-      title="사용자 규칙"
-      help="정책 · 요청으로 안 되는 예외만 규칙으로 둔다. 스테이션 작업은 규칙이어도 CVOK & Req 가 있어야 만든다."
-      right={
-        <span className="flex items-center gap-1">
-          <Button
-            type="button"
-            size="sm"
-            intent="outline"
-            icon={<Plus className="h-3.5 w-3.5" />}
-            onClick={() => setEditing(newRule(rules))}
-            data-testid="sched-rule-add"
-          >
-            규칙 추가
-          </Button>
-          <OverflowMenu
-            title="규칙 도구"
-            testid="sched-rules-more"
-            items={menuItems([
-              { label: '우선순위 가중치…', run: () => setWeights(true), testid: 'sched-weights' },
-              {
-                label: '제출 · 스케줄링 파라미터…',
-                run: () => setParams(true),
-                testid: 'sched-params',
-              },
-            ])}
-          />
-        </span>
-      }
-      testid="sched-rules"
-    >
-      <DataTable
-        rows={rules}
-        columns={cols}
-        rowKey={(r) => r.id}
-        density="compact"
-        emptyDense
-        empty="사용자 규칙 없음"
-        testid="sched-rules-table"
-        onPick={(r) => setEditing(r)}
-        actions={(r) => (
-          <Button
-            type="button"
-            size="icon-sm"
-            intent="ghost"
-            icon={<Trash2 className="h-3.5 w-3.5" />}
-            title="삭제"
-            onClick={() => saveRules(rules.filter((x) => x.id !== r.id))}
-          />
-        )}
-      />
-      {editing ? (
-        <RuleDialog
-          key={editing.id}
-          rule={editing}
-          takenIds={rules.filter((x) => x.id !== editing.id).map((x) => x.id)}
-          onClose={() => setEditing(null)}
-          onSave={(r) => {
-            const exists = rules.some((x) => x.id === editing.id)
-            setEditing(null)
-            saveRules(exists ? rules.map((x) => (x.id === editing.id ? r : x)) : [...rules, r])
-          }}
-        />
-      ) : null}
-      {weights ? (
-        <WeightsDialog
-          cfg={cfg}
-          onClose={() => setWeights(false)}
-          onSave={(c) => {
-            setWeights(false)
-            void saveConfig(c, '가중치')
-          }}
-        />
-      ) : null}
-      {params ? <ParamsDialog onClose={() => setParams(false)} /> : null}
-    </Section>
-  )
-}
-
 // ── 탭 ───────────────────────────────────────────────────────────────
 
-function PolicyBody({ state, reload }: { state: SchedState | null; reload: () => void }) {
-  const raw = state?.config ?? null
-  const cfg: SchedConfig | null = raw ? withPolicy(raw) : null
-
-  const saveConfig = useCallback(
+/** 설정 저장(버전 충돌이면 알리고 다시 읽는다) — 규칙 · 정책 · 규칙 세트 탭이 같이 쓴다. */
+export function useSaveConfig(reload: () => void) {
+  return useCallback(
     async (c: SchedConfig, what: string) => {
       try {
         const saved = await schedApi.save(c)
@@ -890,25 +745,5 @@ function PolicyBody({ state, reload }: { state: SchedState | null; reload: () =>
       }
     },
     [reload],
-  )
-
-  return (
-    <div className="flex min-h-0 flex-col gap-3 text-xs" data-testid="sched-policy-tab">
-      {cfg ? (
-        <PolicySection cfg={cfg} saveConfig={saveConfig} />
-      ) : (
-        <span className="text-content-faint">읽는 중…</span>
-      )}
-      <StationsSection policy={cfg?.policy ?? mergePolicy(null)} reload={reload} />
-      {cfg ? <RulesSection cfg={cfg} saveConfig={saveConfig} /> : null}
-    </div>
-  )
-}
-
-export default function PolicyTab(props: { state: SchedState | null; reload: () => void }) {
-  return (
-    <ErrorBoundary label="정책">
-      <PolicyBody {...props} />
-    </ErrorBoundary>
   )
 }

@@ -118,7 +118,14 @@ struct CreateQuery {
 }
 
 /// `POST /api/tasks` — composes via the issue slice, then submits (default) or leaves a Draft.
-async fn create(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::Json(req): axum::Json<TaskRequest>) -> ApiResult<LedgerEntry> {
+async fn create(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::Json(mut req): axum::Json<TaskRequest>) -> ApiResult<LedgerEntry> {
+    // 화면에서 온 요청은 사람이 만든 것 — 자동 주체(`via`)는 서버 경로만 단다.
+    req.via = None;
+    Ok(axum::Json(create_one(&st, req, q.submit.unwrap_or(true)).await?))
+}
+
+/// `POST /api/tasks` 본체 — 작업 대기열의 보내기 루프(`jobs::dispatch`)도 같은 규칙으로 부른다.
+pub(crate) async fn create_one(st: &AppState, req: TaskRequest, submit: bool) -> Result<LedgerEntry, ApiError> {
     // 로봇이 둘 이상이면 대상을 반드시 받는다 — 빠지면 첫 로봇으로 몰래 가던 사고(2026-09-21, GR2 선택 중 GR1 로 제출).
     let r = st.robot_required(req.robot, "작업 제출")?;
     // PICK 은 늘 DROP 과 짝이다 — 단독 PICK 은 받지 않는다(짝은 `POST /api/tasks/pair`·시나리오 실행기가 보낸다). DROP 단독은
@@ -131,10 +138,9 @@ async fn create(State(st): State<AppState>, Query(q): Query<CreateQuery>, axum::
     if req.transfer_order_id.is_none() && crate::issue::parse_task_type(&req.task_type)? == gr_proto::TaskType::Drop {
         req.transfer_order_id = st.stock.hand(&r.plc)?.transfer_order_id;
     }
-    let composed = crate::issue::compose(&st, &req)?;
-    let origin = if req.source.is_some() { Origin::Scenario } else { Origin::Console };
-    let e = super::ops::create_and_submit(&st, r, origin, Some(req), Some(composed.params), composed.task, composed.pallet, q.submit.unwrap_or(true)).await?;
-    Ok(axum::Json(e))
+    let composed = crate::issue::compose(st, &req)?;
+    let origin = Origin::of_request(&req);
+    super::ops::create_and_submit(st, r, origin, Some(req), Some(composed.params), composed.task, composed.pallet, submit).await
 }
 
 #[derive(Deserialize)]
@@ -148,6 +154,22 @@ struct PairBody {
 /// 시나리오로 저장하지 않고 로봇이 받을 수 있을 때 하나씩 보낸다.
 async fn create_pair(State(st): State<AppState>, axum::Json(b): axum::Json<PairBody>) -> ApiResult<Json> {
     let PairBody { mut pick, mut drop } = b;
+    pick.via = None;
+    drop.via = None;
+    let o = create_pair_entries(&st, pick, drop).await?;
+    Ok(axum::Json(json!({ "pick": o.pick, "drop": o.drop, "transfer_order_id": o.order, "warn": o.warn })))
+}
+
+/// 짝 한 벌의 결과 — PICK(제출됨) · 짝 DROP 초안(못 만들면 없음) · 이송 지시 · 경고.
+pub(crate) struct PairOut {
+    pub pick: LedgerEntry,
+    pub drop: Option<LedgerEntry>,
+    pub order: String,
+    pub warn: Option<String>,
+}
+
+/// `POST /api/tasks/pair` 본체 — 서버 자동 제출도 같은 규칙으로 부른다.
+pub(crate) async fn create_pair_entries(st: &AppState, mut pick: TaskRequest, mut drop: TaskRequest) -> Result<PairOut, ApiError> {
     let r = st.robot_required(pick.robot, "작업 제출")?;
     if drop.robot.is_some_and(|d| d != r.id) {
         return Err(ApiError::BadRequest("짝 DROP 은 PICK 과 같은 로봇이어야 합니다".into()));
@@ -170,8 +192,8 @@ async fn create_pair(State(st): State<AppState>, axum::Json(b): axum::Json<PairB
     pick.robot = Some(r.id);
     drop.robot = Some(r.id);
     // 잘못된 스텝은 이송 지시를 열기 전에 거른다(DROP 은 보낼 때 다시 작성).
-    let pc = crate::issue::compose(&st, &pick)?;
-    crate::issue::compose(&st, &drop)?;
+    let pc = crate::issue::compose(st, &pick)?;
+    crate::issue::compose(st, &drop)?;
     let order = st
         .stock
         .open_order(crate::stock::transfer::NewOrder {
@@ -187,7 +209,8 @@ async fn create_pair(State(st): State<AppState>, axum::Json(b): axum::Json<PairB
         .id;
     pick.transfer_order_id = Some(order.clone());
     drop.transfer_order_id = Some(order.clone());
-    let pick_e = match super::ops::create_and_submit(&st, r, Origin::Console, Some(pick), Some(pc.params), pc.task, pc.pallet, true).await {
+    let origin = Origin::of_request(&pick);
+    let pick_e = match super::ops::create_and_submit(st, r, origin, Some(pick), Some(pc.params), pc.task, pc.pallet, true).await {
         Ok(e) => e,
         Err(e) => {
             if let Err(x) = st.stock.abort_order(&order, "PICK 제출 실패", true) {
@@ -198,8 +221,8 @@ async fn create_pair(State(st): State<AppState>, axum::Json(b): axum::Json<PairB
     };
     // PICK 은 이미 나갔다 — 초안을 못 만들면 차례에 DROP 을 새로 작성해 보낸다(단독 DROP 은 Hand 의 지시를 잇는다).
     let draft = async {
-        let c = crate::issue::compose(&st, &drop)?;
-        super::ops::create_and_submit(&st, r, Origin::Console, Some(drop), Some(c.params), c.task, c.pallet, false).await
+        let c = crate::issue::compose(st, &drop)?;
+        super::ops::create_and_submit(st, r, origin, Some(drop), Some(c.params), c.task, c.pallet, false).await
     };
     let (drop_e, warn) = match draft.await {
         Ok(e) => (Some(e), None),
@@ -208,7 +231,7 @@ async fn create_pair(State(st): State<AppState>, axum::Json(b): axum::Json<PairB
             (None, Some(format!("짝 DROP 초안 실패 — 차례에 새로 작성합니다: {e}")))
         }
     };
-    Ok(axum::Json(json!({ "pick": pick_e, "drop": drop_e, "transfer_order_id": order, "warn": warn })))
+    Ok(PairOut { pick: pick_e, drop: drop_e, order, warn })
 }
 
 #[derive(Deserialize)]
@@ -224,13 +247,18 @@ struct SubmitBody {
 }
 
 async fn submit(State(st): State<AppState>, Path(id): Path<String>, Query(q): Query<SubmitQuery>, body: Option<axum::Json<SubmitBody>>) -> ApiResult<LedgerEntry> {
-    let (r, mut e) = st.find_task(&id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
+    Ok(axum::Json(submit_entry(&st, &id, q.refresh.unwrap_or(false), body.and_then(|b| b.0.request)).await?))
+}
+
+/// `POST /api/tasks/{id}/submit` 본체 — 서버 자동 제출이 짝 DROP 초안을 보낼 때도 부른다.
+pub(crate) async fn submit_entry(st: &AppState, id: &str, refresh: bool, request: Option<TaskRequest>) -> Result<LedgerEntry, ApiError> {
+    let (r, mut e) = st.find_task(id).ok_or_else(|| ApiError::NotFound(format!("task {id}")))?;
     // 이송 지시에 묶인 짝 초안은 어디서 보내든(Task 관리 화면 포함) 보낼 때의 값으로 다시 작성한다.
     let pair_draft = e.state == TaskState::Draft && e.transfer_order_id.is_some();
-    if !q.refresh.unwrap_or(false) && !pair_draft {
-        return Ok(axum::Json(super::ops::submit(&st, r, e).await?));
+    if !refresh && !pair_draft {
+        return super::ops::submit(st, r, e).await;
     }
-    if let Some(mut req) = body.and_then(|b| b.0.request) {
+    if let Some(mut req) = request {
         let tt = crate::issue::parse_task_type(&req.task_type)?;
         if Some(tt) != gr_proto::TaskType::from_code(e.plc_task.task_type) {
             return Err(ApiError::BadRequest(format!("task {id}: 종류는 바꿀 수 없습니다")));
@@ -241,7 +269,7 @@ async fn submit(State(st): State<AppState>, Path(id): Path<String>, Query(q): Qu
         req.transfer_order_id = cur.and_then(|c| c.transfer_order_id.clone()).or(e.transfer_order_id.clone());
         e.request = Some(req);
     }
-    Ok(axum::Json(super::ops::submit_refreshed(&st, r, e).await?))
+    super::ops::submit_refreshed(st, r, e).await
 }
 
 async fn cancel(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<LedgerEntry> {

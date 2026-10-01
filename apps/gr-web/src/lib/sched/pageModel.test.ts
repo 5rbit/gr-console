@@ -18,9 +18,9 @@ const cand = (p: Partial<GenCandidate>): GenCandidate => ({
 
 describe('pageModel', () => {
   it('parses the remembered tab', () => {
-    expect(parseSchedTab('policy')).toBe('policy')
-    expect(parseSchedTab('bogus')).toBe('requests')
-    expect(parseSchedTab(null)).toBe('requests')
+    expect(parseSchedTab('policy')).toBe('rules')
+    expect(parseSchedTab('bogus')).toBe('jobs')
+    expect(parseSchedTab(null)).toBe('jobs')
   })
 
   it('next candidates: generating first, then score', () => {

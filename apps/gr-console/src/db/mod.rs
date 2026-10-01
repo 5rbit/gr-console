@@ -32,6 +32,8 @@ const MIGRATIONS: Migrations = &[
     ("0013_taskgen", include_str!("migrations/0013_taskgen.sql")),
     // 스케줄러: 스테이션 프로파일 · 요청 목록 · 판정 기록 · 이송 지시 출처, 2026-09-28
     ("0014_scheduler", include_str!("migrations/0014_scheduler.sql")),
+    // 작업 대기열(짝 = WorkId 하나) · 로봇별 보내기 스위치, 2026-10-01
+    ("0015_jobs", include_str!("migrations/0015_jobs.sql")),
 ];
 
 /// `ALTER TABLE … ADD COLUMN …` 중 **이미 있는 열**을 주석으로 지운 사본.
@@ -305,7 +307,8 @@ mod tests {
                 "0011_hand",
                 "0012_transfer_orders",
                 "0013_taskgen",
-                "0014_scheduler"
+                "0014_scheduler",
+                "0015_jobs"
             ]
         );
         // 합친 마이그레이션이 만든 것들이 다 있다

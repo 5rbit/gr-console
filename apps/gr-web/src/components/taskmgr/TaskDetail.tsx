@@ -29,7 +29,7 @@ import { Skeleton } from '../../lib/ui/Skeleton'
 import { StatusBadge } from '../../lib/ui/StatusBadge'
 import { StatusDot } from '../../lib/ui/StatusDot'
 import {
-  ORIGIN_LABEL,
+  originText,
   STATE_LABEL,
   STATE_TONE,
   deriveState,
@@ -265,7 +265,7 @@ export default function TaskDetail({ id, ids = [], onNavigate }: TaskDetailProps
   const plcViewOk = robotId !== null || robots.list.length <= 1
   const overview: FieldItem[] = [
     { label: 'Seq', value: t.seq, mono: true },
-    { label: 'Origin', value: ORIGIN_LABEL[t.origin] },
+    { label: 'Origin', value: originText(t) },
     { label: 'WorkId', value: t.work_id, mono: true },
     { label: 'TaskId', value: t.task_id, mono: true },
     {
@@ -445,7 +445,7 @@ export default function TaskDetail({ id, ids = [], onNavigate }: TaskDetailProps
         {derived?.mismatch ? (
           <StatusDot status="warn" label="PLC와 불일치" title={derived.reason ?? undefined} />
         ) : null}
-        <span className="text-xs text-content-faint">{ORIGIN_LABEL[t.origin]}</span>
+        <span className="text-xs text-content-faint">{originText(t)}</span>
         {at >= 0 && ids.length > 1 ? (
           <span className="ml-auto flex items-center gap-1">
             <Button

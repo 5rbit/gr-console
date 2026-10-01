@@ -329,7 +329,8 @@ impl Stock {
             return Ok(None); // 접기가 재고와 함께 옮긴다
         }
         let picked = o.pick_state == Some(TaskState::Completed);
-        if transfer::apply_task_state(&mut o, tt, &e.id, e.state) {
+        let moved = tt == TaskType::Drop && transfer::sync_drop_target(&mut o, e.state, e.request.as_ref().and_then(|r| r.target.as_ref()));
+        if transfer::apply_task_state(&mut o, tt, &e.id, e.state) || moved {
             transfer::save(&self.db, &o)?;
             // 짝이 깨진 DROP 취소 = 사람이 그리퍼의 화물을 들어낸다(운전자 규칙 2026-09-28) — 셀 재고에는 반영하지 않고
             // Hand 를 비우고 지시를 중단한다. PLC 는 **실행 중(TASK.Now)인 DROP** 을 지울 때만 그리퍼 화물 데이터
@@ -733,7 +734,7 @@ mod tests {
             seq,
             work_id: 1,
             task_id: seq as u32,
-            origin: crate::ledger::Origin::Scenario,
+            origin: crate::ledger::Origin::Auto,
             plc_name: "GR2".into(),
             request: None,
             resolved: None,
@@ -1020,7 +1021,7 @@ mod tests {
             seq: 0,
             work_id: 1,
             task_id: 1,
-            origin: crate::ledger::Origin::Console,
+            origin: crate::ledger::Origin::Manual,
             plc_name: "GR2".into(),
             request: None,
             resolved: None,

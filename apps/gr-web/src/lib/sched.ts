@@ -310,6 +310,8 @@ export const schedApi = {
       { dry_run },
     ),
   clearCooldown: (key: string) => del(`/api/taskgen/cooldown/${enc(key)}`),
+  /** 규칙 세트 적용 — 세트의 규칙만 켠다 */
+  applySet: (id: string) => postJson<unknown>(`/api/taskgen/rule-sets/${enc(id)}/apply`),
   handRemove: (robot: number) =>
     postJson<{ canceled: string[]; order: string | null }>(`/api/taskgen/hand/${robot}/remove`),
   log: (limit = 200, kind?: string) =>

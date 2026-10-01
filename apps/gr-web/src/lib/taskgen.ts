@@ -47,6 +47,9 @@ export interface GenConditions {
   source_stock: boolean
   dest_room: boolean
   target_use: boolean
+  /** 시간대 `HH:MM` — 둘 다 있으면 그 사이에만(자정을 넘어도 됨). */
+  time_from?: string | null
+  time_to?: string | null
 }
 
 export const ALL_CONDITIONS: GenConditions = {
@@ -91,6 +94,31 @@ export interface GenRule {
   priority: number
   manual_requests?: number
   cond?: GenConditions
+  /** 제한 — 시간당 최대 생성 수(0 = 없음). */
+  limits?: { per_hour: number }
+}
+
+/** 로봇 규칙 — 작업 규칙이 만든 후보를 어느 로봇이 받나 · 얼마나 먼저인가. */
+export type RobotRuleKind =
+  | { kind: 'zone'; x_min: number; x_max: number }
+  | { kind: 'item_inner_dia'; min: number; max: number }
+  | { kind: 'bonus'; targets: number[]; bonus: number }
+
+export interface RobotRule {
+  id: string
+  name: string
+  enabled: boolean
+  robot: number
+  kind: RobotRuleKind
+}
+
+/** 규칙 세트(옛 시나리오) — 적용하면 이 규칙만 켜진다. */
+export interface RuleSet {
+  id: string
+  name: string
+  rules: string[]
+  note: string
+  applied_at: string | null
 }
 
 /** 규칙 설정과 함께 저장하는 상황별 가중(대기 가점·거리 감점 같은 전역 값은 Parameters). */
@@ -105,6 +133,9 @@ export interface GenConfig {
   auto: boolean
   weights: GenWeights
   rules: GenRule[]
+  robot_rules?: RobotRule[]
+  rule_sets?: RuleSet[]
+  active_set?: string | null
 }
 
 export interface GenCandidate {
@@ -368,6 +399,89 @@ export function parseMap(s: string): { ok: Record<string, number> } | { error: s
 export function breakdownText(c: Pick<GenCandidate, 'score' | 'breakdown'>): string {
   const parts = c.breakdown.map(([k, v]) => `${k} ${v >= 0 ? '+' : ''}${Number(v.toFixed(2))}`)
   return `Score ${Number(c.score.toFixed(2))} = ${parts.join(' ')}`
+}
+
+// ── 규칙 표의 칸(일곱 칸) — 셀 C · 스테이션 S ─────────────────────────
+
+const code = (t: Target) => `${t.kind === 'station' ? 'S' : 'C'}${t.id}`
+
+function pickText(p: CellPick): string {
+  const parts: string[] = []
+  if (p.section) parts.push(`구역 ${p.section}`)
+  if (p.row_min || p.row_max) parts.push(`행 ${p.row_min ?? ''}~${p.row_max ?? ''}`)
+  if (p.col_min || p.col_max) parts.push(`열 ${p.col_min ?? ''}~${p.col_max ?? ''}`)
+  if (p.same_item_only) parts.push('같은 품목만')
+  else if (p.same_item_first) parts.push('같은 품목 먼저')
+  if (p.empty_only) parts.push('빈 셀')
+  if (p.near) parts.push(`S${p.near} 가까이`)
+  if (p.order)
+    parts.push(p.order === 'oldest' ? '오래된 것' : p.order === 'nearest' ? '가까운 것' : p.order)
+  return `자동${parts.length ? ` · ${parts.join(' · ')}` : ''}`
+}
+
+/** ① 트리거 — 짧게. */
+export function triggerShort(t: GenTrigger): string {
+  switch (t.kind) {
+    case 'manual':
+      return '버튼'
+    case 'station_req':
+      return `S${t.station} Req${t.require_cvok === false ? '' : ' & CVOK'}`
+    case 'station_item':
+      return `S${t.station} ItemExist${t.require_cvok === false ? '' : ' & CVOK'}`
+    case 'cell_stock':
+      return `C${t.cell} ≥ ${t.min ?? 1}`
+    case 'unmeasured':
+      return `${code(t.target)} 미측정`
+  }
+}
+
+/** ② 출발 · ③ 도착. */
+export function fromShort(a: GenAction): string {
+  if (a.kind === 'transfer') return a.from_auto ? pickText(a.from_auto) : code(a.from)
+  if (a.kind === 'measure') return code(a.target)
+  return '—'
+}
+export function toShort(a: GenAction): string {
+  if (a.kind === 'transfer')
+    return `${a.to_auto ? pickText(a.to_auto) : code(a.to)}${a.pallet_auto ? ' · 팔렛' : ''}`
+  if (a.kind === 'move') return code(a.to)
+  return '—'
+}
+
+/** ④ 조건 — 끈 생성 조건 · 시간대. */
+export function condShort(c: GenConditions | undefined): string {
+  const s = condSummary(c)
+  const t = c?.time_from && c?.time_to ? ` · ${c.time_from}~${c.time_to}` : ''
+  return `${s.off.length ? `끔: ${s.off.join(' · ')}` : '모두 켬'}${t}`
+}
+
+/** ⑥ 제한. */
+export function limitShort(r: GenRule): string {
+  return r.limits?.per_hour ? `시간당 ${r.limits.per_hour}` : '—'
+}
+
+/** 로봇 규칙 내용 한 줄. */
+export function robotRuleText(k: RobotRuleKind): string {
+  switch (k.kind) {
+    case 'zone':
+      return `담당 구역 X ${k.x_min} ~ ${k.x_max}`
+    case 'item_inner_dia':
+      return `내경 ${k.min} ~ ${k.max} 전담`
+    case 'bonus':
+      return `우선 +${k.bonus}${k.targets.length ? ` · ${k.targets.map((x) => (x >= 2001 ? `S${x}` : `C${x}`)).join(' ')}` : ''}`
+  }
+}
+
+export function newRobotRule(existing: readonly { id: string }[], robot: number): RobotRule {
+  let n = 1
+  while (existing.some((r) => r.id === `B${n}`)) n++
+  return {
+    id: `B${n}`,
+    name: `로봇 규칙 ${n}`,
+    enabled: true,
+    robot,
+    kind: { kind: 'zone', x_min: 0, x_max: 0 },
+  }
 }
 
 export function newRule(existing: readonly GenRule[]): GenRule {

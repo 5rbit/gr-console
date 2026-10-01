@@ -130,7 +130,9 @@ export function RuleDialog({
             <Select
               label="Target.Kind"
               value={t.target.kind}
-              onValueChange={(k) => setT({ ...t, target: { ...t.target, kind: k as Target['kind'] } })}
+              onValueChange={(k) =>
+                setT({ ...t, target: { ...t.target, kind: k as Target['kind'] } })
+              }
             >
               <option value="station">station</option>
               <option value="cell">cell</option>
@@ -143,7 +145,11 @@ export function RuleDialog({
           </div>
         ) : t.kind === 'cell_stock' ? (
           <div className="grid grid-cols-3 gap-2">
-            <Input label="Cell" value={t.cell} onValueChange={(x) => setT({ ...t, cell: num(x) })} />
+            <Input
+              label="Cell"
+              value={t.cell}
+              onValueChange={(x) => setT({ ...t, cell: num(x) })}
+            />
             <Input
               label="Min"
               value={t.min ?? 1}
@@ -262,12 +268,42 @@ export function RuleDialog({
                 inline
                 label={f.label}
                 title={f.title}
-                checked={cond[f.key]}
+                checked={!!cond[f.key]}
                 onCheckedChange={(v) => setR({ ...r, cond: { ...cond, [f.key]: v } })}
                 testid={`sched-cond-${f.key}`}
               />
             ))}
           </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Input
+              label="시간대 시작"
+              placeholder="HH:MM (비우면 늘)"
+              value={cond.time_from ?? ''}
+              onValueChange={(x) => setR({ ...r, cond: { ...cond, time_from: x.trim() || null } })}
+              data-testid="sched-cond-time-from"
+            />
+            <Input
+              label="시간대 끝"
+              placeholder="HH:MM (22:00~06:00 도 됨)"
+              value={cond.time_to ?? ''}
+              onValueChange={(x) => setR({ ...r, cond: { ...cond, time_to: x.trim() || null } })}
+              data-testid="sched-cond-time-to"
+            />
+          </div>
+        </fieldset>
+        <fieldset className="rounded border border-line-default p-2">
+          <legend className="px-1 text-2xs text-content-muted">Limits</legend>
+          <Input
+            label="시간당 최대 (0 = 없음)"
+            type="number"
+            mono
+            min={0}
+            value={String(r.limits?.per_hour ?? 0)}
+            onValueChange={(x) =>
+              setR({ ...r, limits: { per_hour: Math.max(0, Math.round(Number(x) || 0)) } })
+            }
+            data-testid="sched-limit-per-hour"
+          />
         </fieldset>
       </div>
     </FormDialog>
@@ -293,7 +329,9 @@ export function PlaceEditor({
       <Select
         label={`${label}.Mode`}
         value={auto ? 'auto' : 'fixed'}
-        onValueChange={(m) => onAuto(m === 'auto' ? { order: source ? 'oldest' : 'nearest' } : null)}
+        onValueChange={(m) =>
+          onAuto(m === 'auto' ? { order: source ? 'oldest' : 'nearest' } : null)
+        }
       >
         <option value="fixed">fixed</option>
         <option value="auto">auto</option>

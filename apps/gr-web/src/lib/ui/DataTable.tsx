@@ -73,6 +73,11 @@ export interface DataTableProps<T> {
   zebra?: boolean
   /** 스크롤 상자에 붙는 클래스(`max-h-96 overflow-y-auto` 따위). */
   className?: string
+  /**
+   * 행마다 붙는 클래스 · `data-*` 속성(선택). 작업 표가 단계 색 막대(`data-stage`)와 단계 바뀜 깜박
+   * (`ds-flash-stage`)을 행 단위로 건다 — 셀마다 그리면 막대가 칸마다 선다.
+   */
+  rowAttrs?: (row: T) => { className?: string; data?: Record<string, string> }
 }
 
 export function DataTable<T>({
@@ -94,6 +99,7 @@ export function DataTable<T>({
   stickyHeader = false,
   zebra = false,
   className = '',
+  rowAttrs,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [desc, setDesc] = useState(false)
@@ -249,10 +255,16 @@ export function DataTable<T>({
         <tbody>
           {sorted.map((row, i) => {
             const k = keyOf(row, i)
+            const extra = rowAttrs?.(row)
+            const dataAttrs = Object.fromEntries(
+              Object.entries(extra?.data ?? {}).map(([n, v]) => ['data-' + n, v]),
+            )
             return (
               <Fragment key={k}>
                 <tr
+                  {...dataAttrs}
                   className={cn(
+                    extra?.className,
                     'border-t border-line-default',
                     !!onPick && 'cursor-pointer',
                     // 줄무늬는 **인덱스**로 센다 — 펼친 행이 `<tr>`을 하나 더 내므로 `odd:`(nth-child)로

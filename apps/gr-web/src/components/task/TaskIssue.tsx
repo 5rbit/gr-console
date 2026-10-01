@@ -29,6 +29,8 @@ import type { Shape } from '../../lib/task/layoutModel'
 import { parseRailTab } from '../../lib/task/railSplitModel'
 import {
   EMPTY_HISTORY,
+  GRIP_REFS,
+  toRequest,
   PLAN_KINDS,
   commit,
   dropMismatch,
@@ -65,9 +67,7 @@ import type {
   GripRef,
   Item,
   Station,
-  StockEntry,
   MeasureMode,
-  StockProjected,
   Target,
   TaskType,
 } from '../../lib/types'
@@ -75,13 +75,15 @@ import { AutoGenStrip } from './AutoGenStrip'
 import { nav } from '../../lib/nav'
 import { menuItems } from '../../lib/task/menuEntries'
 import { OverflowMenu } from '../../lib/ui/OverflowMenu'
-import { ComposeCard } from './ComposeCard'
 import { DropMismatchDialog } from './DropMismatchDialog'
 import { DefaultsDialog } from './DefaultsDialog'
 import { useGate } from './GateBanner'
 import { LayoutSidePanel, type SideTab } from './LayoutSidePanel'
 import { LayoutTab, MAP_MODES, type MapMode } from './LayoutTab'
-import { PlanCard, type PlanMode } from './PlanCard'
+import { ManualCard } from '../jobs/ManualCard'
+import { ManualJobDialog, type ManualPrefill } from '../jobs/ManualJobDialog'
+import { jobs as jobStore } from '../../lib/jobs/store'
+import { stepsToJobs } from '../../lib/jobs/model'
 import { RAIL_KEY, RegistryRail, type RailTab } from './RegistryRail'
 import { TaskManagerCard } from './TaskManagerCard'
 import { Splitter } from '../workspace/Splitter'
@@ -91,7 +93,8 @@ const MODE_KEY = 'gr-cellmap-mode'
 const KIND_KEY = 'gr-plan-kind'
 const TEACH_KEY = 'gr-teach-order'
 const TEACH_H_KEY = 'gr-teach-clearance'
-type Side = PlanMode
+/** 오른쪽 카드 — 자동작업(`auto`) · 수동작업(`plan`, 옛 이름 그대로 저장 값과 맞춘다). */
+type Side = 'auto' | 'plan'
 
 function loadPlan(): PlanStep[] {
   try {
@@ -221,42 +224,6 @@ export default function TaskIssue() {
   useEffect(() => stockStore.start(), [])
   useEffect(() => robots.start(), [])
   useEffect(() => taskStore.start(), [])
-  // 계획 표의 출발점 = **예상** 재고(진행 중 PICK/DROP 반영, Hand 포함) — 제출 때 백엔드가 쓰는 값과 같다.
-  // 재고가 바뀌거나 진행 중 Task 의 상태가 바뀌면 다시 읽는다.
-  const activeKey = taskStore.active.map((t) => `${t.id}:${t.state}`).join(',')
-  const [projected, setProjected] = useState<StockProjected | null>(null)
-  useEffect(() => {
-    let live = true
-    api
-      .stockProjected()
-      .then((p) => {
-        if (live) setProjected(p)
-      })
-      .catch(() => {
-        if (live) setProjected(null)
-      })
-    return () => {
-      live = false
-    }
-  }, [stockStore.map, stockStore.hands, activeKey])
-  // 두 로봇 영역 간격(백엔드 파라미터, 기본 안전값 5000 mm) — 계획 표의 정적 경고.
-  const [anticolSep, setAnticolSep] = useState<number | null>(null)
-  useEffect(() => {
-    let live = true
-    api
-      .anticol()
-      .then((a) => {
-        if (live) setAnticolSep(a.enabled && robots.list.length > 1 ? a.separation_mm : null)
-      })
-      .catch(() => {})
-    return () => {
-      live = false
-    }
-  }, [robots.list.length])
-  const stockPlan = useMemo<ReadonlyMap<number, StockEntry>>(
-    () => (projected ? new Map(projected.cells.map((c) => [c.cell_id, c])) : stockStore.map),
-    [projected, stockStore.map],
-  )
   // 게이트·제출·계획 스텝이 모두 **이 하나**를 본다. 화면 어디도 다른 호기를 겨냥하지 않는다.
   const robot = robots.selected
   const chip = robots.chip
@@ -267,15 +234,9 @@ export default function TaskIssue() {
   const [defaults, setDefaults] = useState<Defaults | null>(null)
   const [defaultsOpen, setDefaultsOpen] = useState(false)
   const [side, setSide] = useState<Side>('plan')
-  // 단일 명령: 레이아웃/팔레트에서 고른 대상. nonce 로 같은 대상을 다시 눌러도 전달된다.
-  const [picked, setPicked] = useState<{ target: Target; type?: TaskType; nonce: number } | null>(
-    null,
-  )
-  const [current, setCurrent] = useState<Target | null>(null)
   // 순차 계획 + 되돌리기 스택
   const [hist, setHist] = useState<History>(() => ({ ...EMPTY_HISTORY, present: loadPlan() }))
   const plan = hist.present
-  const [focusStep, setFocusStep] = useState<PlanStep | null>(null)
   // 맵 모드 · 레일 탭 · 편집 선택 · 생성 예정 셀 · 화면 이동
   const [mapMode, setMapMode] = useState<MapMode>(() => loadChoice(MODE_KEY, MAP_MODES, 'plan'))
   const [planKind, setPlanKind] = useState<PlanKind>(() =>
@@ -321,13 +282,45 @@ export default function TaskIssue() {
     setTableSel(t)
     setReveal({ target: t, nonce: Date.now() })
   }, [])
-  // 작성 카드 대상이 바뀌면 그쪽이 강조를 가져간다(표에서 고른 것보다 나중 일이므로).
-  const onComposeTarget = useCallback((t: Target | null) => {
-    setCurrent(t)
-    setTableSel(null)
-  }, [])
-
   useEffect(() => persist(PLAN_KEY, JSON.stringify(plan)), [plan])
+
+  // 계획(맵 클릭 · 측정 경로 · 팔렛)은 **작성 중** 자리일 뿐이다 — 짝이 된 PICK/DROP 과 한 건 작업은 곧바로 서버 대기열로
+  // 보내고 계획에서 뺀다(작업 할당 재정립 2026-10-01). 짝을 기다리는 PICK 하나만 남는다. 넣지 못한 스텝은 알리고 뺀다.
+  const flushing = useRef(false)
+  useEffect(() => {
+    if (flushing.current) return
+    const { jobs: ready } = stepsToJobs(plan, robots.selected, (st, mp) =>
+      toRequest(st, robots.selected, mp),
+    )
+    if (!ready.length) return
+    flushing.current = true
+    void (async () => {
+      const done = new Set<string>()
+      for (const j of ready) {
+        try {
+          const job = await jobStore.add(j.new)
+          toast.info(withRobot(robots.chip.name, `대기열 · WorkId ${job.work_id ?? '-'}`))
+        } catch (e) {
+          toast.error(
+            withRobot(
+              robots.chip.name,
+              `대기열에 못 넣음 — ${e instanceof Error ? e.message : String(e)}`,
+            ),
+          )
+        }
+        for (const id of j.ids) done.add(id)
+      }
+      flushing.current = false
+      setHist((h) =>
+        commit(
+          h,
+          h.present.filter((x) => !done.has(x.id)),
+        ),
+      )
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 계획이 바뀔 때만
+  }, [plan])
+  const [manualAsk, setManualAsk] = useState<ManualPrefill | null>(null)
 
   const loadDefaults = useCallback(async () => {
     try {
@@ -510,10 +503,19 @@ export default function TaskIssue() {
   const routeInfo = MEASURE_ROUTES.find((r) => r.id === routeAsk) ?? MEASURE_ROUTES[0]
 
   const compose = useCallback(
-    (target: Target, shape: Shape, type: TaskType) => {
-      setPicked({ target, type, nonce: Date.now() })
-      setSide('single')
-      toast.info(withRobot(robots.chip.name, `${type} · ${shape.label} → 작성 카드`))
+    (target: Target, shape: Shape, type: TaskType, item?: { code: number; count: number }) => {
+      void shape
+      setManualAsk(
+        type === 'PICK'
+          ? { kind: 'transfer', from: target }
+          : type === 'DROP'
+            ? item
+              ? { kind: 'drop', to: target, item: item.code, count: item.count }
+              : { kind: 'transfer', to: target }
+            : type === 'MEASURE'
+              ? { kind: 'measure', from: target }
+              : { kind: 'move', from: target },
+      )
       pickTarget(target)
     },
     [pickTarget],
@@ -530,11 +532,7 @@ export default function TaskIssue() {
 
   // 맵 강조: 편집 = 리스트 선택, 단일 명령 = 작성 카드 대상, 계획 = 계획 표에서 고른 스텝.
   // 레일 표에서 고른 행이 있으면 그것이 먼저다(계획 스텝을 고르면 `tableSel`도 그 대상으로 옮긴다).
-  const selected = editing
-    ? editSel
-    : side === 'single'
-      ? (tableSel ?? current)
-      : (tableSel ?? focusStep?.target ?? null)
+  const selected = editing ? editSel : tableSel
   const layout = useMemo(
     () => (
       <LayoutTab
@@ -676,53 +674,30 @@ export default function TaskIssue() {
             />
           ) : (
             <>
-              <PlanCard
-                steps={plan}
-                onChange={setPlan}
-                canUndo={hist.past.length > 0}
-                canRedo={hist.future.length > 0}
-                onUndo={doUndo}
-                onRedo={doRedo}
+              <ManualCard
+                mode={side === 'auto' ? 'auto' : 'manual'}
+                onModeChange={(m) => setSide(m === 'auto' ? 'auto' : 'plan')}
+                autoGen={<AutoGenStrip />}
+                pending={plan}
+                onDropPending={() => setPlan([])}
+                onAdd={() => setManualAsk({ kind: 'transfer' })}
+                handNow={robots.current ? stockStore.hand(robots.current.plc) : null}
                 cells={cells.items}
                 stations={stations.items}
-                items={items.items}
-                stockNow={stockPlan}
-                hand={projected?.hands.find((h) => h.robot === robots.selected) ?? null}
-                handNow={robots.current ? stockStore.hand(robots.current.plc) : null}
-                sync={robots.current ? stockStore.syncIssues(robots.current.plc) : []}
-                anticolSep={anticolSep}
-                onMeasureRoute={openRoute}
-                onAnticolChange={(a) =>
-                  setAnticolSep(a.enabled && robots.list.length > 1 ? a.separation_mm : null)
-                }
-                gate={gate}
-                robot={chip}
-                onFocus={(s) => {
-                  setFocusStep(s)
-                  if (s) {
-                    setFocus({ target: s.target, nonce: Date.now() })
-                    pickTarget(s.target)
-                  }
-                }}
-                gripRef={gripRef}
-                onGripRefChange={(g) => void setGripRef(g)}
-                mode={side}
-                onModeChange={setSide}
-                autoGen={<AutoGenStrip />}
-                single={
-                  <ComposeCard
-                    chrome={false}
-                    items={items.items}
-                    cells={cells.items}
-                    stations={stations.items}
-                    defaults={defaults}
-                    gate={gate}
-                    robot={chip}
-                    onOpenDefaults={() => setDefaultsOpen(true)}
-                    pickedTarget={picked}
-                    onTargetChange={onComposeTarget}
-                  />
-                }
+                menu={[
+                  { label: '측정 경로 추가' },
+                  ...MEASURE_ROUTES.map((r) => ({
+                    label: `${r.label}…`,
+                    hint: r.cells,
+                    run: () => openRoute(r.id),
+                  })),
+                  { label: '그립 기준 — Z 의 잡는 높이' },
+                  ...GRIP_REFS.map((g) => ({
+                    label: g.label,
+                    hint: g.id === gripRef ? '지금' : undefined,
+                    run: () => void setGripRef(g.id),
+                  })),
+                ]}
               />
               {/* 작업 카드 아래 — Task Manager 원장(진행 · 히스토리), 고른 로봇 것만. */}
               <TaskManagerCard />
@@ -833,6 +808,13 @@ export default function TaskIssue() {
           ) : null}
         </div>
       </ConfirmDialog>
+      <ManualJobDialog
+        prefill={manualAsk}
+        onClose={() => setManualAsk(null)}
+        cells={cells.items}
+        stations={stations.items}
+        items={items.items}
+      />
       <DropMismatchDialog
         mismatch={dropAsk?.mismatch ?? null}
         items={items.items}

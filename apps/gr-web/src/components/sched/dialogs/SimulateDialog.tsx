@@ -81,7 +81,10 @@ export function SimulateDialog({
           <span className="text-content-faint">판정 중…</span>
         ) : (
           <>
-            <span className="font-mono text-2xs tabular-nums text-content-muted" data-testid="sched-sim-summary">
+            <span
+              className="font-mono text-2xs tabular-nums text-content-muted"
+              data-testid="sched-sim-summary"
+            >
               파생 {sum.derived}
               {origins ? ` (${origins})` : ''} · 후보 {sum.candidates} · 생성 {sum.generate} · 못 됨{' '}
               {sum.skipped}

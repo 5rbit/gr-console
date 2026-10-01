@@ -159,6 +159,92 @@ pub struct Rule {
     /// 이 수요가 겨냥한 스테이션(표시 · KPI).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub station: Option<u16>,
+    /// 제한 — 시간당 최대 생성 수(0 = 제한 없음). 같은 규칙의 동시 작업은 원래 하나다(예정 큐 · 진행 중이면 안 만든다).
+    #[serde(default)]
+    pub limits: RuleLimits,
+}
+
+/// 규칙의 제한(일곱 칸 중 ⑥).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RuleLimits {
+    pub per_hour: u32,
+}
+
+/// 로봇 규칙(2026-10-01) — 작업 규칙이 만든 후보를 **어느 로봇이 받을 수 있나** · 얼마나 먼저인가.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RobotRule {
+    pub id: String,
+    pub name: String,
+    #[serde(default = "yes")]
+    pub enabled: bool,
+    pub robot: u8,
+    pub kind: RobotRuleKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum RobotRuleKind {
+    /// 담당 구역 — 이 로봇은 X 가 이 범위 안인 작업만(출발 · 도착 모두).
+    Zone { x_min: f32, x_max: f32 },
+    /// 품목 내경 전담 — 내경이 이 범위인 품목은 **이 로봇만**(그리퍼 범위).
+    ItemInnerDia { min: f32, max: f32 },
+    /// 우선 가산 — 대상이 이 목록에 들면(비면 모든 작업) 이 로봇의 점수에 더한다.
+    Bonus {
+        #[serde(default)]
+        targets: Vec<u16>,
+        bonus: f32,
+    },
+}
+
+/// 규칙 세트(옛 "시나리오") — 적용하면 이 규칙들만 켜지고 나머지는 꺼진다(작업 규칙 · 로봇 규칙 모두).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RuleSet {
+    pub id: String,
+    pub name: String,
+    pub rules: Vec<String>,
+    pub note: String,
+    pub applied_at: Option<String>,
+}
+
+/// 로봇 규칙 검사(순수): 이 로봇이 받을 수 있으면 더할 점수, 아니면 사유.
+/// `xs` = 작업 대상들의 X, `inner_dia` = 품목 내경(모르면 없음), `targets` = 대상 id.
+pub fn robot_rule_check(rules: &[RobotRule], robot: u8, xs: &[f32], inner_dia: Option<f32>, targets: &[u16]) -> Result<f32, String> {
+    let on = rules.iter().filter(|r| r.enabled);
+    for r in on.clone() {
+        match &r.kind {
+            RobotRuleKind::Zone { x_min, x_max } if r.robot == robot => {
+                if let Some(x) = xs.iter().find(|x| **x < *x_min || **x > *x_max) {
+                    return Err(format!("{} — X {x:.0} 가 담당 구역 {x_min:.0}~{x_max:.0} 밖", r.name));
+                }
+            }
+            RobotRuleKind::ItemInnerDia { min, max } if r.robot != robot => {
+                if let Some(d) = inner_dia.filter(|d| *d >= *min && *d <= *max) {
+                    return Err(format!("{} — 내경 {d:.0} 은 로봇 {} 전담", r.name, r.robot));
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(on
+        .filter(|r| r.robot == robot)
+        .filter_map(|r| match &r.kind {
+            RobotRuleKind::Bonus { targets: t, bonus } if t.is_empty() || t.iter().any(|x| targets.contains(x)) => Some(*bonus),
+            _ => None,
+        })
+        .sum())
+}
+
+/// `HH:MM` 시간대 안인가(자정을 넘는 범위 22:00~06:00 도). 형식이 틀리면 안 막는다.
+pub fn in_window(now_min: u32, from: &str, to: &str) -> bool {
+    let parse = |s: &str| -> Option<u32> {
+        let (h, m) = s.trim().split_once(':')?;
+        let (h, m): (u32, u32) = (h.parse().ok()?, m.parse().ok()?);
+        (h < 24 && m < 60).then_some(h * 60 + m)
+    };
+    let (Some(a), Some(b)) = (parse(from), parse(to)) else { return true };
+    if a <= b { now_min >= a && now_min < b } else { now_min >= a || now_min < b }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,11 +269,14 @@ pub struct Conditions {
     pub dest_room: bool,
     /// 출발·도착의 Use(사용)가 켜져 있어야.
     pub target_use: bool,
+    /// 시간대(`HH:MM`) — 둘 다 있으면 그 사이에만 만든다(22:00~06:00 처럼 자정을 넘어도 된다).
+    pub time_from: Option<String>,
+    pub time_to: Option<String>,
 }
 
 impl Default for Conditions {
     fn default() -> Self {
-        Conditions { item_known: true, source_stock: true, dest_room: true, target_use: true }
+        Conditions { item_known: true, source_stock: true, dest_room: true, target_use: true, time_from: None, time_to: None }
     }
 }
 
@@ -221,6 +310,29 @@ pub struct GenConfig {
     pub rules: Vec<Rule>,
     /// 모든 셀 · 스테이션에 공통으로 도는 정책(요청 목록 포함).
     pub policy: policy::Policy,
+    /// 로봇 규칙 — 담당 구역 · 품목 전담 · 우선 가산.
+    pub robot_rules: Vec<RobotRule>,
+    /// 규칙 세트(옛 시나리오) — 적용하면 그 규칙만 켜진다.
+    pub rule_sets: Vec<RuleSet>,
+    /// 지금 적용된 규칙 세트.
+    pub active_set: Option<String>,
+}
+
+impl GenConfig {
+    /// 규칙 세트 적용 — 세트에 든 작업 규칙 · 로봇 규칙만 켠다. 모르는 세트면 오류.
+    pub fn apply_set(&mut self, id: &str, at: &str) -> Result<(), String> {
+        let set = self.rule_sets.iter_mut().find(|s| s.id == id).ok_or_else(|| format!("규칙 세트 {id} 없음"))?;
+        set.applied_at = Some(at.to_string());
+        let on: std::collections::BTreeSet<String> = set.rules.iter().cloned().collect();
+        for r in &mut self.rules {
+            r.enabled = on.contains(&r.id);
+        }
+        for r in &mut self.robot_rules {
+            r.enabled = on.contains(&r.id);
+        }
+        self.active_set = Some(id.to_string());
+        Ok(())
+    }
 }
 
 /// 스테이션 인터록 입력(GRM `LGR_Interface_CV_PI`).
@@ -249,6 +361,62 @@ pub struct World {
     pub items: HashMap<u32, ready::ItemFacts>,
     /// 멀티 피킹 최대 개수(정책, 0 = 2).
     pub multi_pick_max: u32,
+    /// 지금 시각(로컬, 자정부터 분) — 시간대 조건.
+    pub now_min: u32,
+}
+
+#[cfg(test)]
+mod rule_ext_tests {
+    use super::*;
+
+    fn rr(id: &str, robot: u8, kind: RobotRuleKind) -> RobotRule {
+        RobotRule { id: id.into(), name: id.into(), enabled: true, robot, kind }
+    }
+
+    #[test]
+    fn robot_rules_gate_and_bonus() {
+        let rules = vec![
+            rr("B1", 1, RobotRuleKind::Zone { x_min: 0.0, x_max: 12000.0 }),
+            rr("B2", 2, RobotRuleKind::ItemInnerDia { min: 500.0, max: 900.0 }),
+            rr("B3", 2, RobotRuleKind::Bonus { targets: vec![2101], bonus: 20.0 }),
+        ];
+        assert!(robot_rule_check(&rules, 1, &[13000.0], None, &[]).unwrap_err().contains("담당 구역"));
+        assert_eq!(robot_rule_check(&rules, 1, &[11000.0], Some(381.0), &[]), Ok(0.0));
+        assert!(robot_rule_check(&rules, 1, &[11000.0], Some(508.0), &[]).unwrap_err().contains("전담"));
+        assert_eq!(robot_rule_check(&rules, 2, &[15000.0], Some(508.0), &[2101, 104]), Ok(20.0));
+        assert_eq!(robot_rule_check(&rules, 2, &[15000.0], None, &[104]), Ok(0.0));
+        let off: Vec<RobotRule> = rules
+            .into_iter()
+            .map(|mut r| {
+                r.enabled = false;
+                r
+            })
+            .collect();
+        assert_eq!(robot_rule_check(&off, 1, &[13000.0], Some(508.0), &[]), Ok(0.0), "꺼진 로봇 규칙은 안 본다");
+    }
+
+    #[test]
+    fn time_window_wraps_midnight() {
+        assert!(in_window(23 * 60, "22:00", "06:00"));
+        assert!(in_window(5 * 60, "22:00", "06:00"));
+        assert!(!in_window(12 * 60, "22:00", "06:00"));
+        assert!(in_window(9 * 60, "08:00", "17:30"));
+        assert!(!in_window(17 * 60 + 30, "08:00", "17:30"));
+        assert!(in_window(3, "bad", "06:00"), "형식이 틀리면 막지 않는다");
+    }
+
+    #[test]
+    fn rule_set_turns_on_only_its_rules() {
+        let mut c = default_rules(2101, &[2102]);
+        c.robot_rules = vec![rr("B1", 1, RobotRuleKind::Zone { x_min: 0.0, x_max: 1.0 })];
+        let keep = c.rules[0].id.clone();
+        c.rule_sets = vec![RuleSet { id: "night".into(), name: "야간".into(), rules: vec![keep.clone(), "B1".into()], ..Default::default() }];
+        c.apply_set("night", "t").unwrap();
+        assert!(c.rules.iter().all(|r| r.enabled == (r.id == keep)));
+        assert!(c.robot_rules[0].enabled);
+        assert_eq!(c.active_set.as_deref(), Some("night"));
+        assert!(c.apply_set("nope", "t").is_err());
+    }
 }
 
 #[cfg(test)]
@@ -311,6 +479,10 @@ pub fn merge_check(w: &World, from: &Target, to: &Target) -> Result<u32, String>
 /// 규칙 판정 한 번 — 조건 항목 목록과 전체 충족(= 모든 항목 충족). `fires` 와 판단 기준 화면이 같은 결과를 쓴다.
 pub fn evaluate(rule: &Rule, w: &World) -> (bool, Vec<Term>) {
     let mut terms = rule_terms(rule, w);
+    if let (Some(a), Some(b)) = (&rule.cond.time_from, &rule.cond.time_to) {
+        let ok = in_window(w.now_min, a, b);
+        terms.push(Term { label: "시간대".into(), value: format!("{a}~{b} (지금 {:02}:{:02})", w.now_min / 60, w.now_min % 60), ok });
+    }
     match &rule.action {
         Action::Transfer { from, to, from_auto, to_auto, merge, .. } => {
             if from_auto.is_none() {
@@ -397,6 +569,7 @@ pub fn default_rules(out_station: u16, in_stations: &[u16]) -> GenConfig {
             origin: RuleOrigin::User,
             request_id: None,
             station: None,
+            limits: Default::default(),
         });
         rules.push(Rule {
             id: format!("store-near-out-{inb}"),
@@ -420,6 +593,7 @@ pub fn default_rules(out_station: u16, in_stations: &[u16]) -> GenConfig {
             origin: RuleOrigin::User,
             request_id: None,
             station: None,
+            limits: Default::default(),
         });
     }
     rules.push(Rule {
@@ -444,10 +618,11 @@ pub fn default_rules(out_station: u16, in_stations: &[u16]) -> GenConfig {
         origin: RuleOrigin::User,
         request_id: None,
         station: None,
+        limits: Default::default(),
     });
     let mut weights = Weights::default();
     weights.target.insert(out_station, 20.0);
-    GenConfig { version: 0, auto: false, weights, rules, policy: policy::Policy::default() }
+    GenConfig { version: 0, auto: false, weights, rules, policy: policy::Policy::default(), ..Default::default() }
 }
 
 /// 판단 기준 한 줄 — 무엇을 보는지(`label`), 지금 값(`value`), 그 값이 조건을 만족하는가(`ok`).
@@ -950,6 +1125,7 @@ mod tests {
             origin: RuleOrigin::User,
             request_id: None,
             station: None,
+            limits: Default::default(),
         }
     }
     fn cand(rule_id: &str, robot: u8, lo: f32, hi: f32, score: f32, order: u64) -> Candidate {
@@ -1246,7 +1422,7 @@ mod tests {
         assert_eq!(dest_ready(&w, &cell(402), 1, &Conditions { dest_room: false, ..Default::default() }), None);
 
         // 다 끄면 조건이 참이 되고, 목록은 그 항목들을 "무시" 로 말한다.
-        let all_off = Rule { cond: Conditions { item_known: false, source_stock: false, dest_room: false, target_use: false }, ..base };
+        let all_off = Rule { cond: Conditions { item_known: false, source_stock: false, dest_room: false, target_use: false, ..Default::default() }, ..base };
         assert!(fires(&all_off, &w));
         assert!(rule_terms(&all_off, &w).iter().all(|t| t.ok), "{:?}", rule_terms(&all_off, &w));
         // 품목을 규칙이 정하지 않은 채 조건을 끄면 그 줄이 "무시" 라고 말한다.

@@ -19,7 +19,7 @@ use super::{Action, Candidate, CellView, GenConfig, Knobs, RobotView, Rule, Rule
 use crate::area::Interval;
 use crate::error::ApiError;
 use crate::ledger::{LedgerEntry, Origin, ScenarioSource, Target, TaskRequest, TaskState};
-use crate::state::{AppState, RobotCtx};
+use crate::state::AppState;
 use crate::util::now_str;
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -57,6 +57,9 @@ pub struct GenItem {
     pub allow_unknown_item: bool,
     #[serde(default)]
     pub ignore_stack_max: bool,
+    /// 작업 대기열에 넣은 작업(2026-10-01) — 보내기는 대기열의 보내기 루프가 한다.
+    #[serde(default)]
+    pub job_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -410,6 +413,10 @@ fn step_delta(s: &GenStep) -> Option<(u16, u32, i32)> {
 
 fn gather(st: &AppState, e: &Engine, cfg: &GenConfig, queue: &[GenItem]) -> Gathered {
     let mut w = World::default();
+    {
+        let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+        w.now_min = u32::from(now.hour()) * 60 + u32::from(now.minute());
+    }
     let registered = st.registry.stations().unwrap_or_default();
     // GRM 스테이션 신호 — 맵(`station_live`)과 같은 한 줄에서.
     let live = crate::issue::station_live::station_live_rows(st).unwrap_or_default();
@@ -437,7 +444,10 @@ fn gather(st: &AppState, e: &Engine, cfg: &GenConfig, queue: &[GenItem]) -> Gath
         if i.spec.profiles.iter().all(|p| p.rows.is_empty()) {
             w.unmeasured.insert(i.code);
         }
-        w.items.insert(i.code, ItemFacts { stack_max: u32::from(i.spec.stack_max), height: i.item.height, compression: i.spec.compression.unwrap_or(0.0), od: i.item.outer_diameter });
+        w.items.insert(
+            i.code,
+            ItemFacts { stack_max: u32::from(i.spec.stack_max), height: i.item.height, compression: i.spec.compression.unwrap_or(0.0), od: i.item.outer_diameter, inner_dia: i.item.inner_diameter },
+        );
     }
     // 미래 재고 = 표 + 진행 중 Task(projected_all) + 짝 초안 + 예정 큐의 아직 원장에 없는 스텝.
     let entries: Vec<(u8, LedgerEntry)> = st.robots.iter().flat_map(|r| r.ledger.list().into_iter().map(move |x| (r.id, x))).collect();
@@ -790,6 +800,13 @@ pub fn plan(st: &AppState, e: &Engine, cfg: &GenConfig, seen: &mut HashMap<Strin
             status.insert(rule.id.clone(), ("cooldown", Some(why), 0.0));
             continue;
         }
+        if rule.limits.per_hour > 0 {
+            let n = super::log::count_since(&st.db, "generated", &rule.id, 3600);
+            if n >= rule.limits.per_hour {
+                status.insert(rule.id.clone(), ("limited", Some(format!("시간당 {}건 한도 — 최근 1 시간 {n}건", rule.limits.per_hour)), 0.0));
+                continue;
+            }
+        }
         let (since, order) = *seen.entry(rule.id.clone()).or_insert_with(|| (Instant::now(), e.counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
         let age = since.elapsed().as_secs_f32() / 60.0;
         let mut robot_count = 0;
@@ -823,7 +840,21 @@ pub fn plan(st: &AppState, e: &Engine, cfg: &GenConfig, seen: &mut HashMap<Strin
                 continue;
             }
             let targets: Vec<&Target> = std::iter::once(&first).chain(second.as_ref()).collect();
-            let (s, b) = score(rule, &targets, rv.id, &cfg.weights, knobs, age, dist);
+            let xs: Vec<f32> = std::iter::once(x0).chain(drop_x).collect();
+            let ids: Vec<u16> = targets.iter().map(|t| t.id).collect();
+            let inner = item.and_then(|c| w.items.get(&c)).map(|f| f.inner_dia).filter(|d| *d > 0.0);
+            let robot_bonus = match super::robot_rule_check(&cfg.robot_rules, rv.id, &xs, inner, &ids) {
+                Ok(b) => b,
+                Err(why) => {
+                    skipped.push((rule.name.clone(), format!("{}: {why}", rv.name)));
+                    continue;
+                }
+            };
+            let (mut s, mut b) = score(rule, &targets, rv.id, &cfg.weights, knobs, age, dist);
+            if robot_bonus != 0.0 {
+                s += robot_bonus;
+                b.push(("RobotRule".into(), robot_bonus));
+            }
             cands.push(Candidate {
                 rule_id: rule.id.clone(),
                 rule_name: rule.name.clone(),
@@ -930,15 +961,8 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
         let mut seen = lock(&e.seen);
         plan(st, e, &cfg, &mut seen)
     };
-    let running = st.scenario.current().state.is_active();
-    *lock(&e.note) = if running {
-        Some("시나리오 실행 중 — 생성·발행 멈춤".into())
-    } else if !cfg.auto {
-        Some("자동 생성 꺼짐 — 후보만 보여 줌".into())
-    } else {
-        None
-    };
-    if cfg.auto && !running {
+    *lock(&e.note) = if !cfg.auto { Some("자동 생성 꺼짐 — 후보만 보여 줌".into()) } else { None };
+    if cfg.auto {
         let mut q = lock(&e.queue);
         for c in &plan.sel.generate {
             let Some(rule) = plan.rules.iter().find(|r| r.id == c.rule_id) else { continue };
@@ -967,6 +991,7 @@ pub fn tick_generate(st: &AppState, e: &Engine) {
                 retry_at_ms: 0,
                 allow_unknown_item: !rule.cond.item_known,
                 ignore_stack_max: !rule.cond.dest_room,
+                job_id: None,
             };
             let at = g.created_at.clone();
             e.persist_item(&g);
@@ -1094,20 +1119,25 @@ fn engine_inputs(cfg: &GenConfig, w: &World, robots: &[RobotView], p: &crate::pa
 }
 
 /// 예정 큐를 보낸다 — 로봇마다 맨 앞 항목의 다음 스텝 하나.
+/// 자동 생성이 꺼져도 이미 대기열에 넣은 작업은 끝까지 따라간다(취소 · 실패 · 보냄을 놓치면 로봇이 계속 바쁨으로 남는다).
 pub async fn tick_issue(st: &AppState, e: &Engine) {
-    if st.scenario.current().state.is_active() || !e.config().auto {
-        return;
-    }
+    let auto = e.config().auto;
     let p = crate::params::current(&st.db);
     let items = lock(&e.queue).clone();
     // 짝이 걸린 로봇(PICK 보냄, DROP 아직)의 DROP 목표 — 다른 로봇 영역 검사에.
     let pairs: BTreeMap<u8, f32> = items.iter().filter(|g| g.next == 1 && g.steps.len() == 2).filter_map(|g| g.drop_x.map(|x| (g.robot, x))).collect();
     let mut done_robots: Vec<u8> = Vec::new();
     for g in items {
-        if done_robots.contains(&g.robot) {
+        // 꺼져 있으면 새로 넣지 않고, 이미 넣은 작업만 모두 따라간다.
+        if !auto && g.job_id.is_none() {
             continue;
         }
-        done_robots.push(g.robot);
+        if auto {
+            if done_robots.contains(&g.robot) {
+                continue;
+            }
+            done_robots.push(g.robot);
+        }
         if g.retry_at_ms > unix_ms() {
             continue;
         }
@@ -1119,47 +1149,44 @@ pub async fn tick_issue(st: &AppState, e: &Engine) {
             let mut q = lock(&e.queue);
             let Some(item) = q.iter_mut().find(|x| x.id == g.id) else { continue };
             match outcome {
-                Issue::Sent { task_id, drafts, order, warn } => {
-                    // task_ids[i] = 스텝 i 의 원장 Task — 짝 초안도 여기에 자리를 잡는다.
-                    if item.task_ids.len() > item.next {
-                        item.task_ids[item.next] = task_id;
-                    } else {
-                        item.task_ids.push(task_id);
-                    }
-                    item.task_ids.extend(drafts);
+                Issue::Queued { job_id, order } => {
+                    item.job_id = Some(job_id);
                     if order.is_some() {
                         item.transfer_order_id = order;
                     }
                     if let Some(o) = &item.transfer_order_id {
                         lock(&e.watch_orders).insert(o.clone(), (item.rule_id.clone(), item.robot));
                     }
-                    let step = &item.steps[item.next];
-                    super::log::write(
-                        &st.db,
-                        "issued",
-                        &item.rule_id,
-                        Some(item.robot),
-                        &format!("{} {} {} · {}", step.task_type, step.target.kind, step.target.id, item.transfer_order_id.as_deref().unwrap_or("-")),
-                        None,
-                    );
-                    item.next += 1;
-                    item.note = warn;
+                    super::log::write(&st.db, "queued", &item.rule_id, Some(item.robot), &format!("작업 대기열 · {}", item.transfer_order_id.as_deref().unwrap_or("-")), None);
+                    item.note = Some("작업 대기열에서 차례 기다림".into());
                     item.attempts = 0;
                     item.retry_at_ms = 0;
-                    lock(&e.metrics).issued += 1;
-                    if item.next >= item.steps.len() {
-                        let id = item.id.clone();
-                        let single = item.transfer_order_id.is_none();
-                        let (key, robot) = (item.rule_id.clone(), item.robot);
-                        q.retain(|x| x.id != id);
-                        e.forget_item(&id);
-                        // 지시 없는 한 스텝(측정 · 이동)은 보낸 것으로 끝 — 냉각을 푼다.
-                        if single {
-                            e.clear_cooldown(&key);
-                            super::log::write(&st.db, "completed", &key, Some(robot), "발행 끝(단일 스텝)", None);
-                        }
-                    } else {
-                        e.persist_item(item);
+                    e.persist_item(item);
+                }
+                Issue::Issued { task_ids } => {
+                    for (i, step) in item.steps.iter().enumerate() {
+                        super::log::write(
+                            &st.db,
+                            "issued",
+                            &item.rule_id,
+                            Some(item.robot),
+                            &format!("{} {} {} · {}", step.task_type, step.target.kind, step.target.id, item.transfer_order_id.as_deref().unwrap_or("-")),
+                            None,
+                        );
+                        let _ = i;
+                    }
+                    item.task_ids = task_ids;
+                    item.next = item.steps.len();
+                    lock(&e.metrics).issued += item.steps.len() as u64;
+                    let id = item.id.clone();
+                    let single = item.transfer_order_id.is_none();
+                    let (key, robot) = (item.rule_id.clone(), item.robot);
+                    q.retain(|x| x.id != id);
+                    e.forget_item(&id);
+                    // 지시 없는 한 스텝(측정 · 이동)은 보낸 것으로 끝 — 냉각을 푼다.
+                    if single {
+                        e.clear_cooldown(&key);
+                        super::log::write(&st.db, "completed", &key, Some(robot), "발행 끝(단일 스텝)", None);
                     }
                 }
                 Issue::Wait(why) => {
@@ -1260,12 +1287,14 @@ pub async fn hand_remove(st: &AppState, robot: u8) -> Result<(Vec<String>, Optio
 }
 
 enum Issue {
-    /// 보냈다 — `drafts` 는 이때 같이 만든 짝 초안(보내지 않음), `warn` 은 초안을 못 만든 사유.
-    Sent {
-        task_id: String,
-        drafts: Vec<String>,
+    /// 작업 대기열에 넣었다(WorkId · 이송 지시는 대기열이 붙였다).
+    Queued {
+        job_id: String,
         order: Option<String>,
-        warn: Option<String>,
+    },
+    /// 대기열의 보내기 루프가 이 작업의 스텝을 모두 PLC 로 보냈다.
+    Issued {
+        task_ids: Vec<String>,
     },
     Wait(String),
     Failed {
@@ -1280,125 +1309,50 @@ fn order_source(rule_id: &str) -> String {
     if rule_id.starts_with("req:") { rule_id.to_string() } else { format!("gen:{rule_id}") }
 }
 
-async fn issue_one(st: &AppState, p: &crate::params::Params, pairs: &BTreeMap<u8, f32>, g: &GenItem) -> Issue {
-    let Ok(r) = st.robot(Some(g.robot)) else { return Issue::Abort(format!("로봇 {} 없음", g.robot)) };
-    let step = &g.steps[g.next];
-    // 짝 DROP 은 PICK 이 PLC 에 받아진 뒤(깊이 1: PICK 실행 중 → DROP 대기). PICK 이 나쁘게 끝났으면 DROP 은 보내지 않는다.
-    if g.next == 1 {
-        match g.task_ids.first().and_then(|id| st.find_task(id)).map(|(_, e)| e) {
-            Some(pick) if matches!(pick.state, TaskState::Rejected | TaskState::Failed | TaskState::Canceled | TaskState::Lost) => {
-                return Issue::Abort(format!("짝 PICK 이 {}", pick.state.as_str()));
-            }
-            Some(pick) if matches!(pick.state, TaskState::Draft | TaskState::Submitted) => return Issue::Wait("짝 PICK 의 PLC 수령 대기".into()),
-            None => return Issue::Abort("짝 PICK 을 원장에서 찾지 못함".into()),
-            _ => {}
-        }
-    }
-    let gate = crate::ledger::ops::gate(st, r);
-    if !gate.can_submit {
-        return Issue::Wait(format!("제출 대기: {}", gate.reasons.join("; ")));
-    }
-    if let Some(why) = crate::scenario::runner::queue_depth_reason(r.ledger.list().iter().map(|e| e.state), p.issue_queue_depth) {
-        return Issue::Wait(why);
-    }
-    let Some(x) = crate::area::target_x(st, &step.target) else { return Issue::Abort(format!("대상 {} {} 미등록", step.target.kind, step.target.id)) };
-    let pair_drop = (g.next == 0 && g.steps.len() == 2).then_some(g.drop_x).flatten();
-    let mut others = pairs.clone();
-    others.remove(&g.robot);
-    let area_cfg = crate::area::AreaConfig { separation_mm: p.anticol_separation_mm, enabled: p.anticol_enabled };
-    if let Some((b, mine)) = crate::area::check(st, &area_cfg, r, x, pair_drop, &others) {
-        return Issue::Wait(crate::area::wait_reason(&b, mine, area_cfg.separation_mm));
-    }
-    // 이송 지시 — 짝의 PICK 에서 한 번만 연다(재시도도 같은 지시).
-    let mut order = g.transfer_order_id.clone();
-    if order.is_none() && g.steps.len() == 2 {
-        let n = crate::stock::transfer::NewOrder {
-            robot: Some(r.id),
-            plc: r.plc.clone(),
-            item_code: step.item_code.unwrap_or(0),
-            count: step.count as u32,
-            from: Some(g.steps[0].target.clone()),
-            to: Some(g.steps[1].target.clone()),
-            source: order_source(&g.rule_id),
-            note: g.rule_name.clone(),
-        };
-        match st.stock.open_order(n) {
-            Ok(o) => order = Some(o.id),
-            Err(e) => return Issue::Wait(format!("이송 지시: {e}")),
-        }
-    }
-    let req = TaskRequest {
+/// 생성 작업의 스텝 `i` 를 작성 요청으로(출처 태그 `gen:<규칙>` 은 `gen_busy` 가 본다).
+fn step_request(g: &GenItem, i: usize) -> TaskRequest {
+    let step = &g.steps[i];
+    TaskRequest {
         task_type: step.task_type.clone(),
         target: Some(step.target.clone()),
         item_code: step.item_code,
         count: step.count.max(1),
         params: serde_json::json!({}),
-        note: format!("생성: {}", g.rule_name),
-        source: Some(ScenarioSource { scenario_id: format!("gen:{}", g.rule_id), run_id: g.id.clone(), iteration: 0, step_index: g.next as u32 }),
-        robot: Some(r.id),
-        transfer_order_id: order.clone(),
+        note: if i == 0 { format!("생성: {}", g.rule_name) } else { format!("생성: {} (짝 DROP)", g.rule_name) },
+        source: Some(ScenarioSource { scenario_id: format!("gen:{}", g.rule_id), run_id: g.id.clone(), iteration: 0, step_index: i as u32 }),
+        robot: Some(g.robot),
         allow_unknown_item: g.allow_unknown_item,
         ignore_stack_max: g.ignore_stack_max,
         pallet: step.pallet_auto.then(|| crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
         multi_pick: step.merge.then_some(true),
         ..Default::default()
-    };
-    // 짝의 둘째 스텝은 PICK 때 만들어 둔 초안을 보낸다(값은 보낼 때 다시 작성).
-    if g.next > 0
-        && let Some(entry) = g.task_ids.get(g.next).and_then(|id| st.find_task(id)).map(|(_, e)| e)
-    {
-        if entry.state != TaskState::Draft {
-            return Issue::Abort(format!("짝 초안 {} 이 {} — 보내지 않음", entry.id, entry.state.as_str()));
-        }
-        return match crate::ledger::ops::submit_refreshed(st, r, entry).await {
-            Ok(e) => Issue::Sent { task_id: e.id, drafts: Vec::new(), order, warn: None },
-            Err(e) => Issue::Failed { why: format!("제출 실패: {e}"), order },
-        };
     }
-    let composed = match crate::issue::compose(st, &req) {
-        Ok(c) => c,
-        Err(e) => return Issue::Failed { why: format!("compose: {e}"), order },
-    };
-    let entry = match crate::ledger::ops::create_and_submit(st, r, Origin::Scenario, Some(req), Some(composed.params), composed.task, composed.pallet, true).await {
-        Ok(e) => e,
-        Err(e) => return Issue::Failed { why: format!("제출 실패: {e}"), order },
-    };
-    // PICK/DROP 은 늘 한 짝으로 **함께 만든다** — DROP 을 초안으로 같이 올려 두고 보내기만 순서대로.
-    let mut drafts = Vec::new();
-    if g.next == 0 && g.steps.len() == 2 {
-        match draft_pair_step(st, r, g, order.as_deref()).await {
-            Ok(id) => drafts.push(id),
-            // PICK 은 이미 나갔다 — 초안은 다음 판정에서 다시 만든다(없으면 그때 작성해 보낸다).
-            Err(why) => return Issue::Sent { task_id: entry.id, drafts, order, warn: Some(why) },
-        }
-    }
-    Issue::Sent { task_id: entry.id, drafts, order, warn: None }
 }
 
-/// 짝 DROP 을 초안으로 만든다(보내지 않는다) — 같은 이송 지시, 같은 source(run_id · step_index).
-async fn draft_pair_step(st: &AppState, r: &RobotCtx, g: &GenItem, order: Option<&str>) -> Result<String, String> {
-    let step = &g.steps[1];
-    let req = TaskRequest {
-        task_type: step.task_type.clone(),
-        target: Some(step.target.clone()),
-        item_code: step.item_code,
-        count: step.count.max(1),
-        params: serde_json::json!({}),
-        note: format!("생성: {} (짝 DROP)", g.rule_name),
-        source: Some(ScenarioSource { scenario_id: format!("gen:{}", g.rule_id), run_id: g.id.clone(), iteration: 0, step_index: 1 }),
-        robot: Some(r.id),
-        transfer_order_id: order.map(str::to_string),
-        allow_unknown_item: g.allow_unknown_item,
-        ignore_stack_max: g.ignore_stack_max,
-        pallet: step.pallet_auto.then(|| crate::pallet::compose::PalletRef { auto: true, ..Default::default() }),
-        multi_pick: step.merge.then_some(true),
-        ..Default::default()
+/// 자동 작업의 우선(사람 작업 50 보다 뒤, 결정 2026-10-01).
+const AUTO_PRIORITY: i32 = 30;
+
+/// 생성 작업 하나를 작업 대기열로. 보내기(게이트 · 깊이 · 영역 · 짝 이어 보내기)는 대기열의 보내기 루프가 한다 —
+/// 송신자가 하나여야 같은 로봇에 두 곳이 밀어 넣지 않는다.
+async fn issue_one(st: &AppState, _p: &crate::params::Params, _pairs: &BTreeMap<u8, f32>, g: &GenItem) -> Issue {
+    let Some(store) = crate::jobs::store() else { return Issue::Wait("작업 대기열 준비 중".into()) };
+    let Some(job_id) = &g.job_id else {
+        let steps: Vec<TaskRequest> = (0..g.steps.len()).map(|i| step_request(g, i)).collect();
+        let n = crate::jobs::NewJob { robot: Some(g.robot), steps, priority: Some(AUTO_PRIORITY), note: g.rule_name.clone() };
+        return match crate::jobs::enqueue(st, n, Origin::Auto, Some(order_source(&g.rule_id))) {
+            Ok(job) => Issue::Queued { job_id: job.id, order: job.transfer_order_id },
+            Err(e) => Issue::Failed { why: format!("대기열: {e}"), order: None },
+        };
     };
-    let composed = crate::issue::compose(st, &req).map_err(|e| format!("짝 DROP 작성: {e}"))?;
-    crate::ledger::ops::create_and_submit(st, r, Origin::Scenario, Some(req), Some(composed.params), composed.task, composed.pallet, false)
-        .await
-        .map(|e| e.id)
-        .map_err(|e| format!("짝 DROP 초안: {e}"))
+    let Some(job) = store.get(job_id) else { return Issue::Abort("작업 대기열에서 작업을 찾지 못함".into()) };
+    let sent: Vec<String> = job.steps.iter().filter_map(|s| s.task.clone()).collect();
+    if sent.len() == job.steps.len() {
+        return Issue::Issued { task_ids: sent };
+    }
+    match job.stage {
+        crate::jobs::Stage::Canceled | crate::jobs::Stage::Failed => Issue::Abort(format!("작업 {}", job.stage.label())),
+        _ => Issue::Wait(job.wait_reason.unwrap_or_else(|| "작업 대기열에서 차례 기다림".into())),
+    }
 }
 
 pub fn spawn(st: AppState) {
@@ -1504,6 +1458,7 @@ mod tests {
             note: None,
             allow_unknown_item: false,
             ignore_stack_max: false,
+            job_id: None,
             attempts: 1,
             retry_at_ms: 0,
         };

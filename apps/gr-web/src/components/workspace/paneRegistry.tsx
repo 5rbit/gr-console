@@ -15,7 +15,6 @@ import SchedulerPage from '../sched/SchedulerPage'
 import ItemsPage from '../items/ItemsPage'
 import TaskManager from '../taskmgr/TaskManager'
 import MeasureMonitor from '../measure/MeasureMonitor'
-import ScenarioPage from '../scenario/ScenarioPage'
 import PalletPage from '../pallet/PalletPage'
 import TracePage from '../trace/TracePage'
 import GripperPage from '../gripper/GripperPage'
@@ -51,7 +50,6 @@ const SCREEN_COMPONENT: Record<string, ComponentType> = {
   items: ItemsPage,
   taskmgr: TaskManager,
   measure: MeasureMonitor,
-  scenario: ScenarioPage,
   pallet: PalletPage,
   trace: TracePage,
   gripper: GripperPage,
@@ -64,7 +62,6 @@ const SCREEN_KEYWORDS: Record<string, string> = {
   items: 'item tire spec 품목 타이어 규격 코드 치수 내경 외경',
   taskmgr: 'manager 목록 이력 history',
   measure: 'monitor 측정 트렌드 trend',
-  scenario: 'runner 러너 순차 시퀀스',
   pallet: 'palletizing pattern drag 팔렛 패턴 적재 드래그 입고 출하',
   trace: 'trace waveform scope 파형 스코프 채널 사이클 오실로 로깅',
   gripper: 'gripper torque learn 그리퍼 토크 학습 기구 부하 mech scale inch',
@@ -107,17 +104,15 @@ const AUX: PaneDef[] = [
 
 /** 도킹 가능한 패널 전부 — 화면 넷 + 보조 셋. 순서가 메뉴·팔레트의 순서다. */
 export const PANES: readonly PaneDef[] = [
-  ...ALL_TABS.map(
-    (t): PaneDef => ({
-      id: t.id,
-      label: t.label,
-      icon: t.icon,
-      kind: 'screen',
-      defaultZone: 'center',
-      component: SCREEN_COMPONENT[t.id],
-      keywords: SCREEN_KEYWORDS[t.id],
-    }),
-  ),
+  ...ALL_TABS.map((t): PaneDef => ({
+    id: t.id,
+    label: t.label,
+    icon: t.icon,
+    kind: 'screen',
+    defaultZone: 'center',
+    component: SCREEN_COMPONENT[t.id],
+    keywords: SCREEN_KEYWORDS[t.id],
+  })),
   ...AUX,
 ]
 

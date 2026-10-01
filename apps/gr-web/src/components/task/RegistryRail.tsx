@@ -40,6 +40,7 @@ import { Input } from '../../lib/ui/Input'
 import { OverflowMenu } from '../../lib/ui/OverflowMenu'
 import { menuItems, type MenuEntry } from '../../lib/task/menuEntries'
 import { Segmented } from '../../lib/ui/Segmented'
+import { JobsTable } from '../jobs/JobsTable'
 import { cn } from '../../lib/utils'
 import type { Cell, Item, Station, Target } from '../../lib/types'
 import { isStationId } from '../../lib/task/state'
@@ -53,6 +54,7 @@ import { StockRegistry } from './StockRegistry'
 export type { RailTab } from '../../lib/task/railSplitModel'
 
 const TABLE_LABEL: Record<SplitTable, string> = {
+  job: '작업',
   cell: '셀',
   station: '스테이션',
   stock: '재고',
@@ -64,11 +66,13 @@ export const RAIL_KEY = 'gr-rail-tab'
 const SPLIT_KEY = 'gr-rail-split'
 
 const placeholderOf = (t: SplitTable) =>
-  t === 'item'
-    ? 'Code·Name'
-    : t === 'cell' || t === 'stock'
-      ? 'Id·Section·Row·Col'
-      : 'Id·ConvNo·Group'
+  t === 'job'
+    ? 'WorkId·C101·S2102'
+    : t === 'item'
+      ? 'Code·Name'
+      : t === 'cell' || t === 'stock'
+        ? 'Id·Section·Row·Col'
+        : 'Id·ConvNo·Group'
 
 function SearchBox({
   table,
@@ -236,6 +240,29 @@ export function RegistryRail({
   function body(t: SplitTable, compact: boolean) {
     const needle = q.trim()
     const rail = { lead, menuExtra: viewMenu }
+    if (t === 'job')
+      return (
+        <div className="flex min-h-0 flex-1 flex-col" data-testid="rail-jobs">
+          <div className="flex min-h-control-sm flex-none items-center gap-2 border-b border-line-default px-2 py-1">
+            {lead}
+            <span className="flex-1" />
+            <OverflowMenu
+              items={menuItems(viewMenu)}
+              title="보기 — 맵만 · 표만 · 나누는 방향"
+              testid="rail-jobs-more"
+            />
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <JobsTable
+              followRobot
+              variant="compact"
+              items={items.items}
+              q={needle}
+              testid="rail-job-table"
+            />
+          </div>
+        </div>
+      )
     if (t === 'item')
       return (
         <ItemRegistry

@@ -146,6 +146,8 @@ export interface ItemSpec {
   compression_source: string
   /** SKU 측정이 들어오면 프로파일을 자동으로 갱신한다. null = 켬(기본) */
   auto_apply_measured: boolean | null
+  /** 품목 바코드(품목당 하나). 없으면 빈 값 */
+  barcode?: string
 }
 
 /** 어느 SKU 표본이 그 점을 채웠는지. */
@@ -523,13 +525,7 @@ export interface Robot {
 
 /** 로봇 운전 명령 (POST /api/robots/{id}/command/{action}). `gripper-learn` 은 그리퍼 화면의 LEARN 펄스. */
 export type RobotAction =
-  | 'start'
-  | 'stop'
-  | 'reset'
-  | 'buzzerstop'
-  | 'gripper-learn'
-  | 'complete'
-  | 'clear'
+  'start' | 'stop' | 'reset' | 'buzzerstop' | 'gripper-learn' | 'complete' | 'clear'
 
 export type TaskState =
   | 'draft'
@@ -596,7 +592,8 @@ export interface Task {
   seq: number
   work_id: number
   task_id: number
-  origin: 'console' | 'scenario' | 'external'
+  /** 할당 주체 — manual = 사람이 화면에서 · auto = 콘솔이 스스로(요청의 `via`) · external = PLC 에서 처음 본 Task */
+  origin: 'manual' | 'auto' | 'external'
   /** 로봇 상태 PLC 이름(= 로봇 이름) */
   plc_name?: string
   request: TaskRequest | null
@@ -627,7 +624,7 @@ export interface TaskQuery {
   robot?: number
   state?: TaskState[] | 'active' | 'terminal'
   type?: TaskType
-  /** 출처 — 콘솔·시나리오·외부(PLC 에서 처음 본 Task). */
+  /** 할당 주체 — 사람 · 자동 · 외부(PLC 에서 처음 본 Task). */
   origin?: Task['origin']
   /** RFC 3339 — `created_at` 하한. */
   since?: string

@@ -38,6 +38,7 @@ import type {
   Station,
   StationUpsert,
   StatusEvent,
+  HandEntry,
   HandView,
   SyncIssue,
   StockEntry,
@@ -427,6 +428,9 @@ export const api = {
     getJson<{ robot: number; robot_name: string; plc: string; issues: SyncIssue[] }[]>(
       '/api/stock/sync',
     ),
+  /** Hand 손 정정(콘솔 DB 만) — 진행 중 PICK/DROP 이 있으면 409 */
+  stockSetHand: (robot: number, item_code: number, count: number) =>
+    putJson<HandEntry>(`/api/stock/hand/${robot}`, { item_code, count }),
   /** 동기화 경고를 한 번에 고친다(콘솔 DB 만) */
   stockSyncResolve: (robot: number, action: string, task_id?: string | null) =>
     postJson<unknown>(`/api/stock/sync/${robot}/resolve`, {

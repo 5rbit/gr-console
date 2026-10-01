@@ -122,7 +122,7 @@ describe('history query', () => {
   it('filterCount counts set fields', () => {
     expect(filterCount(EMPTY_HISTORY_FILTER)).toBe(0)
     expect(
-      filterCount({ states: ['completed'], type: 'DROP', origin: 'console', since: '2026-01-01' }),
+      filterCount({ states: ['completed'], type: 'DROP', origin: 'manual', since: '2026-01-01' }),
     ).toBe(4)
   })
 })

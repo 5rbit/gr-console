@@ -137,6 +137,8 @@ pub struct ItemFacts {
     pub height: f32,
     pub compression: f32,
     pub od: f32,
+    /// 내경(mm) — 로봇 규칙(품목 내경 전담).
+    pub inner_dia: f32,
 }
 
 /// `n` 개 스택의 높이 — 단마다 눌린 높이(`Height − Compression·위에 얹힌 수`)의 합.
@@ -397,8 +399,8 @@ mod tests {
     impl W {
         fn new() -> W {
             let mut items = HashMap::new();
-            items.insert(2011, ItemFacts { stack_max: 4, height: 200.0, compression: 10.0, od: 650.0 });
-            items.insert(2013, ItemFacts { stack_max: 0, height: 250.0, compression: 0.0, od: 700.0 });
+            items.insert(2011, ItemFacts { stack_max: 4, height: 200.0, compression: 10.0, od: 650.0, inner_dia: 0.0 });
+            items.insert(2013, ItemFacts { stack_max: 0, height: 250.0, compression: 0.0, od: 700.0, inner_dia: 0.0 });
             W { stations: vec![], sig: BTreeMap::new(), profiles: BTreeMap::new(), cells: vec![], stock: BTreeMap::new(), items, holds: BTreeMap::new(), since: HashMap::new() }
         }
         fn run(&self) -> Vec<TargetReady> {

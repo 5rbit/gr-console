@@ -42,7 +42,7 @@ function task(over: Partial<Task> = {}): Task {
     seq: 1,
     work_id: 260912001,
     task_id: 7,
-    origin: 'console',
+    origin: 'manual',
     request: null,
     resolved: null,
     position: [0, 0, 0, 0],

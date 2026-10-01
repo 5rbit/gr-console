@@ -16,9 +16,25 @@ export function typeName(code: number | undefined | null): string {
 }
 
 export const ORIGIN_LABEL: Record<Task['origin'], string> = {
-  console: '콘솔',
-  scenario: '시나리오',
+  manual: '사람',
+  auto: '자동',
   external: '외부',
+}
+
+/** 자동 할당의 주체(서버가 요청에 단 `via`) → 사람이 읽는 말. */
+export function viaLabel(via: string | null | undefined): string {
+  if (!via) return ''
+  if (via === 'plan-auto') return '순차 계획 자동 제출'
+  if (via.startsWith('rule:')) return `자동 생성 규칙 ${via.slice(5)}`
+  if (via.startsWith('runner:')) return `저장 실행 ${via.slice(7)}`
+  return via
+}
+
+/** 할당 주체 한 줄 — `자동 · 순차 계획 자동 제출` · `사람` · `외부`. */
+export function originText(t: Pick<Task, 'origin' | 'request'>): string {
+  const base = ORIGIN_LABEL[t.origin] ?? t.origin
+  const via = viaLabel((t.request as { via?: string | null } | null)?.via)
+  return via ? `${base} · ${via}` : base
 }
 
 /** 끝난 상태 — 백엔드 `TaskState::is_terminal`과 같다(`lost`는 되살아날 수 있어 종결이 아니다). */
@@ -345,7 +361,8 @@ export function targetOf(
 export function targetLabel(task: Pick<Task, 'request' | 'plc_task'>): string {
   const t = targetOf(task)
   if (!t) return ''
-  return `${t.kind === 'station' ? 'Station' : 'Cell'} ${t.id}`
+  // 셀 C · 스테이션 S + 번호(작업 할당 재정립 2026-10-01 — 간략하게)
+  return `${t.kind === 'station' ? 'S' : 'C'}${t.id}`
 }
 
 /** 타이어 치수 `ID/OD/H` — 품목 코드만으로는 현장에서 어떤 타이어인지 모른다. 없으면 빈 문자열. */

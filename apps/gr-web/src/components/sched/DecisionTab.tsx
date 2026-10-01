@@ -2,7 +2,14 @@
 import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { metricsLine, ruleState, taskgenApi, type GenItem } from '../../lib/taskgen'
-import { schedApi, type Cooldown, type DerivedRuleStatus, type HandAlert, type RuleOrigin, type SchedState } from '../../lib/sched'
+import {
+  schedApi,
+  type Cooldown,
+  type DerivedRuleStatus,
+  type HandAlert,
+  type RuleOrigin,
+  type SchedState,
+} from '../../lib/sched'
 import {
   ORIGIN_LABEL,
   ORIGIN_ORDER,
@@ -77,7 +84,13 @@ function DecisionBody({ state: raw, reload }: { state: SchedState | null; reload
   ]
 
   const coolCols: Column<Cooldown>[] = [
-    { key: 'key', label: 'Key', get: (c) => c.key, priority: 1, cell: (c) => <span className="font-mono text-2xs">{c.key}</span> },
+    {
+      key: 'key',
+      label: 'Key',
+      get: (c) => c.key,
+      priority: 1,
+      cell: (c) => <span className="font-mono text-2xs">{c.key}</span>,
+    },
     { key: 'fails', label: 'Fails', get: (c) => c.fails, numeric: true, priority: 1 },
     {
       key: 'until',
@@ -172,7 +185,10 @@ function DecisionBody({ state: raw, reload }: { state: SchedState | null; reload
       cell: (d) => {
         const t = termsSummary(d.terms)
         return (
-          <span className={`font-mono tabular-nums ${t.ok ? 'text-content-faint' : 'text-warn-fg'}`} title={t.title}>
+          <span
+            className={`font-mono tabular-nums ${t.ok ? 'text-content-faint' : 'text-warn-fg'}`}
+            title={t.title}
+          >
             {t.label}
           </span>
         )
@@ -201,7 +217,10 @@ function DecisionBody({ state: raw, reload }: { state: SchedState | null; reload
 
   return (
     <div className="flex min-h-0 flex-col gap-3 text-xs" data-testid="sched-decision">
-      <span className="truncate font-mono text-2xs tabular-nums text-content-faint" data-testid="sched-metrics">
+      <span
+        className="truncate font-mono text-2xs tabular-nums text-content-faint"
+        data-testid="sched-metrics"
+      >
         {metricsLine(state.metrics)}
         {state.note ? <span className="ml-2 text-warn-fg">{state.note}</span> : null}
       </span>
@@ -223,7 +242,12 @@ function DecisionBody({ state: raw, reload }: { state: SchedState | null; reload
         </Section>
       ) : null}
 
-      <Section title="후보" right={`생성 ${genCount} / ${state.candidates.length}`} first={!state.hand_alerts.length} testid="sched-candidates-section">
+      <Section
+        title="후보"
+        right={`생성 ${genCount} / ${state.candidates.length}`}
+        first={!state.hand_alerts.length}
+        testid="sched-candidates-section"
+      >
         <div className="flex flex-col gap-1">
           {skip ? (
             <span className="truncate text-2xs text-warn-fg" title={skip.title}>
@@ -349,9 +373,12 @@ function DecisionBody({ state: raw, reload }: { state: SchedState | null; reload
         {hand ? (
           <div className="flex flex-col gap-1 text-xs">
             <span>
-              {hand.robot_name || hand.robot} Hand 의 화물(ItemCode {hand.item_code} × {hand.count})을 사람이 들어냈습니까?
+              {hand.robot_name || hand.robot} Hand 의 화물(ItemCode {hand.item_code} × {hand.count}
+              )을 사람이 들어냈습니까?
             </span>
-            <span className="text-content-faint">재고에 넣지 않고 짝 Task 를 취소하고 이송 지시를 중단합니다.</span>
+            <span className="text-content-faint">
+              재고에 넣지 않고 짝 Task 를 취소하고 이송 지시를 중단합니다.
+            </span>
           </div>
         ) : null}
       </ConfirmDialog>

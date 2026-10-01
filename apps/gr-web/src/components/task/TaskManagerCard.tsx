@@ -75,6 +75,13 @@ function loadView(): View {
 function columns(view: View, now: number): Column<Task>[] {
   return [
     { key: 'seq', label: 'Seq', get: (t) => t.seq, numeric: true },
+    {
+      key: 'work',
+      label: 'WorkId',
+      get: (t) => t.work_id,
+      cell: (t) => <span className="font-mono">{t.work_id}</span>,
+    },
+    { key: 'tid', label: 'TaskId', get: (t) => t.task_id, numeric: true },
     { key: 'type', label: 'TaskType', get: (t) => typeName(t.plc_task?.TaskType) },
     { key: 'target', label: 'Target', get: (t) => targetLabel(t) },
     {

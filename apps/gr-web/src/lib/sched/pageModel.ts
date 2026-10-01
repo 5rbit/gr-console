@@ -2,21 +2,25 @@
 import type { GenCandidate } from '../taskgen'
 import { targetText } from './requestsModel'
 
-export type SchedTab = 'requests' | 'demand' | 'decision' | 'policy' | 'history'
+export type SchedTab = 'jobs' | 'rules' | 'sets' | 'requests' | 'demand' | 'decision' | 'history'
 
 export const SCHED_TABS: readonly { id: SchedTab; label: string }[] = [
+  { id: 'jobs', label: '작업' },
+  { id: 'rules', label: '규칙' },
+  { id: 'sets', label: '규칙 세트' },
   { id: 'requests', label: '요청' },
-  { id: 'demand', label: '수요' },
-  { id: 'decision', label: '결정' },
-  { id: 'policy', label: '정책' },
+  { id: 'demand', label: '스테이션' },
+  { id: 'decision', label: '판단' },
   { id: 'history', label: '기록' },
 ]
 
 export const SCHED_TAB_KEY = 'gr-sched-tab'
 
-/** 저장된 값 → 탭(모르는 값이면 요청). */
+/** 저장된 값 → 탭(모르는 값이면 작업). */
 export function parseSchedTab(s: string | null | undefined): SchedTab {
-  return SCHED_TABS.find((t) => t.id === s)?.id ?? 'requests'
+  // 옛 정책 탭은 규칙 탭으로(공통 정책 섹션이 그 아래에 있다).
+  if (s === 'policy') return 'rules'
+  return SCHED_TABS.find((t) => t.id === s)?.id ?? 'jobs'
 }
 
 /** 다음 후보 — 이번에 만드는 것 먼저, 그다음 점수 큰 순. */

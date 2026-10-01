@@ -1,11 +1,15 @@
 // 스케줄러 — 요청 · 수요 · 결정 · 정책 · 기록. 머리띠 한 줄(하위 탭 · 자동 생성 · 버전 · 엔진 메모 · ⋯).
 // 엔진 상태(`GET /api/taskgen`)는 여기서 2 초마다 읽어 탭에 내려 준다. 계약: docs/scheduler.md
+import { JobsTable } from '../jobs/JobsTable'
+import { useRegistry } from '../../lib/registry'
+import type { Item } from '../../lib/types'
 import { useCallback, useEffect, useState } from 'react'
 import { schedApi, type SchedState } from '../../lib/sched'
+import { mergePolicy } from '../../lib/sched/policyModel'
 import { normalizeState } from '../../lib/sched/decisionModel'
 import { SCHED_TABS, SCHED_TAB_KEY, parseSchedTab, type SchedTab } from '../../lib/sched/pageModel'
 import { withPolicy } from '../../lib/sched/policyModel'
-import { loadFailureText } from '../../lib/api'
+import { api, loadFailureText } from '../../lib/api'
 import { visibleInterval } from '../../lib/poll'
 import { menuItems } from '../../lib/task/menuEntries'
 import { Button } from '../../lib/ui/Button'
@@ -20,7 +24,9 @@ import { ParamsDialog, SimulateDialog, WeightsDialog } from './dialogs'
 import DecisionTab from './DecisionTab'
 import DemandTab from './DemandTab'
 import HistoryTab from './HistoryTab'
-import PolicyTab from './PolicyTab'
+import { StationsSection } from './PolicyTab'
+import RulesTab from './RulesTab'
+import RuleSetsTab from './RuleSetsTab'
 import RequestsTab from './RequestsTab'
 
 const AUTO_ON_TEXT =
@@ -44,6 +50,12 @@ function saveTab(t: SchedTab): void {
   }
 }
 
+/** 작업 탭 — 모든 로봇의 작업을 시간순 세 묶음 표 하나로(설계 7판). */
+function JobsTab() {
+  const items = useRegistry<Item>(api.items)
+  return <JobsTable items={items.items} variant="full" testid="sched-jobs" />
+}
+
 function TabBody({
   tab,
   state,
@@ -54,14 +66,24 @@ function TabBody({
   reload: () => void
 }) {
   switch (tab) {
+    case 'jobs':
+      return <JobsTab />
     case 'requests':
       return <RequestsTab state={state} reload={reload} />
     case 'demand':
-      return <DemandTab state={state} reload={reload} />
+      // 스테이션 — 준비 · 수요(옛 수요 탭) + 프로파일(옛 정책 탭의 스테이션 섹션)
+      return (
+        <div className="flex flex-col gap-3">
+          <DemandTab state={state} reload={reload} />
+          <StationsSection policy={mergePolicy(state?.config?.policy ?? null)} reload={reload} />
+        </div>
+      )
     case 'decision':
       return <DecisionTab state={state} reload={reload} />
-    case 'policy':
-      return <PolicyTab state={state} reload={reload} />
+    case 'rules':
+      return <RulesTab state={state} reload={reload} />
+    case 'sets':
+      return <RuleSetsTab state={state} reload={reload} />
     case 'history':
       return <HistoryTab state={state} reload={reload} />
   }

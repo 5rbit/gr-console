@@ -458,7 +458,7 @@ mod tests {
 
     /// Creates + "submits" an entry without a command port.
     fn submitted(ledger: &Ledger, h: Header) -> LedgerEntry {
-        let e = ledger.create(Origin::Console, None, None, task(key(0, 0))).unwrap();
+        let e = ledger.create(Origin::Manual, None, None, task(key(0, 0))).unwrap();
         let mut e = e;
         e.header = Some(h);
         e.submitted_at = Some(crate::util::now_str());

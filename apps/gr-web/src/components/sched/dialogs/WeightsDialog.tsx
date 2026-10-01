@@ -45,8 +45,20 @@ export function WeightsDialog<C extends GenConfig>({
           value={target}
           onValueChange={setTarget}
         />
-        <Input label="Weights.Item" placeholder="2011:5" mono value={item} onValueChange={setItem} />
-        <Input label="Weights.Robot" placeholder="2:1" mono value={robot} onValueChange={setRobot} />
+        <Input
+          label="Weights.Item"
+          placeholder="2011:5"
+          mono
+          value={item}
+          onValueChange={setItem}
+        />
+        <Input
+          label="Weights.Robot"
+          placeholder="2:1"
+          mono
+          value={robot}
+          onValueChange={setRobot}
+        />
       </div>
     </FormDialog>
   )

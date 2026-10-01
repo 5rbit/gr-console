@@ -214,6 +214,15 @@ export interface RobotMarker {
   x: number
   y: number
   moving: boolean
+  /** 들고 있는 화물(없으면 빈 손). `od` = 품목 외경 mm(0 = 모름 → 셀 크기 80 %). */
+  cargo?: {
+    label: string
+    od: number
+    id: number
+    /** ok = 콘솔·PLC 일치 · warn = PLC 상태 모름 · fault = 어긋남(사람이 맞춰야 함) */
+    tone: 'ok' | 'warn' | 'fault'
+    title: string
+  } | null
 }
 
 export interface CellMapProps {
@@ -246,6 +255,10 @@ export interface CellMapProps {
   work?: ReadonlyMap<string, WorkMark>
   /** 로봇 위치 표식. */
   robots?: readonly RobotMarker[]
+  /** 로봇 표식 우클릭(운전 명령 · 화물 처리). 있으면 표식이 눌린다. */
+  onRobotContext?: (robotId: number, e: React.MouseEvent) => void
+  /** 로봇 표식 좌클릭(그 로봇 선택). */
+  onRobotClick?: (robotId: number) => void
   /** 범례에 보일 로봇 색. */
   robotLegend?: readonly { name: string; color: string }[]
   /** 스케줄러 준비 상태(`targetKey` → 대상) — 있으면 PICK ▲ · DROP ▼ 표식과 호버 줄을 그린다(모니터링 모드). */
@@ -275,6 +288,8 @@ export function CellMap({
   preview,
   work,
   robots,
+  onRobotContext,
+  onRobotClick,
   robotLegend = [],
   ready,
   topLeft,
@@ -970,20 +985,93 @@ export function CellMap({
             })
           : null}
 
-        {/* 로봇 현재 위치 — 셀 바깥에만 눈금(가운데 개수를 가리지 않음) */}
+        {/* 로봇 현재 위치 — 셀 바깥에만 눈금(가운데 개수를 가리지 않음). 들고 있는 화물은 로봇 위치에 원으로
+            (그리퍼 중심 = 로봇 X/Y). 표식은 우클릭 = 운전 명령 · 화물 처리, 좌클릭 = 그 로봇 선택. */}
         {(robots ?? [])
           .filter((m) => Number.isFinite(m.x) && Number.isFinite(m.y))
           .map((m) => {
             const [sx, sy] = toScreen(v, m.x, m.y)
             const R = Math.max(rr + 6, 10)
             const tick = { stroke: m.color, strokeWidth: 3, strokeLinecap: 'round' as const }
+            const c = m.cargo
+            const cr = c ? Math.max(((c.od > 0 ? c.od : size * 0.8) / 2) * v.k, 6) : 0
+            const cargoCls =
+              c?.tone === 'fault'
+                ? 'fill-fault/20 stroke-fault'
+                : c?.tone === 'warn'
+                  ? 'fill-warn/20 stroke-warn'
+                  : 'fill-content-primary stroke-content-primary'
+            const interactive = !!(onRobotContext || onRobotClick)
             return (
               <g
                 key={m.id}
-                className="pointer-events-none"
+                className={interactive ? 'cursor-context-menu' : 'pointer-events-none'}
                 data-testid="map-robot"
+                data-robot={m.id}
+                data-cargo={c ? c.tone : 'none'}
                 opacity={m.moving ? 1 : 0.85}
+                onClick={
+                  interactive
+                    ? (e) => {
+                        e.stopPropagation()
+                        onRobotClick?.(m.id)
+                      }
+                    : undefined
+                }
+                onContextMenu={
+                  interactive
+                    ? (e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        onRobotContext?.(m.id, e)
+                      }
+                    : undefined
+                }
               >
+                <title>{`${m.name}${c ? ` · ${c.title}` : ' · 빈 손'}${interactive ? ' — 우클릭 = 운전 명령 · 화물 처리' : ''}`}</title>
+                {c ? (
+                  <g className="pointer-events-none" data-testid={`map-robot-cargo-${m.id}`}>
+                    <circle
+                      cx={sx}
+                      cy={sy}
+                      r={cr}
+                      className={cargoCls}
+                      fillOpacity={c.tone === 'ok' ? 0.22 : undefined}
+                      strokeWidth={2}
+                      strokeDasharray={c.tone === 'ok' ? undefined : '5 3'}
+                    />
+                    <circle cx={sx} cy={sy} r={cr} fill="none" stroke={m.color} strokeWidth={1} />
+                    <text
+                      x={sx}
+                      y={sy + R + 22}
+                      textAnchor="middle"
+                      fontSize={11}
+                      fontWeight={600}
+                      stroke="white"
+                      strokeWidth={3}
+                      paintOrder="stroke"
+                      className={cn(
+                        'tabular-nums',
+                        c.tone === 'fault' ? 'fill-fault-fg' : 'fill-content-primary',
+                      )}
+                    >
+                      {c.label}
+                    </text>
+                  </g>
+                ) : null}
+                {interactive ? (
+                  // 눌리는 자리 = 눈금 고리(와 이름). 가운데는 비워 둔다 — 로봇 아래 셀의 클릭·우클릭을 가리지 않는다.
+                  <circle
+                    cx={sx}
+                    cy={sy}
+                    r={R + 4}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={14}
+                    pointerEvents="stroke"
+                    data-testid={`map-robot-hit-${m.id}`}
+                  />
+                ) : null}
                 <line x1={sx - R - 9} y1={sy} x2={sx - R} y2={sy} {...tick} />
                 <line x1={sx + R} y1={sy} x2={sx + R + 9} y2={sy} {...tick} />
                 <line x1={sx} y1={sy - R - 9} x2={sx} y2={sy - R} {...tick} />

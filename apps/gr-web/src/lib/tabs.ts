@@ -8,7 +8,6 @@ import {
   Grid3x3,
   Hand,
   ListChecks,
-  ListOrdered,
   Ruler,
   ScrollText,
   Send,
@@ -17,7 +16,7 @@ import {
 import type { Tab } from './nav'
 
 /** 탭 그룹 id — 메뉴바의 최상위 항목. */
-export type TabGroupId = 'engineering'
+export type TabGroupId = 'work' | 'engineering'
 
 /** 탭 1건(라벨·아이콘·소속 그룹). */
 export interface TabDef {
@@ -43,17 +42,20 @@ export interface TabGroupDef {
 }
 
 /** 메뉴바 그룹 — 표시 순서. */
-export const TAB_GROUPS: TabGroupDef[] = [{ id: 'engineering', label: '엔지니어링' }]
+// 작업(작업 명령 · 작업 현황)을 엔지니어링 옆에 둔다(작업 할당 재정립 2026-10-01).
+export const TAB_GROUPS: TabGroupDef[] = [
+  { id: 'work', label: '작업' },
+  { id: 'engineering', label: '엔지니어링' },
+]
 
 /** 전 탭 — 그룹 순서대로 늘어놓는다(단축키 1~9가 보이는 탭의 이 순서를 쓴다). */
 export const ALL_TABS: TabDef[] = [
-  { id: 'task', label: '작업 명령', icon: Send, group: 'engineering' },
+  { id: 'task', label: '작업 명령', icon: Send, group: 'work' },
   // 백엔드 console_info 에 실리기 전에도 닿게 local.
-  { id: 'scheduler', label: '스케줄러', icon: CalendarClock, group: 'engineering', local: true },
+  { id: 'scheduler', label: '작업 현황', icon: CalendarClock, group: 'work', local: true },
   { id: 'items', label: '화물 규격', icon: Ruler, group: 'engineering' },
   { id: 'taskmgr', label: 'Task 관리', icon: ListChecks, group: 'engineering' },
   { id: 'measure', label: '측정 모니터', icon: Activity, group: 'engineering' },
-  { id: 'scenario', label: '시나리오', icon: ListOrdered, group: 'engineering' },
   { id: 'pallet', label: '팔렛 패턴', icon: Grid3x3, group: 'engineering' },
   { id: 'trace', label: '트레이스', icon: Waves, group: 'engineering' },
   { id: 'gripper', label: '그리퍼', icon: Hand, group: 'engineering' },

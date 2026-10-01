@@ -184,6 +184,9 @@ pub struct ItemSpec {
     pub compression_source: String,
     /// SKU 측정이 들어오면 프로파일·눌림양을 자동으로 갱신한다. `None` = 켬(기본).
     pub auto_apply_measured: Option<bool>,
+    /// 품목 바코드(품목당 하나, 결정 2026-10-01). 빈 문자열 = 없음.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub barcode: String,
 }
 
 impl ItemSpec {

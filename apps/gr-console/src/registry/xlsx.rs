@@ -125,6 +125,7 @@ impl SpecPatch {
             compression: self.compression.unwrap_or(base.compression),
             compression_source: base.compression_source.clone(),
             auto_apply_measured: base.auto_apply_measured,
+            barcode: base.barcode.clone(),
         }
     }
 }

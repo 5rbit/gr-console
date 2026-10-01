@@ -214,6 +214,22 @@ pub async fn create_and_submit(
     pallet: Option<crate::pallet::compose::PalletAudit>,
     submit_now: bool,
 ) -> Result<LedgerEntry, ApiError> {
+    create_and_submit_keyed(st, r, origin, request, resolved, task, pallet, submit_now, None).await
+}
+
+/// `create_and_submit` + 정해 둔 WorkId/TaskId(작업 대기열이 짝 한 벌에 WorkId 하나를 쓴다).
+#[allow(clippy::too_many_arguments)]
+pub async fn create_and_submit_keyed(
+    st: &AppState,
+    r: &RobotCtx,
+    origin: Origin,
+    request: Option<super::TaskRequest>,
+    resolved: Option<gr_proto::TaskParams>,
+    task: TaskData,
+    pallet: Option<crate::pallet::compose::PalletAudit>,
+    submit_now: bool,
+    key: Option<gr_proto::TaskKey>,
+) -> Result<LedgerEntry, ApiError> {
     // 스테이션 보정은 호출자(작성 라우트·시나리오 게이트 대기·재제출)가 들고 온 위치가 아니라 지금 스냅샷으로.
     // 바로 제출이면 거부 사유가 있을 때 원장에 초안을 남기지 않고 여기서 멈춘다.
     // 바로 제출인데 게이트가 닫혀 있으면 원장에 초안을 만들기 **전에** 멈춘다 — 예전에는 초안을 만든 뒤
@@ -246,7 +262,7 @@ pub async fn create_and_submit(
         Some(req) => crate::issue::refresh_station_offset(st, req, &mut task, submit_now)?,
         None => None,
     };
-    let mut e = r.ledger.create(origin, request, resolved, task)?;
+    let mut e = r.ledger.create_keyed(origin, request, resolved, task, key)?;
     if audit.is_some() || pallet.is_some() {
         e.station_offset = audit;
         e.pallet = pallet;
@@ -511,7 +527,7 @@ mod tests {
     fn entry(ledger: &Ledger, w: u32, t: u32, state: TaskState) -> LedgerEntry {
         let task = TaskData { work_id: w, task_id: t, task_type: 0x41, ..Default::default() };
         // `create` keys a console entry 0:0 until submission assigns the ids — set them as submit would.
-        let mut e = ledger.create(Origin::Console, None, None, task).unwrap();
+        let mut e = ledger.create(Origin::Manual, None, None, task).unwrap();
         e.work_id = w;
         e.task_id = t;
         ledger.upsert(e.clone()).unwrap();
@@ -571,7 +587,7 @@ mod tests {
 
     fn pair_entry(ledger: &Ledger, tt: u8, t: u32, state: TaskState, to: &str) -> LedgerEntry {
         let task = TaskData { work_id: 900 + t, task_id: t, task_type: tt, ..Default::default() };
-        let mut e = ledger.create(Origin::Scenario, None, None, task).unwrap();
+        let mut e = ledger.create(Origin::Auto, None, None, task).unwrap();
         e.work_id = 900 + t;
         e.task_id = t;
         e.transfer_order_id = Some(to.into());

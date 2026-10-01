@@ -3,6 +3,8 @@
 //   모니터링:      좌클릭 = 셀·화물 정보 카드(플롯 안), 우클릭 = 명령 팔레트
 //   레이아웃 편집: 좌클릭 = 우측 사이드바 셀/스테이션 리스트에서 선택, 생성 예정 셀 표시
 // 로봇이 작업 중인 셀은 그 로봇 색 테두리(대기 = 점선), 로봇 위치는 같은 색 십자.
+// 로봇이 들고 있는 화물(콘솔 Hand · PLC HoldItem)은 로봇 위치에 원으로, 어긋나면 빨간 점선. 로봇 표식 우클릭 =
+// 운전 명령 + 화물 처리(`RobotMapMenu`), 좌클릭 = 그 로봇 선택.
 // 모니터링 모드는 스케줄러 준비 상태(PICK ▲ · DROP ▼)를 그린다 — 켜고 끄기는 모드 토글 옆, 브라우저에 저장.
 import { useEffect, useMemo, useState } from 'react'
 import { Eye, ListPlus, Wand2, X } from 'lucide-react'
@@ -44,6 +46,8 @@ import { CellMap, type RobotMarker, type WorkMark } from './CellMap'
 import { OverflowMenu } from '../../lib/ui/OverflowMenu'
 import { StockEditDialog, type StockEdit } from './StockRegistry'
 import { QuickStockDialog, type QuickStockTarget } from './QuickStockDialog'
+import { cargoOf, useRobotMapMenu } from './RobotMapMenu'
+import { cargoMismatch, cargoVisible } from '../../lib/task/robotCargoModel'
 
 export type MapMode = 'plan' | 'monitor' | 'edit'
 export const MAP_MODES: readonly MapMode[] = ['plan', 'monitor', 'edit']
@@ -86,7 +90,13 @@ export interface LayoutTabProps {
   /** Cell Teaching — 모든 셀을 한 번씩 도는 경로를 계획에 넣는다. */
   onTeachAll: () => void
   /** 팔레트 "명령 작성" — 작성 카드에 종류+대상. */
-  onCompose: (target: Target, shape: Shape, type: TaskType) => void
+  /** `item` = 품목·개수까지(로봇 화물 DROP). */
+  onCompose: (
+    target: Target,
+    shape: Shape,
+    type: TaskType,
+    item?: { code: number; count: number },
+  ) => void
   /** 편집 모드 좌클릭. */
   onEditSelect?: (target: Target) => void
   /** 모니터링 모드 좌클릭 — 정보 카드와 함께 바깥(셀/스테이션 표)에도 알린다. */
@@ -186,6 +196,8 @@ export function LayoutTab({
     const ev = allStatus.get(r?.id ?? null)
     const axis = ev?.webmon?.Axis
     if (!axis || axis.length < 2) return []
+    const c = r ? cargoOf(r) : null
+    const it = c?.itemCode ? items.find((i) => i.code === c.itemCode) : undefined
     return [
       {
         id: r?.id ?? 0,
@@ -194,9 +206,41 @@ export function LayoutTab({
         x: axis[0].Position,
         y: axis[1].Position,
         moving: axis[0].Running || axis[1].Running,
+        cargo:
+          c && cargoVisible(c)
+            ? {
+                label:
+                  c.count > 0
+                    ? `${c.itemCode || '코드?'}${c.count > 1 ? ` ×${c.count}` : ''}${cargoMismatch(c) ? ' ?' : ''}`
+                    : 'Hand?',
+                od: it?.outer_diameter ?? 0,
+                id: it?.inner_diameter ?? 0,
+                tone: cargoMismatch(c) ? 'fault' : c.state === 'unknown_plc' ? 'warn' : 'ok',
+                title: c.text,
+              }
+            : null,
       },
     ]
   })
+
+  // 로봇 우클릭 → DROP 작성: 다음 맵 클릭(셀·스테이션)이 그 로봇의 DROP 작성 카드가 된다. Esc = 취소.
+  const [dropFor, setDropFor] = useState<number | null>(null)
+  useEffect(() => {
+    if (dropFor === null) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDropFor(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [dropFor])
+  const robotMenu = useRobotMapMenu({
+    items,
+    onDropPick: (id) => {
+      robots.select(id)
+      setDropFor(id)
+    },
+  })
+  const dropRobot = dropFor === null ? null : robots.list.find((r) => r.id === dropFor)
   const robotLegend = robots.list.map((r) => ({ name: r.name, color: robotColor(r.id) }))
 
   const infoCell = info?.kind === 'cell' ? (cellList.find((c) => c.id === info.id) ?? null) : null
@@ -295,7 +339,7 @@ export function LayoutTab({
         {
           id: 'plan',
           icon: <ListPlus size={14} />,
-          label: '명령 생성',
+          label: '작업 추가',
           badge: mode === 'plan' ? next : '',
           title: PLAN_KINDS.find((k) => k.id === planKind)?.title,
           testid: 'map-mode-plan',
@@ -399,9 +443,39 @@ export function LayoutTab({
             {kindSelect}
             {teachAllButton}
             {readyToggle}
+            {dropRobot ? (
+              <span
+                className="flex items-center gap-2 rounded-md bg-surface-panel px-2 py-1 text-xs shadow-sm ring-1 ring-accent"
+                data-testid="map-drop-pick"
+              >
+                <span className="font-semibold">{dropRobot.name} DROP</span>
+                <span className="text-content-muted">놓을 셀·스테이션을 클릭 (Esc 취소)</span>
+                <Button
+                  size="icon-sm"
+                  intent="ghost"
+                  icon={<X size={14} />}
+                  title="취소"
+                  onClick={() => setDropFor(null)}
+                />
+              </span>
+            ) : null}
           </>
         }
+        onRobotContext={robotMenu.open}
+        onRobotClick={(id) => robots.select(id)}
         onPick={(t, shape) => {
+          if (dropFor !== null) {
+            // 들고 있는 품목·개수를 그대로 싣는다(콘솔 Hand 를 모르면 작성 카드에서 고른다).
+            const c = dropRobot ? cargoOf(dropRobot) : null
+            setDropFor(null)
+            onCompose(
+              t,
+              shape,
+              'DROP',
+              c && c.count > 0 && c.itemCode ? { code: c.itemCode, count: c.count } : undefined,
+            )
+            return
+          }
           if (mode === 'plan') onPlanAdd(t, shape)
           else if (mode === 'monitor') {
             setInfo(shape)
@@ -573,6 +647,7 @@ export function LayoutTab({
             setStockEdit({ cell: c, item: q.stock?.item_code || null, count: q.stock?.count ?? 0 })
         }}
       />
+      {robotMenu.dialogs}
       <StockEditDialog
         edit={stockEdit}
         items={items}

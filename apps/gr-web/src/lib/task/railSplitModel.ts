@@ -3,11 +3,20 @@
 // 비율을 px 가 아니라 0..1 로 저장하는 이유: 창 크기·도킹 존 크기가 바뀌어도 "맵이 절반 남짓"이라는
 // 뜻이 남는다. px 로 두면 큰 모니터에서 맞춘 값이 노트북에서 표를 화면 밖으로 밀어낸다.
 
-export const RAIL_TABS = ['split', 'layout', 'stock', 'offset', 'cell', 'station', 'item'] as const
+export const RAIL_TABS = [
+  'split',
+  'layout',
+  'job',
+  'stock',
+  'offset',
+  'cell',
+  'station',
+  'item',
+] as const
 export type RailTab = (typeof RAIL_TABS)[number]
 
 /** 나눠 보기의 표 쪽 토글. */
-export const SPLIT_TABLES = ['cell', 'station', 'stock', 'offset', 'item'] as const
+export const SPLIT_TABLES = ['cell', 'station', 'job', 'stock', 'offset', 'item'] as const
 export type SplitTable = (typeof SPLIT_TABLES)[number]
 
 /**
@@ -18,7 +27,7 @@ export type SplitTable = (typeof SPLIT_TABLES)[number]
 export type RailMode = 'edit' | 'ops'
 export const TABLES_BY_MODE: Record<RailMode, readonly SplitTable[]> = {
   edit: ['cell', 'station'],
-  ops: ['stock', 'offset', 'item'],
+  ops: ['job', 'stock', 'offset', 'item'],
 }
 
 /** 이 모드에서 보일 표 — 저장된 표가 그 모드 묶음에 없으면 묶음의 첫 표. */
@@ -53,7 +62,7 @@ export const DEFAULT_SPLIT: SplitState = {
   ratio: 0.55,
   orient: 'stack',
   table: 'cell',
-  opsTable: 'stock',
+  opsTable: 'job',
 }
 
 export function clampRatio(r: unknown): number {

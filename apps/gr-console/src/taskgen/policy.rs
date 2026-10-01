@@ -76,7 +76,7 @@ fn cell0() -> Target {
 }
 
 fn rule(id: String, name: String, origin: RuleOrigin, trigger: Trigger, action: Action, priority: f32) -> Rule {
-    Rule { id, name, enabled: true, trigger, action, robots: vec![], priority, manual_requests: 0, cond: Conditions::default(), origin, request_id: None, station: None }
+    Rule { id, name, enabled: true, trigger, action, robots: vec![], priority, manual_requests: 0, cond: Conditions::default(), limits: Default::default(), origin, request_id: None, station: None }
 }
 
 /// 파생에 쓰는 세상 — 등록 스테이션(프로파일), DROP 스테이션 X(적재 셀 "가까운" 기준), 로봇마다 쉰 시간.

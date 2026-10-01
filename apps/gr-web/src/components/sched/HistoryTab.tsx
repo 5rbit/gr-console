@@ -38,7 +38,14 @@ const mono = (v: string | number) => <span className="font-mono tabular-nums">{v
 
 const stationCols: Column<StationKpi>[] = [
   { key: 'id', label: 'Id', get: (s) => s.id, numeric: true, priority: 1, cell: (s) => mono(s.id) },
-  { key: 'gen', label: 'Generated', get: (s) => s.generated, numeric: true, priority: 1, cell: (s) => mono(s.generated) },
+  {
+    key: 'gen',
+    label: 'Generated',
+    get: (s) => s.generated,
+    numeric: true,
+    priority: 1,
+    cell: (s) => mono(s.generated),
+  },
   {
     key: 'avg',
     label: 'Wait avg (s)',
@@ -59,15 +66,33 @@ const stationCols: Column<StationKpi>[] = [
 
 const robotCols: Column<RobotKpi>[] = [
   { key: 'name', label: 'Robot', get: (r) => r.name || String(r.id), priority: 1 },
-  { key: 'gen', label: 'Generated', get: (r) => r.generated, numeric: true, priority: 1, cell: (r) => mono(r.generated) },
-  { key: 'done', label: 'Completed', get: (r) => r.completed, numeric: true, priority: 1, cell: (r) => mono(r.completed) },
+  {
+    key: 'gen',
+    label: 'Generated',
+    get: (r) => r.generated,
+    numeric: true,
+    priority: 1,
+    cell: (r) => mono(r.generated),
+  },
+  {
+    key: 'done',
+    label: 'Completed',
+    get: (r) => r.completed,
+    numeric: true,
+    priority: 1,
+    cell: (r) => mono(r.completed),
+  },
   {
     key: 'abort',
     label: 'Aborted',
     get: (r) => r.aborted,
     numeric: true,
     priority: 1,
-    cell: (r) => <span className={`font-mono tabular-nums ${r.aborted ? 'text-warn-fg' : ''}`}>{r.aborted}</span>,
+    cell: (r) => (
+      <span className={`font-mono tabular-nums ${r.aborted ? 'text-warn-fg' : ''}`}>
+        {r.aborted}
+      </span>
+    ),
   },
 ]
 
@@ -105,7 +130,14 @@ const logCols: Column<LogRow>[] = [
       </span>
     ),
   },
-  { key: 'robot', label: 'Robot', get: (l) => l.robot ?? '', numeric: true, priority: 2, cell: (l) => mono(l.robot ?? '—') },
+  {
+    key: 'robot',
+    label: 'Robot',
+    get: (l) => l.robot ?? '',
+    numeric: true,
+    priority: 2,
+    cell: (l) => mono(l.robot ?? '—'),
+  },
   {
     key: 'detail',
     label: 'Detail',
@@ -162,7 +194,12 @@ function HistoryBody() {
 
       <StatRow
         testid="sched-kpi"
-        items={tiles.map((t) => ({ label: t.label, value: t.value, tone: t.tone, testid: `sched-kpi-${t.key}` }))}
+        items={tiles.map((t) => ({
+          label: t.label,
+          value: t.value,
+          tone: t.tone,
+          testid: `sched-kpi-${t.key}`,
+        }))}
       />
 
       <div className="grid gap-3 lg:grid-cols-2">
@@ -195,7 +232,13 @@ function HistoryBody() {
       <Section
         title="판정 기록"
         right={
-          <Select dense aria-label="Kind" value={kind} onValueChange={setKind} data-testid="sched-log-kind">
+          <Select
+            dense
+            aria-label="Kind"
+            value={kind}
+            onValueChange={setKind}
+            data-testid="sched-log-kind"
+          >
             <option value="">전체</option>
             {LOG_KINDS.map((k) => (
               <option key={k} value={k}>

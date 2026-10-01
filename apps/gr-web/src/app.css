@@ -86,6 +86,64 @@ svg text {
     ds-flash-bar var(--dur-flash) var(--ease-standard) 1;
 }
 
+/* 작업 표 — 단계 색(설계 7판, 가이드 ⑦ 의 작업 표 예외). 막대는 행의 **첫 칸에만**(칸마다 그리면 막대가 칸마다 선다).
+   단계가 바뀌면 그 행이 **새 단계의 색**으로 한 번 깜박인다(`ds-flash-stage`). 색은 상태 토큰 + 예정(pending). */
+tr[data-stage] > td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--stage-c);
+}
+tr[data-stage="pre"] {
+  --stage-c: var(--color-content-faint);
+  --stage-s: var(--color-surface-inset);
+}
+tr[data-stage="wait"] {
+  --stage-c: var(--color-warn);
+  --stage-s: var(--color-warn-soft);
+}
+tr[data-stage="assigned"] {
+  --stage-c: var(--color-pending-fg);
+  --stage-s: var(--color-pending-soft);
+}
+tr[data-stage="running"] {
+  --stage-c: var(--color-info);
+  --stage-s: var(--color-info-soft);
+}
+tr[data-stage="done"] {
+  --stage-c: var(--color-ok);
+  --stage-s: var(--color-ok-soft);
+}
+tr[data-stage="failed"] {
+  --stage-c: var(--color-fault);
+  --stage-s: var(--color-fault-soft);
+}
+tr[data-stage="canceled"] {
+  --stage-c: var(--color-content-secondary);
+  --stage-s: var(--color-surface-inset);
+}
+@keyframes ds-flash-stage {
+  0% {
+    background-color: var(--stage-s);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+tr.ds-flash-stage > td {
+  animation: ds-flash-stage var(--dur-flash) var(--ease-standard) 1;
+}
+/* 묶음 높이 고정(줄 수 × 행 높이 + 머리글) — 한 묶음이 늘어도 다른 묶음이 밀리지 않는다. */
+.ds-jobs-rows-3 {
+  height: calc(1.875rem * 4);
+}
+.ds-jobs-rows-5 {
+  height: calc(1.875rem * 6);
+}
+.ds-jobs-rows-6 {
+  height: calc(1.875rem * 7);
+}
+.ds-jobs-rows-8 {
+  height: calc(1.875rem * 9);
+}
+
 /* 존 사이의 크기 손잡이 — **기하를 한 곳에 모은다.**
    7px 잡을 면 위에 1px 선이 서고(경계는 늘 보인다), 손을 얹으면 3px로 굵어지며 초록이 된다.
    7px·3px는 Tailwind 스케일에 없는 값이라 유틸리티로 만든다 — 임의값(`w-[7px]`)을 컴포넌트에

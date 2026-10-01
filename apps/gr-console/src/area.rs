@@ -109,38 +109,6 @@ pub fn wait_reason(r: &Reservation, mine: Interval, sep: f32) -> String {
     format!("영역 대기: {} X {} 사용 중 — 이 Task X {} (간격 {:.0} mm)", r.name, r.area.label(), mine.label(), sep)
 }
 
-/// 막혔을 때 어떻게 푸나(결정적).
-#[derive(Clone, Debug, PartialEq)]
-pub enum Resolve {
-    /// 상대가 움직이는 중 — 기다리면 풀린다.
-    Wait,
-    /// 상대가 짝을 잡은 채 서 있고 그 DROP 이 계획에서 이 스텝 **뒤** 에 있다 — 그 DROP 을 먼저 낸다(로봇별 순서는 그대로).
-    RunAhead(u32),
-    /// 상대가 서 있어 비켜 줄 스텝이 없다 — 교착. 실행을 멈추고 사유를 낸다.
-    Deadlock(String),
-}
-
-/// `ahead_drop` = 막은 로봇의 걸린 짝 DROP 스텝(계획에서 지금 스텝 뒤라면).
-pub fn resolve(block: &Reservation, ahead_drop: Option<u32>, step_no: u32, mine: Interval, sep: f32) -> Resolve {
-    if block.holds_pair
-        && let Some(j) = ahead_drop
-    {
-        return Resolve::RunAhead(j);
-    }
-    if block.idle {
-        return Resolve::Deadlock(format!(
-            "교착: {} 가 X {} 에 서 있어 스텝 {} (X {}) 과 간격 {:.0} mm 안 — 계획에 {} 회피 MOVE 를 넣거나 순서를 바꾸세요",
-            block.name,
-            block.area.label(),
-            step_no,
-            mine.label(),
-            sep,
-            block.name
-        ));
-    }
-    Resolve::Wait
-}
-
 /// 계획의 이웃한 두 스텝(다른 로봇)의 목표 X 가 간격 안이면 경고 문구 — 화면 정적 검사와 같다.
 pub fn static_warning(a_name: &str, a_x: f32, b_name: &str, b_x: f32, sep: f32) -> Option<String> {
     let d = (a_x - b_x).abs();
@@ -368,21 +336,6 @@ mod tests {
         // 받은 명령의 목표가 내 쪽이면 여전히 막힌다
         let coming = reservation(2, "GR2", Some(12000.0), &[8000.0], true, None).unwrap();
         assert!(blocker(mine, std::slice::from_ref(&coming), SEP).is_some());
-    }
-
-    /// 교착 풀기: 짝을 잡은 로봇의 DROP 이 뒤에 있으면 먼저 내고, 서 있는 로봇이 막으면 멈춘다, 움직이는 중이면 기다린다.
-    #[test]
-    fn deadlock_is_resolved_deterministically() {
-        let mine = Interval::span(8000.0, 11000.0);
-        let holding = reservation(2, "GR2", Some(10000.0), &[], false, Some(9000.0)).unwrap();
-        assert_eq!(resolve(&holding, Some(6), 4, mine, SEP), Resolve::RunAhead(6));
-        let parked = reservation(2, "GR2", Some(10000.0), &[], false, None).unwrap();
-        match resolve(&parked, None, 4, mine, SEP) {
-            Resolve::Deadlock(m) => assert!(m.contains("GR2") && m.contains("스텝 4") && m.contains("2403")),
-            r => panic!("{r:?}"),
-        }
-        let moving = reservation(2, "GR2", Some(10000.0), &[12000.0], false, None).unwrap();
-        assert_eq!(resolve(&moving, None, 4, mine, SEP), Resolve::Wait);
     }
 
     /// 화면 판정은 게이트와 같은 결론 — 오늘 현장: GR1 X 1500 에 서 있고 GR2 짝이 6305..10301.

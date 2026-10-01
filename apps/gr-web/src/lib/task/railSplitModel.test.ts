@@ -48,13 +48,13 @@ describe('parseSplit / serializeSplit', () => {
       ratio: MAX_RATIO,
       orient: 'side',
       table: 'cell',
-      opsTable: 'stock',
+      opsTable: 'job',
     })
     expect(parseSplit('{"ratio":0.3,"orient":"diag","table":"station","opsTable":"cell"}')).toEqual({
       ratio: 0.3,
       orient: 'stack',
       table: 'station',
-      opsTable: 'stock',
+      opsTable: 'job',
     })
   })
 
@@ -80,7 +80,7 @@ describe('tableFor / withTable', () => {
   it('모드 묶음 밖의 표는 그 묶음의 첫 표로', () => {
     const s = { ...DEFAULT_SPLIT, table: 'item' as const, opsTable: 'cell' as const }
     expect(tableFor(s, 'edit')).toBe('cell')
-    expect(tableFor(s, 'ops')).toBe('stock')
+    expect(tableFor(s, 'ops')).toBe('job')
     expect(TABLES_BY_MODE.edit).toEqual(['cell', 'station'])
   })
   it('한 모드의 선택만 바꾼다', () => {

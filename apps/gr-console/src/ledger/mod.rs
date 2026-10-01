@@ -71,22 +71,35 @@ impl TaskState {
     }
 }
 
+/// 작업을 누가 만들었나 — 서버에게는 모두 같은 작업 생성이고, 다른 것은 **할당 주체**뿐이다.
+/// - `manual`: 사람이 화면에서 만든 것(단일 생성 · [다음 1건 제출] · 맵 메뉴 등)
+/// - `auto`: 콘솔이 스스로 보낸 것 — 무엇이 보냈는지는 요청의 `via`(`plan-auto` · `rule:<id>` · `runner:<id>`)
+/// - `external`: PLC 에서 처음 본 Task(콘솔 밖에서 들어옴)
+///
+/// 옛 이름(`console` → manual, `scenario` → auto)도 읽는다 — 저장된 원장이 그대로 열린다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Origin {
-    Console,
-    Scenario,
+    #[serde(alias = "console")]
+    Manual,
+    #[serde(alias = "scenario")]
+    Auto,
     External,
 }
 
 impl Origin {
     pub fn parse(s: &str) -> Option<Origin> {
         Some(match s.to_ascii_lowercase().as_str() {
-            "console" => Origin::Console,
-            "scenario" => Origin::Scenario,
+            "manual" | "console" => Origin::Manual,
+            "auto" | "scenario" => Origin::Auto,
             "external" => Origin::External,
             _ => return None,
         })
+    }
+
+    /// 요청으로 할당 주체를 정한다 — 서버의 자동 경로가 단 `via` 나 실행기 출처가 있으면 자동.
+    pub fn of_request(req: &TaskRequest) -> Origin {
+        if req.via.is_some() || req.source.is_some() { Origin::Auto } else { Origin::Manual }
     }
 }
 
@@ -170,6 +183,10 @@ pub struct TaskRequest {
     /// 이송 지시(PICK/DROP 한 짝, `stock::transfer`) — 실행기가 짝의 두 Task 에 같은 값을 단다.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transfer_order_id: Option<String>,
+    /// 자동 할당의 주체 — **서버가 단다**(HTTP 로 들어온 값은 지운다): `plan-auto`(순차 계획 자동 제출) ·
+    /// `rule:<규칙 id>`(자동 생성) · `runner:<id>`(저장한 실행). 없으면 사람이 만든 작업.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub via: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -372,17 +389,31 @@ impl Ledger {
     /// Allocates the next (work_id, task_id) pair. work_id is derived from the day (YYMMDD) + counter
     /// so keys never collide across sessions; task_id is a per-work monotonic counter.
     pub fn allocate_key(&self) -> Result<TaskKey, ApiError> {
-        let day = time::OffsetDateTime::now_utc();
-        let base = ((day.year() % 100) as u32) * 10000 + (day.month() as u32) * 100 + day.day() as u32; // e.g. 260912
-        let n = self.db.next_counter("work_id", 1)? as u32;
-        let work_id = base * 1000 + (n % 1000);
+        let work_id = self.allocate_work_id()?;
         let task_id = self.db.next_counter("task_id", 1)? as u32;
         Ok(TaskKey { work_id, task_id: (task_id % 60000).max(1) })
     }
 
+    /// WorkId 하나 — 날짜(YYMMDD) + 일련 3자리. 작업 대기열(`jobs`)이 짝 한 벌에 하나를 잡고 PICK/DROP 이 TaskId 1·2 로 나눠 쓴다.
+    pub fn allocate_work_id(&self) -> Result<u32, ApiError> {
+        let day = time::OffsetDateTime::now_utc();
+        let base = ((day.year() % 100) as u32) * 10000 + (day.month() as u32) * 100 + day.day() as u32; // e.g. 260912
+        let n = self.db.next_counter("work_id", 1)? as u32;
+        Ok(base * 1000 + (n % 1000))
+    }
+
     /// Creates a new entry for a composed task (Draft or Submitted is decided by the caller).
-    pub fn create(&self, origin: Origin, request: Option<TaskRequest>, resolved: Option<TaskParams>, mut task: TaskData) -> Result<LedgerEntry, ApiError> {
-        let key = self.allocate_key()?;
+    #[cfg(test)]
+    pub fn create(&self, origin: Origin, request: Option<TaskRequest>, resolved: Option<TaskParams>, task: TaskData) -> Result<LedgerEntry, ApiError> {
+        self.create_keyed(origin, request, resolved, task, None)
+    }
+
+    /// `key` 를 주면 그 WorkId/TaskId 로(작업 대기열의 짝), 없으면 새로 뽑는다.
+    pub fn create_keyed(&self, origin: Origin, request: Option<TaskRequest>, resolved: Option<TaskParams>, mut task: TaskData, key: Option<TaskKey>) -> Result<LedgerEntry, ApiError> {
+        let key = match key {
+            Some(k) => k,
+            None => self.allocate_key()?,
+        };
         task.work_id = key.work_id;
         task.task_id = key.task_id;
         let now = now_str();

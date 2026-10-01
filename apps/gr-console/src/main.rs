@@ -11,6 +11,7 @@ mod evtlog;
 mod gripper;
 mod instance;
 mod issue;
+mod jobs;
 mod laser;
 mod ledger;
 mod link;
@@ -351,6 +352,9 @@ async fn main() -> anyhow::Result<()> {
     stock::sync::spawn(st.clone());
     // Task 생성 엔진 — 자동 생성은 기본 꺼짐(설정 auto), 후보·점수는 늘 계산해 보여 준다.
     taskgen::run::spawn(st.clone());
+    if let Err(e) = jobs::spawn(st.clone()) {
+        tracing::error!(%e, "jobs: 작업 대기열을 열지 못함");
+    }
     // 콘솔이 꺼진 동안 끝난(원장 완료, 재고 미반영) Task 를 원장 순서로 반영 — 손 정정 가드는 같다.
     {
         let all: Vec<_> = st.robots.iter().flat_map(|r| r.ledger.list()).collect();

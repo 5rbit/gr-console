@@ -42,7 +42,6 @@ import SchedulerPage from './components/sched/SchedulerPage'
 import ItemsPage from './components/items/ItemsPage'
 import TaskManager from './components/taskmgr/TaskManager'
 import MeasureMonitor from './components/measure/MeasureMonitor'
-import ScenarioPage from './components/scenario/ScenarioPage'
 import PalletPage from './components/pallet/PalletPage'
 import TracePage from './components/trace/TracePage'
 import GripperPage from './components/gripper/GripperPage'
@@ -50,6 +49,7 @@ import EventsPage from './components/events/EventsPage'
 import { ContextMenuHost } from './lib/ui/ContextMenuHost'
 import { Toaster } from './lib/ui/Toaster'
 import { ErrorBoundary } from './lib/ui/ErrorBoundary'
+import { jobs } from './lib/jobs/store'
 
 function groupCls(active: boolean, open: boolean): string {
   return (
@@ -73,8 +73,6 @@ function Screen({ tab }: { tab: Tab }) {
       return <TaskManager />
     case 'measure':
       return <MeasureMonitor />
-    case 'scenario':
-      return <ScenarioPage />
     case 'pallet':
       return <PalletPage />
     case 'trace':
@@ -229,7 +227,11 @@ function ViewMenu({ onDone }: { onDone: () => void }) {
             label={`${ZONE_LABEL[z]} 존`}
             checked={!zs.collapsed}
             disabled={
-              !ws ? '워크스페이스 모드에서만' : zs.panes.length === 0 ? '패널이 없습니다' : undefined
+              !ws
+                ? '워크스페이스 모드에서만'
+                : zs.panes.length === 0
+                  ? '패널이 없습니다'
+                  : undefined
             }
             testid={`view-zone-${z}`}
             onPick={pick(() => workspace.toggleZone(z))}
@@ -336,6 +338,9 @@ export function App() {
     },
     [openGroup, tabs],
   )
+
+  // 작업 대기열 — 어느 화면에 있든 실패 · 보내기 멈춤을 토스트로 알린다(보내기 루프는 서버에서 돈다).
+  useEffect(() => jobs.start(), [])
 
   // 셸 부팅 — 밀도 반영 · Profile 조회 · 딥링크 1회 반영 · popstate.
   useEffect(() => {
@@ -535,29 +540,29 @@ export function App() {
       {workspace.enabled ? (
         <WorkspaceShell />
       ) : (
-      <div className="flex min-h-0 flex-1">
-        {sidebarOpen ? (
-          // 모바일 사이드바 backdrop — 바깥 클릭으로 닫기(모달 어포던스).
-          <button
-            type="button"
-            className="fixed inset-x-0 top-menubar bottom-0 z-30 bg-black/30 md:hidden"
-            aria-label="사이드바 닫기"
-            onClick={() => setSidebarOpen(false)}
-          />
-        ) : null}
-        <aside
-          className={`shrink-0 border-r border-line-default ${
-            sidebarOpen ? 'absolute inset-y-0 top-menubar z-40 bg-surface-app' : 'hidden'
-          } md:relative md:top-0 md:block`}
-        >
-          <Sidebar />
-        </aside>
-        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-          <ErrorBoundary label="화면" resetKey={nav.tab}>
-            <Screen tab={nav.tab} />
-          </ErrorBoundary>
-        </main>
-      </div>
+        <div className="flex min-h-0 flex-1">
+          {sidebarOpen ? (
+            // 모바일 사이드바 backdrop — 바깥 클릭으로 닫기(모달 어포던스).
+            <button
+              type="button"
+              className="fixed inset-x-0 top-menubar bottom-0 z-30 bg-black/30 md:hidden"
+              aria-label="사이드바 닫기"
+              onClick={() => setSidebarOpen(false)}
+            />
+          ) : null}
+          <aside
+            className={`shrink-0 border-r border-line-default ${
+              sidebarOpen ? 'absolute inset-y-0 top-menubar z-40 bg-surface-app' : 'hidden'
+            } md:relative md:top-0 md:block`}
+          >
+            <Sidebar />
+          </aside>
+          <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+            <ErrorBoundary label="화면" resetKey={nav.tab}>
+              <Screen tab={nav.tab} />
+            </ErrorBoundary>
+          </main>
+        </div>
       )}
 
       <StatusBar tab={activeTab?.label ?? nav.tab} />
