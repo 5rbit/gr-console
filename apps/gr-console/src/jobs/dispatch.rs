@@ -102,6 +102,20 @@ pub fn refresh(st: &AppState) {
                 changed = true;
             }
         }
+        // 짝 PICK 은 끝났는데 이송 지시가 중단됐다(동기화 "Hand 비움" · 로봇 메뉴 "화물 제거") — 화물이 그리퍼에 없으니
+        // 짝 DROP 을 보내지 않고 닫는다. 예전에는 DROP 을 보내다 "Hand 가 비어 있음" 으로 로봇 보내기가 멈추고 취소도 막혔다.
+        if mid_pair_unsent(&job)
+            && let Some(o) = job.transfer_order_id.as_deref().and_then(|o| st.stock.order(o).ok().flatten())
+            && o.state == crate::stock::transfer::OrderState::Aborted
+        {
+            job.set_stage(Stage::Canceled, format!("이송 지시 {} 중단(Hand 비움 · 화물 제거) — 짝 DROP 안 보냄", o.id));
+            job.wait_reason = None;
+            if let Err(e) = s.save(&job) {
+                tracing::warn!(job = %job.id, %e, "jobs: 저장 실패");
+            }
+            unpause_for(&job);
+            continue;
+        }
         let states: Vec<Option<TaskState>> = job.steps.iter().map(|s| s.state).collect();
         let to = derive_stage(job.stage, &states);
         if to != job.stage {
@@ -124,6 +138,24 @@ pub fn refresh(st: &AppState) {
         if changed && let Err(e) = s.save(&job) {
             tracing::warn!(job = %job.id, %e, "jobs: 저장 실패");
         }
+    }
+}
+
+/// 짝 PICK 은 끝났고 DROP 은 아직 안 보냈다.
+pub(super) fn mid_pair_unsent(job: &Job) -> bool {
+    job.steps.len() == 2 && job.steps[0].state == Some(TaskState::Completed) && job.steps[1].task.is_none()
+}
+
+/// 이 작업 때문에 멈춘 보내기를 푼다(멈춤 사유가 이 WorkId 일 때만).
+fn unpause_for(job: &Job) {
+    let (Some(s), Some(robot), Some(w)) = (store(), job.robot, job.work_id) else { return };
+    let mut d = s.dispatch_state(robot);
+    if d.paused.as_deref().is_some_and(|p| p.contains(&format!("WorkId {w} "))) {
+        d.paused = None;
+        if let Err(e) = s.set_dispatch(&d) {
+            tracing::warn!(%e, "jobs: 멈춤 풀기 실패");
+        }
+        tracing::info!(robot, work_id = w, "jobs: 작업이 닫혀 보내기 멈춤을 풂");
     }
 }
 
@@ -324,7 +356,24 @@ pub async fn cancel(st: &AppState, id: &str) -> Result<Job, ApiError> {
                 Ok(())
             })
         }
-        None => Err(ApiError::Conflict("PICK 이 끝나 그리퍼에 화물이 있습니다 — DROP 을 보내거나 맵의 로봇 메뉴에서 화물 제거".into())),
+        // PICK 은 끝났고 DROP 은 안 보냈다 — DROP 을 보내지 않고 닫는다. 화물이 있으면 Hand 에 남는다(맵 첫 클릭 = 그 화물의 DROP).
+        None => {
+            let hand = match job.robot {
+                Some(id) => Some(st.stock.hand(&st.robot(Some(id))?.plc)?),
+                None => None,
+            };
+            let note = match hand {
+                Some(h) if h.count > 0 => format!("사람이 취소(짝 DROP 안 보냄) — 화물 {} × {} 은 Hand 에 남음", h.item_code, h.count),
+                _ => "사람이 취소(짝 DROP 안 보냄) — Hand 비어 있음".to_string(),
+            };
+            let out = s.update(id, |j| {
+                j.set_stage(Stage::Canceled, note.clone());
+                j.wait_reason = None;
+                Ok(())
+            })?;
+            unpause_for(&out);
+            Ok(out)
+        }
     }
 }
 

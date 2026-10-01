@@ -397,6 +397,17 @@ pub fn enqueue(st: &crate::state::AppState, n: NewJob, origin: Origin, via: Opti
     }
     let work_id = r.ledger.allocate_work_id()?;
     let mut order = None;
+    // 단독 DROP 이 Hand 의 화물과 맞으면 Hand 의 이송 지시를 잇는다 — DROP 이 끝나면 그 지시가 done(짝을 취소하고 나중에 내려놓을 때).
+    if !n.force_cargo && steps.len() == 1 && crate::issue::parse_task_type(&steps[0].task_type)? == gr_proto::TaskType::Drop {
+        let h = st.stock.hand(&r.plc)?;
+        let code = first.task.item.code;
+        if h.count > 0 && h.count == u32::from(steps[0].count.max(1)) && (code == 0 || code == h.item_code)
+            && let Some(o) = h.transfer_order_id
+        {
+            steps[0].transfer_order_id = Some(o.clone());
+            order = Some(o);
+        }
+    }
     if n.force_cargo {
         let (code, cnt) = (first.task.item.code, u32::from(steps[0].count.max(1)));
         let cur = st.stock.hand(&r.plc)?;
@@ -483,6 +494,20 @@ mod tests {
 
     fn req(op: &str, count: u8, item: Option<u32>) -> TaskRequest {
         TaskRequest { task_type: op.into(), count, item_code: item, ..Default::default() }
+    }
+
+    #[test]
+    fn mid_pair_unsent_is_pick_done_drop_not_sent() {
+        let mut j = job("a", 1, 2, Stage::Running, 50, &[("PICK", Some("p")), ("DROP", None)]);
+        j.steps[0].state = Some(T::Completed);
+        assert!(dispatch::mid_pair_unsent(&j));
+        j.steps[1].task = Some("d".into());
+        assert!(!dispatch::mid_pair_unsent(&j), "DROP 을 보냈으면 아님");
+        j.steps[1].task = None;
+        j.steps[0].state = Some(T::Running);
+        assert!(!dispatch::mid_pair_unsent(&j), "PICK 이 아직 돌면 아님");
+        let single = job("b", 2, 2, Stage::Wait, 50, &[("DROP", None)]);
+        assert!(!dispatch::mid_pair_unsent(&single), "한 건 작업은 아님");
     }
 
     fn job(id: &str, seq: i64, robot: u8, stage: Stage, prio: i32, steps: &[(&str, Option<&str>)]) -> Job {
