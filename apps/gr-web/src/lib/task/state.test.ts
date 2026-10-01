@@ -8,6 +8,8 @@ import {
   allowedActions,
   autoBlock,
   deriveState,
+  discardSet,
+  isDiscard,
   elapsed,
   endedToday,
   fmtElapsed,
@@ -262,6 +264,30 @@ describe('autoBlock', () => {
     expect(autoBlock('cancel', 'draft', 'AUTO')).toBeUndefined()
     expect(autoBlock('delete', 'completed', 'AUTO')).toBeUndefined()
     expect(autoBlock('fail', 'running', 'AUTO')).toBeUndefined()
+    expect(autoBlock('cancel', 'lost', 'AUTO')).toBeUndefined()
+  })
+})
+
+describe('discardSet', () => {
+  const t = (id: string, state: TaskState, over: Partial<Task> = {}) =>
+    task({ id, state, transfer_order_id: 'TO-1', work_id: 900, task_id: 1, ...over })
+  it('takes lost/draft mates and later lost tasks of the same work only', () => {
+    const me = t('p', 'lost')
+    const list = [
+      me,
+      t('d', 'lost', { work_id: 901 }),
+      t('x', 'draft', { work_id: 0 }),
+      t('q', 'queued', { work_id: 902 }), // on the PLC — Delete, not discard
+      t('tail', 'lost', { transfer_order_id: undefined, task_id: 2 }),
+      t('before', 'lost', { transfer_order_id: undefined, task_id: 0 }),
+      t('other', 'lost', { transfer_order_id: 'TO-2', work_id: 903 }),
+    ]
+    expect(discardSet(list, me).map((x) => x.id)).toEqual(['d', 'x', 'tail'])
+  })
+  it('only the lost delete is a discard', () => {
+    expect(isDiscard('cancel', 'lost')).toBe(true)
+    expect(isDiscard('cancel', 'queued')).toBe(false)
+    expect(isDiscard('complete', 'lost')).toBe(false)
   })
 })
 

@@ -8,11 +8,12 @@
 //! - 운전 명령은 `Task.Status.Accept` 와 무관하게 로봇 모드만 본다: Start = READY 에서만, Stop · Reset · Buzzer Stop = 언제든,
 //!   Complete / Clear 는 AUTO 에서 거부(`ops::auto_refusal`, Task 관리의 개별 완료·삭제와 같은 규칙). Task 제출 = Accept + AUTO.
 //! - `clear` : 이 로봇의 살아 있는 Task(원장 + PLC 대기열) 전부 Delete. WorkId 마다 첫 TaskId 만 부르면
-//!   `ops::cancel` 이 뒤따르는 TaskId 를 같이 지운다.
+//!   `ops::cancel` 이 뒤따르는 TaskId 를 같이 지운다. PLC 에 없는 유실 Task 는 먼저 원장 취소(`ops::discard`).
 
 use std::collections::BTreeMap;
 
 use gr_proto::TaskKey;
+use gr_proto::status::TaskLocation;
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
@@ -199,16 +200,16 @@ fn alive(e: &LedgerEntry) -> bool {
 
 async fn clear(st: &AppState, r: &RobotCtx) -> Result<Json, ApiError> {
     let view = status_view(st, r);
-    if !st.cfg.demo {
-        let v = view.as_ref().ok_or_else(|| ApiError::PlcUnavailable(with_robot(&r.name, "상태 PLC 스냅샷 없음 — 삭제 허용 여부를 확인할 수 없습니다")))?;
-        // 부분 삭제로 끝나지 않게 막히는 조건은 먼저 본다 (`ops::cancel` 과 같은 규칙).
-        if v.mode.auto {
-            return Err(auto_refusal(&r.name, "Clear"));
-        }
-        if !v.reject_info().delete_allowed {
-            return Err(ApiError::Conflict(with_robot(&r.name, "PLC가 취소(Delete)를 허용하지 않습니다 (STAT.RES.Data[6] = 0)")));
+    // 유실(PLC 에 없는 Task)은 Delete 가 응답을 못 받으니 원장에서만 끝낸다 — PLC 쓰기가 없어 AUTO 와 무관.
+    let on_plc = |k: TaskKey| view.as_ref().is_none_or(|v| !matches!(v.locate(k), TaskLocation::Absent));
+    let lost: Vec<LedgerEntry> = r.ledger.list().into_iter().filter(|e| e.state == TaskState::Lost && !on_plc(e.key())).collect();
+    for e in &lost {
+        // 앞 원장 취소가 짝·뒤 Task 로 이미 데려갔을 수 있다.
+        if r.ledger.get(&e.id).is_some_and(|x| x.state == TaskState::Lost) {
+            ops::discard(st, &e.id)?;
         }
     }
+    let discarded: Vec<String> = lost.iter().map(|e| key_str(e.key())).collect();
     // WorkId → (가장 앞 TaskId, 원장 id). 원장에 없는 PLC 대기열·실행 Task 도 포함한다.
     let mut heads: BTreeMap<u32, (u32, Option<String>)> = BTreeMap::new();
     let mut put = |k: TaskKey, id: Option<String>| {
@@ -230,7 +231,23 @@ async fn clear(st: &AppState, r: &RobotCtx) -> Result<Json, ApiError> {
         }
     }
     if heads.is_empty() {
+        if !discarded.is_empty() {
+            return Ok(json!({ "robot": r.name, "action": "clear", "deleted": [], "discarded": discarded }));
+        }
         return Err(ApiError::Conflict(with_robot(&r.name, "지울 Task 가 없습니다")));
+    }
+    let with_lost = |err: ApiError| {
+        if discarded.is_empty() { err } else { ApiError::Conflict(with_robot(&r.name, &format!("{err} (유실 {}건은 원장 취소함)", discarded.len()))) }
+    };
+    if !st.cfg.demo {
+        let v = view.as_ref().ok_or_else(|| ApiError::PlcUnavailable(with_robot(&r.name, "상태 PLC 스냅샷 없음 — 삭제 허용 여부를 확인할 수 없습니다")))?;
+        // 부분 삭제로 끝나지 않게 막히는 조건은 먼저 본다 (`ops::cancel` 과 같은 규칙).
+        if v.mode.auto {
+            return Err(with_lost(auto_refusal(&r.name, "Clear")));
+        }
+        if !v.reject_info().delete_allowed {
+            return Err(with_lost(ApiError::Conflict(with_robot(&r.name, "PLC가 취소(Delete)를 허용하지 않습니다 (STAT.RES.Data[6] = 0)"))));
+        }
     }
     let mut deleted = Vec::new();
     for (work_id, (task_id, id)) in heads {
@@ -241,17 +258,17 @@ async fn clear(st: &AppState, r: &RobotCtx) -> Result<Json, ApiError> {
                 if !r.ledger.get(&id).is_some_and(|e| alive(&e)) {
                     continue;
                 }
-                let e = ops::cancel(st, &id).await.map_err(|err| partial(r, &deleted, err))?;
+                let e = ops::cancel(st, &id).await.map_err(|err| with_lost(partial(r, &deleted, err)))?;
                 deleted.push(key_str(e.key()));
             }
             None => {
                 let _busy = st.shutdown.enter(format!("{} Task 삭제 {}", r.name, key_str(key)))?;
-                task_op(&r.cmd, TaskOp::Delete, key).await.map_err(|err| partial(r, &deleted, err))?;
+                task_op(&r.cmd, TaskOp::Delete, key).await.map_err(|err| with_lost(partial(r, &deleted, err)))?;
                 deleted.push(key_str(key));
             }
         }
     }
-    Ok(json!({ "robot": r.name, "action": "clear", "deleted": deleted }))
+    Ok(json!({ "robot": r.name, "action": "clear", "deleted": deleted, "discarded": discarded }))
 }
 
 /// 중간에 실패하면 이미 보낸 Delete 를 사유에 붙인다 — 화면이 "아무것도 안 됐다"로 읽지 않게.

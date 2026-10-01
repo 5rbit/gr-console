@@ -276,6 +276,11 @@ async fn cancel(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult
     Ok(axum::Json(super::ops::cancel(&st, &id).await?))
 }
 
+/// `POST /api/tasks/{id}/discard` — 유실 Task 를 원장에서만 취소(PLC 쓰기 없음).
+async fn discard(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<LedgerEntry> {
+    Ok(axum::Json(super::ops::discard(&st, &id)?))
+}
+
 async fn complete(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<LedgerEntry> {
     Ok(axum::Json(super::ops::force_complete(&st, &id).await?))
 }
@@ -332,6 +337,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/tasks/{id}", get(one).delete(remove))
         .route("/api/tasks/{id}/submit", post(submit))
         .route("/api/tasks/{id}/cancel", post(cancel))
+        .route("/api/tasks/{id}/discard", post(discard))
         .route("/api/tasks/{id}/complete", post(complete))
         .route("/api/tasks/{id}/resubmit", post(resubmit))
         .route("/api/tasks/{id}/mark-failed", post(mark_failed))

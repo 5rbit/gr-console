@@ -150,6 +150,9 @@ class Tasks extends Store {
   cancel(id: string): Promise<Task | null> {
     return this.#act(id, '취소', () => api.taskCancel(id), true)
   }
+  discard(id: string): Promise<Task | null> {
+    return this.#act(id, '원장 취소', () => api.taskDiscard(id))
+  }
   complete(id: string): Promise<Task | null> {
     return this.#act(id, '완료 처리', () => api.taskComplete(id), true)
   }

@@ -395,6 +395,8 @@ export const api = {
       opts.request ? { request: opts.request } : undefined,
     ),
   taskCancel: (id: string) => postJson<Task>(`/api/tasks/${id}/cancel`),
+  /** 유실 Task 원장 취소 — PLC 쓰기 없음, 유실·초안 짝과 같은 WorkId 뒤 유실도 함께 */
+  taskDiscard: (id: string) => postJson<Task>(`/api/tasks/${id}/discard`),
   taskComplete: (id: string) => postJson<Task>(`/api/tasks/${id}/complete`),
   taskResubmit: (id: string) => postJson<Task>(`/api/tasks/${id}/resubmit`),
   taskGate: (robot?: number | null) =>
@@ -403,9 +405,13 @@ export const api = {
   robots: () => getJson<Robot[]>('/api/robots'),
   /** 로봇 운전 명령(사이드바 우클릭) — Start/Stop/Reset/BuzzerStop 은 Command 비트 펄스, Complete 는 실행 중 Task, Clear 는 전 Task 삭제 */
   robotCommand: (robot: number, action: RobotAction) =>
-    postJson<{ robot: string; action: RobotAction; task?: string; deleted?: string[] }>(
-      `/api/robots/${robot}/command/${action}`,
-    ),
+    postJson<{
+      robot: string
+      action: RobotAction
+      task?: string
+      deleted?: string[]
+      discarded?: string[]
+    }>(`/api/robots/${robot}/command/${action}`),
   tasksStream: (): EventSource => new EventSource(STREAM_URL.tasks),
 
   // 재고(셀별 화물) — 콘솔 소유, 완료된 PICK/DROP 으로 자동 갱신
