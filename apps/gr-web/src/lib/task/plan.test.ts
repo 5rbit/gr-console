@@ -820,4 +820,9 @@ describe('heldCargo — 손에 든 화물이면 첫 클릭은 DROP', () => {
     expect(heldCargo([], null, false)).toBeNull()
     expect(heldCargo([], hand, true)).toBeNull()
   })
+  it('Hand DROP 이 이미 계획에 있으면 다음은 PICK(Hand 아님)', () => {
+    const drop = { ...pick, id: 'd', type: 'DROP' as const, item_code: 3333 }
+    expect(heldCargo([drop], hand, false)).toBeNull()
+    expect(heldCargo([drop, pick, { ...drop, id: 'd2' }], hand, false)).toBeNull()
+  })
 })

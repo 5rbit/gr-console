@@ -1,17 +1,16 @@
 // 작업 명령 오른쪽 카드 — 자동작업 · 수동작업(설계 7판). 단일 생성 탭은 없고 [+ 수동작업] 팝업이 그 자리다.
 //
-// 수동작업 = 이 로봇 대기열의 사람이 넣은 작업(서버 정본, 나갈 순서대로). 맵 클릭은 PICK → DROP 이 짝이 되는 순간
-// 대기열로 간다 — 짝을 기다리는 PICK 하나만 "작성 중"으로 여기 남는다. 보내기는 로봇마다 켜고 끄며(서버 루프),
-// 거부되면 그 로봇은 멈추고 사람이 [다시 켜기] 를 누를 때까지 보내지 않는다.
+// 수동작업 = 계획(보내기 전, 이 브라우저) + 이 로봇 대기열의 사람이 넣은 작업(서버 정본, 나갈 순서대로). 맵 클릭은 계획 표에
+// 쌓이고 사람이 고친 뒤 [대기열로] 로 넣는다 — 짝이 되자마자 대기열로 가면 고칠 틈이 없었다(2026-10-01). 보내기는 로봇마다
+// 켜고 끄며(서버 루프), 거부되면 그 로봇은 멈추고 사람이 [다시 켜기] 를 누를 때까지 보내지 않는다.
 import { useEffect, useState, type ReactNode } from 'react'
-import { ChevronsUp, Plus, Send, X } from 'lucide-react'
+import { ChevronsUp, ListPlus, Plus, Send, Trash2, X } from 'lucide-react'
 import { jobs as jobStore } from '../../lib/jobs/store'
 import { kindOf, route, type Job } from '../../lib/jobs/model'
-import { targetCode } from '../../lib/jobs/model'
 import type { PlanStep } from '../../lib/task/plan'
 import { robots } from '../../lib/robots'
 import { useStore } from '../../lib/store'
-import type { HandEntry } from '../../lib/types'
+import type { GripRef, HandEntry, Item, StockEntry } from '../../lib/types'
 import { Button } from '../../lib/ui/Button'
 import { Card } from '../../lib/ui/Card'
 import { DataTable } from '../../lib/ui/DataTable'
@@ -30,6 +29,7 @@ import type { AreaView, Cell, Station } from '../../lib/types'
 import { AnticolDialog } from '../task/AnticolDialog'
 import { AreaStrip } from '../task/AreaStrip'
 import { SyncIssuesDialog } from '../task/SyncIssuesDialog'
+import { PlanTable } from './PlanTable'
 import { TemplatesDialog } from './TemplatesDialog'
 
 export type CardMode = 'auto' | 'manual'
@@ -40,21 +40,31 @@ export function ManualCard({
   mode,
   onModeChange,
   autoGen,
-  pending,
-  onDropPending,
+  plan,
+  onPlanChange,
+  planReady,
+  onEnqueue,
   onAdd,
   handNow,
   onEditHand,
   menu,
   cells,
   stations,
+  items,
+  stockNow,
+  planHand,
+  gripRef,
 }: {
   mode: CardMode
   onModeChange: (m: CardMode) => void
   autoGen: ReactNode
-  /** 짝을 기다리는 PICK(맵 클릭) — 대기열에 아직 안 들어간 것. */
-  pending: readonly PlanStep[]
-  onDropPending: () => void
+  /** 계획 — 맵 클릭 · 측정 경로 · 팔렛이 쌓은 보내기 전 스텝. */
+  plan: readonly PlanStep[]
+  onPlanChange: (next: PlanStep[]) => void
+  /** 계획에서 지금 대기열로 갈 수 있는 작업 수(짝이 맞은 PICK/DROP · 한 건 작업). */
+  planReady: number
+  /** 계획 앞에서부터 `limit` 건(없으면 전부)을 대기열에 넣고 넣은 수를 돌려준다. */
+  onEnqueue: (limit?: number) => Promise<number>
   /** [+ 수동작업] 팝업 열기. */
   onAdd: () => void
   handNow: HandEntry | null
@@ -65,6 +75,11 @@ export function ManualCard({
   /** 두 로봇 영역 띠의 축(설비 전체 X). */
   cells: readonly Cell[]
   stations: readonly Station[]
+  items: readonly Item[]
+  stockNow: ReadonlyMap<number, StockEntry>
+  /** 계획 시작 때 로봇이 들고 있을 화물(예상 Hand). */
+  planHand: { item_code: number; count: number } | null
+  gripRef: GripRef
 }) {
   useStore(jobStore, robots)
   useEffect(() => jobStore.start(), [])
@@ -181,7 +196,7 @@ export function ManualCard({
             {
               id: 'manual',
               label: '수동작업',
-              badge: manual.length + pending.length || '',
+              badge: manual.length + plan.length || '',
               testid: 'side-manual',
             },
           ]}
@@ -243,19 +258,43 @@ export function ManualCard({
             <span className="flex-1" />
             <Button
               size="sm"
+              intent="outline"
+              icon={<ListPlus className="h-3.5 w-3.5" />}
+              disabled={robot === null || busy || !planReady}
+              title={
+                planReady
+                  ? `계획의 작업 ${planReady}건을 대기열에 넣습니다 — 보내기가 켜져 있으면 차례대로 나갑니다`
+                  : plan.length
+                    ? '짝이 맞은 PICK/DROP 이 없습니다 — PICK 다음에 놓을 곳을 누르세요'
+                    : '계획이 비었습니다'
+              }
+              onClick={() => void run(() => onEnqueue())}
+              data-testid="manual-enqueue"
+            >
+              대기열로{planReady ? ` ${planReady}` : ''}
+            </Button>
+            <Button
+              size="sm"
               intent="primary"
               icon={<Send className="h-3.5 w-3.5" />}
-              disabled={robot === null || busy || !queue.length || !!d?.paused}
+              disabled={robot === null || busy || (!queue.length && !planReady) || !!d?.paused}
               title={
                 d?.paused
                   ? `보내기 멈춤 — ${d.paused}`
                   : queue.length
                     ? '대기열 맨 앞 작업을 지금 한 건 보냅니다(규칙은 같다)'
-                    : '대기열이 비었습니다'
+                    : planReady
+                      ? '계획 맨 앞 작업 한 건을 대기열에 넣고 바로 보냅니다'
+                      : '대기열과 계획이 비었습니다'
               }
               onClick={() =>
                 robot !== null &&
                 void run(async () => {
+                  // 옛 계획 카드의 "다음 1건 제출" — 대기열이 비었으면 계획 맨 앞 한 건을 넣고 보낸다.
+                  // 보내기가 켜져 있으면 넣은 것은 서버 루프가 보낸다(여기서 또 부르면 "보낼 작업 없음").
+                  if (!queue.length) {
+                    if (!(await onEnqueue(1)) || d?.enabled) return
+                  }
                   const why = await jobStore.next(robot)
                   if (why) toast.info(`${name}: 아직 안 보냄 — ${why}`)
                 })
@@ -282,21 +321,36 @@ export function ManualCard({
               </Button>
             </div>
           ) : null}
-          {pending.length ? (
+          {plan.length ? (
             <div
-              className="flex flex-none items-center gap-2 border-b border-line-default bg-info-soft px-3 py-1.5 text-xs text-info-fg"
-              data-testid="manual-pending"
+              className="flex min-h-0 flex-none flex-col border-b border-line-default"
+              data-testid="manual-plan"
             >
-              <span className="min-w-0 flex-1">
-                작성 중 짝 · PICK {targetCode(pending[0].target)} → 맵에서 놓을 곳 클릭
-              </span>
-              <Button
-                size="icon-sm"
-                intent="ghost"
-                icon={<X size={14} />}
-                title="작성 중 짝 지우기"
-                onClick={onDropPending}
-              />
+              <div className="flex flex-none items-center gap-2 px-3 py-1 text-2xs text-content-muted">
+                <span className="font-semibold text-content-secondary">계획 {plan.length}</span>
+                <span className="min-w-0 flex-1 truncate">보내기 전 — 고친 뒤 [대기열로]</span>
+                <Button
+                  size="icon-sm"
+                  intent="ghost"
+                  icon={<Trash2 size={14} />}
+                  title="계획 비우기(Ctrl+Z 로 되돌림)"
+                  onClick={() => onPlanChange([])}
+                  data-testid="manual-plan-clear"
+                />
+              </div>
+              <div className="min-h-0 overflow-auto">
+                <PlanTable
+                  steps={plan}
+                  onChange={onPlanChange}
+                  cells={cells}
+                  stations={stations}
+                  items={items}
+                  stockNow={stockNow}
+                  gripRef={gripRef}
+                  hand={planHand}
+                  robot={robots.chip}
+                />
+              </div>
             </div>
           ) : null}
           <DataTable
@@ -325,8 +379,8 @@ export function ManualCard({
                 />
               </span>
             )}
-            empty="수동작업 없음"
-            emptyHint="맵에서 PICK → DROP 을 누르거나 [수동작업] 으로 넣습니다."
+            empty="대기열의 수동작업 없음"
+            emptyHint="맵에서 PICK → DROP 을 눌러 계획을 만들고 [대기열로], 또는 [수동작업] 으로 넣습니다."
             emptyDense
             testid="manual-list"
           />

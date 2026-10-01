@@ -68,6 +68,8 @@ import type {
   Item,
   Station,
   MeasureMode,
+  StockEntry,
+  StockProjected,
   Target,
   TaskType,
 } from '../../lib/types'
@@ -228,6 +230,27 @@ export default function TaskIssue() {
   useEffect(() => stockStore.start(), [])
   useEffect(() => robots.start(), [])
   useEffect(() => taskStore.start(), [])
+  // 계획 표의 출발점 = **예상** 재고(진행 중 PICK/DROP 반영, Hand 포함) — 제출 때 백엔드가 쓰는 값과 같다.
+  const activeKey = taskStore.active.map((t) => `${t.id}:${t.state}`).join(',')
+  const [projected, setProjected] = useState<StockProjected | null>(null)
+  useEffect(() => {
+    let live = true
+    api
+      .stockProjected()
+      .then((p) => {
+        if (live) setProjected(p)
+      })
+      .catch(() => {
+        if (live) setProjected(null)
+      })
+    return () => {
+      live = false
+    }
+  }, [stockStore.map, stockStore.hands, activeKey])
+  const stockPlan = useMemo<ReadonlyMap<number, StockEntry>>(
+    () => (projected ? new Map(projected.cells.map((c) => [c.cell_id, c])) : stockStore.map),
+    [projected, stockStore.map],
+  )
   // 게이트·제출·계획 스텝이 모두 **이 하나**를 본다. 화면 어디도 다른 호기를 겨냥하지 않는다.
   const robot = robots.selected
   const chip = robots.chip
@@ -288,42 +311,56 @@ export default function TaskIssue() {
   }, [])
   useEffect(() => persist(PLAN_KEY, JSON.stringify(plan)), [plan])
 
-  // 계획(맵 클릭 · 측정 경로 · 팔렛)은 **작성 중** 자리일 뿐이다 — 짝이 된 PICK/DROP 과 한 건 작업은 곧바로 서버 대기열로
-  // 보내고 계획에서 뺀다(작업 할당 재정립 2026-10-01). 짝을 기다리는 PICK 하나만 남는다. 넣지 못한 스텝은 알리고 뺀다.
-  const flushing = useRef(false)
-  useEffect(() => {
-    if (flushing.current) return
-    const { jobs: ready } = stepsToJobs(plan, robots.selected, (st, mp) =>
+  // 계획(맵 클릭 · 측정 경로 · 팔렛)은 보내기 전 자리다 — 사람이 표에서 고친 뒤 [대기열로] · [다음 1건] 이 짝이 맞은
+  // PICK/DROP 과 한 건 작업을 서버 대기열에 넣고 계획에서 뺀다. 짝이 되자마자 넣던 때(2026-10-01 오전)는 고칠 틈이 없었다.
+  const planReady = useMemo(
+    () =>
+      stepsToJobs(plan, robots.selected, (st, mp) => toRequest(st, robots.selected, mp)).jobs
+        .length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 로봇 선택은 렌더마다 읽는다
+    [plan, robots.selected],
+  )
+  const enqueuing = useRef(false)
+  const enqueuePlan = useCallback(async (limit?: number): Promise<number> => {
+    if (enqueuing.current) return 0
+    const { jobs: ready } = stepsToJobs(presentRef.current, robots.selected, (st, mp) =>
       toRequest(st, robots.selected, mp),
     )
-    if (!ready.length) return
-    flushing.current = true
-    void (async () => {
-      const done = new Set<string>()
-      for (const j of ready) {
+    const take = limit === undefined ? ready : ready.slice(0, limit)
+    if (!take.length) return 0
+    enqueuing.current = true
+    const done = new Set<string>()
+    let added = 0
+    try {
+      for (const j of take) {
         try {
           const job = await jobStore.add(j.new)
+          added++
+          for (const id of j.ids) done.add(id)
           toast.info(withRobot(robots.chip.name, `대기열 · WorkId ${job.work_id ?? '-'}`))
         } catch (e) {
+          // 못 넣은 작업은 계획에 남겨 고치게 한다 — 뒤 작업을 먼저 넣으면 순서가 바뀌므로 여기서 멈춘다.
           toast.error(
             withRobot(
               robots.chip.name,
               `대기열에 못 넣음 — ${e instanceof Error ? e.message : String(e)}`,
             ),
           )
+          break
         }
-        for (const id of j.ids) done.add(id)
       }
-      flushing.current = false
-      setHist((h) =>
-        commit(
-          h,
-          h.present.filter((x) => !done.has(x.id)),
-        ),
-      )
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 계획이 바뀔 때만
-  }, [plan])
+    } finally {
+      enqueuing.current = false
+      if (done.size)
+        setHist((h) =>
+          commit(
+            h,
+            h.present.filter((x) => !done.has(x.id)),
+          ),
+        )
+    }
+    return added
+  }, [])
   const [manualAsk, setManualAsk] = useState<ManualPrefill | null>(null)
   const [handEdit, setHandEdit] = useState<{ robot: Robot; cargo: RobotCargo } | null>(null)
 
@@ -686,8 +723,10 @@ export default function TaskIssue() {
                 mode={side === 'auto' ? 'auto' : 'manual'}
                 onModeChange={(m) => setSide(m === 'auto' ? 'auto' : 'plan')}
                 autoGen={<AutoGenStrip />}
-                pending={plan}
-                onDropPending={() => setPlan([])}
+                plan={plan}
+                onPlanChange={setPlan}
+                planReady={planReady}
+                onEnqueue={enqueuePlan}
                 onAdd={() => setManualAsk({ kind: 'transfer' })}
                 handNow={robots.current ? stockStore.hand(robots.current.plc) : null}
                 onEditHand={() => {
@@ -696,6 +735,10 @@ export default function TaskIssue() {
                 }}
                 cells={cells.items}
                 stations={stations.items}
+                items={items.items}
+                stockNow={stockPlan}
+                planHand={projected?.hands.find((h) => h.robot === robots.selected) ?? null}
+                gripRef={gripRef}
                 menu={[
                   { label: '측정 경로 추가' },
                   ...MEASURE_ROUTES.map((r) => ({
