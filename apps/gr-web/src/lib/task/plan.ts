@@ -326,6 +326,19 @@ export function stepId(): string {
 }
 
 /** 다음 클릭에 붙을 종류 — 마지막 PICK 뒤엔 DROP, 그 외엔 PICK. */
+/**
+ * 손에 든 화물(콘솔 Hand)이 있고 계획에 짝을 기다리는 PICK 이 없으면 다음 클릭은 **그 화물의 DROP** —
+ * 예전에는 Hand 를 보지 않아 늘 PICK 부터였다(2026-10-01). 그 DROP 이 이미 대기열에 있으면 `null`(다음은 PICK).
+ */
+export function heldCargo(
+  steps: readonly PlanStep[],
+  hand: { item_code: number; count: number } | null,
+  dropQueued: boolean,
+): { item_code: number; count: number } | null {
+  if (!hand || hand.count <= 0 || dropQueued) return null
+  return nextType(steps) === 'PICK' ? { item_code: hand.item_code, count: hand.count } : null
+}
+
 export function nextType(steps: readonly PlanStep[]): TaskType {
   for (let i = steps.length - 1; i >= 0; i--) {
     const t = steps[i].type

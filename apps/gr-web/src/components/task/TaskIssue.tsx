@@ -87,6 +87,7 @@ import { stepsToJobs } from '../../lib/jobs/model'
 import { RAIL_KEY, RegistryRail, type RailTab } from './RegistryRail'
 import { TaskManagerCard } from './TaskManagerCard'
 import { HandDialog, cargoOf } from './RobotMapMenu'
+import { heldForPlan } from '../../lib/task/held'
 import type { RobotCargo } from '../../lib/task/robotCargoModel'
 import type { Robot } from '../../lib/types'
 import { Splitter } from '../workspace/Splitter'
@@ -450,15 +451,18 @@ export default function TaskIssue() {
         addStep({ ...s, measure: fixed }, shape, target)
         return
       }
-      const step = stepForClick(
+      // 손에 든 화물이 있으면 첫 클릭은 그 화물의 DROP(품목 · 개수 = 콘솔 Hand).
+      const held = type === undefined ? heldForPlan(steps) : null
+      const base = stepForClick(
         steps,
         target,
         stockStore.map,
-        type,
+        held ? 'DROP' : type,
         // 재고가 빈 대상의 품목은 레일에서 **고른 품목** — 목록의 첫 품목으로 짐작하지 않는다.
         itemSel,
         robots.selected,
       )
+      const step = held ? { ...base, item_code: held.item_code || null, count: held.count } : base
       const mismatch = dropMismatch(steps, step, stockStore.map)
       if (mismatch) {
         setDropAsk({ step, shape, target, mismatch })

@@ -15,6 +15,7 @@ import {
   commit,
   move,
   nextType,
+  heldCargo,
   overlay,
   planRows,
   sameStationGroup,
@@ -794,5 +795,29 @@ describe('station stock stacking (2026-09-22)', () => {
     // 두 번째 DROP 은 첫 DROP 보다 한 단(240) 위
     expect((rows[3].z ?? 0) - (rows[1].z ?? 0)).toBe(240)
     expect(rows[1].z).toBe(planZ('DROP', 1100, item(1001, 240), 'mid', 2, 1).z)
+  })
+})
+
+describe('heldCargo — 손에 든 화물이면 첫 클릭은 DROP', () => {
+  const hand = { item_code: 3333, count: 1 }
+  const pick = {
+    id: 'p',
+    type: 'PICK' as const,
+    target: { kind: 'cell' as const, id: 101 },
+    item_code: 1001,
+    count: 1,
+    note: '',
+    robot: 2,
+  }
+  it('빈 계획 + Hand → 그 화물', () => {
+    expect(heldCargo([], hand, false)).toEqual(hand)
+  })
+  it('짝을 기다리는 PICK 이 있으면 그 PICK 의 DROP 이 먼저(Hand 아님)', () => {
+    expect(heldCargo([pick], hand, false)).toBeNull()
+  })
+  it('빈 손 · 이미 대기열에 DROP 이 있으면 PICK 부터', () => {
+    expect(heldCargo([], { item_code: 0, count: 0 }, false)).toBeNull()
+    expect(heldCargo([], null, false)).toBeNull()
+    expect(heldCargo([], hand, true)).toBeNull()
   })
 })

@@ -33,6 +33,8 @@ import {
   type PlanKind,
   type PlanStep,
 } from '../../lib/task/plan'
+import { heldForPlan } from '../../lib/task/held'
+import { jobs as jobStore } from '../../lib/jobs/store'
 import { Button } from '../../lib/ui/Button'
 import { InfoRows } from '../../lib/ui/Pair'
 import { f1 } from '../../lib/meas/format'
@@ -132,7 +134,7 @@ export function LayoutTab({
 }: LayoutTabProps) {
   const cellList = mapCells ?? cells.items
   const stationList = mapStations ?? stations.items
-  useStore(stockStore, tasks, robots, allStatus, stationLive)
+  useStore(stockStore, tasks, robots, allStatus, stationLive, jobStore)
   useEffect(() => stationLive.start(), [])
   useEffect(() => allStatus.start(), [])
   useEffect(() => tasks.start(), [])
@@ -163,7 +165,7 @@ export function LayoutTab({
   }, [highlightItem, cellList, stockVer])
   const [stockEdit, setStockEdit] = useState<StockEdit | null>(null)
   const [quick, setQuick] = useState<QuickStockTarget | null>(null)
-  const next = planKind === 'teach' ? 'TEACH' : nextType(plan)
+  const next = planKind === 'teach' ? 'TEACH' : heldForPlan(plan) ? 'DROP' : nextType(plan)
 
   // 로봇 작업 테두리 — 진행 중(running)은 실선, 제출~대기는 점선.
   const taskVer = tasks.getSnapshot()
